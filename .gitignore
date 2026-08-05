@@ -36,3 +36,18 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Local tooling and generated artifacts
+.pnpm-store/
+.tmp-tracera-deck/
+tmp/
+draft_rag/**/venv/
+draft_rag/**/__pycache__/
+draft_rag/**/.pytest_cache/
+draft_rag/**/data/
+apps/extension/.wxt/
+apps/extension/.output/
+apps/extension/node_modules/
+apps/mobile/.expo/
+apps/mobile/dist/
+apps/mobile/node_modules/

@@ -1,0 +1,20 @@
+# --- Phase 1: News Ingestion dependencies ---
+
+feedparser==6.0.11          # RSS/Atom feed parsing
+requests==2.32.3            # HTTP requests (GDELT API, feed fallback)
+beautifulsoup4==4.12.3      # HTML cleaning
+lxml==5.2.2                 # Fast HTML/XML parser backend for bs4
+python-dateutil==2.9.0.post0 # Robust date parsing across feed formats
+langdetect==1.0.9           # Language detection
+psycopg2-binary==2.9.9      # PostgreSQL driver
+python-dotenv==1.0.1        # Load .env into environment variables
+pydantic==2.8.2             # Data validation / typed models
+PyYAML==6.0.2                # Source config (sources.yaml)
+certifi==2024.7.4           # Up-to-date CA bundle (Windows cert-store fallback)
+truststore==0.9.2           # Uses the OS-native certificate store (fixes common Windows SSL errors)
+
+# --- Reserved for later phases (do not install yet) ---
+# sentence-transformers      # Phase 4: embeddings
+# pgvector                   # Phase 5: vector storage
+# rank-bm25                  # Phase 7: hybrid retrieval
+# langsmith                  # Phase 12: observability
