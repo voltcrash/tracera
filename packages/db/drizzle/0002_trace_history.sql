@@ -1,0 +1,11 @@
+ALTER TABLE "checks" ADD COLUMN "source_url" text;
+ALTER TABLE "checks" ADD COLUMN "published_at" timestamp with time zone;
+ALTER TABLE "checks" ADD COLUMN "ground_zero" jsonb;
+ALTER TABLE "checks" ADD COLUMN "prompts" jsonb DEFAULT '[]'::jsonb NOT NULL;
+ALTER TABLE "checks" ADD COLUMN "supersedes_check_id" uuid;
+ALTER TABLE "checks" ADD COLUMN "next_review_at" timestamp with time zone;
+ALTER TABLE "checks" ADD CONSTRAINT "checks_supersedes_check_id_checks_id_fk" FOREIGN KEY ("supersedes_check_id") REFERENCES "checks"("id") ON DELETE set null;
+CREATE TABLE "alert_subscriptions" ("id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,"check_id" uuid NOT NULL,"email" text NOT NULL,"active" varchar(5) DEFAULT 'true' NOT NULL,"created_at" timestamp with time zone DEFAULT now() NOT NULL);
+ALTER TABLE "alert_subscriptions" ADD CONSTRAINT "alert_subscriptions_check_id_checks_id_fk" FOREIGN KEY ("check_id") REFERENCES "checks"("id") ON DELETE cascade;
+CREATE INDEX "checks_source_url_idx" ON "checks" ("source_url");
+CREATE INDEX "checks_next_review_at_idx" ON "checks" ("next_review_at");
