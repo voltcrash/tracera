@@ -1,0 +1,27 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "set -a; . ./.env; set +a; tsx watch src/index.ts",
+    "build": "tsc --noEmit",
+    "start": "set -a; . ./.env; set +a; tsx src/index.ts",
+    "worker": "tsx --env-file=.env src/decay-worker.ts",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.5",
+    "@repo/ai": "workspace:*",
+    "@repo/db": "workspace:*",
+    "bullmq": "^5.58.5",
+    "hono": "^4.10.7",
+    "redis": "^5.8.2"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "tsx": "^4.20.6",
+    "typescript": "5.9.2"
+  }
+}
