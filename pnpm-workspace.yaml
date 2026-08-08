@@ -1,8 +1,9 @@
 packages:
   - "apps/*"
   - "packages/*"
+minimumReleaseAge: 0
 allowBuilds:
   esbuild: true
-  msgpackr-extract: set this to true or false
-  sharp: set this to true or false
-  spawn-sync: set this to true or false
+  msgpackr-extract: true
+  sharp: true
+  spawn-sync: true

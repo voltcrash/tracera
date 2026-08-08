@@ -2,10 +2,11 @@
   "name": "mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "expo/AppEntry",
+  "main": "index.ts",
   "scripts": {
-    "dev": "expo start",
-    "start": "expo start",
+    "dev": "expo start --tunnel",
+    "start": "expo start --tunnel",
+    "start:lan": "expo start --lan",
     "ios": "expo start --ios",
     "android": "expo start --android",
     "web": "expo start --web",
@@ -13,18 +14,18 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "expo": "^56.0.19",
-    "expo-image-picker": "~56.0.23",
-    "expo-status-bar": "~56.0.4",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "react-native": "0.85.3",
+    "expo": "^54.0.36",
+    "expo-image-picker": "~17.0.11",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
     "react-native-web": "~0.21.0"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.0",
     "@repo/typescript-config": "workspace:*",
-    "@types/react": "~19.2.4",
-    "typescript": "~6.0.3"
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
   }
 }
