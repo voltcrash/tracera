@@ -458,6 +458,45 @@ export async function dueChecks(limit = 50) {
   ).rows;
 }
 
+export async function recordDecayEvent(input: {
+  checkId?: string;
+  eventType: "scheduled" | "started" | "completed" | "changed" | "failed";
+  detail?: unknown;
+}) {
+  await pool.query(
+    `INSERT INTO decay_events (check_id, event_type, detail)
+     VALUES ($1, $2, $3::jsonb)`,
+    [
+      input.checkId ?? null,
+      input.eventType,
+      JSON.stringify(input.detail ?? {}),
+    ],
+  );
+}
+
+export async function getDecayObservability(limit = 100) {
+  const result = await pool.query<{
+    id: string;
+    check_id: string | null;
+    event_type: string;
+    detail: unknown;
+    created_at: string;
+  }>(
+    `SELECT id, check_id, event_type, detail, created_at
+       FROM decay_events
+      ORDER BY created_at DESC
+      LIMIT $1`,
+    [Math.min(Math.max(limit, 1), 500)],
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    checkId: row.check_id,
+    eventType: row.event_type,
+    detail: row.detail,
+    createdAt: row.created_at,
+  }));
+}
+
 export async function listChecks(page: number, pageSize: number, query = "") {
   const offset = (page - 1) * pageSize;
   const search = `%${query.trim()}%`;

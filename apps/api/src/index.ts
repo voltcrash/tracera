@@ -8,6 +8,7 @@ import {
   findLatestCheckByRawInput,
   findReusableExactCheck,
   getCheckById,
+  getDecayObservability,
   getTraceTimeline,
   listChecks,
   persistCheck,
@@ -164,6 +165,18 @@ app.get("/health", async (context) => {
       503,
     );
   }
+});
+
+app.get("/internal/decay/observability", async (context) => {
+  const token = process.env.INTERNAL_WORKER_TOKEN;
+  if (!token || context.req.header("x-tracera-worker-token") !== token) {
+    return context.json({ error: "Unauthorized" }, 401);
+  }
+  return context.json({
+    events: await getDecayObservability(
+      positiveInteger(context.req.query("limit"), 100, 500),
+    ),
+  });
 });
 
 app.post("/analyze", async (context) => {

@@ -14,8 +14,12 @@ export const users = pgTable("users", {
   /** Always stored lowercase so email addresses are unique case-insensitively. */
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const authSessions = pgTable("auth_sessions", {
@@ -26,7 +30,9 @@ export const authSessions = pgTable("auth_sessions", {
   /** SHA-256 hash of the opaque browser token; the token itself is never persisted. */
   tokenHash: text("token_hash").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const checks = pgTable("checks", {
@@ -50,7 +56,9 @@ export const checks = pgTable("checks", {
   traceraScore: jsonb("tracera_score").notNull(),
   /** Complete structured pipeline result, used when a fresh check is reused. */
   analysis: jsonb("analysis").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const claims = pgTable("claims", {
@@ -66,15 +74,39 @@ export const claims = pgTable("claims", {
   reasoning: text("reasoning"),
   evidenceQuality: numeric("evidence_quality", { precision: 5, scale: 4 }),
   embedding: vector("embedding", { dimensions: 1024 }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const domains = pgTable("domains", {
   domain: text("domain").primaryKey(),
   trustScore: numeric("trust_score", { precision: 5, scale: 4 }).notNull(),
-  lastUpdated: timestamp("last_updated", { withTimezone: true }).notNull().defaultNow(),
+  lastUpdated: timestamp("last_updated", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export const alertSubscriptions = pgTable("alert_subscriptions", {
-  id: uuid("id").defaultRandom().primaryKey(), checkId: uuid("check_id").notNull().references(() => checks.id, { onDelete: "cascade" }), email: text("email").notNull(), active: varchar("active", { length: 5 }).notNull().default("true"), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  id: uuid("id").defaultRandom().primaryKey(),
+  checkId: uuid("check_id")
+    .notNull()
+    .references(() => checks.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  active: varchar("active", { length: 5 }).notNull().default("true"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const decayEvents = pgTable("decay_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  checkId: uuid("check_id").references(() => checks.id, {
+    onDelete: "set null",
+  }),
+  eventType: varchar("event_type", { length: 48 }).notNull(),
+  detail: jsonb("detail").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });

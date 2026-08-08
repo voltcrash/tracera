@@ -50,6 +50,13 @@
       "when": 1786200000000,
       "tag": "0006_check_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786201000000,
+      "tag": "0007_decay_observability",
+      "breakpoints": true
     }
   ]
 }
