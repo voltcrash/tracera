@@ -6,7 +6,7 @@ import {
   checkDatabase,
   findGroundZeroCorpusHistory,
   findLatestCheckByRawInput,
-  findRecentCheckByEmbedding,
+  findReusableExactCheck,
   getCheckById,
   getTraceTimeline,
   listChecks,
@@ -176,18 +176,32 @@ app.post("/analyze", async (context) => {
     const provider = configuredProvider(requestSignal);
     const normalized = await normalizeWithStoredFallback(body, provider);
     const inputEmbedding = await provider.embed(normalized.text);
-    const cached = await findRecentCheckByEmbedding(
-      inputEmbedding,
-      environmentNumber("DEDUP_SIMILARITY_THRESHOLD", 0.92, 0, 1),
-      environmentNumber("DEDUP_MAX_AGE_HOURS", 24, 1),
+    const forceReanalysis = Boolean(
+      body &&
+      typeof body === "object" &&
+      (body as { forceReanalysis?: unknown }).forceReanalysis,
     );
+    const cacheHours = environmentNumber("DEDUP_MAX_AGE_HOURS", 24, 1, 24 * 30);
+    const cached =
+      forceReanalysis || recheckOf
+        ? null
+        : await findReusableExactCheck(
+            normalized.rawInput,
+            cacheHours,
+            user?.id,
+          );
 
     // A previous version stored empty analyses when a URL was sent as text.
     // Never serve that invalid cache entry; rerun it with normalized link input.
-    if (!recheckOf && cached && hasRetrievedEvidence(cached.analysis.claims)) {
+    if (cached && hasRetrievedEvidence(cached.analysis.claims)) {
       return context.json({
         cached: true,
-        dedupSimilarity: cached.similarity,
+        reuse: {
+          state: "reused_exact",
+          expiresAt: cached.expiresAt,
+          policy:
+            "This is an identical recent submission. Similar stories are analyzed again and only prior verified claims are used as context.",
+        },
         check: { id: cached.id, createdAt: cached.createdAt },
         claims: cached.analysis.claims,
         traceraScore: cached.analysis.score,
@@ -251,6 +265,14 @@ app.post("/analyze", async (context) => {
         claims: result.claims,
         traceraScore: result.score,
         groundZero,
+        reuse: {
+          state: forceReanalysis
+            ? "reanalyzed"
+            : recheckOf
+              ? "scheduled_recheck"
+              : "fresh",
+          relatedContextClaims: relatedContextCount(result.claims),
+        },
       },
       201,
     );
@@ -393,6 +415,16 @@ async function analyzeText(
   }
 
   return { claims, claimEmbeddings, score: aggregateScore(claims) };
+}
+
+function relatedContextCount(claims: ClaimVerdict[]) {
+  return claims.reduce(
+    (count, claim) =>
+      count +
+      claim.consideredSources.filter((source) => source.type === "corpus")
+        .length,
+    0,
+  );
 }
 
 function hasRetrievedEvidence(claims: unknown[]) {

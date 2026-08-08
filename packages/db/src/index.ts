@@ -32,6 +32,7 @@ export interface CachedCheck {
   analysis: StoredAnalysis;
   createdAt: string;
   similarity: number;
+  expiresAt: string;
 }
 
 export interface GroundZeroCorpusHistoryItem {
@@ -247,9 +248,11 @@ export async function findRecentCheckByEmbedding(
     tracera_score: unknown;
     analysis: StoredAnalysis;
     created_at: string;
+    expires_at: string;
     similarity: number;
   }>(
     `SELECT id, raw_input, tracera_score, analysis, created_at,
+       created_at + ($2 * INTERVAL '1 hour') AS expires_at,
        1 - (embedding <=> $1::vector) AS similarity
      FROM checks
      WHERE created_at >= NOW() - ($2 * INTERVAL '1 hour')
@@ -268,6 +271,46 @@ export async function findRecentCheckByEmbedding(
         analysis: row.analysis,
         createdAt: row.created_at,
         similarity: Number(row.similarity),
+        expiresAt: row.expires_at,
+      }
+    : null;
+}
+
+/** Reuses only a normalized-identical submission within the configured window. */
+export async function findReusableExactCheck(
+  rawInput: string,
+  maxAgeHours: number,
+  ownerUserId?: string,
+): Promise<CachedCheck | null> {
+  const normalized = rawInput.replace(/\s+/g, " ").trim().toLowerCase();
+  const result = await pool.query<{
+    id: string;
+    raw_input: string;
+    tracera_score: unknown;
+    analysis: StoredAnalysis;
+    created_at: string;
+    expires_at: string;
+  }>(
+    `SELECT id, raw_input, tracera_score, analysis, created_at,
+       created_at + ($2 * INTERVAL '1 hour') AS expires_at
+       FROM checks
+      WHERE created_at >= NOW() - ($2 * INTERVAL '1 hour')
+        AND lower(regexp_replace(trim(raw_input), '\\s+', ' ', 'g')) = $1
+        AND (visibility = 'public' OR owner_user_id = $3)
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [normalized, maxAgeHours, ownerUserId ?? null],
+  );
+  const row = result.rows[0];
+  return row
+    ? {
+        id: row.id,
+        rawInput: row.raw_input,
+        traceraScore: row.tracera_score,
+        analysis: row.analysis,
+        createdAt: row.created_at,
+        similarity: 1,
+        expiresAt: row.expires_at,
       }
     : null;
 }

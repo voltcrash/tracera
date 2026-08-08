@@ -19,6 +19,11 @@ type GroundZero = {
   earliestSource: { title: string; url?: string; publisher?: string } | null;
   signals: string[];
 };
+type ReuseState = {
+  state: "reused_exact" | "fresh" | "reanalyzed" | "scheduled_recheck";
+  expiresAt?: string;
+  relatedContextClaims?: number;
+};
 
 export default function Home() {
   const [text, setText] = useState("");
@@ -32,19 +37,23 @@ export default function Home() {
     traceraScore: TraceraScore;
     cached: boolean;
     groundZero?: GroundZero;
+    reuse?: ReuseState;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function analyze(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function analyze(
+    event?: FormEvent<HTMLFormElement>,
+    forceReanalysis = false,
+  ) {
+    event?.preventDefault();
     if (!text.trim() && !image) return;
     setLoading(true);
     setError(null);
     setResult(null);
     try {
       const value = text.trim();
-      const body = image
+      const request = image
         ? { image: image.dataUrl, imageMimeType: image.mimeType }
         : isHttpUrl(value)
           ? { url: value }
@@ -53,13 +62,14 @@ export default function Home() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(
+          forceReanalysis ? { ...request, forceReanalysis: true } : request,
+        ),
       });
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error ?? "Unable to analyze this text.");
       setResult(data);
-      setImage(null);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -218,22 +228,63 @@ export default function Home() {
             <div className="mb-2 flex items-center gap-2 text-sm font-bold text-emerald-700">
               <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.15)]" />{" "}
               Analysis complete{" "}
-              {result.cached && (
-                <span className="font-medium text-emerald-950/50">
-                  · recent matching check
-                </span>
-              )}
+              <ReuseNotice reuse={result.reuse} cached={result.cached} />
             </div>
             <AnalysisResult
               claims={result.claims}
               score={result.traceraScore}
             />
+            {result.reuse?.state === "reused_exact" && (
+              <button
+                type="button"
+                onClick={() => void analyze(undefined, true)}
+                disabled={loading}
+                className="mt-4 rounded-xl border border-emerald-900/15 bg-white px-4 py-2.5 text-sm font-black text-emerald-800 transition hover:bg-emerald-50 disabled:opacity-50"
+              >
+                Analyze again with current evidence
+              </button>
+            )}
             {result.groundZero && <GroundZeroCard trace={result.groundZero} />}
           </section>
         )}
       </div>
     </main>
   );
+}
+
+function ReuseNotice({
+  reuse,
+  cached,
+}: {
+  reuse?: ReuseState;
+  cached: boolean;
+}) {
+  if (reuse?.state === "reused_exact" && reuse.expiresAt) {
+    return (
+      <span className="font-medium text-emerald-950/50">
+        · identical recent trace reused until{" "}
+        {new Date(reuse.expiresAt).toLocaleString()}
+      </span>
+    );
+  }
+  if (reuse?.state === "reanalyzed")
+    return (
+      <span className="font-medium text-emerald-950/50">
+        · freshly re-analyzed on request
+      </span>
+    );
+  if (reuse && reuse.relatedContextClaims)
+    return (
+      <span className="font-medium text-emerald-950/50">
+        · analyzed fresh with {reuse.relatedContextClaims} related verified
+        claim{reuse.relatedContextClaims === 1 ? "" : "s"} as context
+      </span>
+    );
+  return cached ? (
+    <span className="font-medium text-emerald-950/50">
+      · recent matching check
+    </span>
+  ) : null;
 }
 
 function GroundZeroCard({ trace }: { trace: GroundZero }) {
