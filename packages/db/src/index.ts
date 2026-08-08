@@ -329,6 +329,7 @@ export async function persistCheck(input: {
   groundZero?: unknown;
   prompts?: unknown[];
   ownerUserId?: string;
+  visibility?: "public" | "private";
   supersedesCheckId?: string;
 }): Promise<{ id: string; createdAt: string }> {
   const client = await pool.connect();
@@ -336,8 +337,8 @@ export async function persistCheck(input: {
   try {
     await client.query("BEGIN");
     const check = await client.query<{ id: string; created_at: string }>(
-      `INSERT INTO checks (input_type, raw_input, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, supersedes_check_id, next_review_at)
-       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, NOW() + INTERVAL '24 hours')
+      `INSERT INTO checks (input_type, raw_input, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, visibility, supersedes_check_id, next_review_at)
+       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, NOW() + INTERVAL '24 hours')
        RETURNING id, created_at`,
       [
         input.inputType ?? "text",
@@ -351,6 +352,7 @@ export async function persistCheck(input: {
         JSON.stringify(input.groundZero ?? null),
         JSON.stringify(input.prompts ?? []),
         input.ownerUserId ?? null,
+        input.visibility ?? "public",
         input.supersedesCheckId ?? null,
       ],
     );
@@ -544,7 +546,12 @@ export async function getDecayObservability(limit = 100) {
   }));
 }
 
-export async function listChecks(page: number, pageSize: number, query = "") {
+export async function listChecks(
+  page: number,
+  pageSize: number,
+  query = "",
+  ownerUserId?: string,
+) {
   const offset = (page - 1) * pageSize;
   const search = `%${query.trim()}%`;
   const [items, total] = await Promise.all([
@@ -553,17 +560,22 @@ export async function listChecks(page: number, pageSize: number, query = "") {
       raw_input: string;
       tracera_score: unknown;
       created_at: string;
+      source_domain: string | null;
+      source_url: string | null;
+      published_at: string | null;
+      next_review_at: string | null;
+      visibility: "public" | "private";
     }>(
-      `SELECT id, raw_input, tracera_score, created_at
+      `SELECT id, raw_input, tracera_score, created_at, source_domain, source_url, published_at, next_review_at, visibility
        FROM checks
-       WHERE raw_input ILIKE $1
+       WHERE raw_input ILIKE $1 AND (visibility = 'public' OR owner_user_id = $4)
        ORDER BY created_at DESC
        LIMIT $2 OFFSET $3`,
-      [search, pageSize, offset],
+      [search, pageSize, offset, ownerUserId ?? null],
     ),
     pool.query<{ count: string }>(
-      "SELECT COUNT(*)::text AS count FROM checks WHERE raw_input ILIKE $1",
-      [search],
+      "SELECT COUNT(*)::text AS count FROM checks WHERE raw_input ILIKE $1 AND (visibility = 'public' OR owner_user_id = $2)",
+      [search, ownerUserId ?? null],
     ),
   ]);
 
@@ -573,25 +585,45 @@ export async function listChecks(page: number, pageSize: number, query = "") {
       rawInput: snippet(row.raw_input),
       traceraScore: row.tracera_score,
       createdAt: row.created_at,
+      sourceDomain: row.source_domain,
+      sourceUrl: row.source_url,
+      publishedAt: row.published_at,
+      visibility: row.visibility,
+      reanalysisState:
+        row.next_review_at &&
+        new Date(row.next_review_at).getTime() <= Date.now()
+          ? "review_due"
+          : "scheduled",
     })),
     total: Number(total.rows[0]?.count ?? 0),
   };
 }
 
 /** Returns a complete stored check, including the original input and structured analysis. */
-export async function getCheckById(id: string) {
+export async function getCheckById(
+  id: string,
+  ownerUserId?: string,
+  allowPrivate = false,
+) {
   const result = await pool.query<{
     id: string;
     raw_input: string;
     tracera_score: unknown;
     analysis: StoredAnalysis;
     created_at: string;
+    source_domain: string | null;
+    source_url: string | null;
+    published_at: string | null;
+    ground_zero: unknown;
+    next_review_at: string | null;
+    visibility: "public" | "private";
+    owner_user_id: string | null;
   }>(
-    `SELECT id, raw_input, tracera_score, analysis, created_at
+    `SELECT id, raw_input, tracera_score, analysis, created_at, source_domain, source_url, published_at, ground_zero, next_review_at, visibility, owner_user_id
      FROM checks
-     WHERE id = $1
+     WHERE id = $1 AND ($3::boolean OR visibility = 'public' OR owner_user_id = $2)
      LIMIT 1`,
-    [id],
+    [id, ownerUserId ?? null, allowPrivate],
   );
   const row = result.rows[0];
 
@@ -602,6 +634,13 @@ export async function getCheckById(id: string) {
         traceraScore: row.tracera_score,
         analysis: row.analysis,
         createdAt: row.created_at,
+        sourceDomain: row.source_domain,
+        sourceUrl: row.source_url,
+        publishedAt: row.published_at,
+        groundZero: row.ground_zero,
+        nextReviewAt: row.next_review_at,
+        visibility: row.visibility,
+        ownerUserId: row.owner_user_id,
       }
     : null;
 }

@@ -11,6 +11,10 @@ type CheckSummary = {
   rawInput: string;
   traceraScore: TraceraScore;
   createdAt: string;
+  sourceDomain: string | null;
+  publishedAt: string | null;
+  visibility: "public" | "private";
+  reanalysisState: "scheduled" | "review_due";
 };
 
 export default function HubPage() {
@@ -156,9 +160,9 @@ export default function HubPage() {
           {visible.length > 0 && (
             <>
               <div className="mt-5 overflow-hidden rounded-[1.75rem] border border-emerald-950/10 bg-white shadow-[0_20px_60px_-42px_rgba(16,34,31,.6)]">
-                <div className="hidden grid-cols-[1fr_8rem_8rem_1.5rem] gap-4 border-b border-emerald-950/8 bg-emerald-950/[.03] px-6 py-3 text-[10px] font-black tracking-[.14em] text-emerald-950/45 sm:grid">
+                <div className="hidden grid-cols-[1fr_9rem_8rem_1.5rem] gap-4 border-b border-emerald-950/8 bg-emerald-950/[.03] px-6 py-3 text-[10px] font-black tracking-[.14em] text-emerald-950/45 sm:grid">
                   <span>CHECKED TEXT</span>
-                  <span>SIGNAL SCORE</span>
+                  <span>SOURCE · STATUS</span>
                   <span>LAST CHECKED</span>
                   <span />
                 </div>
@@ -166,12 +170,21 @@ export default function HubPage() {
                   <Link
                     key={check.id}
                     href={`/hub/${check.id}`}
-                    className="group grid gap-3 border-b border-emerald-950/8 px-5 py-5 transition last:border-0 hover:bg-emerald-50/60 sm:grid-cols-[1fr_8rem_8rem_1.5rem] sm:items-center sm:gap-4 sm:px-6"
+                    className="group grid gap-3 border-b border-emerald-950/8 px-5 py-5 transition last:border-0 hover:bg-emerald-50/60 sm:grid-cols-[1fr_9rem_8rem_1.5rem] sm:items-center sm:gap-4 sm:px-6"
                   >
                     <p className="line-clamp-2 text-sm font-bold leading-6 text-emerald-950 group-hover:text-emerald-700">
                       {check.rawInput}
                     </p>
-                    <Score value={check.traceraScore.overall} />
+                    <div>
+                      <Score value={check.traceraScore.overall} />
+                      <p className="mt-1 text-[10px] font-bold text-emerald-950/45">
+                        {check.sourceDomain ?? "Direct submission"} ·{" "}
+                        {check.reanalysisState === "review_due"
+                          ? "re-analysis due"
+                          : "monitoring"}
+                        {check.visibility === "private" ? " · private" : ""}
+                      </p>
+                    </div>
                     <time
                       dateTime={check.createdAt}
                       className="text-sm font-medium text-emerald-950/45"

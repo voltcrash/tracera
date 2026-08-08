@@ -16,6 +16,13 @@ type Check = {
   createdAt: string;
   traceraScore: TraceraScore;
   analysis: { claims: ClaimResult[]; score: TraceraScore };
+  sourceDomain: string | null;
+  sourceUrl: string | null;
+  publishedAt: string | null;
+  groundZero?: {
+    confidence: string;
+    earliestSource: { title: string; url?: string } | null;
+  };
 };
 type TimelineEntry = {
   id: string;
@@ -36,8 +43,8 @@ export default function CheckDetailPage({
   useEffect(() => {
     params.then(({ id }) =>
       Promise.all([
-        fetch(`${apiUrl}/checks/${id}`),
-        fetch(`${apiUrl}/checks/${id}/timeline`),
+        fetch(`${apiUrl}/checks/${id}`, { credentials: "include" }),
+        fetch(`${apiUrl}/checks/${id}/timeline`, { credentials: "include" }),
       ])
         .then(async ([checkResponse, timelineResponse]) => {
           const [checkData, timelineData] = await Promise.all([
@@ -102,6 +109,26 @@ export default function CheckDetailPage({
             >
               Checked {new Date(check.createdAt).toLocaleString()}
             </time>
+            {(check.sourceDomain || check.publishedAt) && (
+              <p className="mt-2 text-sm text-emerald-950/55">
+                Source:{" "}
+                {check.sourceUrl ? (
+                  <a
+                    href={check.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-bold text-emerald-800 underline"
+                  >
+                    {check.sourceDomain ?? check.sourceUrl}
+                  </a>
+                ) : (
+                  check.sourceDomain
+                )}
+                {check.publishedAt
+                  ? ` · published ${new Date(check.publishedAt).toLocaleDateString()}`
+                  : ""}
+              </p>
+            )}
             <blockquote className="mt-8 rounded-[1.75rem] border border-emerald-950/10 border-l-4 border-l-emerald-500 bg-white p-6 text-base leading-7 text-emerald-950/75 shadow-[0_18px_50px_-35px_rgba(16,34,31,.55)] sm:p-8">
               {check.rawInput}
             </blockquote>

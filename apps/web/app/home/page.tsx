@@ -8,6 +8,7 @@ import {
   type TraceraScore,
 } from "../components/analysis-result";
 import { AppHeader } from "../components/app-header";
+import { useAuth } from "../components/auth-provider";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const example =
@@ -26,6 +27,7 @@ type ReuseState = {
 };
 
 export default function Home() {
+  const { user } = useAuth();
   const [text, setText] = useState("");
   const [image, setImage] = useState<{
     dataUrl: string;
@@ -41,6 +43,7 @@ export default function Home() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [privateTrace, setPrivateTrace] = useState(false);
 
   async function analyze(
     event?: FormEvent<HTMLFormElement>,
@@ -62,9 +65,11 @@ export default function Home() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          forceReanalysis ? { ...request, forceReanalysis: true } : request,
-        ),
+        body: JSON.stringify({
+          ...request,
+          ...(forceReanalysis ? { forceReanalysis: true } : {}),
+          ...(privateTrace ? { visibility: "private" } : {}),
+        }),
       });
       const data = await response.json();
       if (!response.ok)
@@ -195,6 +200,17 @@ export default function Home() {
                 )}
               </button>
             </div>
+            {user && (
+              <label className="mt-1 flex cursor-pointer items-center gap-2 px-3 pb-2 text-xs font-semibold text-emerald-950/60">
+                <input
+                  type="checkbox"
+                  checked={privateTrace}
+                  onChange={(event) => setPrivateTrace(event.target.checked)}
+                  disabled={loading}
+                />{" "}
+                Keep this trace private
+              </label>
+            )}
           </form>
           <p className="mt-4 text-center text-xs font-medium text-emerald-950/45">
             Links are detected automatically. Images up to 5 MB can be checked

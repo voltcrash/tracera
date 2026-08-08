@@ -188,6 +188,16 @@ app.post("/analyze", async (context) => {
     const recheckOf = authorizedRecheckId(context, body);
     const requestSignal = context.req.raw.signal;
     const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+    const parentCheck = recheckOf
+      ? await getCheckById(recheckOf, undefined, true)
+      : null;
+    if (recheckOf && !parentCheck)
+      throw new Error("Recheck target was not found.");
+    const visibility = requestedVisibility(
+      body,
+      user?.id,
+      parentCheck?.visibility,
+    );
     const provider = configuredProvider(requestSignal);
     const normalized = await normalizeWithStoredFallback(body, provider);
     const inputEmbedding = await provider.embed(normalized.text);
@@ -269,7 +279,8 @@ app.post("/analyze", async (context) => {
         },
         ...auditLog,
       ],
-      ownerUserId: user?.id,
+      ownerUserId: parentCheck?.ownerUserId ?? user?.id,
+      visibility,
       supersedesCheckId: recheckOf ?? undefined,
     });
 
@@ -304,6 +315,9 @@ app.post("/analyze", async (context) => {
 app.get("/checks/:id/timeline", async (context) => {
   const id = context.req.param("id");
   if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
+  const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+  if (!(await getCheckById(id, user?.id)))
+    return context.json({ error: "Check not found." }, 404);
   return context.json({ timeline: await getTraceTimeline(id) });
 });
 app.post("/checks/:id/alerts", async (context) => {
@@ -317,6 +331,8 @@ app.post("/checks/:id/alerts", async (context) => {
       { error: "A valid check and email are required." },
       400,
     );
+  if (!(await getCheckById(id, user?.id)))
+    return context.json({ error: "Check not found." }, 404);
   return context.json({ subscription: await subscribeToCheck(id, email) }, 201);
 });
 app.get("/checks/:id/alerts", async (context) => {
@@ -342,6 +358,8 @@ app.delete("/checks/:id/alerts", async (context) => {
     );
   if (user && requestedEmail && normalizeEmail(requestedEmail) !== user.email)
     return context.json({ error: "You can only manage your own alerts." }, 403);
+  if (!(await getCheckById(id, user?.id)))
+    return context.json({ error: "Check not found." }, 404);
   await unsubscribeFromCheck(id, email);
   return context.body(null, 204);
 });
@@ -363,7 +381,8 @@ app.get("/checks", async (context) => {
   const query = (context.req.query("q") ?? "").slice(0, 200);
 
   try {
-    const result = await listChecks(page, pageSize, query);
+    const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+    const result = await listChecks(page, pageSize, query, user?.id);
     return context.json({
       checks: result.checks,
       pagination: {
@@ -390,7 +409,8 @@ app.get("/checks/:id", async (context) => {
   if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
 
   try {
-    const check = await getCheckById(id);
+    const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+    const check = await getCheckById(id, user?.id);
     if (!check) return context.json({ error: "Check not found." }, 404);
     return context.json({ check });
   } catch (error) {
@@ -674,6 +694,24 @@ function authorizedRecheckId(context: Context, body: unknown) {
   }
   if (!isUuid(recheckOf)) throw new Error("Invalid recheck target.");
   return recheckOf;
+}
+
+function requestedVisibility(
+  body: unknown,
+  userId: string | undefined,
+  inherited?: "public" | "private",
+): "public" | "private" {
+  if (inherited) return inherited;
+  const requested =
+    body &&
+    typeof body === "object" &&
+    (body as { visibility?: unknown }).visibility === "private"
+      ? "private"
+      : "public";
+  if (requested === "private" && !userId) {
+    throw new Error("Sign in before saving a private trace.");
+  }
+  return requested;
 }
 
 function environmentNumber(
