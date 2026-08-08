@@ -16,7 +16,7 @@ than by screen.
 - [x] Add web image upload/camera input and image-result provenance details.
 - [x] Bring mobile to feature parity: durable auth session, Ground Zero,
       timeline, alerts, and complete evidence details.
-- [ ] Build the reactive extension experience: content-script claim detection,
+- [x] Build the reactive extension experience: content-script claim detection,
       inline highlights, explanations, and recheck updates.
 - [ ] Add account hardening: password reset, email verification, session
       management, and rate/abuse protection.

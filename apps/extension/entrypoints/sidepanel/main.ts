@@ -1,7 +1,13 @@
-import type { AnalysisResponse, ClaimResult, PageSnapshot } from "../../shared/contracts";
+import type {
+  AnalysisResponse,
+  ClaimResult,
+  PageSnapshot,
+} from "../../shared/contracts";
 import "./style.css";
 
-const API_URL = (import.meta.env.WXT_TRACERA_API_URL ?? "http://localhost:3001").replace(/\/$/, "");
+const API_URL = (
+  import.meta.env.WXT_TRACERA_API_URL ?? "http://localhost:3001"
+).replace(/\/$/, "");
 const appElement = document.querySelector<HTMLElement>("#app");
 
 if (!appElement) throw new Error("Tracera side panel could not start.");
@@ -9,16 +15,20 @@ const app: HTMLElement = appElement;
 
 void startAnalysis();
 
-async function startAnalysis() {
+async function startAnalysis(forceReanalysis = false) {
   renderLoading();
   try {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (!tab?.id) throw new Error("No active browser tab is available to analyze.");
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      lastFocusedWindow: true,
+    });
+    if (!tab?.id)
+      throw new Error("No active browser tab is available to analyze.");
 
-    const extracted = await chrome.runtime.sendMessage({
+    const extracted = (await chrome.runtime.sendMessage({
       type: "tracera:extract-page",
       tabId: tab.id,
-    }) as { snapshot?: PageSnapshot; error?: string };
+    })) as { snapshot?: PageSnapshot; error?: string };
     if (extracted.error || !extracted.snapshot) {
       throw new Error(extracted.error ?? "This page could not be read.");
     }
@@ -29,19 +39,33 @@ async function startAnalysis() {
       body: JSON.stringify({
         text: extracted.snapshot.text,
         sourceUrl: extracted.snapshot.url,
+        ...(forceReanalysis ? { forceReanalysis: true } : {}),
       }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(readError(payload) ?? "Tracera could not analyze this page.");
+      throw new Error(
+        readError(payload) ?? "Tracera could not analyze this page.",
+      );
     }
     if (!isAnalysisResponse(payload)) {
-      throw new Error("Tracera received an incomplete analysis. Please try again.");
+      throw new Error(
+        "Tracera received an incomplete analysis. Please try again.",
+      );
     }
 
+    await chrome.runtime.sendMessage({
+      type: "tracera:highlight-claims",
+      tabId: tab.id,
+      claims: payload.claims,
+    });
     renderResult(payload, extracted.snapshot);
   } catch (error) {
-    renderError(error instanceof Error ? error.message : "Tracera could not analyze this page.");
+    renderError(
+      error instanceof Error
+        ? error.message
+        : "Tracera could not analyze this page.",
+    );
   }
 }
 
@@ -66,7 +90,9 @@ function renderError(message: string) {
       <button id="retry" type="button">Try again</button>
       <p class="hint">Make sure the Tracera API is running at ${escapeHtml(API_URL)}.</p>
     </section>`;
-  document.querySelector<HTMLButtonElement>("#retry")?.addEventListener("click", () => void startAnalysis());
+  document
+    .querySelector<HTMLButtonElement>("#retry")
+    ?.addEventListener("click", () => void startAnalysis());
 }
 
 function renderResult(result: AnalysisResponse, page: PageSnapshot) {
@@ -87,7 +113,9 @@ function renderResult(result: AnalysisResponse, page: PageSnapshot) {
     </section>
     ${renderGroundZero(result)}
     <section class="claims"><div class="section-heading"><p class="eyebrow">CLAIM BREAKDOWN</p><span>${result.claims.length} checked</span></div>${result.claims.map(renderClaim).join("")}</section>`;
-  document.querySelector<HTMLButtonElement>("#recheck")?.addEventListener("click", () => void startAnalysis());
+  document
+    .querySelector<HTMLButtonElement>("#recheck")
+    ?.addEventListener("click", () => void startAnalysis(true));
 }
 
 function renderGroundZero(result: AnalysisResponse) {
@@ -95,7 +123,9 @@ function renderGroundZero(result: AnalysisResponse) {
   if (!source) return "";
   const sourceLabel = escapeHtml(source.publisher || source.title);
   const sourceUrl = externalUrl(source.url);
-  const sourceLink = sourceUrl ? `<a href="${escapeAttribute(sourceUrl)}" target="_blank" rel="noreferrer">${sourceLabel} ↗</a>` : sourceLabel;
+  const sourceLink = sourceUrl
+    ? `<a href="${escapeAttribute(sourceUrl)}" target="_blank" rel="noreferrer">${sourceLabel} ↗</a>`
+    : sourceLabel;
   return `<section class="ground-zero"><p class="eyebrow">GROUND ZERO</p><p>Earliest source found: ${sourceLink}</p></section>`;
 }
 
@@ -104,10 +134,17 @@ function renderClaim(claim: ClaimResult) {
     .slice(0, 2)
     .flatMap((source) => {
       const url = externalUrl(source.url);
-      return url ? [`<a href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(source.publisher || source.title)} ↗</a>`] : [];
+      return url
+        ? [
+            `<a href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(source.publisher || source.title)} ↗</a>`,
+          ]
+        : [];
     })
     .join("");
-  const reasoning = claim.reasoning.slice(0, 2).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+  const reasoning = claim.reasoning
+    .slice(0, 2)
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("");
   return `<article class="claim"><div class="claim-top"><span class="verdict ${claim.verdict}">${escapeHtml(verdictLabel(claim.verdict))}</span><span>${Math.round(claim.confidence * 100)}% confidence</span></div><h2>${escapeHtml(claim.claim.claimText)}</h2>${reasoning ? `<ul>${reasoning}</ul>` : ""}${sources ? `<div class="sources">${sources}</div>` : ""}</article>`;
 }
 
@@ -119,32 +156,44 @@ function dimension(label: string, value: number) {
 function isAnalysisResponse(value: unknown): value is AnalysisResponse {
   if (!value || typeof value !== "object") return false;
   const data = value as Partial<AnalysisResponse>;
-  return Array.isArray(data.claims) && typeof data.traceraScore?.overall === "number";
+  return (
+    Array.isArray(data.claims) && typeof data.traceraScore?.overall === "number"
+  );
 }
 
 function readError(value: unknown) {
-  return value && typeof value === "object" && typeof (value as { error?: unknown }).error === "string"
+  return value &&
+    typeof value === "object" &&
+    typeof (value as { error?: unknown }).error === "string"
     ? (value as { error: string }).error
     : undefined;
 }
 
 function safeHostname(url: string) {
-  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "Current page"; }
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "Current page";
+  }
 }
 
 function externalUrl(value: string | undefined) {
   if (!value) return undefined;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.href
+      : undefined;
   } catch {
     return undefined;
   }
 }
 
 function scoreSummary(score: number) {
-  if (score >= 80) return "The checked claims are well supported by the available evidence.";
-  if (score >= 60) return "The story has support, but some evidence or context remains incomplete.";
+  if (score >= 80)
+    return "The checked claims are well supported by the available evidence.";
+  if (score >= 60)
+    return "The story has support, but some evidence or context remains incomplete.";
   return "Treat this story carefully: the available evidence has significant gaps or conflicts.";
 }
 

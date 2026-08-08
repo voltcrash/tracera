@@ -7,7 +7,9 @@ export default defineBackground(() => {
   const enableActionClick = () =>
     chrome.sidePanel
       .setPanelBehavior({ openPanelOnActionClick: true })
-      .catch((error) => console.error("Unable to enable Tracera side panel", error));
+      .catch((error) =>
+        console.error("Unable to enable Tracera side panel", error),
+      );
 
   void enableActionClick();
   chrome.runtime.onInstalled.addListener(enableActionClick);
@@ -16,13 +18,25 @@ export default defineBackground(() => {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type !== "tracera:extract-page") return;
 
-    const tabId = typeof message.tabId === "number" ? message.tabId : sender.tab?.id;
+    const tabId =
+      typeof message.tabId === "number" ? message.tabId : sender.tab?.id;
     if (!tabId) {
       sendResponse({ error: "No browser tab is available to analyze." });
       return;
     }
 
     void extractPage(tabId).then(sendResponse);
+    return true;
+  });
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type !== "tracera:highlight-claims") return;
+    const tabId =
+      typeof message.tabId === "number" ? message.tabId : sender.tab?.id;
+    if (!tabId) return sendResponse({ error: "No browser tab is available." });
+    void chrome.tabs
+      .sendMessage(tabId, message)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ error: String(error) }));
     return true;
   });
 });
@@ -38,7 +52,9 @@ async function extractPage(
     const snapshot = result?.result;
 
     if (!snapshot?.text || !snapshot.url) {
-      return { error: "This page does not contain enough readable text to check." };
+      return {
+        error: "This page does not contain enough readable text to check.",
+      };
     }
 
     return { snapshot };
@@ -58,7 +74,10 @@ function readCurrentPage(): PageSnapshot | null {
     document.querySelector("main") ??
     document.querySelector('[role="main"]') ??
     document.body;
-  const title = document.querySelector("meta[property='og:title']")?.getAttribute("content") || document.title;
+  const title =
+    document
+      .querySelector("meta[property='og:title']")
+      ?.getAttribute("content") || document.title;
   const text = `${title}\n\n${root.innerText}`
     .replace(/\s{2,}/g, " ")
     .trim()
