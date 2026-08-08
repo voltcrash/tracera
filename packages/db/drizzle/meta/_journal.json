@@ -36,6 +36,13 @@
       "when": 1786163967622,
       "tag": "0004_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786191517441,
+      "tag": "0005_seed_domain_trust",
+      "breakpoints": true
     }
   ]
 }
