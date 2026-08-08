@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   AnalysisResult,
   type ClaimResult,
@@ -105,6 +105,7 @@ export default function CheckDetailPage({
             <blockquote className="mt-8 rounded-[1.75rem] border border-emerald-950/10 border-l-4 border-l-emerald-500 bg-white p-6 text-base leading-7 text-emerald-950/75 shadow-[0_18px_50px_-35px_rgba(16,34,31,.55)] sm:p-8">
               {check.rawInput}
             </blockquote>
+            <AlertSubscription checkId={check.id} />
             <TraceTimeline entries={timeline} />
             <AnalysisResult
               claims={check.analysis.claims}
@@ -114,6 +115,51 @@ export default function CheckDetailPage({
         )}
       </div>
     </main>
+  );
+}
+
+function AlertSubscription({ checkId }: { checkId: string }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  async function subscribe(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStatus(null);
+    const response = await fetch(`${apiUrl}/checks/${checkId}/alerts`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json();
+    setStatus(
+      response.ok
+        ? "You’ll be notified when this trace materially changes."
+        : (data.error ?? "Could not save your alert."),
+    );
+  }
+  return (
+    <form
+      onSubmit={subscribe}
+      className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl bg-emerald-950 p-4 text-white"
+    >
+      <div className="min-w-52 flex-1">
+        <p className="text-sm font-black">Follow this trace</p>
+        <p className="text-xs text-white/65">
+          Get an email when new evidence materially changes its score.
+        </p>
+      </div>
+      <input
+        required
+        type="email"
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+        placeholder="you@example.com"
+        className="rounded-xl px-3 py-2 text-sm text-emerald-950 outline-none"
+      />
+      <button className="rounded-xl bg-[#9cf0d1] px-4 py-2 text-sm font-black text-emerald-950">
+        Notify me
+      </button>
+      {status && <p className="w-full text-xs text-white/80">{status}</p>}
+    </form>
   );
 }
 
