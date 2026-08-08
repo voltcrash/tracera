@@ -1,0 +1,79 @@
+import {
+  jsonb,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+  vector,
+} from "drizzle-orm/pg-core";
+
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  /** Always stored lowercase so email addresses are unique case-insensitively. */
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const authSessions = pgTable("auth_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** SHA-256 hash of the opaque browser token; the token itself is never persisted. */
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const checks = pgTable("checks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  inputType: varchar("input_type", { length: 32 }).notNull(),
+  rawInput: text("raw_input").notNull(),
+  sourceDomain: text("source_domain"),
+  sourceUrl: text("source_url"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  groundZero: jsonb("ground_zero"),
+  prompts: jsonb("prompts").notNull().default([]),
+  supersedesCheckId: uuid("supersedes_check_id"),
+  nextReviewAt: timestamp("next_review_at", { withTimezone: true }),
+  /** Null preserves public/anonymous traces created before accounts were introduced. */
+  ownerUserId: uuid("owner_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  /** Embedding of rawInput, used to avoid re-running near-identical checks. */
+  embedding: vector("embedding", { dimensions: 1024 }).notNull(),
+  traceraScore: jsonb("tracera_score").notNull(),
+  /** Complete structured pipeline result, used when a fresh check is reused. */
+  analysis: jsonb("analysis").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const claims = pgTable("claims", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  checkId: uuid("check_id")
+    .notNull()
+    .references(() => checks.id, { onDelete: "cascade" }),
+  claimText: text("claim_text").notNull(),
+  claimType: varchar("claim_type", { length: 64 }).notNull(),
+  checkability: varchar("checkability", { length: 32 }).notNull(),
+  verdict: varchar("verdict", { length: 32 }),
+  confidence: numeric("confidence", { precision: 5, scale: 4 }),
+  reasoning: text("reasoning"),
+  evidenceQuality: numeric("evidence_quality", { precision: 5, scale: 4 }),
+  embedding: vector("embedding", { dimensions: 1024 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const domains = pgTable("domains", {
+  domain: text("domain").primaryKey(),
+  trustScore: numeric("trust_score", { precision: 5, scale: 4 }).notNull(),
+  lastUpdated: timestamp("last_updated", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const alertSubscriptions = pgTable("alert_subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(), checkId: uuid("check_id").notNull().references(() => checks.id, { onDelete: "cascade" }), email: text("email").notNull(), active: varchar("active", { length: 5 }).notNull().default("true"), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
