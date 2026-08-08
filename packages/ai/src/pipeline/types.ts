@@ -1,6 +1,11 @@
 export type ClaimType = "factual_assertion" | "opinion" | "framing";
 export type Checkability = "checkable" | "needs_context" | "not_checkable";
-export type Verdict = "supported" | "contradicted" | "misleading" | "mixed" | "unverified";
+export type Verdict =
+  | "supported"
+  | "contradicted"
+  | "misleading"
+  | "mixed"
+  | "unverified";
 
 export interface ExtractedClaim {
   id: string;
@@ -43,13 +48,19 @@ export interface NormalizedInput {
   sourceDomain?: string;
   publishedAt?: string;
   author?: string;
-  imageMetadata?: { mimeType?: string; reverseSearchUrl?: string; exif?: Record<string, string> };
+  imageMetadata?: {
+    mimeType?: string;
+    reverseSearchUrl?: string;
+    exif?: Record<string, string>;
+  };
 }
 
 export interface GroundZeroResult {
   status: "candidate" | "not_found";
   earliestSource: EvidenceSource | null;
   candidates: EvidenceSource[];
+  confidence: "low" | "moderate";
+  signals: string[];
   explanation: string;
 }
 
