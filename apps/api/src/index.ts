@@ -42,7 +42,15 @@ export const app = new Hono();
 app.use(
   "/*",
   cors({
-    origin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
+    // The browser extension has a unique chrome-extension:// origin on every
+    // install. Reflect only that origin (and the configured web app) so its
+    // side panel can call the local API without opening CORS to arbitrary sites.
+    origin: (origin) => {
+      const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
+      return origin === webOrigin || origin.startsWith("chrome-extension://")
+        ? origin
+        : undefined;
+    },
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type"],
     credentials: true,
