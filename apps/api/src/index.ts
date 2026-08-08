@@ -1,4 +1,3 @@
-import { serve } from "@hono/node-server";
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -7,6 +6,7 @@ import {
   deleteAuthSessionById,
   findUserByEmail,
   checkDatabase,
+  configureDatabase,
   findGroundZeroCorpusHistory,
   findLatestCheckByRawInput,
   findReusableExactCheck,
@@ -37,7 +37,7 @@ import {
   type ClaimVerdict,
   type TraceraScore,
 } from "@repo/ai";
-import { createClient } from "redis";
+import { Redis } from "@upstash/redis";
 import {
   authenticateUser,
   createSession,
@@ -55,18 +55,27 @@ import {
   sessionCookieOptions,
   updateUserPassword,
 } from "./auth.js";
+import { runDecaySweep } from "./decay.js";
 
-export const app = new Hono();
+export type Bindings = {
+  DATABASE_URL?: string;
+  UPSTASH_REDIS_REST_URL?: string;
+  UPSTASH_REDIS_REST_TOKEN?: string;
+  [key: string]: string | undefined;
+};
+
+export const app = new Hono<{ Bindings: Bindings }>();
 const rateLimitHits = new Map<string, { count: number; resetAt: number }>();
+let upstash: Redis | undefined;
+let upstashConfig: string | undefined;
+
+app.use("*", async (context, next) => {
+  configureDatabase(context.env.DATABASE_URL);
+  await next();
+});
 app.use("/auth/*", async (context, next) => {
   const key = `${context.req.path}:${context.req.header("x-forwarded-for") ?? "local"}`;
-  const now = Date.now();
-  const hit = rateLimitHits.get(key);
-  const current =
-    !hit || hit.resetAt <= now ? { count: 0, resetAt: now + 60_000 } : hit;
-  current.count += 1;
-  rateLimitHits.set(key, current);
-  if (current.count > 12)
+  if (!(await isWithinAuthRateLimit(key, context.env)))
     return context.json(
       { error: "Too many attempts. Please try again shortly." },
       429,
@@ -81,7 +90,7 @@ app.use(
     // side panel can call the local API without opening CORS to arbitrary sites.
     origin: (origin) => {
       const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
-      return origin === webOrigin || origin.startsWith("chrome-extension://")
+      return origin === webOrigin || origin?.startsWith("chrome-extension://")
         ? origin
         : undefined;
     },
@@ -90,17 +99,45 @@ app.use(
     credentials: true,
   }),
 );
-const redis = createClient({
-  url: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
-});
 let analysisQueue: Promise<void> = Promise.resolve();
 
-async function checkRedis() {
-  if (!redis.isOpen) {
-    await redis.connect();
+function upstashRedis(env: Bindings) {
+  const url = env.UPSTASH_REDIS_REST_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+  const token =
+    env.UPSTASH_REDIS_REST_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return undefined;
+
+  const config = `${url}:${token}`;
+  if (!upstash || upstashConfig !== config) {
+    upstash = new Redis({ url, token });
+    upstashConfig = config;
+  }
+  return upstash;
+}
+
+async function isWithinAuthRateLimit(key: string, env: Bindings) {
+  const cache = upstashRedis(env);
+  if (cache) {
+    const count = await cache.incr(`rate-limit:auth:${key}`);
+    if (count === 1) await cache.expire(`rate-limit:auth:${key}`, 60);
+    return count <= 12;
   }
 
-  return redis.ping();
+  // Keep local development usable without a hosted Upstash database.
+  const now = Date.now();
+  const hit = rateLimitHits.get(key);
+  const current =
+    !hit || hit.resetAt <= now ? { count: 0, resetAt: now + 60_000 } : hit;
+  current.count += 1;
+  rateLimitHits.set(key, current);
+  return current.count <= 12;
+}
+
+async function checkRedis(env: Bindings) {
+  const cache = upstashRedis(env);
+  if (!cache) return "not configured";
+
+  return cache.ping();
 }
 
 app.get("/", (context) => context.json({ message: "Hello from Tracera API." }));
@@ -303,7 +340,7 @@ app.get("/health", async (context) => {
   try {
     const [database, cache] = await Promise.all([
       checkDatabase(),
-      checkRedis(),
+      checkRedis(context.env),
     ]);
 
     return context.json({ status: "ok", services: { database, cache } });
@@ -980,8 +1017,14 @@ async function sendAccountAction(
     );
 }
 
-const port = Number(process.env.PORT ?? 3001);
-
-serve({ fetch: app.fetch, port }, () => {
-  console.log(`Tracera API listening on http://localhost:${port}`);
-});
+export default {
+  fetch: app.fetch,
+  scheduled(
+    _controller: unknown,
+    env: Bindings,
+    executionContext: { waitUntil(promise: Promise<unknown>): void },
+  ) {
+    configureDatabase(env.DATABASE_URL);
+    executionContext.waitUntil(runDecaySweep(env));
+  },
+};

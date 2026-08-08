@@ -122,7 +122,12 @@ export { markEmailVerified, updateUserPassword };
 
 export const sessionCookieOptions = (expiresAt?: Date) => ({
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  // Cloudflare replaces NODE_ENV while bundling; use an explicit runtime
+  // setting so production cookies cannot accidentally be sent over HTTP.
+  secure:
+    process.env.COOKIE_SECURE === "true" ||
+    (process.env.COOKIE_SECURE !== "false" &&
+      process.env.WEB_ORIGIN?.startsWith("https://")),
   sameSite: "Lax" as const,
   path: "/",
   ...(expiresAt

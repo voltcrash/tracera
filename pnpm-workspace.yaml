@@ -7,3 +7,5 @@ allowBuilds:
   msgpackr-extract: true
   sharp: true
   spawn-sync: true
+  # Wrangler's local preview runtime is distributed as a package build.
+  workerd: true

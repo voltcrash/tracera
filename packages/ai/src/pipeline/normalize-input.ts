@@ -1,4 +1,4 @@
-import { lookup } from "node:dns/promises";
+import { resolve4, resolve6 } from "node:dns/promises";
 import { isIP } from "node:net";
 import { z } from "zod";
 import type { AiProvider } from "../provider.js";
@@ -133,16 +133,26 @@ async function assertPublicHttpUrl(url: URL) {
   }
 
   const addresses = isIP(hostname)
-    ? [{ address: hostname }]
-    : await lookup(hostname, { all: true, verbatim: true }).catch(() => {
-        throw new Error("Could not resolve the link host.");
-      });
+    ? [hostname]
+    : await resolveHostAddresses(hostname);
   if (
     !addresses.length ||
-    addresses.some(({ address }) => isPrivateAddress(address))
+    addresses.some((address) => isPrivateAddress(address))
   ) {
     throw new Error("Links to private network hosts are not supported.");
   }
+}
+
+async function resolveHostAddresses(hostname: string) {
+  // `dns.lookup` is not implemented by the Workers Node compatibility layer.
+  // Resolve both address families explicitly so the SSRF guard behaves the
+  // same in local Node development and in the deployed Worker.
+  const results = await Promise.allSettled([resolve4(hostname), resolve6(hostname)]);
+  const addresses = results.flatMap((result) =>
+    result.status === "fulfilled" ? result.value : [],
+  );
+  if (!addresses.length) throw new Error("Could not resolve the link host.");
+  return addresses;
 }
 
 function isPrivateAddress(address: string) {

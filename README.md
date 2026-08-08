@@ -16,14 +16,14 @@ Tracera helps people assess news, claims, links, and images by tracing claims ba
 | --- | --- |
 | `apps/web` | Next.js web app, including auth and News Hub. |
 | `apps/mobile` | Expo / React Native app for iOS and Android. |
-| `apps/api` | Hono API, verification pipeline, auth, and background jobs. |
+| `apps/api` | Hono API, verification pipeline, auth, and scheduled decay checks. |
 | `apps/extension` | Manifest V3 browser extension. |
 | `packages/ai` | Provider-agnostic AI and retrieval pipeline. |
 | `packages/db` | Drizzle schema, migrations, and pgvector access. |
 
 ## Stack
 
-Turborepo, pnpm, Next.js, Expo, Hono, PostgreSQL with pgvector, Redis/BullMQ, and Drizzle. AI generation and embeddings use a provider-neutral adapter layer supporting Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible endpoints.
+Turborepo, pnpm, Next.js, Expo, Hono, Neon Postgres with pgvector, Upstash Redis, and Drizzle. AI generation and embeddings use a provider-neutral adapter layer supporting Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible endpoints.
 
 ## Local setup
 
@@ -65,3 +65,50 @@ pnpm dev:mobile
 pnpm check-types
 pnpm build
 ```
+
+## Cloudflare deployment
+
+The web and API applications deploy as independent Cloudflare Workers. Mobile
+and the browser extension remain unchanged. The API's hourly Cron Trigger
+replaces the former long-running BullMQ process; Upstash is used over its REST
+endpoint for distributed authentication rate limiting.
+
+1. Create a Neon database with the `vector` extension enabled, then migrate it:
+
+   ```sh
+   export DATABASE_URL='postgresql://…'
+   pnpm --filter @repo/db db:migrate
+   ```
+
+2. Create an Upstash Redis database and copy its `UPSTASH_REDIS_REST_URL` and
+   `UPSTASH_REDIS_REST_TOKEN` (not its TCP `REDIS_URL`).
+
+3. Deploy the API Worker once to establish its Worker URL:
+
+   ```sh
+   pnpm deploy:api
+   ```
+
+   Set its secrets in the Cloudflare dashboard or with `wrangler secret put
+   <NAME> --config apps/api/wrangler.jsonc`. Required values are
+   `DATABASE_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`,
+   `WEB_ORIGIN`, `PUBLIC_WEB_URL`, `INTERNAL_API_URL`,
+   `INTERNAL_WORKER_TOKEN`, `COOKIE_SECURE=true`, and the configured `AI_*`
+   values. `INTERNAL_API_URL` is the deployed API URL and is used by the hourly
+   decay trigger to invoke `/analyze`. Add the optional retrieval and Resend
+   values from [`apps/api/.env.example`](apps/api/.env.example) as needed.
+
+4. Build and deploy the web Worker with the API's public URL available at build
+   time (Next.js exposes this value to the browser):
+
+   ```sh
+   export NEXT_PUBLIC_API_URL='https://tracera-api.<account>.workers.dev'
+   pnpm deploy:web
+   ```
+
+   Also set `TRACERA_API_URL` on the web Worker to the same API URL; it is used
+   only by the server-side `/api/health` route. Point the API's `WEB_ORIGIN` and
+   `PUBLIC_WEB_URL` at the deployed web custom domain after it is attached.
+
+Run `pnpm --filter api cf:dev` or `pnpm --filter web cf:preview` for local
+Workers previews. The Worker configuration intentionally contains no secrets.

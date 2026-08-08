@@ -5,6 +5,8 @@
     "build": "turbo run build",
     "dev": "turbo run dev --filter=api --filter=web",
     "dev:mobile": "turbo run dev --filter=mobile",
+    "deploy:api": "pnpm --filter api deploy",
+    "deploy:web": "pnpm --filter web deploy",
     "ios": "turbo run ios --filter=mobile",
     "lint": "turbo run lint",
     "test": "turbo run test",

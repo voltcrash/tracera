@@ -8,24 +8,28 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
-    "check-types": "next typegen && tsc --noEmit"
+    "check-types": "next typegen && tsc --noEmit",
+    "cf:build": "opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf:typegen": "wrangler types --env-interface CloudflareEnv"
   },
   "dependencies": {
-    "@repo/db": "workspace:*",
     "@tailwindcss/postcss": "^4.1.13",
     "next": "16.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "redis": "^5.8.2",
     "tailwindcss": "^4.1.13"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.2",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "eslint": "^9.39.1",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "wrangler": "^4.120.0"
   }
 }

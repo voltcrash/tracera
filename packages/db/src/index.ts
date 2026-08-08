@@ -1,13 +1,25 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-serverless";
 
 export const EMBEDDING_DIMENSIONS = 1024;
 
-const connectionString =
+let activeConnectionString =
   process.env.DATABASE_URL ?? "postgresql://localhost:5432/tracera";
 
-export const pool = new Pool({ connectionString });
-export const db = drizzle(pool);
+/**
+ * The Neon driver uses WebSockets in Workers and remains compatible with the
+ * node-postgres API used by this package. Configure it from the Worker binding
+ * before handling a request; local development keeps using DATABASE_URL.
+ */
+export let pool = new Pool({ connectionString: activeConnectionString });
+export let db = drizzle({ client: pool });
+
+export function configureDatabase(connectionString: string | undefined) {
+  if (!connectionString || connectionString === activeConnectionString) return;
+  activeConnectionString = connectionString;
+  pool = new Pool({ connectionString });
+  db = drizzle({ client: pool });
+}
 
 export interface StoredClaim {
   claimText: string;
