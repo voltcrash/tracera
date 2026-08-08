@@ -291,6 +291,7 @@ app.post("/analyze", async (context) => {
         claims: result.claims,
         traceraScore: result.score,
         groundZero,
+        inputMetadata: normalized.imageMetadata,
         reuse: {
           state: forceReanalysis
             ? "reanalyzed"

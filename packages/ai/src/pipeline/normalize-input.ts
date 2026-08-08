@@ -34,6 +34,7 @@ export async function normalizeInput(
       text,
       imageMetadata: {
         mimeType: input.imageMimeType,
+        ocrProvider: process.env.OCR_ENDPOINT ? "configured" : "model_fallback",
         reverseSearchUrl: input.image.startsWith("http")
           ? `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(input.image)}`
           : undefined,

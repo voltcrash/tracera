@@ -11,24 +11,9 @@ than by screen.
 - [ ] Calibrate claim verdict, evidence-quality, and aggregate-score logic
       against labelled evaluation cases.
 
-## P1 — complete the trace lifecycle
-
-- [x] Implement Ground Zero tracing beyond earliest retrieved timestamp:
-      publisher dates, citations/reposts, corpus history, and confidence labels.
-- [x] Finalize exact-dedup and related-context policies, thresholds, cache
-      expiry, and user-facing reuse/re-analysis states.
-- [x] Build trace history: link rechecks with `supersedes_check_id`, compare
-      verdict/score changes, and expose timeline events in web and mobile.
-- [x] Complete decay monitoring with durable retries, change detection,
-      observability, and scheduled rechecks.
-- [x] Deliver opt-in alerts: subscription management and notification delivery
-      when a trace materially changes.
-- [x] Add News Hub search, pagination, source/domain metadata, re-analysis
-      states, and appropriate ownership/privacy access controls.
-
 ## P2 — finish platform capabilities
 
-- [ ] Add web image upload/camera input and image-result provenance details.
+- [x] Add web image upload/camera input and image-result provenance details.
 - [ ] Bring mobile to feature parity: durable auth session, Ground Zero,
       timeline, alerts, and complete evidence details.
 - [ ] Build the reactive extension experience: content-script claim detection,

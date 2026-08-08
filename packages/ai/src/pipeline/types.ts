@@ -58,6 +58,7 @@ export interface NormalizedInput {
     mimeType?: string;
     reverseSearchUrl?: string;
     exif?: Record<string, string>;
+    ocrProvider?: "configured" | "model_fallback";
   };
 }
 

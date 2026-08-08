@@ -25,6 +25,12 @@ type ReuseState = {
   expiresAt?: string;
   relatedContextClaims?: number;
 };
+type ImageMetadata = {
+  mimeType?: string;
+  reverseSearchUrl?: string;
+  exif?: Record<string, string>;
+  ocrProvider?: "configured" | "model_fallback";
+};
 
 export default function Home() {
   const { user } = useAuth();
@@ -40,6 +46,7 @@ export default function Home() {
     cached: boolean;
     groundZero?: GroundZero;
     reuse?: ReuseState;
+    inputMetadata?: ImageMetadata;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -178,6 +185,7 @@ export default function Home() {
                   <input
                     type="file"
                     accept="image/*"
+                    capture="environment"
                     className="sr-only"
                     onChange={selectImage}
                     disabled={loading}
@@ -261,10 +269,55 @@ export default function Home() {
               </button>
             )}
             {result.groundZero && <GroundZeroCard trace={result.groundZero} />}
+            {result.inputMetadata && (
+              <ImageProvenance metadata={result.inputMetadata} />
+            )}
           </section>
         )}
       </div>
     </main>
+  );
+}
+
+function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
+  const exif = Object.entries(metadata.exif ?? {});
+  return (
+    <section className="mt-6 rounded-3xl border border-emerald-950/10 bg-white p-6 text-sm text-emerald-950/70 shadow-[0_8px_30px_-18px_rgba(16,34,31,.3)]">
+      <p className="text-[10px] font-black tracking-[.18em] text-emerald-800">
+        IMAGE PROVENANCE
+      </p>
+      <p className="mt-2">
+        OCR:{" "}
+        {metadata.ocrProvider === "configured"
+          ? "configured OCR provider"
+          : "local model fallback"}{" "}
+        · {metadata.mimeType ?? "unknown image type"}
+      </p>
+      {exif.length ? (
+        <dl className="mt-3 grid gap-1">
+          {exif.map(([key, value]) => (
+            <div key={key}>
+              <dt className="inline font-bold">{key}: </dt>
+              <dd className="inline">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="mt-2 text-emerald-950/50">
+          No embedded EXIF details were available.
+        </p>
+      )}
+      {metadata.reverseSearchUrl && (
+        <a
+          href={metadata.reverseSearchUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-block font-bold text-emerald-800 underline"
+        >
+          Search this image on Google Lens →
+        </a>
+      )}
+    </section>
   );
 }
 
