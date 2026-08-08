@@ -36,6 +36,12 @@ export interface EvidenceSource {
   rating?: string | null;
   snippet?: string | null;
   publishedAt?: string | null;
+  /** The publisher-declared date, preferred over a search-index timestamp. */
+  publisherPublishedAt?: string | null;
+  /** Canonical URL discovered in the publisher document, when available. */
+  canonicalUrl?: string | null;
+  /** Outbound source/citation URLs explicitly linked by the publisher. */
+  citedUrls?: string[];
   similarity?: number;
   credibility?: number;
 }
@@ -56,12 +62,28 @@ export interface NormalizedInput {
 }
 
 export interface GroundZeroResult {
-  status: "candidate" | "not_found";
+  status: "candidate" | "not_found" | "inconclusive";
   earliestSource: EvidenceSource | null;
   candidates: EvidenceSource[];
-  confidence: "low" | "moderate";
+  confidence: "low" | "moderate" | "high";
   signals: string[];
   explanation: string;
+  relationships: Array<{
+    sourceId: string;
+    relation:
+      | "publisher"
+      | "repost"
+      | "cites_earlier_source"
+      | "corpus_history";
+    targetUrl?: string;
+  }>;
+  corpusHistory: Array<{
+    checkId: string;
+    sourceUrl?: string | null;
+    sourceDomain?: string | null;
+    publishedAt?: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface ClaimVerdict {

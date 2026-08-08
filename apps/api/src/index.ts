@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
   checkDatabase,
+  findGroundZeroCorpusHistory,
   findLatestCheckByRawInput,
   findRecentCheckByEmbedding,
   getCheckById,
@@ -199,12 +200,18 @@ app.post("/analyze", async (context) => {
       () => analyzeText(normalized.text, provider, auditLog),
       requestSignal,
     );
-    const groundZero = traceGroundZero(
-      result.claims.flatMap((claim) => [
-        ...claim.supportingSources,
-        ...claim.contradictingSources,
-      ]),
+    const groundZeroSources = result.claims.flatMap((claim) => [
+      ...claim.supportingSources,
+      ...claim.contradictingSources,
+    ]);
+    const groundZeroHistory = await findGroundZeroCorpusHistory(
+      [
+        normalized.sourceUrl,
+        ...groundZeroSources.map((source) => source.canonicalUrl ?? source.url),
+      ].filter((url): url is string => Boolean(url)),
+      user?.id,
     );
+    const groundZero = traceGroundZero(groundZeroSources, groundZeroHistory);
     const stored = await persistCheck({
       rawInput: normalized.rawInput,
       inputType: normalized.inputType,

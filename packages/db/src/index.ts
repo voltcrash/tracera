@@ -34,6 +34,49 @@ export interface CachedCheck {
   similarity: number;
 }
 
+export interface GroundZeroCorpusHistoryItem {
+  checkId: string;
+  sourceUrl: string | null;
+  sourceDomain: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * Returns prior traces of the exact publisher URLs considered for Ground Zero.
+ * This deliberately avoids a broad text/domain search: a private or merely
+ * similar check is not evidence that a story first appeared at a publisher.
+ */
+export async function findGroundZeroCorpusHistory(
+  urls: string[],
+  ownerUserId?: string,
+): Promise<GroundZeroCorpusHistoryItem[]> {
+  const uniqueUrls = [...new Set(urls.filter(Boolean))];
+  if (!uniqueUrls.length) return [];
+  const result = await pool.query<{
+    id: string;
+    source_url: string | null;
+    source_domain: string | null;
+    published_at: string | null;
+    created_at: string;
+  }>(
+    `SELECT id, source_url, source_domain, published_at, created_at
+       FROM checks
+      WHERE (source_url = ANY($1::text[]) OR raw_input = ANY($1::text[]))
+        AND (visibility = 'public' OR owner_user_id = $2)
+      ORDER BY created_at ASC
+      LIMIT 20`,
+    [uniqueUrls, ownerUserId ?? null],
+  );
+  return result.rows.map((row) => ({
+    checkId: row.id,
+    sourceUrl: row.source_url,
+    sourceDomain: row.source_domain,
+    publishedAt: row.published_at,
+    createdAt: row.created_at,
+  }));
+}
+
 export interface AuthUser {
   id: string;
   email: string;

@@ -119,8 +119,17 @@ async function enrichEvidenceSnippets(sources: EvidenceSource[]) {
   return Promise.all(
     sources.map(async (source) => {
       if (!source.url || source.type === "corpus") return source;
-      const snippet = await retrieveArticleDescription(source.url);
-      return snippet ? { ...source, snippet } : source;
+      const metadata = await retrieveArticleMetadata(source.url);
+      return {
+        ...source,
+        snippet: metadata.snippet ?? source.snippet,
+        canonicalUrl: metadata.canonicalUrl,
+        publisherPublishedAt: metadata.publishedAt,
+        // Publisher dates are more useful than aggregator/index dates for
+        // origin tracing, but retain the original timestamp as a fallback.
+        publishedAt: metadata.publishedAt ?? source.publishedAt,
+        citedUrls: metadata.citedUrls,
+      };
     }),
   );
 }
@@ -396,30 +405,80 @@ function buildNewsQuery(claimText: string) {
   );
 }
 
-async function retrieveArticleDescription(url: string) {
+interface ArticleMetadata {
+  snippet?: string;
+  canonicalUrl?: string;
+  publishedAt?: string;
+  citedUrls?: string[];
+}
+
+async function retrieveArticleMetadata(url: string): Promise<ArticleMetadata> {
   try {
     const response = await fetch(url, {
       headers: { "user-agent": "Tracera/1.0 (+news verification)" },
       redirect: "follow",
       signal: AbortSignal.timeout(8_000),
     });
-    if (!response.ok) return undefined;
+    if (!response.ok) return {};
     const html = (await response.text()).slice(0, 250_000);
     const description =
       metaContent(html, "description") ?? metaContent(html, "og:description");
-    if (description) return description;
+    const canonicalUrl =
+      html
+        .match(/<link\b[^>]*rel=["']canonical["'][^>]*>/i)?.[0]
+        ?.match(/href=["']([^"']+)["']/i)?.[1] ??
+      metaContent(html, "og:url") ??
+      url;
+    const publishedAt = normalizePublisherDate(
+      metaContent(html, "article:published_time") ??
+        metaContent(html, "date") ??
+        metaContent(html, "datePublished") ??
+        html.match(/<time\b[^>]*datetime=["']([^"']+)["']/i)?.[1],
+    );
+    const citedUrls = extractCitationUrls(html, url);
+    if (description)
+      return { snippet: description, canonicalUrl, publishedAt, citedUrls };
     const article =
       html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1] ??
       html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1];
-    return article
+    const snippet = article
       ?.replace(/<(script|style|nav|footer|aside)[^>]*>[\s\S]*?<\/\1>/gi, " ")
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 1_200);
+    return { snippet, canonicalUrl, publishedAt, citedUrls };
   } catch {
-    return undefined;
+    return {};
   }
+}
+
+async function retrieveArticleDescription(url: string) {
+  return (await retrieveArticleMetadata(url)).snippet;
+}
+
+function normalizePublisherDate(value: string | undefined) {
+  if (!value || !Number.isFinite(Date.parse(value))) return undefined;
+  return new Date(value).toISOString();
+}
+
+/** Links marked as citations/sources are explicit provenance signals. */
+function extractCitationUrls(html: string, baseUrl: string) {
+  const matches = html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>/gi) ?? [];
+  const urls = matches.flatMap((tag) => {
+    const marker =
+      `${tag} ${tag.match(/(?:class|rel|data-testid)=["']([^"']+)["']/i)?.[1] ?? ""}`.toLowerCase();
+    if (!/(citation|source|references?|original-report)/.test(marker))
+      return [];
+    const href = tag.match(/href=["']([^"']+)["']/i)?.[1];
+    if (!href) return [];
+    try {
+      return [new URL(href, baseUrl).toString()];
+    } catch {
+      return [];
+    }
+  });
+  return [...new Set(urls)].slice(0, 12);
 }
 
 function metaContent(html: string, key: string) {
