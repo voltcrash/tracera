@@ -5,6 +5,14 @@ export type JsonSchema = Record<string, unknown>;
 export interface GenerateOptions {
   /** A provider-specific model override. */
   model?: string;
+  /** Observability hook for structured-output validation and evaluation runs. */
+  onStructuredOutputAttempt?: (attempt: StructuredOutputAttempt) => void;
+}
+
+export interface StructuredOutputAttempt {
+  attempt: number;
+  valid: boolean;
+  error?: string;
 }
 
 /**
@@ -49,10 +57,16 @@ export abstract class StructuredOutputProvider implements AiProvider {
       const result = this.parseOutput(raw, schema);
 
       if (result.success) {
+        options?.onStructuredOutputAttempt?.({ attempt: attempt + 1, valid: true });
         return result.data;
       }
 
       failures.push(result.reason);
+      options?.onStructuredOutputAttempt?.({
+        attempt: attempt + 1,
+        valid: false,
+        error: result.reason,
+      });
     }
 
     throw new StructuredOutputError(this.providerName, failures);

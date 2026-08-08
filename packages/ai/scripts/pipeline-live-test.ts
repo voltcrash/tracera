@@ -6,7 +6,7 @@ import {
 } from "../src/index.js";
 
 const provider = new CompositeAiProvider(
-  new OllamaProvider({ model: process.env.OLLAMA_MODEL ?? "gemma4:e2b" }),
+  new OllamaProvider({ model: process.env.OLLAMA_MODEL ?? "gemma2:9b" }),
   new GeminiProvider({
     apiKey: requireEnvironment("GEMINI_API_KEY"),
     embeddingDimensions: 1024,

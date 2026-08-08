@@ -9,6 +9,7 @@ export type {
   ClaimVerdict,
   EvidenceSource,
   ExtractedClaim,
+  Verdict,
   TraceraScore,
   VerifyTextOptions,
   NormalizedInput,

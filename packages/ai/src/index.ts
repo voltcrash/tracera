@@ -2,6 +2,7 @@ export {
   type AiProvider,
   type GenerateOptions,
   type JsonSchema,
+  type StructuredOutputAttempt,
   StructuredOutputError,
 } from "./provider.js";
 export { GeminiProvider, type GeminiProviderOptions } from "./providers/gemini.js";
@@ -19,6 +20,7 @@ export {
   type ClaimVerdict,
   type EvidenceSource,
   type ExtractedClaim,
+  type Verdict,
   type TraceraScore,
   type VerifyTextOptions,
   type NormalizedInput,

@@ -5,6 +5,7 @@ export interface OllamaProviderOptions {
   baseUrl?: string;
   model?: string;
   embeddingModel?: string;
+  maxTokens?: number;
   signal?: AbortSignal;
 }
 
@@ -24,6 +25,7 @@ export class OllamaProvider extends StructuredOutputProvider {
   private readonly baseUrl: string;
   private readonly model: string;
   private readonly embeddingModel: string;
+  private readonly maxTokens: number;
   private readonly signal?: AbortSignal;
 
   constructor(options: OllamaProviderOptions = {}) {
@@ -31,9 +33,10 @@ export class OllamaProvider extends StructuredOutputProvider {
     this.baseUrl = (options.baseUrl ?? "http://127.0.0.1:11434").replace(/\/$/, "");
     // Keep the no-config developer path runnable with the locally installed
     // Gemma model. Deployments can still select another model via OLLAMA_MODEL.
-    this.model = options.model ?? "gemma4:e2b";
+    this.model = options.model ?? "gemma2:9b";
     // The database's pgvector column is intentionally fixed at 1024 dimensions.
     this.embeddingModel = options.embeddingModel ?? "mxbai-embed-large";
+    this.maxTokens = options.maxTokens ?? 512;
     this.signal = options.signal;
   }
 
@@ -66,7 +69,7 @@ export class OllamaProvider extends StructuredOutputProvider {
       ],
       format: schema,
       stream: false,
-      options: { temperature: 0 },
+      options: { temperature: 0, num_predict: this.maxTokens },
     });
     const content = response.message?.content;
 

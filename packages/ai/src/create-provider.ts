@@ -3,7 +3,7 @@ import { OllamaProvider } from "./providers/ollama.js";
 import type { AiProvider } from "./provider.js";
 
 export type AiProviderConfig =
-  | { provider: "ollama"; baseUrl?: string; model?: string; embeddingModel?: string; signal?: AbortSignal }
+  | { provider: "ollama"; baseUrl?: string; model?: string; embeddingModel?: string; maxTokens?: number; signal?: AbortSignal }
   | {
       provider: "gemini";
       apiKey: string;

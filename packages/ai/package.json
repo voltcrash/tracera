@@ -9,8 +9,8 @@
   "scripts": {
     "check-types": "tsc --noEmit",
     "test:live": "tsx scripts/live-test.ts",
-    "test:pipeline": "tsx scripts/pipeline-live-test.ts"
-    ,"validate:gemma": "tsx scripts/validate-gemma.ts"
+    "test:pipeline": "tsx scripts/pipeline-live-test.ts",
+    "validate:gemma": "tsx scripts/validate-gemma.ts"
   },
   "dependencies": {
     "@repo/db": "workspace:*",

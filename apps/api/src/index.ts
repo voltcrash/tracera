@@ -217,7 +217,7 @@ app.post("/analyze", async (context) => {
         {
           stage: "claim_extraction",
           provider: process.env.AI_PROVIDER ?? "ollama",
-          model: process.env.OLLAMA_MODEL ?? "gemma4:e2b",
+          model: process.env.OLLAMA_MODEL ?? "gemma2:9b",
         },
         { stage: "verdict_generation", count: result.claims.length },
       ],
@@ -483,6 +483,7 @@ function configuredProvider(signal?: AbortSignal) {
     baseUrl: process.env.OLLAMA_BASE_URL,
     model: process.env.OLLAMA_MODEL,
     embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL,
+    maxTokens: environmentNumber("OLLAMA_MAX_TOKENS", 512, 32, 4_096),
     signal,
   });
 }

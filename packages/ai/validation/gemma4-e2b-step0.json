@@ -1,0 +1,222 @@
+{
+  "model": "gemma4:e2b",
+  "testedAt": "2026-08-08T11:51:51.603Z",
+  "instructions": {
+    "template": "Gemma 4 Ollama template uses a single Prompt field; provider folds instructions into the user message.",
+    "acceptance": "Review every result manually. Do not promote a model based only on these summary fields."
+  },
+  "summary": {
+    "cases": 5,
+    "completed": 4,
+    "schemaConformanceBeforeRetry": 1,
+    "schemaConformanceAfterRetry": 1,
+    "retryRate": 0,
+    "atomicityPassRate": 0.8,
+    "expectedVerdictRate": 0.6
+  },
+  "report": [
+    {
+      "id": "co2-greenhouse-effect",
+      "articleUrl": "https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/",
+      "expectedVerdicts": [
+        "supported"
+      ],
+      "claimCount": 2,
+      "groundedClaims": true,
+      "verdicts": [
+        {
+          "verdict": "supported",
+          "confidence": 1,
+          "reasoning": [
+            "NASA describes carbon dioxide as a greenhouse gas that traps heat in the atmosphere.",
+            "NOAA explains that carbon dioxide absorbs and re-emits infrared energy, warming the climate system."
+          ],
+          "sourceConflict": false
+        },
+        {
+          "verdict": "supported",
+          "confidence": 1,
+          "reasoning": [
+            "Carbon dioxide is described as a greenhouse gas that traps heat in the atmosphere (nasa-greenhouse).",
+            "Carbon dioxide absorbs and re-emits infrared energy, which warms the climate system (noaa-greenhouse).",
+            "These facts directly support the claim that higher CO2 concentrations retain additional heat."
+          ],
+          "sourceConflict": false
+        }
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "valid": true
+        },
+        {
+          "attempt": 1,
+          "valid": true
+        },
+        {
+          "attempt": 1,
+          "valid": true
+        }
+      ],
+      "acceptedVerdict": true,
+      "durationMs": 55039
+    },
+    {
+      "id": "flat-earth-conspiracy",
+      "articleUrl": "https://science.nasa.gov/earth/facts/",
+      "expectedVerdicts": [
+        "contradicted",
+        "misleading"
+      ],
+      "claimCount": 2,
+      "groundedClaims": true,
+      "verdicts": [
+        {
+          "verdict": "contradicted",
+          "confidence": 1,
+          "reasoning": [
+            "NASA documents Earth as an oblate spheroid (a spherical shape).",
+            "ESA operates missions that observe and publish data about Earth's shape.",
+            "This evidence directly contradicts the claim that Earth is flat."
+          ],
+          "sourceConflict": false
+        },
+        {
+          "verdict": "contradicted",
+          "confidence": 1,
+          "reasoning": [
+            "NASA publishes observations from multiple missions, indicating legitimate data collection (nasa-earth)",
+            "The European Space Agency operates independent Earth-observation missions and publishes its own data and imagery (esa-earth)",
+            "The claim that every satellite image is fabricated by NASA is contradicted by the existence of independent space agencies publishing observational data."
+          ],
+          "sourceConflict": false
+        }
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "valid": true
+        },
+        {
+          "attempt": 1,
+          "valid": true
+        },
+        {
+          "attempt": 1,
+          "valid": true
+        }
+      ],
+      "acceptedVerdict": true,
+      "durationMs": 61945
+    },
+    {
+      "id": "vaccine-transmission-absolute",
+      "articleUrl": "https://www.who.int/news-room/questions-and-answers/item/coronavirus-disease-(covid-19)-vaccines",
+      "expectedVerdicts": [
+        "contradicted",
+        "misleading"
+      ],
+      "claimCount": 2,
+      "groundedClaims": true,
+      "verdicts": [
+        {
+          "verdict": "contradicted",
+          "confidence": 1,
+          "reasoning": [
+            "Vaccination reduces the risk of severe disease and transmission, but it does not guarantee complete prevention of infection",
+            "Breakthrough infections can occur even in vaccinated individuals according to WHO and CDC data",
+            "The evidence indicates that vaccinated people can still become infected, contradicting the claim that vaccination always prevents infection",
+            "The claim uses the absolute term 'always' which is contradicted by the nuanced findings regarding breakthrough infections."
+          ],
+          "sourceConflict": false
+        },
+        {
+          "verdict": "contradicted",
+          "confidence": 1,
+          "reasoning": [
+            "Vaccination reduces the risk of severe disease and transmission, but breakthrough infections can still occur (who-vaccines).",
+            "Vaccinated people can still become infected (cdc-vaccines), meaning the claim that they cannot transmit a virus is false."
+          ],
+          "sourceConflict": false
+        }
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "valid": true
+        },
+        {
+          "attempt": 1,
+          "valid": true
+        },
+        {
+          "attempt": 1,
+          "valid": true
+        }
+      ],
+      "acceptedVerdict": true,
+      "durationMs": 115724
+    },
+    {
+      "id": "coffee-longevity-guarantee",
+      "articleUrl": "https://www.hsph.harvard.edu/news/hsph-in-the-news/is-coffee-good-or-bad-for-your-health/",
+      "expectedVerdicts": [
+        "misleading",
+        "unverified",
+        "contradicted"
+      ],
+      "claimCount": 2,
+      "groundedClaims": true,
+      "verdicts": [
+        {
+          "verdict": "mixed",
+          "confidence": 0.85,
+          "reasoning": [
+            "Harvard notes that individual effects vary and observational associations exist, but no guaranteed longevity benefit is claimed (harvard-coffee).",
+            "The FDA notes that caffeine affects people differently and excessive intake can cause adverse effects (fda-caffeine).",
+            "The evidence indicates that the health impact of coffee depends on individual factors and consumption levels, contradicting a simple assertion that it is inherently healthy."
+          ],
+          "sourceConflict": false
+        },
+        {
+          "verdict": "contradicted",
+          "confidence": 1,
+          "reasoning": [
+            "The evidence states that Harvard describes observational associations and does not claim a guaranteed longevity benefit (harvard-coffee).",
+            "Individual effects vary, meaning there is no universal guarantee of longer life for all coffee drinkers (harvard-coffee).",
+            "The FDA notes that caffeine affects people differently and excessive intake can cause adverse effects (fda-caffeine).",
+            "The claim of a guaranteed benefit is contradicted by the scientific context provided in the evidence."
+          ],
+          "sourceConflict": false
+        }
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "valid": true
+        },
+        {
+          "attempt": 1,
+          "valid": true
+        },
+        {
+          "attempt": 1,
+          "valid": true
+        }
+      ],
+      "acceptedVerdict": false,
+      "durationMs": 71093
+    },
+    {
+      "id": "climate-framing",
+      "articleUrl": "https://www.ipcc.ch/report/ar6/syr/",
+      "expectedVerdicts": [
+        "unverified",
+        "misleading"
+      ],
+      "attempts": [],
+      "error": "Ollama returned no generated content.",
+      "durationMs": 25903
+    }
+  ]
+}
