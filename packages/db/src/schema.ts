@@ -44,6 +44,7 @@ export const checks = pgTable("checks", {
   ownerUserId: uuid("owner_user_id").references(() => users.id, {
     onDelete: "set null",
   }),
+  visibility: varchar("visibility", { length: 16 }).notNull().default("public"),
   /** Embedding of rawInput, used to avoid re-running near-identical checks. */
   embedding: vector("embedding", { dimensions: 1024 }).notNull(),
   traceraScore: jsonb("tracera_score").notNull(),

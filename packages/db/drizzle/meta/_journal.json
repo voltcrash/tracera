@@ -43,6 +43,13 @@
       "when": 1786191517441,
       "tag": "0005_seed_domain_trust",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786200000000,
+      "tag": "0006_check_visibility",
+      "breakpoints": true
     }
   ]
 }
