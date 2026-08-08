@@ -7,6 +7,7 @@
     "dev:mobile": "turbo run dev --filter=mobile",
     "ios": "turbo run ios --filter=mobile",
     "lint": "turbo run lint",
+    "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"
   },
