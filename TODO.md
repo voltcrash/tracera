@@ -8,12 +8,6 @@ than by screen.
 
 - [x] Restore a clean monorepo quality gate: type-check, lint, build, and
   automated tests must all run in CI.
-- [ ] Validate the selected local Gemma model with 5–10 real, mixed-veracity
-  news articles; record schema-conformance, claim-atomicity, and verdict
-  quality results before relying on it for production decisions.
-- [ ] Make text/link/image normalization trustworthy: safe URL fetching and
-  readable extraction, real OCR, EXIF extraction, and reverse-image-search
-  integration.
 - [ ] Strengthen retrieval: retrieve source content, use a defined web-search
   adapter, seed and maintain domain trust data, and keep evidence relevant.
 - [x] Persist reproducible audit records: full prompts, model/provider
@@ -55,3 +49,14 @@ than by screen.
   metrics, logging, tracing, and incident alerts.
 - [ ] Establish data-retention, consent, privacy, and source-attribution
   policies.
+
+## F0 — externally dependent future work
+
+- [ ] Install and validate a production local model (`gemma2:9b` and, if
+  hardware permits, `gemma2:27b`) against 5–10 real mixed-veracity articles.
+  Record schema conformance, claim atomicity, verdict quality, and latency
+  before enabling it for production decisions.
+- [ ] Configure a real OCR provider, EXIF parser, and reverse-image-search
+  provider. The web/mobile image upload path and optional OCR endpoint contract
+  are in place; the forensic integrations require provider credentials and
+  service selection.
