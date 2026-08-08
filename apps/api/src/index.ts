@@ -56,7 +56,7 @@ app.use(
         : undefined;
     },
     allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Tracera-Mobile"],
     credentials: true,
   }),
 );
@@ -104,7 +104,7 @@ app.post("/auth/signup", async (context) => {
       session.token,
       sessionCookieOptions(session.expiresAt),
     );
-    return context.json({ user }, 201);
+    return context.json(sessionResponse(context, user, session), 201);
   } catch (error) {
     console.error("Sign-up failed", error);
     return context.json({ error: "Unable to create your account." }, 503);
@@ -130,7 +130,7 @@ app.post("/auth/login", async (context) => {
       session.token,
       sessionCookieOptions(session.expiresAt),
     );
-    return context.json({ user });
+    return context.json(sessionResponse(context, user, session));
   } catch (error) {
     console.error("Login failed", error);
     return context.json({ error: "Unable to sign you in." }, 503);
@@ -138,13 +138,13 @@ app.post("/auth/login", async (context) => {
 });
 
 app.post("/auth/logout", async (context) => {
-  await revokeSession(getCookie(context, SESSION_COOKIE));
+  await revokeSession(sessionToken(context));
   deleteCookie(context, SESSION_COOKIE, sessionCookieOptions());
   return context.body(null, 204);
 });
 
 app.get("/auth/me", async (context) => {
-  const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+  const user = await getUserForSession(sessionToken(context));
   return user
     ? context.json({ user })
     : context.json({ error: "Not authenticated." }, 401);
@@ -187,7 +187,7 @@ app.post("/analyze", async (context) => {
   try {
     const recheckOf = authorizedRecheckId(context, body);
     const requestSignal = context.req.raw.signal;
-    const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+    const user = await getUserForSession(sessionToken(context));
     const parentCheck = recheckOf
       ? await getCheckById(recheckOf, undefined, true)
       : null;
@@ -316,7 +316,7 @@ app.post("/analyze", async (context) => {
 app.get("/checks/:id/timeline", async (context) => {
   const id = context.req.param("id");
   if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
-  const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+  const user = await getUserForSession(sessionToken(context));
   if (!(await getCheckById(id, user?.id)))
     return context.json({ error: "Check not found." }, 404);
   return context.json({ timeline: await getTraceTimeline(id) });
@@ -324,7 +324,7 @@ app.get("/checks/:id/timeline", async (context) => {
 app.post("/checks/:id/alerts", async (context) => {
   const id = context.req.param("id");
   const body = await context.req.json().catch(() => null);
-  const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+  const user = await getUserForSession(sessionToken(context));
   const email =
     user?.email ?? (typeof body?.email === "string" ? body.email.trim() : "");
   if (!isUuid(id) || !isValidEmail(email))
@@ -337,7 +337,7 @@ app.post("/checks/:id/alerts", async (context) => {
   return context.json({ subscription: await subscribeToCheck(id, email) }, 201);
 });
 app.get("/checks/:id/alerts", async (context) => {
-  const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+  const user = await getUserForSession(sessionToken(context));
   const id = context.req.param("id");
   if (!user || !isUuid(id))
     return context.json({ error: "Not authenticated." }, 401);
@@ -348,7 +348,7 @@ app.get("/checks/:id/alerts", async (context) => {
 app.delete("/checks/:id/alerts", async (context) => {
   const id = context.req.param("id");
   const body = await context.req.json().catch(() => null);
-  const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+  const user = await getUserForSession(sessionToken(context));
   const requestedEmail =
     typeof body?.email === "string" ? body.email.trim() : "";
   const email = user?.email ?? requestedEmail;
@@ -382,7 +382,7 @@ app.get("/checks", async (context) => {
   const query = (context.req.query("q") ?? "").slice(0, 200);
 
   try {
-    const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+    const user = await getUserForSession(sessionToken(context));
     const result = await listChecks(page, pageSize, query, user?.id);
     return context.json({
       checks: result.checks,
@@ -410,7 +410,7 @@ app.get("/checks/:id", async (context) => {
   if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
 
   try {
-    const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+    const user = await getUserForSession(sessionToken(context));
     const check = await getCheckById(id, user?.id);
     if (!check) return context.json({ error: "Check not found." }, 404);
     return context.json({ check });
@@ -742,6 +742,22 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
   );
+}
+
+function sessionToken(context: Context) {
+  const authorization = context.req.header("authorization");
+  const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  return bearer ?? getCookie(context, SESSION_COOKIE);
+}
+
+function sessionResponse(
+  context: Context,
+  user: { id: string; email: string; createdAt: string },
+  session: { token: string },
+) {
+  return context.req.header("x-tracera-mobile") === "1"
+    ? { user, sessionToken: session.token }
+    : { user };
 }
 
 const port = Number(process.env.PORT ?? 3001);

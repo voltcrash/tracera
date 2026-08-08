@@ -14,7 +14,7 @@ than by screen.
 ## P2 — finish platform capabilities
 
 - [x] Add web image upload/camera input and image-result provenance details.
-- [ ] Bring mobile to feature parity: durable auth session, Ground Zero,
+- [x] Bring mobile to feature parity: durable auth session, Ground Zero,
       timeline, alerts, and complete evidence details.
 - [ ] Build the reactive extension experience: content-script claim detection,
       inline highlights, explanations, and recheck updates.

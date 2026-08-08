@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as SecureStore from "expo-secure-store";
 
 type ScoreDimension = { score: number; label: string };
 
@@ -53,6 +54,11 @@ type Analysis = {
   traceraScore: TraceraScore;
   cached: boolean;
   timeline?: TimelineEntry[];
+  groundZero?: {
+    confidence: string;
+    earliestSource: EvidenceSource | null;
+    signals: string[];
+  };
 };
 
 type TimelineEntry = {
@@ -83,6 +89,15 @@ const API_URL = (
 ).replace(/\/$/, "");
 const EXAMPLE =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
+const MOBILE_SESSION_KEY = "tracera_mobile_session";
+let mobileSessionToken: string | null = null;
+
+function mobileFetch(input: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  if (mobileSessionToken)
+    headers.set("authorization", `Bearer ${mobileSessionToken}`);
+  return fetch(input, { ...init, headers });
+}
 
 export default function App() {
   const [tab, setTab] = useState<"trace" | "hub">("trace");
@@ -105,7 +120,7 @@ export default function App() {
   const loadHub = useCallback(async () => {
     setIsLoadingHub(true);
     try {
-      const response = await fetch(`${API_URL}/checks?pageSize=20`);
+      const response = await mobileFetch(`${API_URL}/checks?pageSize=20`);
       const payload = (await response.json()) as {
         checks?: HubCheck[];
         error?: string;
@@ -125,7 +140,11 @@ export default function App() {
   }, [loadHub, tab]);
 
   useEffect(() => {
-    fetch(`${API_URL}/auth/me`, { credentials: "include" })
+    SecureStore.getItemAsync(MOBILE_SESSION_KEY)
+      .then((token) => {
+        mobileSessionToken = token;
+        return mobileFetch(`${API_URL}/auth/me`);
+      })
       .then(async (response) =>
         response.ok ? ((await response.json()) as { user: AuthUser }) : null,
       )
@@ -138,8 +157,8 @@ export default function App() {
     setError(null);
     try {
       const [response, timelineResponse] = await Promise.all([
-        fetch(`${API_URL}/checks/${check.id}`),
-        fetch(`${API_URL}/checks/${check.id}/timeline`),
+        mobileFetch(`${API_URL}/checks/${check.id}`),
+        mobileFetch(`${API_URL}/checks/${check.id}/timeline`),
       ]);
       const [payload, timelinePayload] = await Promise.all([
         response.json() as Promise<{ check?: StoredCheck; error?: string }>,
@@ -163,10 +182,11 @@ export default function App() {
   }
 
   async function signOut() {
-    await fetch(`${API_URL}/auth/logout`, {
+    await mobileFetch(`${API_URL}/auth/logout`, {
       method: "POST",
-      credentials: "include",
     }).catch(() => undefined);
+    mobileSessionToken = null;
+    await SecureStore.deleteItemAsync(MOBILE_SESSION_KEY);
     setAuthUser(null);
   }
 
@@ -219,7 +239,7 @@ export default function App() {
         : isHttpUrl(value)
           ? { url: value }
           : { text: value };
-      const response = await fetch(`${API_URL}/analyze`, {
+      const response = await mobileFetch(`${API_URL}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -250,7 +270,9 @@ export default function App() {
         <AuthScreen
           mode={authMode}
           onBack={() => setAuthMode(null)}
-          onAuthenticated={(user) => {
+          onAuthenticated={(user, sessionToken) => {
+            mobileSessionToken = sessionToken;
+            void SecureStore.setItemAsync(MOBILE_SESSION_KEY, sessionToken);
             setAuthUser(user);
             setAuthMode(null);
           }}
@@ -504,6 +526,22 @@ function ResultScreen({
         <ClaimCard claim={claim} index={index} key={claim.claim.id || index} />
       ))}
 
+      {analysis.groundZero?.earliestSource ? (
+        <View style={styles.groundZeroCard}>
+          <Text style={styles.sourcesEyebrow}>
+            GROUND ZERO · {analysis.groundZero.confidence} confidence
+          </Text>
+          <Text style={styles.groundZeroTitle}>
+            {analysis.groundZero.earliestSource.title}
+          </Text>
+          {analysis.groundZero.signals.slice(0, 2).map((signal) => (
+            <Text key={signal} style={styles.groundZeroText}>
+              • {signal}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
       <MobileTimeline
         entries={
           analysis.timeline ?? [
@@ -644,11 +682,14 @@ function MobileAlertSubscription({
   async function subscribe() {
     if (!email.trim()) return;
     try {
-      const response = await fetch(`${API_URL}/checks/${checkId}/alerts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      });
+      const response = await mobileFetch(
+        `${API_URL}/checks/${checkId}/alerts`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim() }),
+        },
+      );
       const payload = (await response.json()) as { error?: string };
       setStatus(
         response.ok
@@ -792,7 +833,7 @@ function AuthScreen({
 }: {
   mode: "login" | "signup";
   onBack: () => void;
-  onAuthenticated: (user: AuthUser) => void;
+  onAuthenticated: (user: AuthUser, sessionToken: string) => void;
   onModeChange: (mode: "login" | "signup") => void;
 }) {
   const [email, setEmail] = useState("");
@@ -809,18 +850,21 @@ function AuthScreen({
         `${API_URL}/auth/${signingUp ? "signup" : "login"}`,
         {
           method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-tracera-mobile": "1",
+          },
           body: JSON.stringify({ email, password }),
         },
       );
       const payload = (await response.json()) as {
         user?: AuthUser;
+        sessionToken?: string;
         error?: string;
       };
-      if (!response.ok || !payload.user)
+      if (!response.ok || !payload.user || !payload.sessionToken)
         throw new Error(payload.error ?? "Unable to continue.");
-      onAuthenticated(payload.user);
+      onAuthenticated(payload.user, payload.sessionToken);
     } catch (authError) {
       setError(messageFrom(authError));
     } finally {
@@ -1415,6 +1459,27 @@ const styles = StyleSheet.create({
     color: "#D5E8E0",
     fontSize: 12,
     lineHeight: 17,
+  },
+  groundZeroCard: {
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: "#BFEAD7",
+    borderRadius: 20,
+    backgroundColor: "#EAF9F1",
+    padding: 17,
+  },
+  groundZeroTitle: {
+    marginTop: 6,
+    color: COLORS.ink,
+    fontSize: 16,
+    fontWeight: "900",
+    lineHeight: 22,
+  },
+  groundZeroText: {
+    marginTop: 6,
+    color: "#496158",
+    fontSize: 12,
+    lineHeight: 18,
   },
   hubScroll: { padding: 20, paddingBottom: 36 },
   backButton: { alignSelf: "flex-start", marginTop: 10, marginBottom: 35 },
