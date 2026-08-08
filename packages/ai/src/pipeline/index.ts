@@ -1,7 +1,11 @@
 export { aggregateScore } from "./aggregate-score.js";
-export { extractClaims } from "./extract-claims.js";
+export {
+  buildClaimExtractionPrompt,
+  extractClaims,
+  type PromptAuditOptions,
+} from "./extract-claims.js";
 export { retrieveSources } from "./retrieve-sources.js";
-export { scoreClaim } from "./score-claim.js";
+export { buildVerdictPrompt, scoreClaim } from "./score-claim.js";
 export { verifyText } from "./verify-text.js";
 export { normalizeInput, type RawAnalysisInput } from "./normalize-input.js";
 export { traceGroundZero } from "./ground-zero.js";

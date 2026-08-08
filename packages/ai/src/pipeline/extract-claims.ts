@@ -2,6 +2,10 @@ import { z } from "zod";
 import type { AiProvider } from "../provider.js";
 import type { ExtractedClaim } from "./types.js";
 
+export interface PromptAuditOptions {
+  onPrompt?: (record: { stage: string; prompt: string }) => void;
+}
+
 const extractedClaimSchema = z.object({
   id: z.string().min(1),
   claimText: z.string().min(1),
@@ -57,21 +61,27 @@ const CLAIM_STOP_WORDS = new Set([
 export async function extractClaims(
   provider: AiProvider,
   text: string,
+  audit?: PromptAuditOptions,
 ): Promise<ExtractedClaim[]> {
-  const result = await provider.generate(
-    `Decompose the following news text into at most 3 high-salience, atomic factual claims for fact checking.\n\n${text}\n\n` +
-      "Return only factual assertions explicitly stated in the supplied text that could be corroborated or contradicted by evidence. " +
-      "Do not infer, combine, complete, or speculate beyond the text. Do not turn vague context, rhetoric, headlines, opinions, predictions, or framing into claims. " +
-      "Every person, place, organisation, number, date, event, and qualifier in claimText must appear in the supplied text. " +
-      "Prefer the three most central claims; returning fewer is correct when fewer are clearly stated. Use factual_assertion as the claim type.",
-    extractionSchema,
-  );
+  const prompt = buildClaimExtractionPrompt(text);
+  audit?.onPrompt?.({ stage: "claim_extraction", prompt });
+  const result = await provider.generate(prompt, extractionSchema);
 
   return result.claims
     .filter((claim) => claim.claimType === "factual_assertion")
     .filter((claim) => claim.checkability !== "not_checkable")
     .filter((claim) => isGroundedInInput(claim.claimText, text))
     .slice(0, 3);
+}
+
+export function buildClaimExtractionPrompt(text: string) {
+  return (
+    `Decompose the following news text into at most 3 high-salience, atomic factual claims for fact checking.\n\n${text}\n\n` +
+    "Return only factual assertions explicitly stated in the supplied text that could be corroborated or contradicted by evidence. " +
+    "Do not infer, combine, complete, or speculate beyond the text. Do not turn vague context, rhetoric, headlines, opinions, predictions, or framing into claims. " +
+    "Every person, place, organisation, number, date, event, and qualifier in claimText must appear in the supplied text. " +
+    "Prefer the three most central claims; returning fewer is correct when fewer are clearly stated. Use factual_assertion as the claim type."
+  );
 }
 
 /** Reject model-introduced details before they reach retrieval. */

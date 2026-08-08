@@ -94,7 +94,12 @@ app.post("/auth/signup", async (context) => {
       );
     }
     const session = await createSession(user.id);
-    setCookie(context, SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
+    setCookie(
+      context,
+      SESSION_COOKIE,
+      session.token,
+      sessionCookieOptions(session.expiresAt),
+    );
     return context.json({ user }, 201);
   } catch (error) {
     console.error("Sign-up failed", error);
@@ -112,9 +117,15 @@ app.post("/auth/login", async (context) => {
 
   try {
     const user = await authenticateUser(email, password);
-    if (!user) return context.json({ error: "Invalid email or password." }, 401);
+    if (!user)
+      return context.json({ error: "Invalid email or password." }, 401);
     const session = await createSession(user.id);
-    setCookie(context, SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
+    setCookie(
+      context,
+      SESSION_COOKIE,
+      session.token,
+      sessionCookieOptions(session.expiresAt),
+    );
     return context.json({ user });
   } catch (error) {
     console.error("Login failed", error);
@@ -183,8 +194,9 @@ app.post("/analyze", async (context) => {
     }
 
     // User-triggered checks stay synchronous; scheduled rechecks run in the BullMQ worker.
+    const auditLog: Array<{ stage: string; prompt: string }> = [];
     const result = await serializeAnalysis(
-      () => analyzeText(normalized.text, provider),
+      () => analyzeText(normalized.text, provider, auditLog),
       requestSignal,
     );
     const groundZero = traceGroundZero(
@@ -215,11 +227,11 @@ app.post("/analyze", async (context) => {
       groundZero,
       prompts: [
         {
-          stage: "claim_extraction",
+          stage: "provider_configuration",
           provider: process.env.AI_PROVIDER ?? "ollama",
           model: process.env.OLLAMA_MODEL ?? "gemma2:9b",
         },
-        { stage: "verdict_generation", count: result.claims.length },
+        ...auditLog,
       ],
       ownerUserId: user?.id,
       supersedesCheckId: recheckOf ?? undefined,
@@ -323,12 +335,17 @@ app.get("/checks/:id", async (context) => {
 async function analyzeText(
   text: string,
   provider: AiProvider,
+  auditLog: Array<{ stage: string; prompt: string }>,
 ): Promise<{
   claims: ClaimVerdict[];
   claimEmbeddings: number[][];
   score: TraceraScore;
 }> {
-  const extractedClaims = await extractClaims(provider, text);
+  const audit = {
+    onPrompt: (record: { stage: string; prompt: string }) =>
+      auditLog.push(record),
+  };
+  const extractedClaims = await extractClaims(provider, text, audit);
   if (extractedClaims.length === 0) {
     throw new Error(
       "No checkable claims could be extracted. Please provide the article text or a public news link.",
@@ -354,7 +371,15 @@ async function analyzeText(
       webSearchApiKey: process.env.WEB_SEARCH_API_KEY,
       claimEmbedding,
     });
-    const verdict = await scoreClaim(provider, claim, sources);
+    auditLog.push({
+      stage: "retrieved_sources",
+      prompt: JSON.stringify({
+        claimId: claim.id,
+        claimText: claim.claimText,
+        sources,
+      }),
+    });
+    const verdict = await scoreClaim(provider, claim, sources, audit);
     claims.push(verdict);
     claimEmbeddings.push(claimEmbedding);
   }
@@ -553,7 +578,9 @@ async function normalizeWithStoredFallback(
 /** Scheduled rechecks are the only callers allowed to bypass input deduplication. */
 function authorizedRecheckId(context: Context, body: unknown) {
   const recheckOf =
-    body && typeof body === "object" && typeof (body as { recheckOf?: unknown }).recheckOf === "string"
+    body &&
+    typeof body === "object" &&
+    typeof (body as { recheckOf?: unknown }).recheckOf === "string"
       ? (body as { recheckOf: string }).recheckOf
       : undefined;
   if (!recheckOf) return null;
