@@ -20,7 +20,7 @@ than by screen.
       inline highlights, explanations, and recheck updates.
 - [x] Add account hardening: password reset, email verification, session
       management, and rate/abuse protection.
-- [ ] Build opt-in personal media-diet reports and delivery preferences.
+- [x] Build opt-in personal media-diet reports and delivery preferences.
 
 ## P3 — public product readiness
 

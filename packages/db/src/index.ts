@@ -204,6 +204,60 @@ export async function updateUserPassword(userId: string, passwordHash: string) {
   await pool.query("DELETE FROM auth_sessions WHERE user_id = $1", [userId]);
 }
 
+export async function setMediaDietPreference(
+  userId: string,
+  enabled: boolean,
+  frequency: "weekly" | "monthly",
+) {
+  await pool.query(
+    `INSERT INTO media_diet_preferences (user_id, enabled, frequency) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET enabled = EXCLUDED.enabled, frequency = EXCLUDED.frequency, updated_at = NOW()`,
+    [userId, enabled, frequency],
+  );
+}
+export async function getMediaDietPreference(userId: string) {
+  const result = await pool.query<{
+    enabled: boolean;
+    frequency: "weekly" | "monthly";
+  }>(
+    "SELECT enabled, frequency FROM media_diet_preferences WHERE user_id = $1",
+    [userId],
+  );
+  return result.rows[0] ?? { enabled: false, frequency: "monthly" as const };
+}
+export async function mediaDietReport(userId: string, days = 30) {
+  const result = await pool.query<{
+    total: string;
+    average_reputation: string | null;
+    average_signal: string | null;
+    public_checks: string;
+  }>(
+    `SELECT COUNT(*)::text AS total, AVG((tracera_score->'sourceReputation'->>'score')::numeric)::text AS average_reputation, AVG((tracera_score->>'overall')::numeric)::text AS average_signal, COUNT(*) FILTER (WHERE visibility = 'public')::text AS public_checks FROM checks WHERE owner_user_id = $1 AND created_at >= NOW() - ($2 * INTERVAL '1 day')`,
+    [userId, days],
+  );
+  const row = result.rows[0];
+  return {
+    periodDays: days,
+    totalChecks: Number(row?.total ?? 0),
+    publicChecks: Number(row?.public_checks ?? 0),
+    averageSourceReputation: row?.average_reputation
+      ? Math.round(Number(row.average_reputation))
+      : null,
+    averageSignal: row?.average_signal
+      ? Math.round(Number(row.average_signal))
+      : null,
+  };
+}
+export async function optedInMediaDietRecipients() {
+  const result = await pool.query<{
+    id: string;
+    email: string;
+    frequency: "weekly" | "monthly";
+  }>(
+    "SELECT users.id, users.email, media_diet_preferences.frequency FROM media_diet_preferences JOIN users ON users.id = media_diet_preferences.user_id WHERE media_diet_preferences.enabled = true",
+  );
+  return result.rows;
+}
+
 /** A prior, sufficiently evidenced claim that can be used as supplementary RAG context. */
 export interface RelatedClaim {
   id: string;

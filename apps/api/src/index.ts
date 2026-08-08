@@ -12,11 +12,15 @@ import {
   findReusableExactCheck,
   getCheckById,
   getDecayObservability,
+  getMediaDietPreference,
   getTraceTimeline,
   listChecks,
   listAuthSessions,
+  mediaDietReport,
+  optedInMediaDietRecipients,
   persistCheck,
   subscribeToCheck,
+  setMediaDietPreference,
   unsubscribeFromCheck,
 } from "@repo/db";
 import {
@@ -79,7 +83,7 @@ app.use(
         ? origin
         : undefined;
     },
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-Tracera-Mobile"],
     credentials: true,
   }),
@@ -232,6 +236,65 @@ app.delete("/auth/sessions/:id", async (context) => {
   if (!user) return context.json({ error: "Not authenticated." }, 401);
   await deleteAuthSessionById(user.id, context.req.param("id"));
   return context.body(null, 204);
+});
+app.get("/reports/media-diet", async (context) => {
+  const user = await getUserForSession(sessionToken(context));
+  if (!user) return context.json({ error: "Not authenticated." }, 401);
+  return context.json({
+    report: await mediaDietReport(user.id),
+    preference: await getMediaDietPreference(user.id),
+  });
+});
+app.put("/reports/media-diet/preferences", async (context) => {
+  const user = await getUserForSession(sessionToken(context));
+  const body = await context.req.json().catch(() => null);
+  if (!user) return context.json({ error: "Not authenticated." }, 401);
+  const frequency = body?.frequency === "weekly" ? "weekly" : "monthly";
+  await setMediaDietPreference(user.id, Boolean(body?.enabled), frequency);
+  return context.json({ preference: await getMediaDietPreference(user.id) });
+});
+app.post("/internal/reports/media-diet/deliver", async (context) => {
+  if (
+    !process.env.INTERNAL_WORKER_TOKEN ||
+    context.req.header("x-tracera-worker-token") !==
+      process.env.INTERNAL_WORKER_TOKEN
+  )
+    return context.json({ error: "Unauthorized" }, 401);
+  const recipients = await optedInMediaDietRecipients();
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.ALERT_FROM_EMAIL;
+  if (!apiKey || !from)
+    return context.json({
+      delivered: 0,
+      skipped: recipients.length,
+      reason: "Email delivery is not configured.",
+    });
+  await Promise.all(
+    recipients.map(async (recipient) => {
+      const report = await mediaDietReport(
+        recipient.id,
+        recipient.frequency === "weekly" ? 7 : 30,
+      );
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: [recipient.email],
+          subject: "Your Tracera media-diet report",
+          text: `In the last ${report.periodDays} days, you checked ${report.totalChecks} items. Average source reputation: ${report.averageSourceReputation ?? "not enough data"}/100. Average signal: ${report.averageSignal ?? "not enough data"}/100.`,
+        }),
+      });
+      if (!response.ok)
+        throw new Error(
+          `Media-diet delivery failed with HTTP ${response.status}.`,
+        );
+    }),
+  );
+  return context.json({ delivered: recipients.length });
 });
 
 app.get("/health", async (context) => {

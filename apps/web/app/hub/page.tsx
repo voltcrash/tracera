@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "../components/app-header";
+import { useAuth } from "../components/auth-provider";
 import type { TraceraScore } from "../components/analysis-result";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -18,6 +19,7 @@ type CheckSummary = {
 };
 
 export default function HubPage() {
+  const { user } = useAuth();
   const [checks, setChecks] = useState<CheckSummary[]>([]);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -112,6 +114,7 @@ export default function HubPage() {
               label="need a second look"
             />
           </div>
+          {user && <MediaDietCard />}
           <div className="mt-10 rounded-[1.75rem] border border-emerald-950/10 bg-white p-3 shadow-[0_20px_60px_-42px_rgba(16,34,31,.6)] sm:p-4">
             <div className="grid gap-3 md:grid-cols-[1fr_auto]">
               <label className="relative">
@@ -227,6 +230,59 @@ export default function HubPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function MediaDietCard() {
+  const [report, setReport] = useState<{
+    periodDays: number;
+    totalChecks: number;
+    averageSourceReputation: number | null;
+    averageSignal: number | null;
+  } | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    fetch(`${apiUrl}/reports/media-diet`, { credentials: "include" })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (data) {
+          setReport(data.report);
+          setEnabled(Boolean(data.preference?.enabled));
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+  async function toggle() {
+    const next = !enabled;
+    setEnabled(next);
+    const response = await fetch(`${apiUrl}/reports/media-diet/preferences`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: next, frequency: "monthly" }),
+    });
+    if (!response.ok) setEnabled(!next);
+  }
+  if (!report) return null;
+  return (
+    <section className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-950/10 bg-emerald-950 p-5 text-white">
+      <div>
+        <p className="text-[10px] font-black tracking-[.16em] text-[#9cf0d1]">
+          YOUR MEDIA DIET · {report.periodDays} DAYS
+        </p>
+        <p className="mt-1 text-sm text-white/75">
+          {report.totalChecks} checks · source reputation{" "}
+          {report.averageSourceReputation ?? "—"}/100 · signal{" "}
+          {report.averageSignal ?? "—"}/100
+        </p>
+      </div>
+      <button
+        onClick={() => void toggle()}
+        className="rounded-xl bg-[#9cf0d1] px-4 py-2 text-sm font-black text-emerald-950"
+      >
+        {enabled ? "Monthly email on" : "Email me this report"}
+      </button>
+    </section>
   );
 }
 function Loading() {
