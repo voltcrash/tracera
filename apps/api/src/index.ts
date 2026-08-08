@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
@@ -158,6 +158,7 @@ app.post("/analyze", async (context) => {
   const body = await context.req.json().catch(() => null);
 
   try {
+    const recheckOf = authorizedRecheckId(context, body);
     const requestSignal = context.req.raw.signal;
     const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
     const provider = configuredProvider(requestSignal);
@@ -171,7 +172,7 @@ app.post("/analyze", async (context) => {
 
     // A previous version stored empty analyses when a URL was sent as text.
     // Never serve that invalid cache entry; rerun it with normalized link input.
-    if (cached && hasRetrievedEvidence(cached.analysis.claims)) {
+    if (!recheckOf && cached && hasRetrievedEvidence(cached.analysis.claims)) {
       return context.json({
         cached: true,
         dedupSimilarity: cached.similarity,
@@ -221,6 +222,7 @@ app.post("/analyze", async (context) => {
         { stage: "verdict_generation", count: result.claims.length },
       ],
       ownerUserId: user?.id,
+      supersedesCheckId: recheckOf ?? undefined,
     });
 
     return context.json(
@@ -545,6 +547,22 @@ async function normalizeWithStoredFallback(
       sourceDomain: url.hostname.replace(/^www\./, ""),
     };
   }
+}
+
+/** Scheduled rechecks are the only callers allowed to bypass input deduplication. */
+function authorizedRecheckId(context: Context, body: unknown) {
+  const recheckOf =
+    body && typeof body === "object" && typeof (body as { recheckOf?: unknown }).recheckOf === "string"
+      ? (body as { recheckOf: string }).recheckOf
+      : undefined;
+  if (!recheckOf) return null;
+
+  const token = process.env.INTERNAL_WORKER_TOKEN;
+  if (!token || context.req.header("x-tracera-worker-token") !== token) {
+    throw new Error("Unauthorized recheck request.");
+  }
+  if (!isUuid(recheckOf)) throw new Error("Invalid recheck target.");
+  return recheckOf;
 }
 
 function environmentNumber(

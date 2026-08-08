@@ -234,15 +234,15 @@ export async function persistCheck(input: {
   traceraScore: unknown;
   analysis: StoredAnalysis;
   claims: StoredClaim[];
-  inputType?: string; sourceUrl?: string; sourceDomain?: string; publishedAt?: string; groundZero?: unknown; prompts?: unknown[]; ownerUserId?: string;
+  inputType?: string; sourceUrl?: string; sourceDomain?: string; publishedAt?: string; groundZero?: unknown; prompts?: unknown[]; ownerUserId?: string; supersedesCheckId?: string;
 }): Promise<{ id: string; createdAt: string }> {
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
     const check = await client.query<{ id: string; created_at: string }>(
-      `INSERT INTO checks (input_type, raw_input, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, next_review_at)
-       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, NOW() + INTERVAL '24 hours')
+      `INSERT INTO checks (input_type, raw_input, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, supersedes_check_id, next_review_at)
+       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, NOW() + INTERVAL '24 hours')
        RETURNING id, created_at`,
       [
         input.inputType ?? "text",
@@ -253,6 +253,7 @@ export async function persistCheck(input: {
         JSON.stringify(input.analysis),
         JSON.stringify(input.groundZero ?? null), JSON.stringify(input.prompts ?? []),
         input.ownerUserId ?? null,
+        input.supersedesCheckId ?? null,
       ],
     );
     const storedCheck = check.rows[0];
@@ -288,7 +289,33 @@ export async function persistCheck(input: {
 }
 
 export async function getTraceTimeline(id: string) {
-  const result = await pool.query(`WITH RECURSIVE trace AS (SELECT id, supersedes_check_id, tracera_score, created_at FROM checks WHERE id=$1 UNION ALL SELECT c.id,c.supersedes_check_id,c.tracera_score,c.created_at FROM checks c JOIN trace t ON t.supersedes_check_id=c.id) SELECT * FROM trace ORDER BY created_at`, [id]); return result.rows;
+  const result = await pool.query(
+    `WITH RECURSIVE
+       ancestors AS (
+         SELECT id, supersedes_check_id, tracera_score, created_at
+           FROM checks WHERE id = $1
+         UNION ALL
+         SELECT parent.id, parent.supersedes_check_id, parent.tracera_score, parent.created_at
+           FROM checks AS parent
+           JOIN ancestors AS child ON child.supersedes_check_id = parent.id
+       ),
+       root AS (
+         SELECT id, supersedes_check_id, tracera_score, created_at
+           FROM ancestors
+          WHERE supersedes_check_id IS NULL
+          LIMIT 1
+       ),
+       descendants AS (
+         SELECT * FROM root
+         UNION ALL
+         SELECT child.id, child.supersedes_check_id, child.tracera_score, child.created_at
+           FROM checks AS child
+           JOIN descendants AS parent ON child.supersedes_check_id = parent.id
+       )
+     SELECT * FROM descendants ORDER BY created_at`,
+    [id],
+  );
+  return result.rows;
 }
 export async function subscribeToCheck(checkId: string, email: string) { const result = await pool.query<{id:string}>(`INSERT INTO alert_subscriptions (check_id,email) VALUES ($1,$2) RETURNING id`, [checkId,email.toLowerCase()]); return result.rows[0]; }
 export async function dueChecks(limit = 50) { return (await pool.query(`SELECT id, raw_input, input_type, source_url, analysis FROM checks WHERE next_review_at <= NOW() ORDER BY next_review_at LIMIT $1`, [limit])).rows; }
