@@ -23,11 +23,11 @@ Tracera helps people assess news, claims, links, and images by tracing claims ba
 
 ## Stack
 
-Turborepo, pnpm, Next.js, Expo, Hono, PostgreSQL with pgvector, Redis/BullMQ, and Drizzle. Local development uses Ollama by default; the AI provider layer is designed to support other providers through configuration.
+Turborepo, pnpm, Next.js, Expo, Hono, PostgreSQL with pgvector, Redis/BullMQ, and Drizzle. AI generation and embeddings use hosted provider APIs; Gemini is the configured adapter.
 
 ## Local setup
 
-Requirements: Node 18+, pnpm 11.20.0, PostgreSQL with pgvector, Redis, and Ollama with `gemma2:9b` and `mxbai-embed-large`.
+Requirements: Node 18+, pnpm 11.20.0, PostgreSQL with pgvector, Redis, and a Gemini API key. Set `GEMINI_API_KEY` in `apps/api/.env` before starting the API.
 
 ```sh
 pnpm install

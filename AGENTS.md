@@ -47,17 +47,15 @@ Web, mobile, browser extension.
 * Search: Meilisearch / Typesense / Postgres full-text search (TBD)
 
 ### AI providers
-* **Primary (current phase): local models via Ollama, using Gemma.**
-  * Default model: **Gemma 2 9B** (or Gemma 3, if available in the local Ollama library — check `ollama list`). Avoid the 2B variant for pipeline-critical calls (claim extraction, verdict generation) — it's weaker on multi-step reasoning and structured output consistency. If hardware allows, also test **Gemma 2 27B** for reasoning quality comparison.
-  * **Known gotcha:** older Gemma templates in Ollama don't support a native `system` role the same way Llama/Mistral do — system instructions may need to be folded into the first user turn depending on the model's chat template. Check `ollama show gemma2 --modelfile` before building prompt-construction logic.
-* Architecture must **not** hard-couple to Ollama or Gemma. Build a thin provider-abstraction layer (a single interface like `generate(prompt, schema)` / `embed(text)`) so Gemini, OpenRouter, , OpenAI, etc. can be swapped in per-environment or per-call via config, without touching pipeline logic.
+* **Primary: hosted AI provider APIs.** Gemini is the configured adapter; OpenRouter, Anthropic, OpenAI, and other API providers can be added behind the same interface.
+* Architecture must **not** hard-couple to a provider. Keep a thin provider-abstraction layer (a single interface like `generate(prompt, schema)` / `embed(text)`) so providers can be swapped in per-environment or per-call via config, without touching pipeline logic.
 * Same abstraction applies to embeddings (model swap should not require touching dedup/RAG logic).
-* All structured-output calls (regardless of provider) must go through a schema-validation-and-retry step (e.g. Zod parse → retry on failure) — "valid JSON" from `format: "json"` mode is not the same as "matches our schema," and this must not be assumed to work reliably by default, especially with local models.
+* All structured-output calls (regardless of provider) must go through a schema-validation-and-retry step (e.g. Zod parse → retry on failure) — "valid JSON" from `format: "json"` mode is not the same as "matches our schema," and this must not be assumed to work reliably by default.
 
 ### claim-verification pipeline
 
 **Step 0 — Model validation (do this before building the pipeline):**
-Before writing pipeline code, validate Gemma's actual output quality on Stage 2 (claim extraction) and Stage 6 (verdict generation) using 5-10 real articles (mixed true/false/misleading). Check: consistent valid-schema JSON output, genuine claim atomicity, and coherent (not just confident-sounding) reasoning. Confirm the model is workable before proceeding — this determines whether 9B is sufficient or 27B is needed, and surfaces real-world schema-conformance failure rates to design the retry logic around.
+Before writing pipeline code, validate the chosen hosted model's output quality on Stage 2 (claim extraction) and Stage 6 (verdict generation) using 5-10 real articles (mixed true/false/misleading). Check: consistent valid-schema JSON output, genuine claim atomicity, coherent (not just confident-sounding) reasoning, latency, and cost. Use the results to set retry policy and approve the production model.
 
 1. **Input normalization** — convert text / link / image into a common shape: `{ text, sourceUrl?, sourceDomain?, publishedAt?, imageMetadata? }`.
    * Link → scrape + readability extraction (body text, author, publish date, domain).
@@ -79,4 +77,3 @@ Before writing pipeline code, validate Gemma's actual output quality on Stage 2 
 
 ### RAG strategy
 Using **Strategy 1**: build our own retrieval layer on top of our accumulated, self-verified claims corpus (pgvector), rather than attempting to index the open web ourselves. External APIs (fact-check DBs, news APIs, web search) remain the source of *raw* retrieval; our own corpus is checked first and also injected as supplementary context for claims that are related-but-not-identical to past checks (two similarity thresholds: exact-dedup vs. related-context). This corpus compounds in value over time and is the core moat, distinct from raw retrieval infrastructure.
-

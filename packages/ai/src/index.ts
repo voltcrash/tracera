@@ -6,7 +6,6 @@ export {
   StructuredOutputError,
 } from "./provider.js";
 export { GeminiProvider, type GeminiProviderOptions } from "./providers/gemini.js";
-export { OllamaProvider, type OllamaProviderOptions } from "./providers/ollama.js";
 export { CompositeAiProvider } from "./composite-provider.js";
 export { createAiProvider, type AiProviderConfig } from "./create-provider.js";
 export {

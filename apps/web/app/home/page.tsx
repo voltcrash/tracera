@@ -290,7 +290,7 @@ function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
         OCR:{" "}
         {metadata.ocrProvider === "configured"
           ? "configured OCR provider"
-          : "local model fallback"}{" "}
+          : "fallback OCR processing"}{" "}
         · {metadata.mimeType ?? "unknown image type"}
       </p>
       {exif.length ? (

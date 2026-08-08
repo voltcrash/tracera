@@ -10,8 +10,7 @@
     "check-types": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
     "test:live": "tsx scripts/live-test.ts",
-    "test:pipeline": "tsx scripts/pipeline-live-test.ts",
-    "validate:gemma": "tsx scripts/validate-gemma.ts"
+    "test:pipeline": "tsx scripts/pipeline-live-test.ts"
   },
   "dependencies": {
     "@repo/db": "workspace:*",

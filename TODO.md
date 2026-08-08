@@ -33,10 +33,10 @@ than by screen.
 
 ## F0 — externally dependent future work
 
-- [ ] Install and validate a production local model (`gemma2:9b` and, if
-      hardware permits, `gemma2:27b`) against 5–10 real mixed-veracity articles.
-      Record schema conformance, claim atomicity, verdict quality, and latency
-      before enabling it for production decisions.
+- [ ] Validate the selected hosted-model configuration against 5–10 real
+      mixed-veracity articles. Record schema conformance, claim atomicity,
+      verdict quality, latency, and per-request cost before enabling it for
+      production decisions.
 - [ ] Configure a real OCR provider, EXIF parser, and reverse-image-search
       provider. The web/mobile image upload path and optional OCR endpoint contract
       are in place; the forensic integrations require provider credentials and

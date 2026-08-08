@@ -345,7 +345,7 @@ app.post("/analyze", async (context) => {
       user?.id,
       parentCheck?.visibility,
     );
-    const provider = configuredProvider(requestSignal);
+    const provider = configuredProvider();
     const normalized = await normalizeWithStoredFallback(body, provider);
     const inputEmbedding = await provider.embed(normalized.text);
     const forceReanalysis = Boolean(
@@ -421,8 +421,8 @@ app.post("/analyze", async (context) => {
       prompts: [
         {
           stage: "provider_configuration",
-          provider: process.env.AI_PROVIDER ?? "ollama",
-          model: process.env.OLLAMA_MODEL ?? "gemma2:9b",
+          provider: "gemini",
+          model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
         },
         ...auditLog,
       ],
@@ -595,7 +595,6 @@ async function analyzeText(
   const claims: ClaimVerdict[] = [];
   const claimEmbeddings: number[][] = [];
 
-  // Keep local model work serialized; this matches packages/ai's verifyText behavior.
   for (const claim of extractedClaims) {
     const claimEmbedding = await provider.embed(claim.claimText);
     const sources = await retrieveSources(claim, {
@@ -732,35 +731,15 @@ function cacheTerms(text: string) {
     .filter((term) => term.length >= 3 && !stopWords.has(term));
 }
 
-function configuredProvider(signal?: AbortSignal) {
-  const provider = process.env.AI_PROVIDER ?? "ollama";
-
-  if (provider === "gemini") {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey)
-      throw new Error("GEMINI_API_KEY is required when AI_PROVIDER=gemini.");
-    return createAiProvider({
-      provider: "gemini",
-      apiKey,
-      model: process.env.GEMINI_MODEL,
-      embeddingModel: process.env.GEMINI_EMBEDDING_MODEL,
-      embeddingDimensions: 1024,
-    });
-  }
-
-  if (provider !== "ollama") {
-    throw new Error(
-      `Unsupported AI_PROVIDER: ${provider}. Use ollama or gemini.`,
-    );
-  }
-
+function configuredProvider() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY is required.");
   return createAiProvider({
-    provider: "ollama",
-    baseUrl: process.env.OLLAMA_BASE_URL,
-    model: process.env.OLLAMA_MODEL,
-    embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL,
-    maxTokens: environmentNumber("OLLAMA_MAX_TOKENS", 512, 32, 4_096),
-    signal,
+    provider: "gemini",
+    apiKey,
+    model: process.env.GEMINI_MODEL,
+    embeddingModel: process.env.GEMINI_EMBEDDING_MODEL,
+    embeddingDimensions: 1024,
   });
 }
 

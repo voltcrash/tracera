@@ -1,17 +1,12 @@
 import {
-  CompositeAiProvider,
   GeminiProvider,
-  OllamaProvider,
   verifyText,
 } from "../src/index.js";
 
-const provider = new CompositeAiProvider(
-  new OllamaProvider({ model: process.env.OLLAMA_MODEL ?? "gemma2:9b" }),
-  new GeminiProvider({
-    apiKey: requireEnvironment("GEMINI_API_KEY"),
-    embeddingDimensions: 1024,
-  }),
-);
+const provider = new GeminiProvider({
+  apiKey: requireEnvironment("GEMINI_API_KEY"),
+  embeddingDimensions: 1024,
+});
 const factCheckApiKey = requireEnvironment("GOOGLE_FACT_CHECK_API_KEY");
 
 const articles = [

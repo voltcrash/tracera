@@ -11,7 +11,6 @@ export async function verifyText(
   const extractedClaims = await extractClaims(options.provider, text);
   const claimVerdicts: ClaimVerdict[] = [];
 
-  // Serialize local generation to avoid overcommitting the local Gemma runtime.
   for (const claim of extractedClaims) {
     const sources = await retrieveSources(claim, options);
     claimVerdicts.push(await scoreClaim(options.provider, claim, sources));
