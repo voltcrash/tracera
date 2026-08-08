@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Tracera",
+    "slug": "tracera",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "tracera",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tracera.mobile"
+    },
+    "android": {
+      "package": "com.tracera.mobile"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Tracera to use a news image for verification."
+        }
+      ]
+    ]
+  }
+}
