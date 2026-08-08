@@ -372,8 +372,9 @@ export async function dueChecks(limit = 50) {
   ).rows;
 }
 
-export async function listChecks(page: number, pageSize: number) {
+export async function listChecks(page: number, pageSize: number, query = "") {
   const offset = (page - 1) * pageSize;
+  const search = `%${query.trim()}%`;
   const [items, total] = await Promise.all([
     pool.query<{
       id: string;
@@ -383,11 +384,15 @@ export async function listChecks(page: number, pageSize: number) {
     }>(
       `SELECT id, raw_input, tracera_score, created_at
        FROM checks
+       WHERE raw_input ILIKE $1
        ORDER BY created_at DESC
-       LIMIT $1 OFFSET $2`,
-      [pageSize, offset],
+       LIMIT $2 OFFSET $3`,
+      [search, pageSize, offset],
     ),
-    pool.query<{ count: string }>("SELECT COUNT(*)::text AS count FROM checks"),
+    pool.query<{ count: string }>(
+      "SELECT COUNT(*)::text AS count FROM checks WHERE raw_input ILIKE $1",
+      [search],
+    ),
   ]);
 
   return {
