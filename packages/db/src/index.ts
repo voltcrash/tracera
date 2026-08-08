@@ -416,7 +416,7 @@ export async function getTraceTimeline(id: string) {
   return result.rows;
 }
 export async function subscribeToCheck(checkId: string, email: string) {
-  const result = await pool.query<{ id: string }>(
+  const result = await pool.query<{ id: string; active: string }>(
     `WITH RECURSIVE ancestors AS (
        SELECT id, supersedes_check_id FROM checks WHERE id = $1
        UNION ALL
@@ -425,12 +425,59 @@ export async function subscribeToCheck(checkId: string, email: string) {
      ), root AS (
        SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
      )
-     INSERT INTO alert_subscriptions (check_id, email)
-     SELECT id, $2 FROM root
-     RETURNING id`,
+     INSERT INTO alert_subscriptions (check_id, email, active, updated_at)
+     SELECT id, $2, 'true', NOW() FROM root
+     ON CONFLICT (check_id, email)
+     DO UPDATE SET active = 'true', updated_at = NOW()
+     RETURNING id, active`,
     [checkId, email.toLowerCase()],
   );
   return result.rows[0];
+}
+
+export async function unsubscribeFromCheck(checkId: string, email: string) {
+  const result = await pool.query<{ id: string }>(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, supersedes_check_id FROM checks WHERE id = $1
+       UNION ALL SELECT parent.id, parent.supersedes_check_id FROM checks parent JOIN ancestors child ON child.supersedes_check_id = parent.id
+     ), root AS (SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1)
+     UPDATE alert_subscriptions SET active = 'false', updated_at = NOW()
+      WHERE check_id = (SELECT id FROM root) AND email = $2 RETURNING id`,
+    [checkId, email.toLowerCase()],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function alertSubscriptionForCheck(
+  checkId: string,
+  email: string,
+) {
+  const result = await pool.query<{ id: string; active: string }>(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, supersedes_check_id FROM checks WHERE id = $1
+       UNION ALL SELECT parent.id, parent.supersedes_check_id FROM checks parent JOIN ancestors child ON child.supersedes_check_id = parent.id
+     ), root AS (SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1)
+     SELECT id, active FROM alert_subscriptions WHERE check_id = (SELECT id FROM root) AND email = $2 LIMIT 1`,
+    [checkId, email.toLowerCase()],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function markAlertSubscriptionsNotified(
+  checkId: string,
+  deliveredCheckId: string,
+  emails: string[],
+) {
+  if (!emails.length) return;
+  await pool.query(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, supersedes_check_id FROM checks WHERE id = $1
+       UNION ALL SELECT parent.id, parent.supersedes_check_id FROM checks parent JOIN ancestors child ON child.supersedes_check_id = parent.id
+     ), root AS (SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1)
+     UPDATE alert_subscriptions SET last_notified_check_id = $2, updated_at = NOW()
+      WHERE check_id = (SELECT id FROM root) AND email = ANY($3::text[])`,
+    [checkId, deliveredCheckId, emails],
+  );
 }
 
 export async function activeAlertEmailsForTrace(checkId: string) {

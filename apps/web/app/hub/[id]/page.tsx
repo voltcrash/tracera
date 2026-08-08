@@ -121,6 +121,7 @@ export default function CheckDetailPage({
 function AlertSubscription({ checkId }: { checkId: string }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const [subscribed, setSubscribed] = useState(false);
   async function subscribe(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus(null);
@@ -135,6 +136,21 @@ function AlertSubscription({ checkId }: { checkId: string }) {
         ? "You’ll be notified when this trace materially changes."
         : (data.error ?? "Could not save your alert."),
     );
+    if (response.ok) setSubscribed(true);
+  }
+  async function unsubscribe() {
+    const response = await fetch(`${apiUrl}/checks/${checkId}/alerts`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    setStatus(
+      response.ok
+        ? "Alert paused for this trace."
+        : "Could not pause your alert.",
+    );
+    if (response.ok) setSubscribed(false);
   }
   return (
     <form
@@ -156,8 +172,17 @@ function AlertSubscription({ checkId }: { checkId: string }) {
         className="rounded-xl px-3 py-2 text-sm text-emerald-950 outline-none"
       />
       <button className="rounded-xl bg-[#9cf0d1] px-4 py-2 text-sm font-black text-emerald-950">
-        Notify me
+        {subscribed ? "Alert active" : "Notify me"}
       </button>
+      {subscribed && (
+        <button
+          type="button"
+          onClick={() => void unsubscribe()}
+          className="text-xs font-bold text-white/75 underline"
+        >
+          Unsubscribe
+        </button>
+      )}
       {status && <p className="w-full text-xs text-white/80">{status}</p>}
     </form>
   );

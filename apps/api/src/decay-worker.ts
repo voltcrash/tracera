@@ -2,6 +2,7 @@ import { Queue, Worker } from "bullmq";
 import {
   activeAlertEmailsForTrace,
   dueChecks,
+  markAlertSubscriptionsNotified,
   pool,
   recordDecayEvent,
 } from "@repo/db";
@@ -179,4 +180,5 @@ async function notifyTraceSubscribers(
         throw new Error(`Alert delivery failed with HTTP ${response.status}.`);
     }),
   );
+  await markAlertSubscriptionsNotified(originalCheckId, newCheckId, recipients);
 }

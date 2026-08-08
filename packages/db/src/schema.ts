@@ -94,7 +94,11 @@ export const alertSubscriptions = pgTable("alert_subscriptions", {
     .references(() => checks.id, { onDelete: "cascade" }),
   email: text("email").notNull(),
   active: varchar("active", { length: 5 }).notNull().default("true"),
+  lastNotifiedCheckId: uuid("last_notified_check_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });

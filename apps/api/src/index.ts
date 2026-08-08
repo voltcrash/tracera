@@ -3,6 +3,7 @@ import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
+  alertSubscriptionForCheck,
   checkDatabase,
   findGroundZeroCorpusHistory,
   findLatestCheckByRawInput,
@@ -13,6 +14,7 @@ import {
   listChecks,
   persistCheck,
   subscribeToCheck,
+  unsubscribeFromCheck,
 } from "@repo/db";
 import {
   aggregateScore,
@@ -307,13 +309,41 @@ app.get("/checks/:id/timeline", async (context) => {
 app.post("/checks/:id/alerts", async (context) => {
   const id = context.req.param("id");
   const body = await context.req.json().catch(() => null);
-  const email = typeof body?.email === "string" ? body.email.trim() : "";
-  if (!isUuid(id) || !/^\S+@\S+\.\S+$/.test(email))
+  const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+  const email =
+    user?.email ?? (typeof body?.email === "string" ? body.email.trim() : "");
+  if (!isUuid(id) || !isValidEmail(email))
     return context.json(
       { error: "A valid check and email are required." },
       400,
     );
   return context.json({ subscription: await subscribeToCheck(id, email) }, 201);
+});
+app.get("/checks/:id/alerts", async (context) => {
+  const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+  const id = context.req.param("id");
+  if (!user || !isUuid(id))
+    return context.json({ error: "Not authenticated." }, 401);
+  return context.json({
+    subscription: await alertSubscriptionForCheck(id, user.email),
+  });
+});
+app.delete("/checks/:id/alerts", async (context) => {
+  const id = context.req.param("id");
+  const body = await context.req.json().catch(() => null);
+  const user = await getUserForSession(getCookie(context, SESSION_COOKIE));
+  const requestedEmail =
+    typeof body?.email === "string" ? body.email.trim() : "";
+  const email = user?.email ?? requestedEmail;
+  if (!isUuid(id) || !isValidEmail(email))
+    return context.json(
+      { error: "A valid check and email are required." },
+      400,
+    );
+  if (user && requestedEmail && normalizeEmail(requestedEmail) !== user.email)
+    return context.json({ error: "You can only manage your own alerts." }, 403);
+  await unsubscribeFromCheck(id, email);
+  return context.body(null, 204);
 });
 app.get("/v1/checks/:id", async (context) => {
   if (
