@@ -6,7 +6,7 @@ than by screen.
 
 ## P0 — make the product dependable
 
-- [ ] Restore a clean monorepo quality gate: type-check, lint, build, and
+- [x] Restore a clean monorepo quality gate: type-check, lint, build, and
   automated tests must all run in CI.
 - [ ] Validate the selected local Gemma model with 5–10 real, mixed-veracity
   news articles; record schema-conformance, claim-atomicity, and verdict
@@ -16,7 +16,7 @@ than by screen.
   integration.
 - [ ] Strengthen retrieval: retrieve source content, use a defined web-search
   adapter, seed and maintain domain trust data, and keep evidence relevant.
-- [ ] Persist reproducible audit records: full prompts, model/provider
+- [x] Persist reproducible audit records: full prompts, model/provider
   metadata, retry outcomes, and retrieved-source snapshots.
 - [ ] Calibrate claim verdict, evidence-quality, and aggregate-score logic
   against labelled evaluation cases.
