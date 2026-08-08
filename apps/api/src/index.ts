@@ -32,6 +32,8 @@ import {
   normalizeInput,
   traceGroundZero,
   type AiProvider,
+  type AiProviderConfig,
+  type AiProviderName,
   type ClaimVerdict,
   type TraceraScore,
 } from "@repo/ai";
@@ -345,7 +347,8 @@ app.post("/analyze", async (context) => {
       user?.id,
       parentCheck?.visibility,
     );
-    const provider = configuredProvider();
+    const aiConfiguration = configuredAiConfiguration();
+    const provider = createAiProvider(aiConfiguration);
     const normalized = await normalizeWithStoredFallback(body, provider);
     const inputEmbedding = await provider.embed(normalized.text);
     const forceReanalysis = Boolean(
@@ -421,8 +424,12 @@ app.post("/analyze", async (context) => {
       prompts: [
         {
           stage: "provider_configuration",
-          provider: "gemini",
-          model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+          provider: aiConfiguration.provider,
+          model: aiConfiguration.model,
+          embeddingProvider:
+            aiConfiguration.embedding?.provider ?? aiConfiguration.provider,
+          embeddingModel:
+            aiConfiguration.embedding?.model ?? aiConfiguration.embeddingModel,
         },
         ...auditLog,
       ],
@@ -731,16 +738,67 @@ function cacheTerms(text: string) {
     .filter((term) => term.length >= 3 && !stopWords.has(term));
 }
 
-function configuredProvider() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is required.");
-  return createAiProvider({
-    provider: "gemini",
+function configuredAiConfiguration(): AiProviderConfig {
+  const apiKey = requiredEnvironment("AI_API_KEY");
+  const provider = aiProviderName(process.env.AI_PROVIDER);
+  const embeddingProvider = process.env.AI_EMBEDDING_PROVIDER
+    ? aiProviderName(process.env.AI_EMBEDDING_PROVIDER)
+    : undefined;
+  const embeddingModel = optionalEnvironment("AI_EMBEDDING_MODEL");
+  const embeddingDimensions = positiveInteger(
+    process.env.AI_EMBEDDING_DIMENSIONS,
+    1024,
+    10_000,
+  );
+
+  return {
+    provider,
     apiKey,
-    model: process.env.GEMINI_MODEL,
-    embeddingModel: process.env.GEMINI_EMBEDDING_MODEL,
-    embeddingDimensions: 1024,
-  });
+    model: optionalEnvironment("AI_MODEL"),
+    baseUrl: optionalEnvironment("AI_BASE_URL"),
+    ...(embeddingProvider
+      ? {
+          embedding: {
+            provider: embeddingProvider,
+            apiKey: optionalEnvironment("AI_EMBEDDING_API_KEY") ?? apiKey,
+            model: embeddingModel,
+            baseUrl: optionalEnvironment("AI_EMBEDDING_BASE_URL"),
+            dimensions: embeddingDimensions,
+          },
+        }
+      : {
+          embeddingModel,
+          embeddingDimensions,
+        }),
+  };
+}
+
+function requiredEnvironment(name: string): string {
+  const value = optionalEnvironment(name);
+  if (!value) throw new Error(`${name} is required.`);
+  return value;
+}
+
+function optionalEnvironment(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value || undefined;
+}
+
+function aiProviderName(value: string | undefined): AiProviderName {
+  const provider = value?.trim().toLowerCase();
+  const supported: AiProviderName[] = [
+    "anthropic",
+    "gemini",
+    "openai",
+    "openrouter",
+    "openai-compatible",
+  ];
+  if (!provider || !supported.includes(provider as AiProviderName)) {
+    throw new Error(
+      `AI_PROVIDER must be one of: ${supported.join(", ")}.`,
+    );
+  }
+  return provider as AiProviderName;
 }
 
 function serializeAnalysis<T>(

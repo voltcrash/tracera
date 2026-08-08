@@ -47,7 +47,7 @@ Web, mobile, browser extension.
 * Search: Meilisearch / Typesense / Postgres full-text search (TBD)
 
 ### AI providers
-* **Primary: hosted AI provider APIs.** Gemini is the configured adapter; OpenRouter, Anthropic, OpenAI, and other API providers can be added behind the same interface.
+* **Primary: hosted AI provider APIs.** Gemini, OpenRouter, Anthropic, OpenAI, and OpenAI-compatible endpoints are selected by environment configuration behind the same interface.
 * Architecture must **not** hard-couple to a provider. Keep a thin provider-abstraction layer (a single interface like `generate(prompt, schema)` / `embed(text)`) so providers can be swapped in per-environment or per-call via config, without touching pipeline logic.
 * Same abstraction applies to embeddings (model swap should not require touching dedup/RAG logic).
 * All structured-output calls (regardless of provider) must go through a schema-validation-and-retry step (e.g. Zod parse → retry on failure) — "valid JSON" from `format: "json"` mode is not the same as "matches our schema," and this must not be assumed to work reliably by default.

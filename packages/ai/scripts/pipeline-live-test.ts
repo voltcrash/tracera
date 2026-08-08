@@ -1,12 +1,11 @@
 import {
-  GeminiProvider,
+  createAiProvider,
   verifyText,
+  type AiProviderConfig,
+  type AiProviderName,
 } from "../src/index.js";
 
-const provider = new GeminiProvider({
-  apiKey: requireEnvironment("GEMINI_API_KEY"),
-  embeddingDimensions: 1024,
-});
+const provider = createAiProvider(providerConfiguration());
 const factCheckApiKey = requireEnvironment("GOOGLE_FACT_CHECK_API_KEY");
 
 const articles = [
@@ -55,4 +54,42 @@ function requireEnvironment(name: string) {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is required for the live pipeline test.`);
   return value;
+}
+
+function providerConfiguration(): AiProviderConfig {
+  const apiKey = requireEnvironment("AI_API_KEY");
+  const embeddingProvider = process.env.AI_EMBEDDING_PROVIDER
+    ? providerName(process.env.AI_EMBEDDING_PROVIDER)
+    : undefined;
+  const embeddingModel = process.env.AI_EMBEDDING_MODEL;
+  return {
+    provider: providerName(requireEnvironment("AI_PROVIDER")),
+    apiKey,
+    model: process.env.AI_MODEL,
+    baseUrl: process.env.AI_BASE_URL,
+    ...(embeddingProvider
+      ? {
+          embedding: {
+            provider: embeddingProvider,
+            apiKey: process.env.AI_EMBEDDING_API_KEY ?? apiKey,
+            model: embeddingModel,
+            baseUrl: process.env.AI_EMBEDDING_BASE_URL,
+            dimensions: 1024,
+          },
+        }
+      : { embeddingModel, embeddingDimensions: 1024 }),
+  };
+}
+
+function providerName(value: string): AiProviderName {
+  if (
+    value === "anthropic" ||
+    value === "gemini" ||
+    value === "openai" ||
+    value === "openrouter" ||
+    value === "openai-compatible"
+  ) {
+    return value;
+  }
+  throw new Error(`Unsupported AI_PROVIDER: ${value}`);
 }

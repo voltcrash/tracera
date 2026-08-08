@@ -6,8 +6,18 @@ export {
   StructuredOutputError,
 } from "./provider.js";
 export { GeminiProvider, type GeminiProviderOptions } from "./providers/gemini.js";
+export { AnthropicProvider, type AnthropicProviderOptions } from "./providers/anthropic.js";
+export {
+  OpenAiCompatibleProvider,
+  type OpenAiCompatibleProviderOptions,
+} from "./providers/openai-compatible.js";
 export { CompositeAiProvider } from "./composite-provider.js";
-export { createAiProvider, type AiProviderConfig } from "./create-provider.js";
+export {
+  createAiProvider,
+  type AiProviderConfig,
+  type AiProviderName,
+  type ModelProviderConfig,
+} from "./create-provider.js";
 export {
   aggregateScore,
   extractClaims,

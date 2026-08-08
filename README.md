@@ -23,11 +23,13 @@ Tracera helps people assess news, claims, links, and images by tracing claims ba
 
 ## Stack
 
-Turborepo, pnpm, Next.js, Expo, Hono, PostgreSQL with pgvector, Redis/BullMQ, and Drizzle. AI generation and embeddings use hosted provider APIs; Gemini is the configured adapter.
+Turborepo, pnpm, Next.js, Expo, Hono, PostgreSQL with pgvector, Redis/BullMQ, and Drizzle. AI generation and embeddings use a provider-neutral adapter layer supporting Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible endpoints.
 
 ## Local setup
 
-Requirements: Node 18+, pnpm 11.20.0, PostgreSQL with pgvector, Redis, and a Gemini API key. Set `GEMINI_API_KEY` in `apps/api/.env` before starting the API.
+Requirements: Node 18+, pnpm 11.20.0, PostgreSQL with pgvector, Redis, and an AI provider API key. Set `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, and `AI_EMBEDDING_MODEL` in `apps/api/.env` before starting the API. Anthropic generation requires a separate embeddings provider because Anthropic does not provide embeddings.
+
+`AI_PROVIDER` accepts `gemini`, `openai`, `openrouter`, `anthropic`, or `openai-compatible`. The last option requires `AI_BASE_URL`; use the `AI_EMBEDDING_*` variables to use a different provider for embeddings.
 
 ```sh
 pnpm install
