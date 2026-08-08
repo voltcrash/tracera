@@ -148,6 +148,62 @@ export async function deleteAuthSession(tokenHash: string) {
   ]);
 }
 
+export async function listAuthSessions(userId: string) {
+  const result = await pool.query<{
+    id: string;
+    created_at: string;
+    expires_at: string;
+  }>(
+    "SELECT id, created_at, expires_at FROM auth_sessions WHERE user_id = $1 AND expires_at > NOW() ORDER BY created_at DESC",
+    [userId],
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+  }));
+}
+export async function deleteAuthSessionById(userId: string, sessionId: string) {
+  await pool.query("DELETE FROM auth_sessions WHERE user_id = $1 AND id = $2", [
+    userId,
+    sessionId,
+  ]);
+}
+export async function createAccountToken(input: {
+  userId: string;
+  tokenHash: string;
+  kind: "verify_email" | "reset_password";
+  expiresAt: Date;
+}) {
+  await pool.query(
+    "INSERT INTO account_tokens (user_id, token_hash, kind, expires_at) VALUES ($1, $2, $3, $4)",
+    [input.userId, input.tokenHash, input.kind, input.expiresAt],
+  );
+}
+export async function consumeAccountToken(
+  tokenHash: string,
+  kind: "verify_email" | "reset_password",
+) {
+  const result = await pool.query<{ user_id: string }>(
+    "UPDATE account_tokens SET used_at = NOW() WHERE token_hash = $1 AND kind = $2 AND used_at IS NULL AND expires_at > NOW() RETURNING user_id",
+    [tokenHash, kind],
+  );
+  return result.rows[0]?.user_id ?? null;
+}
+export async function markEmailVerified(userId: string) {
+  await pool.query(
+    "UPDATE users SET email_verified_at = NOW(), updated_at = NOW() WHERE id = $1",
+    [userId],
+  );
+}
+export async function updateUserPassword(userId: string, passwordHash: string) {
+  await pool.query(
+    "UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1",
+    [userId, passwordHash],
+  );
+  await pool.query("DELETE FROM auth_sessions WHERE user_id = $1", [userId]);
+}
+
 /** A prior, sufficiently evidenced claim that can be used as supplementary RAG context. */
 export interface RelatedClaim {
   id: string;

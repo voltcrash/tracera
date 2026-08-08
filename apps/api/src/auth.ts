@@ -1,4 +1,9 @@
-import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  randomBytes,
+  scrypt as scryptCallback,
+  timingSafeEqual,
+} from "node:crypto";
 import { promisify } from "node:util";
 import {
   createAuthSession,
@@ -7,6 +12,10 @@ import {
   findUserByEmail,
   findUserBySessionTokenHash,
   type AuthUser,
+  createAccountToken as persistAccountToken,
+  consumeAccountToken as consumePersistedAccountToken,
+  markEmailVerified,
+  updateUserPassword,
 } from "@repo/db";
 
 const scrypt = promisify(scryptCallback);
@@ -58,8 +67,13 @@ export async function registerUser(email: string, password: string) {
 
 export async function authenticateUser(email: string, password: string) {
   const user = await findUserByEmail(email);
-  if (!user || !(await verifyPassword(password, user.passwordHash))) return null;
-  return { id: user.id, email: user.email, createdAt: user.createdAt } satisfies AuthUser;
+  if (!user || !(await verifyPassword(password, user.passwordHash)))
+    return null;
+  return {
+    id: user.id,
+    email: user.email,
+    createdAt: user.createdAt,
+  } satisfies AuthUser;
 }
 
 export async function createSession(userId: string) {
@@ -85,10 +99,33 @@ export function hashSessionToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+export async function createAccountActionToken(
+  userId: string,
+  kind: "verify_email" | "reset_password",
+) {
+  const token = randomBytes(32).toString("base64url");
+  await persistAccountToken({
+    userId,
+    tokenHash: hashSessionToken(token),
+    kind,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+  });
+  return token;
+}
+export async function consumeAccountActionToken(
+  token: string,
+  kind: "verify_email" | "reset_password",
+) {
+  return consumePersistedAccountToken(hashSessionToken(token), kind);
+}
+export { markEmailVerified, updateUserPassword };
+
 export const sessionCookieOptions = (expiresAt?: Date) => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
   sameSite: "Lax" as const,
   path: "/",
-  ...(expiresAt ? { expires: expiresAt, maxAge: SESSION_LIFETIME_MS / 1000 } : {}),
+  ...(expiresAt
+    ? { expires: expiresAt, maxAge: SESSION_LIFETIME_MS / 1000 }
+    : {}),
 });

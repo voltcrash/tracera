@@ -18,7 +18,7 @@ than by screen.
       timeline, alerts, and complete evidence details.
 - [x] Build the reactive extension experience: content-script claim detection,
       inline highlights, explanations, and recheck updates.
-- [ ] Add account hardening: password reset, email verification, session
+- [x] Add account hardening: password reset, email verification, session
       management, and rate/abuse protection.
 - [ ] Build opt-in personal media-diet reports and delivery preferences.
 

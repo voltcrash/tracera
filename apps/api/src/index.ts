@@ -4,6 +4,8 @@ import { cors } from "hono/cors";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
   alertSubscriptionForCheck,
+  deleteAuthSessionById,
+  findUserByEmail,
   checkDatabase,
   findGroundZeroCorpusHistory,
   findLatestCheckByRawInput,
@@ -12,6 +14,7 @@ import {
   getDecayObservability,
   getTraceTimeline,
   listChecks,
+  listAuthSessions,
   persistCheck,
   subscribeToCheck,
   unsubscribeFromCheck,
@@ -32,17 +35,38 @@ import { createClient } from "redis";
 import {
   authenticateUser,
   createSession,
+  createAccountActionToken,
+  consumeAccountActionToken,
   getUserForSession,
   isValidEmail,
   isValidPassword,
   normalizeEmail,
+  hashPassword,
+  markEmailVerified,
   registerUser,
   revokeSession,
   SESSION_COOKIE,
   sessionCookieOptions,
+  updateUserPassword,
 } from "./auth.js";
 
 export const app = new Hono();
+const rateLimitHits = new Map<string, { count: number; resetAt: number }>();
+app.use("/auth/*", async (context, next) => {
+  const key = `${context.req.path}:${context.req.header("x-forwarded-for") ?? "local"}`;
+  const now = Date.now();
+  const hit = rateLimitHits.get(key);
+  const current =
+    !hit || hit.resetAt <= now ? { count: 0, resetAt: now + 60_000 } : hit;
+  current.count += 1;
+  rateLimitHits.set(key, current);
+  if (current.count > 12)
+    return context.json(
+      { error: "Too many attempts. Please try again shortly." },
+      429,
+    );
+  await next();
+});
 app.use(
   "/*",
   cors({
@@ -98,6 +122,9 @@ app.post("/auth/signup", async (context) => {
       );
     }
     const session = await createSession(user.id);
+    void sendAccountAction(user.id, user.email, "verify_email").catch((error) =>
+      console.warn("Could not send verification email", error),
+    );
     setCookie(
       context,
       SESSION_COOKIE,
@@ -148,6 +175,63 @@ app.get("/auth/me", async (context) => {
   return user
     ? context.json({ user })
     : context.json({ error: "Not authenticated." }, 401);
+});
+
+app.post("/auth/request-verification", async (context) => {
+  const user = await getUserForSession(sessionToken(context));
+  if (!user) return context.json({ error: "Not authenticated." }, 401);
+  await sendAccountAction(user.id, user.email, "verify_email");
+  return context.body(null, 204);
+});
+app.post("/auth/verify-email", async (context) => {
+  const body = await context.req.json().catch(() => null);
+  if (typeof body?.token !== "string")
+    return context.json({ error: "A verification token is required." }, 400);
+  const userId = await consumeAccountActionToken(body.token, "verify_email");
+  if (!userId)
+    return context.json(
+      { error: "This verification link is invalid or expired." },
+      400,
+    );
+  await markEmailVerified(userId);
+  return context.body(null, 204);
+});
+app.post("/auth/forgot-password", async (context) => {
+  const body = await context.req.json().catch(() => null);
+  const email = normalizeEmail(body?.email);
+  if (isValidEmail(email)) {
+    const user = await findUserByEmail(email);
+    if (user) await sendAccountAction(user.id, user.email, "reset_password");
+  }
+  return context.body(null, 204);
+});
+app.post("/auth/reset-password", async (context) => {
+  const body = await context.req.json().catch(() => null);
+  if (typeof body?.token !== "string" || !isValidPassword(body?.password))
+    return context.json(
+      { error: "A valid reset token and password are required." },
+      400,
+    );
+  const userId = await consumeAccountActionToken(body.token, "reset_password");
+  if (!userId)
+    return context.json(
+      { error: "This reset link is invalid or expired." },
+      400,
+    );
+  await updateUserPassword(userId, await hashPassword(body.password));
+  return context.body(null, 204);
+});
+app.get("/auth/sessions", async (context) => {
+  const user = await getUserForSession(sessionToken(context));
+  return user
+    ? context.json({ sessions: await listAuthSessions(user.id) })
+    : context.json({ error: "Not authenticated." }, 401);
+});
+app.delete("/auth/sessions/:id", async (context) => {
+  const user = await getUserForSession(sessionToken(context));
+  if (!user) return context.json({ error: "Not authenticated." }, 401);
+  await deleteAuthSessionById(user.id, context.req.param("id"));
+  return context.body(null, 204);
 });
 
 app.get("/health", async (context) => {
@@ -758,6 +842,42 @@ function sessionResponse(
   return context.req.header("x-tracera-mobile") === "1"
     ? { user, sessionToken: session.token }
     : { user };
+}
+
+async function sendAccountAction(
+  userId: string,
+  email: string,
+  kind: "verify_email" | "reset_password",
+) {
+  const token = await createAccountActionToken(userId, kind);
+  const route = kind === "verify_email" ? "verify-email" : "reset-password";
+  const link = `${(process.env.PUBLIC_WEB_URL ?? "http://localhost:3000").replace(/\/$/, "")}/${route}?token=${encodeURIComponent(token)}`;
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.ALERT_FROM_EMAIL;
+  if (!apiKey || !from) {
+    console.info(`${kind} link generated for ${email}: ${link}`);
+    return;
+  }
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject:
+        kind === "verify_email"
+          ? "Verify your Tracera email"
+          : "Reset your Tracera password",
+      text: `Use this link within one hour: ${link}`,
+    }),
+  });
+  if (!response.ok)
+    throw new Error(
+      `Account email delivery failed with HTTP ${response.status}.`,
+    );
 }
 
 const port = Number(process.env.PORT ?? 3001);
