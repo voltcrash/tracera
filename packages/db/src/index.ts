@@ -143,7 +143,9 @@ export async function findRelatedClaimsByEmbedding(
   limit: number,
 ): Promise<RelatedClaim[]> {
   if (similarityThreshold < 0 || similarityThreshold > 1) {
-    throw new Error("Related-claim similarity threshold must be between 0 and 1.");
+    throw new Error(
+      "Related-claim similarity threshold must be between 0 and 1.",
+    );
   }
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
     throw new Error("Related-claim limit must be an integer between 1 and 50.");
@@ -234,7 +236,14 @@ export async function persistCheck(input: {
   traceraScore: unknown;
   analysis: StoredAnalysis;
   claims: StoredClaim[];
-  inputType?: string; sourceUrl?: string; sourceDomain?: string; publishedAt?: string; groundZero?: unknown; prompts?: unknown[]; ownerUserId?: string; supersedesCheckId?: string;
+  inputType?: string;
+  sourceUrl?: string;
+  sourceDomain?: string;
+  publishedAt?: string;
+  groundZero?: unknown;
+  prompts?: unknown[];
+  ownerUserId?: string;
+  supersedesCheckId?: string;
 }): Promise<{ id: string; createdAt: string }> {
   const client = await pool.connect();
 
@@ -247,11 +256,14 @@ export async function persistCheck(input: {
       [
         input.inputType ?? "text",
         input.rawInput,
-        input.sourceUrl ?? null, input.sourceDomain ?? null, input.publishedAt ?? null,
+        input.sourceUrl ?? null,
+        input.sourceDomain ?? null,
+        input.publishedAt ?? null,
         toVector(input.inputEmbedding),
         JSON.stringify(input.traceraScore),
         JSON.stringify(input.analysis),
-        JSON.stringify(input.groundZero ?? null), JSON.stringify(input.prompts ?? []),
+        JSON.stringify(input.groundZero ?? null),
+        JSON.stringify(input.prompts ?? []),
         input.ownerUserId ?? null,
         input.supersedesCheckId ?? null,
       ],
@@ -317,8 +329,48 @@ export async function getTraceTimeline(id: string) {
   );
   return result.rows;
 }
-export async function subscribeToCheck(checkId: string, email: string) { const result = await pool.query<{id:string}>(`INSERT INTO alert_subscriptions (check_id,email) VALUES ($1,$2) RETURNING id`, [checkId,email.toLowerCase()]); return result.rows[0]; }
-export async function dueChecks(limit = 50) { return (await pool.query(`SELECT id, raw_input, input_type, source_url, analysis FROM checks WHERE next_review_at <= NOW() ORDER BY next_review_at LIMIT $1`, [limit])).rows; }
+export async function subscribeToCheck(checkId: string, email: string) {
+  const result = await pool.query<{ id: string }>(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, supersedes_check_id FROM checks WHERE id = $1
+       UNION ALL
+       SELECT parent.id, parent.supersedes_check_id
+         FROM checks AS parent JOIN ancestors AS child ON child.supersedes_check_id = parent.id
+     ), root AS (
+       SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
+     )
+     INSERT INTO alert_subscriptions (check_id, email)
+     SELECT id, $2 FROM root
+     RETURNING id`,
+    [checkId, email.toLowerCase()],
+  );
+  return result.rows[0];
+}
+
+export async function activeAlertEmailsForTrace(checkId: string) {
+  const result = await pool.query<{ email: string }>(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, supersedes_check_id FROM checks WHERE id = $1
+       UNION ALL
+       SELECT parent.id, parent.supersedes_check_id
+         FROM checks AS parent JOIN ancestors AS child ON child.supersedes_check_id = parent.id
+     ), root AS (
+       SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
+     )
+     SELECT DISTINCT email FROM alert_subscriptions
+      WHERE check_id = (SELECT id FROM root) AND active = 'true'`,
+    [checkId],
+  );
+  return result.rows.map((row) => row.email);
+}
+export async function dueChecks(limit = 50) {
+  return (
+    await pool.query(
+      `SELECT id, raw_input, input_type, source_url, analysis FROM checks WHERE next_review_at <= NOW() ORDER BY next_review_at LIMIT $1`,
+      [limit],
+    )
+  ).rows;
+}
 
 export async function listChecks(page: number, pageSize: number) {
   const offset = (page - 1) * pageSize;
@@ -409,5 +461,7 @@ export async function getDomainTrustScores(domains: string[]) {
     "SELECT domain, trust_score FROM domains WHERE domain = ANY($1::text[])",
     [unique],
   );
-  return new Map(result.rows.map((row) => [row.domain, Number(row.trust_score)]));
+  return new Map(
+    result.rows.map((row) => [row.domain, Number(row.trust_score)]),
+  );
 }
