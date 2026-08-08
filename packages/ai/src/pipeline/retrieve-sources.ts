@@ -69,7 +69,9 @@ export async function retrieveSources(
       retrieveNewsApiSources(claim, options.newsApiKey),
     ),
     safelyRetrieve("GDELT", () => retrieveGdeltSources(claim)),
-    safelyRetrieve("publisher feeds", () => retrievePublisherFeedSources(claim)),
+    safelyRetrieve("publisher feeds", () =>
+      retrievePublisherFeedSources(claim),
+    ),
     // Google News RSS is a no-key fallback for breaking stories. It gives
     // the pipeline a broad set of independent publisher candidates when
     // GDELT is rate limited and optional search providers are not configured.
@@ -96,7 +98,7 @@ export async function retrieveSources(
   const trust = await getDomainTrustScores(
     deduplicated.map((source) => source.sourceDomain ?? ""),
   );
-  return rankAndLimitSources(
+  const ranked = rankAndLimitSources(
     claim,
     deduplicated.map((source) => ({
       ...source,
@@ -104,6 +106,22 @@ export async function retrieveSources(
         ? (trust.get(source.sourceDomain) ?? defaultCredibility(source.type))
         : defaultCredibility(source.type),
     })),
+  );
+  return enrichEvidenceSnippets(ranked);
+}
+
+/**
+ * Search-result descriptions are useful candidates but are not sufficient
+ * evidence by themselves. For publisher URLs, refresh the snippet from the
+ * document's description/lead text before it reaches verdict generation.
+ */
+async function enrichEvidenceSnippets(sources: EvidenceSource[]) {
+  return Promise.all(
+    sources.map(async (source) => {
+      if (!source.url || source.type === "corpus") return source;
+      const snippet = await retrieveArticleDescription(source.url);
+      return snippet ? { ...source, snippet } : source;
+    }),
   );
 }
 
@@ -387,9 +405,18 @@ async function retrieveArticleDescription(url: string) {
     });
     if (!response.ok) return undefined;
     const html = (await response.text()).slice(0, 250_000);
-    return (
-      metaContent(html, "description") ?? metaContent(html, "og:description")
-    );
+    const description =
+      metaContent(html, "description") ?? metaContent(html, "og:description");
+    if (description) return description;
+    const article =
+      html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1] ??
+      html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1];
+    return article
+      ?.replace(/<(script|style|nav|footer|aside)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 1_200);
   } catch {
     return undefined;
   }
