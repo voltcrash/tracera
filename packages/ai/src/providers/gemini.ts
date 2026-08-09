@@ -71,7 +71,6 @@ export class GeminiProvider extends StructuredOutputProvider {
         generationConfig: {
           responseMimeType: "application/json",
           responseJsonSchema: schema,
-          temperature: 0,
         },
       },
     );
