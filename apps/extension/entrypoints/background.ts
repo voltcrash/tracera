@@ -1,8 +1,7 @@
 import type { PageSnapshot } from "../shared/contracts";
 import { createClerkClient } from "@clerk/chrome-extension/client";
+import { apiUrl, clerkPublishableKey } from "../shared/config";
 
-const clerkPublishableKey = import.meta.env.WXT_CLERK_PUBLISHABLE_KEY;
-const API_URL = "https://api.tracera.voltcrash.com";
 const reactiveTimers = new Map<number, ReturnType<typeof setTimeout>>();
 const reactiveControllers = new Map<number, AbortController>();
 
@@ -106,7 +105,7 @@ async function analyzeTabReactively(tabId: number) {
     const token = await freshClerkToken();
     const headers = new Headers({ "content-type": "application/json" });
     if (token) headers.set("authorization", `Bearer ${token}`);
-    const response = await fetch(`${API_URL}/analyze`, {
+    const response = await fetch(`${apiUrl}/analyze`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -159,11 +158,37 @@ function isPublicPage(url: string | undefined): url is string {
 
 async function freshClerkToken() {
   if (!clerkPublishableKey) return null;
-  const clerk = await createClerkClient({
-    publishableKey: clerkPublishableKey,
-    background: true,
+  return withTimeout(
+    (async () => {
+      const clerk = await createClerkClient({
+        publishableKey: clerkPublishableKey,
+        background: true,
+      });
+      return clerk.session?.getToken() ?? null;
+    })(),
+    5_000,
+    null,
+  );
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  milliseconds: number,
+  fallback: T,
+) {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), milliseconds);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      },
+    );
   });
-  return clerk.session?.getToken() ?? null;
 }
 
 async function extractPage(

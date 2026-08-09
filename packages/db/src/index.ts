@@ -1,9 +1,15 @@
-import { Pool } from "@neondatabase/serverless";
+import { neonConfig, Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 
 export const EMBEDDING_DIMENSIONS = 1024;
 
 let activeConnectionString = process.env.DATABASE_URL;
+
+// Cloudflare isolates may handle more than one request, but WebSocket database
+// connections cannot outlive the request that created them. Route standalone
+// Pool queries over Neon's stateless HTTP transport instead. The few interactive
+// transactions below still use WebSockets and destroy their clients on release.
+neonConfig.poolQueryViaFetch = true;
 
 /**
  * The Neon driver uses WebSockets in Workers and remains compatible with the
@@ -506,7 +512,7 @@ export async function persistCheck(input: {
     await client.query("ROLLBACK");
     throw error;
   } finally {
-    client.release();
+    client.release(true);
   }
 }
 
@@ -995,7 +1001,7 @@ export async function recordDomainOutcomeSignals(input: {
     await client.query("ROLLBACK");
     throw error;
   } finally {
-    client.release();
+    client.release(true);
   }
 }
 
@@ -1044,7 +1050,7 @@ export async function applyEditorialDomainTrustReview(input: {
     await client.query("ROLLBACK");
     throw error;
   } finally {
-    client.release();
+    client.release(true);
   }
 }
 

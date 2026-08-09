@@ -5,8 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "wxt",
-    "build": "wxt build",
-    "zip": "wxt zip",
+    "build": "node scripts/validate-production-auth.mjs && wxt build",
+    "build:development": "wxt build --mode development",
+    "zip": "node scripts/validate-production-auth.mjs && wxt zip",
     "check-types": "wxt prepare && tsc --noEmit"
   },
   "devDependencies": {

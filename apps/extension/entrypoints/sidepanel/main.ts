@@ -4,49 +4,57 @@ import type {
   PageSnapshot,
 } from "../../shared/contracts";
 import { createClerkClient } from "@clerk/chrome-extension/client";
+import { apiUrl, clerkPublishableKey } from "../../shared/config";
 import "./style.css";
 
-const API_URL = "https://api.tracera.voltcrash.com";
 const appElement = document.querySelector<HTMLElement>("#app");
 
 if (!appElement) throw new Error("Tracera side panel could not start.");
 const app: HTMLElement = appElement;
-const clerkPublishableKey = import.meta.env.WXT_CLERK_PUBLISHABLE_KEY;
 const extensionUrl = chrome.runtime.getURL(".");
 const sidePanelUrl = `${extensionUrl}sidepanel.html`;
-const clerk = clerkPublishableKey
-  ? createClerkClient({ publishableKey: clerkPublishableKey })
-  : null;
+let clerk: ReturnType<typeof createClerkClient> | null = null;
 let analysisStarted = false;
 let reactiveEnabled = false;
 
 void initialize();
 
 async function initialize() {
+  renderLoading("Starting the extension and restoring your account.");
   reactiveEnabled =
     (await chrome.storage.local.get("reactiveEnabled")).reactiveEnabled ===
     true;
   if (!clerk) {
-    renderError(
-      "Clerk is not configured. Add WXT_CLERK_PUBLISHABLE_KEY before building the extension.",
-    );
-    return;
+    if (!clerkPublishableKey) {
+      // Account sync is optional for analysis. A missing auth configuration
+      // must never make the extension itself unusable.
+      await startAnalysis();
+      return;
+    }
+    try {
+      clerk = createClerkClient({ publishableKey: clerkPublishableKey });
+    } catch (error) {
+      console.error("Unable to create the Clerk client", error);
+      await startAnalysis();
+      return;
+    }
   }
   try {
-    await clerk.load({
-      afterSignOutUrl: sidePanelUrl,
-      signInForceRedirectUrl: sidePanelUrl,
-      signUpForceRedirectUrl: sidePanelUrl,
-      allowedRedirectProtocols: ["chrome-extension:"],
-    });
+    await withTimeout(
+      clerk.load({
+        afterSignOutUrl: sidePanelUrl,
+        signInForceRedirectUrl: sidePanelUrl,
+        signUpForceRedirectUrl: sidePanelUrl,
+        allowedRedirectProtocols: ["chrome-extension:"],
+      }),
+      8_000,
+      "Account service timed out.",
+    );
     clerk.addListener(renderForAuthState);
     renderForAuthState();
   } catch (error) {
-    renderError(
-      error instanceof Error
-        ? error.message
-        : "Tracera could not initialize account access.",
-    );
+    console.error("Tracera could not initialize account access", error);
+    await startAnalysis();
   }
 }
 
@@ -63,7 +71,7 @@ async function provisionAndStart() {
   analysisStarted = true;
   const token = await getAuthToken();
   if (token) {
-    void fetch(`${API_URL}/auth/me`, {
+    void fetch(`${apiUrl}/auth/me`, {
       headers: { authorization: `Bearer ${token}` },
     });
   }
@@ -116,7 +124,7 @@ async function startAnalysis(forceReanalysis = false) {
     const token = await getAuthToken();
     const headers = new Headers({ "Content-Type": "application/json" });
     if (token) headers.set("authorization", `Bearer ${token}`);
-    const response = await fetch(`${API_URL}/analyze`, {
+    const response = await fetch(`${apiUrl}/analyze`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -159,14 +167,16 @@ async function getAuthToken() {
   return response?.token ?? clerk?.session?.getToken() ?? null;
 }
 
-function renderLoading() {
+function renderLoading(
+  message = "We are extracting claims, finding original sources, and weighing corroboration.",
+) {
   app.innerHTML = `
     <header><div class="brand"><span class="brand-mark">T</span><span>tracera</span></div></header>
     <section class="state" role="status">
       <span class="spinner" aria-hidden="true"></span>
       <p class="eyebrow">TRACE IN PROGRESS</p>
       <h1>Checking this story against the evidence.</h1>
-      <p>We are extracting claims, finding original sources, and weighing corroboration.</p>
+      <p>${escapeHtml(message)}</p>
     </section>`;
 }
 
@@ -178,7 +188,7 @@ function renderError(message: string) {
       <h1>We could not check this page.</h1>
       <p>${escapeHtml(message)}</p>
       <button id="retry" type="button">Try again</button>
-      <p class="hint">Make sure ${escapeHtml(API_URL)} is reachable.</p>
+      <p class="hint">Make sure ${escapeHtml(apiUrl)} is reachable.</p>
     </section>`;
   document
     .querySelector<HTMLButtonElement>("#retry")
@@ -330,4 +340,24 @@ function escapeHtml(value: string) {
 
 function escapeAttribute(value: string) {
   return escapeHtml(value).replace(/`/g, "&#96;");
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  milliseconds: number,
+  message: string,
+) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), milliseconds);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
