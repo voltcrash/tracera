@@ -851,7 +851,6 @@ function AuthScreen({
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [awaitingVerification, setAwaitingVerification] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -874,10 +873,7 @@ function AuthScreen({
           return;
         }
 
-        const result = await signUp.password({
-          emailAddress: email.trim(),
-          password,
-        });
+        const result = await signUp.create({ emailAddress: email.trim() });
         if (result.error) throw result.error;
         const verification = await signUp.verifications.sendEmailCode();
         if (verification.error) throw verification.error;
@@ -885,14 +881,22 @@ function AuthScreen({
         return;
       }
 
-      const result = await signIn.password({
-        identifier: email.trim(),
-        password,
+      if (awaitingVerification) {
+        const result = await signIn.emailCode.verifyCode({
+          code: verificationCode,
+        });
+        if (result.error) throw result.error;
+        const finalized = await signIn.finalize();
+        if (finalized.error) throw finalized.error;
+        onAuthenticated();
+        return;
+      }
+
+      const result = await signIn.emailCode.sendCode({
+        emailAddress: email.trim(),
       });
       if (result.error) throw result.error;
-      const finalized = await signIn.finalize();
-      if (finalized.error) throw finalized.error;
-      onAuthenticated();
+      setAwaitingVerification(true);
     } catch (authError) {
       setError(clerkErrorMessage(authError));
     } finally {
@@ -959,16 +963,6 @@ function AuthScreen({
                 style={styles.authInput}
                 value={email}
               />
-              <Text style={styles.authLabel}>Password</Text>
-              <TextInput
-                autoComplete={signingUp ? "new-password" : "current-password"}
-                onChangeText={setPassword}
-                placeholder="At least 8 characters"
-                placeholderTextColor={COLORS.muted}
-                secureTextEntry
-                style={styles.authInput}
-                value={password}
-              />
             </>
           )}
           {error ? <ErrorNotice message={error} /> : null}
@@ -977,7 +971,7 @@ function AuthScreen({
               submitting ||
               (awaitingVerification
                 ? verificationCode.length < 6
-                : !email.trim() || password.length < 8)
+                : !email.trim())
             }
             onPress={() => void submit()}
             style={({ pressed }) => [
@@ -985,7 +979,7 @@ function AuthScreen({
               (submitting ||
                 (awaitingVerification
                   ? verificationCode.length < 6
-                  : !email.trim() || password.length < 8)) &&
+                  : !email.trim())) &&
                 styles.traceButtonDisabled,
               pressed && styles.pressed,
             ]}
@@ -996,9 +990,7 @@ function AuthScreen({
               <Text style={styles.authSubmitText}>
                 {awaitingVerification
                   ? "Verify email"
-                  : signingUp
-                    ? "Create account"
-                    : "Sign in"}
+                  : "Send verification code"}
               </Text>
             )}
           </Pressable>

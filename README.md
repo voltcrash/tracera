@@ -42,15 +42,16 @@ pnpm --filter @repo/db db:migrate
 
 ### Authentication
 
-Clerk owns passwords, email verification, recovery, and sessions on every
-platform. Tracera keeps a local `users` row only as the owner of checks, alerts,
-and report preferences. On the first authenticated API request, an existing
-local row with the same email is linked to the Clerk user so prior Tracera data
-is preserved.
+Clerk owns passwordless email verification and sessions on every platform.
+Tracera keeps a local `users` row only as the owner of checks, alerts, and
+report preferences. On the first authenticated API request, an existing local
+row with the same email is linked to the Clerk user so prior Tracera data is
+preserved.
 
 In the Clerk Dashboard:
 
-1. Enable email/password sign-in and email-code verification.
+1. Enable email sign-up/sign-in with verification codes. Passwords are disabled
+   so the same passwordless flow works on web, mobile, and the extension.
 2. Enable Native API for Expo and the Chrome extension.
 3. Copy the publishable key into the web, mobile, and extension environment
    files. Put the secret key and JWT public key only in the API environment.
@@ -120,7 +121,7 @@ pnpm --filter api exec wrangler login
    ```
 
    Set its secrets in the Cloudflare dashboard or with `wrangler secret put
-   <NAME> --config apps/api/wrangler.jsonc`. Required values are
+<NAME> --config apps/api/wrangler.jsonc`. Required values are
    `DATABASE_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`,
    `WEB_ORIGIN`, `CLERK_SECRET_KEY`, `CLERK_JWT_KEY`, `INTERNAL_API_URL`,
    `INTERNAL_WORKER_TOKEN`, and the configured `AI_*` values. The Clerk JWT
