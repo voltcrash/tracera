@@ -73,6 +73,12 @@ and the browser extension remain unchanged. The API's hourly Cron Trigger
 replaces the former long-running BullMQ process; Upstash is used over its REST
 endpoint for distributed authentication rate limiting.
 
+Wrangler is installed as a project dependency, not globally. Authenticate with:
+
+```sh
+pnpm --filter api exec wrangler login
+```
+
 1. Create a Neon database with the `vector` extension enabled, then migrate it:
 
    ```sh
