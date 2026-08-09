@@ -9,6 +9,10 @@ import {
 } from "../../components/analysis-result";
 import { AppHeader } from "../../components/app-header";
 import { useAuth } from "../../components/auth-provider";
+import {
+  GroundZeroCard,
+  type GroundZeroTrace,
+} from "../../components/ground-zero-card";
 import { apiUrl } from "../../lib/api";
 
 type Check = {
@@ -20,10 +24,7 @@ type Check = {
   sourceDomain: string | null;
   sourceUrl: string | null;
   publishedAt: string | null;
-  groundZero?: {
-    confidence: string;
-    earliestSource: { title: string; url?: string } | null;
-  };
+  groundZero?: GroundZeroTrace;
 };
 type TimelineEntry = {
   id: string;
@@ -162,6 +163,7 @@ export default function CheckDetailPage({
               claims={check.analysis.claims}
               score={check.analysis.score ?? check.traceraScore}
             />
+            {check.groundZero && <GroundZeroCard trace={check.groundZero} />}
           </section>
         )}
       </div>
