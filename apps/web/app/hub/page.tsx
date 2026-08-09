@@ -6,7 +6,7 @@ import { AppHeader } from "../components/app-header";
 import { useAuth } from "../components/auth-provider";
 import type { TraceraScore } from "../components/analysis-result";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const apiUrl = "https://api.tracera.voltcrash.com";
 type CheckSummary = {
   id: string;
   rawInput: string;

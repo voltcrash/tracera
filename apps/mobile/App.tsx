@@ -91,9 +91,7 @@ type StoredCheck = HubCheck & {
   analysis: { claims: ClaimResult[]; score: TraceraScore };
 };
 
-const API_URL = (
-  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001"
-).replace(/\/$/, "");
+const API_URL = "https://api.tracera.voltcrash.com";
 const EXAMPLE =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
 const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -1037,7 +1035,7 @@ function ErrorNotice({ message }: { message: string }) {
   const connectionHint = message
     .toLowerCase()
     .includes("network request failed")
-    ? ` Check EXPO_PUBLIC_API_URL (${API_URL}) and make sure your phone can reach it.`
+    ? ` Check your connection to the Tracera API (${API_URL}).`
     : "";
   return (
     <View style={styles.errorNotice}>

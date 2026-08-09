@@ -48,9 +48,9 @@ async function recheck(
     const currentScore = recheck.traceraScore?.overall;
     const changed = Boolean(
       recheck.check?.id &&
-        typeof previousScore === "number" &&
-        typeof currentScore === "number" &&
-        Math.abs(currentScore - previousScore) >= alertScoreDelta(env),
+      typeof previousScore === "number" &&
+      typeof currentScore === "number" &&
+      Math.abs(currentScore - previousScore) >= alertScoreDelta(env),
     );
     if (changed && recheck.check?.id) {
       await notifyTraceSubscribers(
@@ -88,14 +88,16 @@ async function recheck(
 }
 
 function requiredApiUrl(env: Bindings) {
-  const value = env.INTERNAL_API_URL ?? process.env.INTERNAL_API_URL;
-  if (!value) throw new Error("INTERNAL_API_URL is required for decay checks.");
-  return value.replace(/\/$/, "");
+  return (env.INTERNAL_API_URL ?? "https://api.tracera.voltcrash.com").replace(
+    /\/$/,
+    "",
+  );
 }
 
 function requiredWorkerToken(env: Bindings) {
   const value = env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
-  if (!value) throw new Error("INTERNAL_WORKER_TOKEN is required for decay checks.");
+  if (!value)
+    throw new Error("INTERNAL_WORKER_TOKEN is required for decay checks.");
   return value;
 }
 
@@ -106,7 +108,9 @@ function scoreFromStoredAnalysis(analysis: unknown) {
 }
 
 function alertScoreDelta(env: Bindings) {
-  const configured = Number(env.ALERT_SCORE_DELTA ?? process.env.ALERT_SCORE_DELTA ?? 5);
+  const configured = Number(
+    env.ALERT_SCORE_DELTA ?? process.env.ALERT_SCORE_DELTA ?? 5,
+  );
   return Number.isFinite(configured) && configured >= 0 ? configured : 5;
 }
 
@@ -130,7 +134,9 @@ async function notifyTraceSubscribers(
   }
   const change = Math.round(currentScore - previousScore);
   const webUrl =
-    env.PUBLIC_WEB_URL ?? process.env.PUBLIC_WEB_URL ?? "http://localhost:3000";
+    env.PUBLIC_WEB_URL ??
+    process.env.PUBLIC_WEB_URL ??
+    "https://tracera.voltcrash.com";
   const link = `${webUrl.replace(/\/$/, "")}/hub/${newCheckId}`;
   await Promise.all(
     recipients.map(async (to) => {

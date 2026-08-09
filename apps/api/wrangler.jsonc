@@ -10,6 +10,11 @@
       "custom_domain": true
     }
   ],
+  "vars": {
+    "INTERNAL_API_URL": "https://api.tracera.voltcrash.com",
+    "WEB_ORIGIN": "https://tracera.voltcrash.com",
+    "PUBLIC_WEB_URL": "https://tracera.voltcrash.com"
+  },
   "triggers": {
     "crons": ["0 * * * *"]
   },

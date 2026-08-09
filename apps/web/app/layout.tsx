@@ -13,7 +13,9 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://tracera.voltcrash.com",
+  ),
   title: "Tracera — Evidence, not echoes",
   description: "Trace claims to the evidence behind them.",
   openGraph: {

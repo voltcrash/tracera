@@ -27,7 +27,7 @@ Turborepo, pnpm, Next.js, Expo, Hono, Neon Postgres with pgvector, Upstash Redis
 
 ## Local setup
 
-Requirements: Node 20.9+, pnpm 11.20.0, PostgreSQL with pgvector, Redis, a Clerk application, and an AI provider API key. Set `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, and `AI_EMBEDDING_MODEL` in `apps/api/.env` before starting the API. Anthropic generation requires a separate embeddings provider because Anthropic does not provide embeddings.
+Requirements: Node 20.9+, pnpm 11.20.0, a deployed Neon PostgreSQL database with pgvector, Upstash Redis, a Clerk application, and an AI provider API key. Set `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, and `AI_EMBEDDING_MODEL` as Worker secrets before deploying the API. Anthropic generation requires a separate embeddings provider because Anthropic does not provide embeddings.
 
 `AI_PROVIDER` accepts `gemini`, `openai`, `openrouter`, `anthropic`, or `openai-compatible`. The last option requires `AI_BASE_URL`; use the `AI_EMBEDDING_*` variables to use a different provider for embeddings.
 
@@ -65,17 +65,17 @@ The database migration removes Tracera's password hashes, account tokens, and
 session table. Existing users must create or sign into their Clerk account with
 the same email to reclaim their stored checks.
 
-Set `EXPO_PUBLIC_API_URL` in `apps/mobile/.env` to your Mac's current LAN IP, for example `http://192.168.1.40:3001`. Do not use `localhost` when testing on a phone.
-
-Run the API, web app, and mobile app in separate terminals:
+All web, mobile, and extension clients use the deployed API Worker at
+`https://api.tracera.voltcrash.com`. Run the web and mobile development clients
+in separate terminals:
 
 ```sh
-pnpm --filter api dev
 pnpm dev
 pnpm dev:mobile
 ```
 
-`pnpm dev:mobile` starts an Expo tunnel for Expo Go. The phone still needs access to the API at the LAN address configured above. Check service readiness at `http://localhost:3001/health`.
+`pnpm dev:mobile` starts an Expo tunnel for Expo Go. Check Worker readiness at
+`https://api.tracera.voltcrash.com/health`.
 
 ## Verification pipeline
 
@@ -114,7 +114,7 @@ pnpm --filter api exec wrangler login
 2. Create an Upstash Redis database and copy its `UPSTASH_REDIS_REST_URL` and
    `UPSTASH_REDIS_REST_TOKEN` (not its TCP `REDIS_URL`).
 
-3. Deploy the API Worker once to establish its Worker URL:
+3. Deploy the `tracera-api` Worker to its configured custom domain:
 
    ```sh
    pnpm run deploy:api
@@ -123,18 +123,19 @@ pnpm --filter api exec wrangler login
    Set its secrets in the Cloudflare dashboard or with `wrangler secret put
 <NAME> --config apps/api/wrangler.jsonc`. Required values are
    `DATABASE_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`,
-   `WEB_ORIGIN`, `CLERK_SECRET_KEY`, `CLERK_JWT_KEY`, `INTERNAL_API_URL`,
-   `INTERNAL_WORKER_TOKEN`, and the configured `AI_*` values. The Clerk JWT
+   `CLERK_SECRET_KEY`, `CLERK_JWT_KEY`, `INTERNAL_WORKER_TOKEN`, and the
+   configured `AI_*` values. The Clerk JWT
    public key lets the Worker verify sessions locally without a Clerk API call.
-   `INTERNAL_API_URL` is the deployed API URL and is used by the hourly
-   decay trigger to invoke `/analyze`. Add the optional retrieval and Resend
+   `INTERNAL_API_URL`, `WEB_ORIGIN`, and `PUBLIC_WEB_URL` are non-secret values
+   pinned in Wrangler. The internal URL is used by the hourly decay trigger to
+   invoke `/analyze`. Add the optional retrieval and Resend
    values from [`apps/api/.env.example`](apps/api/.env.example) as needed.
 
 4. Build and deploy the web Worker with the API's public URL available at build
    time (Next.js exposes this value to the browser):
 
    ```sh
-   export NEXT_PUBLIC_API_URL='https://tracera-api.<account>.workers.dev'
+   export NEXT_PUBLIC_API_URL='https://api.tracera.voltcrash.com'
    export NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY='pk_live_...'
    pnpm run deploy:web
    ```
@@ -143,5 +144,5 @@ pnpm --filter api exec wrangler login
    Worker. Point the API's `WEB_ORIGIN` and `PUBLIC_WEB_URL` at the deployed web
    custom domain after it is attached.
 
-Run `pnpm --filter api cf:dev` or `pnpm --filter web cf:preview` for local
-Workers previews. The Worker configuration intentionally contains no secrets.
+Run `pnpm --filter api cf:dev` or `pnpm --filter web cf:preview` for Worker
+previews. The Worker configuration intentionally contains no secrets.

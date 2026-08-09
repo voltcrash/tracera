@@ -1,13 +1,12 @@
 export const dynamic = "force-dynamic";
 
+const TRACERA_API_URL = "https://api.tracera.voltcrash.com";
+
 export async function GET() {
-  const apiUrl = (
-    process.env.TRACERA_API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:3001"
-  ).replace(/\/$/, "");
   try {
-    const response = await fetch(`${apiUrl}/health`, { cache: "no-store" });
+    const response = await fetch(`${TRACERA_API_URL}/health`, {
+      cache: "no-store",
+    });
     const payload = await response.json();
     return Response.json(payload, { status: response.status });
   } catch (error) {

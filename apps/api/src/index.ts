@@ -57,14 +57,13 @@ app.use("*", async (context, next) => {
   configureDatabase(context.env.DATABASE_URL);
   await next();
 });
-app.use(
-  "/*",
+app.use("/*", async (context, next) =>
   cors({
     // The browser extension has a unique chrome-extension:// origin on every
     // install. Reflect only that origin (and the configured web app) so its
-    // side panel can call the local API without opening CORS to arbitrary sites.
+    // side panel can call the Worker without opening CORS to arbitrary sites.
     origin: (origin) => {
-      const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
+      const webOrigin = context.env.WEB_ORIGIN;
       return origin === webOrigin || origin?.startsWith("chrome-extension://")
         ? origin
         : undefined;
@@ -72,7 +71,7 @@ app.use(
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-  }),
+  })(context, next),
 );
 let analysisQueue: Promise<void> = Promise.resolve();
 

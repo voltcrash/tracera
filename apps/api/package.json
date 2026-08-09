@@ -4,9 +4,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "set -a; . ./.env; set +a; tsx watch src/node.ts",
+    "dev": "wrangler dev",
     "build": "tsc --noEmit",
-    "start": "set -a; . ./.env; set +a; tsx src/node.ts",
+    "start": "wrangler dev",
     "check-types": "tsc --noEmit",
     "cf:dev": "wrangler dev",
     "cf:typegen": "wrangler types --env-interface CloudflareEnv",
@@ -21,10 +21,8 @@
     "hono": "^4.10.7"
   },
   "devDependencies": {
-    "@hono/node-server": "^1.19.5",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
-    "tsx": "^4.20.6",
     "typescript": "5.9.2",
     "wrangler": "^4.120.0"
   }

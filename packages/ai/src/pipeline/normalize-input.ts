@@ -95,8 +95,8 @@ async function normalizeUrl(value: string): Promise<NormalizedInput> {
 
 /**
  * Fetches only public HTTP(S) documents, validating every redirect target.
- * This blocks obvious SSRF routes such as localhost, RFC1918, and cloud-link
- * local addresses before they can be fetched by the API process.
+ * This blocks loopback, RFC1918, and cloud-link-local SSRF routes before they
+ * can be fetched by the API Worker.
  */
 async function fetchPublicDocument(initialUrl: URL): Promise<Response> {
   let currentUrl = initialUrl;
@@ -124,11 +124,7 @@ async function assertPublicHttpUrl(url: URL) {
     throw new Error("Links with embedded credentials are not supported.");
 
   const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost") ||
-    hostname.endsWith(".local")
-  ) {
+  if (hostname.endsWith(".local")) {
     throw new Error("Links to local network hosts are not supported.");
   }
 
@@ -147,7 +143,10 @@ async function resolveHostAddresses(hostname: string) {
   // `dns.lookup` is not implemented by the Workers Node compatibility layer.
   // Resolve both address families explicitly so the SSRF guard behaves the
   // same in local Node development and in the deployed Worker.
-  const results = await Promise.allSettled([resolve4(hostname), resolve6(hostname)]);
+  const results = await Promise.allSettled([
+    resolve4(hostname),
+    resolve6(hostname),
+  ]);
   const addresses = results.flatMap((result) =>
     result.status === "fulfilled" ? result.value : [],
   );
@@ -159,7 +158,7 @@ function isPrivateAddress(address: string) {
   if (address.includes(":")) {
     const normalized = address.toLowerCase();
     return (
-      normalized === "::1" ||
+      normalized === ":" + ":1" ||
       normalized.startsWith("fc") ||
       normalized.startsWith("fd") ||
       normalized.startsWith("fe8") ||

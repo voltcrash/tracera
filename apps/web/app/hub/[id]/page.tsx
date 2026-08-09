@@ -10,7 +10,7 @@ import {
 import { AppHeader } from "../../components/app-header";
 import { useAuth } from "../../components/auth-provider";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const apiUrl = "https://api.tracera.voltcrash.com";
 type Check = {
   id: string;
   rawInput: string;

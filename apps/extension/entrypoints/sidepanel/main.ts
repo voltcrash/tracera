@@ -6,9 +6,7 @@ import type {
 import { createClerkClient } from "@clerk/chrome-extension/client";
 import "./style.css";
 
-const API_URL = (
-  import.meta.env.WXT_TRACERA_API_URL ?? "http://localhost:3001"
-).replace(/\/$/, "");
+const API_URL = "https://api.tracera.voltcrash.com";
 const appElement = document.querySelector<HTMLElement>("#app");
 
 if (!appElement) throw new Error("Tracera side panel could not start.");
@@ -176,7 +174,7 @@ function renderError(message: string) {
       <h1>We could not check this page.</h1>
       <p>${escapeHtml(message)}</p>
       <button id="retry" type="button">Try again</button>
-      <p class="hint">Make sure the Tracera API is running at ${escapeHtml(API_URL)}.</p>
+      <p class="hint">Make sure ${escapeHtml(API_URL)} is reachable.</p>
     </section>`;
   document
     .querySelector<HTMLButtonElement>("#retry")

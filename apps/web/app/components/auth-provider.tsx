@@ -14,9 +14,7 @@ import {
   useMemo,
 } from "react";
 
-const apiUrl = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
-).replace(/\/$/, "");
+const apiUrl = "https://api.tracera.voltcrash.com";
 
 export type AuthUser = {
   id: string;

@@ -3,19 +3,21 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 
 export const EMBEDDING_DIMENSIONS = 1024;
 
-let activeConnectionString =
-  process.env.DATABASE_URL ?? "postgresql://localhost:5432/tracera";
+let activeConnectionString = process.env.DATABASE_URL;
 
 /**
  * The Neon driver uses WebSockets in Workers and remains compatible with the
  * node-postgres API used by this package. Configure it from the Worker binding
- * before handling a request; local development keeps using DATABASE_URL.
+ * before handling a request.
  */
 export let pool = new Pool({ connectionString: activeConnectionString });
 export let db = drizzle({ client: pool });
 
 export function configureDatabase(connectionString: string | undefined) {
-  if (!connectionString || connectionString === activeConnectionString) return;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL must be configured on the API Worker.");
+  }
+  if (connectionString === activeConnectionString) return;
   activeConnectionString = connectionString;
   pool = new Pool({ connectionString });
   db = drizzle({ client: pool });
