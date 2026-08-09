@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import {
+  applyEditorialDomainTrustReview,
   alertSubscriptionForCheck,
   checkDatabase,
   configureDatabase,
@@ -11,6 +12,7 @@ import {
   getCheckById,
   getDecayObservability,
   getMediaDietPreference,
+  getDomainTrustHistory,
   getTraceAppearances,
   getTraceTimeline,
   listChecks,
@@ -18,6 +20,7 @@ import {
   optedInMediaDietRecipients,
   persistCheck,
   recordTraceAppearance,
+  recordDomainOutcomeSignals,
   subscribeToCheck,
   setMediaDietPreference,
   unsubscribeFromCheck,
@@ -199,6 +202,39 @@ app.get("/internal/decay/observability", async (context) => {
     events: await getDecayObservability(
       positiveInteger(context.req.query("limit"), 100, 500),
     ),
+  });
+});
+
+app.get("/internal/domains/:domain/trust-history", async (context) => {
+  if (!authorizedDomainTrustAdmin(context))
+    return context.json({ error: "Unauthorized." }, 401);
+  return context.json({
+    events: await getDomainTrustHistory(
+      context.req.param("domain"),
+      positiveInteger(context.req.query("limit"), 100, 500),
+    ),
+  });
+});
+
+app.post("/internal/domains/:domain/trust-review", async (context) => {
+  if (!authorizedDomainTrustAdmin(context))
+    return context.json({ error: "Unauthorized." }, 401);
+  const body = await context.req.json().catch(() => null);
+  const score = typeof body?.score === "number" ? body.score : Number.NaN;
+  const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
+  if (!Number.isFinite(score) || score < 0 || score > 1 || reason.length < 10)
+    return context.json(
+      { error: "Provide a score from 0 to 1 and a review reason." },
+      400,
+    );
+  const user = await currentUser(context);
+  return context.json({
+    review: await applyEditorialDomainTrustReview({
+      domain: context.req.param("domain"),
+      score,
+      reason,
+      reviewerUserId: user?.id,
+    }),
   });
 });
 
@@ -433,6 +469,17 @@ async function runAnalysis(
           ? "related_story"
           : "first_check",
     });
+    await recordDomainOutcomeSignals({
+      checkId: stored.id,
+      signals: domainOutcomeSignals(result.claims),
+      apply: environmentBoolean(
+        context.env.DOMAIN_TRUST_AUTO_REFINE ??
+          process.env.DOMAIN_TRUST_AUTO_REFINE,
+        false,
+      ),
+    }).catch((error) =>
+      console.warn("Could not record domain outcome signals", error),
+    );
 
     emit({
       stage: "persisted",
@@ -689,6 +736,43 @@ function relatedContextCount(claims: ClaimVerdict[]) {
         .length,
     0,
   );
+}
+
+function domainOutcomeSignals(claims: ClaimVerdict[]) {
+  return claims.flatMap((claim) => {
+    if (claim.confidence < 0.7 || claim.evidenceQuality < 0.65) return [];
+    if (claim.verdict !== "supported" && claim.verdict !== "contradicted")
+      return [];
+    const weight = Number(
+      (claim.confidence * claim.evidenceQuality).toFixed(4),
+    );
+    const positive =
+      claim.verdict === "supported"
+        ? claim.supportingSources
+        : claim.contradictingSources;
+    const negative =
+      claim.verdict === "supported"
+        ? claim.contradictingSources
+        : claim.supportingSources;
+    const seen = new Set<string>();
+    return [
+      ...positive.map((source) => ({ source, direction: "positive" as const })),
+      ...negative.map((source) => ({ source, direction: "negative" as const })),
+    ].flatMap(({ source, direction }) => {
+      const domain = source.sourceDomain?.replace(/^www\./, "");
+      if (!domain || seen.has(domain)) return [];
+      seen.add(domain);
+      return [
+        {
+          domain,
+          direction,
+          weight,
+          claimId: claim.claim.id,
+          verdict: claim.verdict,
+        },
+      ];
+    });
+  });
 }
 
 function hasRetrievedEvidence(claims: unknown[]) {
@@ -954,6 +1038,22 @@ function environmentNumber(
   return Number.isFinite(value) && value >= minimum && value <= maximum
     ? value
     : fallback;
+}
+
+function environmentBoolean(rawValue: string | undefined, fallback: boolean) {
+  const value = rawValue?.trim().toLowerCase();
+  if (!value) return fallback;
+  return value === "true" || value === "1" || value === "yes";
+}
+
+function authorizedDomainTrustAdmin(context: Context<{ Bindings: Bindings }>) {
+  const configured =
+    context.env.DOMAIN_TRUST_ADMIN_TOKEN ??
+    process.env.DOMAIN_TRUST_ADMIN_TOKEN;
+  return Boolean(
+    configured &&
+    context.req.header("x-tracera-domain-admin-token") === configured,
+  );
 }
 
 function positiveInteger(

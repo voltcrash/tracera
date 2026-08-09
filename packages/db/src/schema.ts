@@ -91,6 +91,33 @@ export const domains = pgTable("domains", {
     .defaultNow(),
 });
 
+export const domainTrustEvents = pgTable("domain_trust_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  domain: text("domain")
+    .notNull()
+    .references(() => domains.domain, { onDelete: "cascade" }),
+  checkId: uuid("check_id").references(() => checks.id, {
+    onDelete: "set null",
+  }),
+  reviewerUserId: uuid("reviewer_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  signalType: varchar("signal_type", { length: 32 }).notNull(),
+  previousScore: numeric("previous_score", {
+    precision: 5,
+    scale: 4,
+  }).notNull(),
+  proposedScore: numeric("proposed_score", {
+    precision: 5,
+    scale: 4,
+  }).notNull(),
+  appliedScore: numeric("applied_score", { precision: 5, scale: 4 }),
+  detail: jsonb("detail").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const alertSubscriptions = pgTable("alert_subscriptions", {
   id: uuid("id").defaultRandom().primaryKey(),
   checkId: uuid("check_id")

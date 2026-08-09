@@ -85,6 +85,20 @@ pnpm dev:mobile
 4. Aggregate factual accuracy, corroboration, framing, evidence quality, source reputation, and recency into the Tracera Score.
 5. Persist claims and embeddings for deduplication, related-context retrieval, and decay monitoring.
 
+### Domain reputation refinement
+
+High-confidence, high-evidence verdicts produce bounded domain-reputation
+proposals after a trace is persisted. Proposals are always written to
+`domain_trust_events`; they change the active score only when
+`DOMAIN_TRUST_AUTO_REFINE=true` and the domain has accumulated at least five
+signals. Each automatic change is capped at one percentage point per trace.
+
+Editorial corrections use the internal
+`POST /internal/domains/:domain/trust-review` endpoint with
+`x-tracera-domain-admin-token`. Its required reason, previous score, reviewer,
+and applied score are retained in the same audit trail. Inspect the history at
+`GET /internal/domains/:domain/trust-history`.
+
 ## Checks
 
 ```sh

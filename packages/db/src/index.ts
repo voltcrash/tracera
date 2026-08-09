@@ -843,3 +843,182 @@ export async function getDomainTrustScores(domains: string[]) {
     result.rows.map((row) => [row.domain, Number(row.trust_score)]),
   );
 }
+
+export interface DomainOutcomeSignal {
+  domain: string;
+  direction: "positive" | "negative";
+  weight: number;
+  claimId: string;
+  verdict: string;
+}
+
+/**
+ * Records high-quality verdict/source agreement as a bounded reputation signal.
+ * Automatic application requires both an environment opt-in and five observed
+ * signals; every proposal remains auditable whether or not it is applied.
+ */
+export async function recordDomainOutcomeSignals(input: {
+  checkId: string;
+  signals: DomainOutcomeSignal[];
+  apply: boolean;
+}) {
+  const grouped = new Map<string, DomainOutcomeSignal[]>();
+  for (const signal of input.signals) {
+    const domain = normalizeDomain(signal.domain);
+    if (!domain || !Number.isFinite(signal.weight)) continue;
+    grouped.set(domain, [...(grouped.get(domain) ?? []), signal]);
+  }
+  if (!grouped.size) return;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    for (const [domain, signals] of grouped) {
+      await client.query(
+        `INSERT INTO domains (domain, trust_score)
+         VALUES ($1, 0.5) ON CONFLICT (domain) DO NOTHING`,
+        [domain],
+      );
+      const state = await client.query<{
+        trust_score: string;
+        signal_count: string;
+      }>(
+        `SELECT domain.trust_score,
+                COUNT(event.id)::text AS signal_count
+           FROM domains domain
+           LEFT JOIN domain_trust_events event
+             ON event.domain = domain.domain
+            AND event.signal_type = 'verification_outcome'
+          WHERE domain.domain = $1
+          GROUP BY domain.domain`,
+        [domain],
+      );
+      const previous = Number(state.rows[0]?.trust_score ?? 0.5);
+      const priorSignals = Number(state.rows[0]?.signal_count ?? 0);
+      const netWeight = signals.reduce(
+        (total, signal) =>
+          total +
+          (signal.direction === "positive" ? 1 : -1) *
+            Math.max(0, Math.min(1, signal.weight)),
+        0,
+      );
+      const proposed = clampTrust(
+        previous + Math.max(-0.01, Math.min(0.01, netWeight * 0.004)),
+      );
+      const shouldApply = input.apply && priorSignals + signals.length >= 5;
+      if (shouldApply) {
+        await client.query(
+          "UPDATE domains SET trust_score = $2, last_updated = NOW() WHERE domain = $1",
+          [domain, proposed],
+        );
+      }
+      await client.query(
+        `INSERT INTO domain_trust_events
+           (domain, check_id, signal_type, previous_score, proposed_score,
+            applied_score, detail)
+         VALUES ($1, $2, 'verification_outcome', $3, $4, $5, $6::jsonb)`,
+        [
+          domain,
+          input.checkId,
+          previous,
+          proposed,
+          shouldApply ? proposed : null,
+          JSON.stringify({
+            signals,
+            priorSignals,
+            automaticApplicationEnabled: input.apply,
+          }),
+        ],
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function applyEditorialDomainTrustReview(input: {
+  domain: string;
+  score: number;
+  reason: string;
+  reviewerUserId?: string;
+}) {
+  const domain = normalizeDomain(input.domain);
+  if (!domain) throw new Error("A valid public domain is required.");
+  const score = clampTrust(input.score);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO domains (domain, trust_score) VALUES ($1, 0.5)
+       ON CONFLICT (domain) DO NOTHING`,
+      [domain],
+    );
+    const current = await client.query<{ trust_score: string }>(
+      "SELECT trust_score FROM domains WHERE domain = $1 FOR UPDATE",
+      [domain],
+    );
+    const previous = Number(current.rows[0]?.trust_score ?? 0.5);
+    await client.query(
+      "UPDATE domains SET trust_score = $2, last_updated = NOW() WHERE domain = $1",
+      [domain, score],
+    );
+    await client.query(
+      `INSERT INTO domain_trust_events
+         (domain, reviewer_user_id, signal_type, previous_score,
+          proposed_score, applied_score, detail)
+       VALUES ($1, $2, 'editorial_review', $3, $4, $4, $5::jsonb)`,
+      [
+        domain,
+        input.reviewerUserId ?? null,
+        previous,
+        score,
+        JSON.stringify({ reason: input.reason }),
+      ],
+    );
+    await client.query("COMMIT");
+    return { domain, previousScore: previous, appliedScore: score };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getDomainTrustHistory(domainValue: string, limit = 100) {
+  const domain = normalizeDomain(domainValue);
+  if (!domain) return [];
+  const result = await pool.query(
+    `SELECT id, domain, check_id, reviewer_user_id, signal_type,
+            previous_score, proposed_score, applied_score, detail, created_at
+       FROM domain_trust_events
+      WHERE domain = $1 ORDER BY created_at DESC LIMIT $2`,
+    [domain, Math.min(Math.max(limit, 1), 500)],
+  );
+  return result.rows;
+}
+
+function normalizeDomain(value: string) {
+  const trimmed = value
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, "");
+  if (
+    !trimmed ||
+    trimmed.length > 253 ||
+    !trimmed.includes(".") ||
+    trimmed.includes("..") ||
+    !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])$/.test(trimmed)
+  )
+    return "";
+  return trimmed;
+}
+
+function clampTrust(value: number) {
+  if (!Number.isFinite(value)) throw new Error("Trust score must be finite.");
+  return Number(Math.max(0, Math.min(1, value)).toFixed(4));
+}
