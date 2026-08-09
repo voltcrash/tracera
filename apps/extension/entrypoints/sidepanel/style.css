@@ -7,6 +7,11 @@ header { display: flex; align-items: center; justify-content: space-between; bor
 .brand { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 900; letter-spacing: -.06em; }
 .brand-mark { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 7px; background: #0d3a2f; color: #a4f2d5; font-size: 13px; letter-spacing: -.1em; }
 .quiet-button, .error button { cursor: pointer; border: 1px solid #0d3a2f2b; border-radius: 9px; background: #fff; color: #0d3a2f; padding: 7px 10px; font-size: 12px; font-weight: 800; }
+.header-actions { display: flex; gap: 6px; }
+.auth-state { gap: 10px; }
+.auth-state button { width: 100%; cursor: pointer; border: 0; border-radius: 10px; background: #0d3a2f; color: white; padding: 11px 14px; font-weight: 800; }
+.auth-state .secondary-button { border: 1px solid #0d3a2f33; background: white; color: #0d3a2f; }
+.auth-state .quiet-button { border: 0; background: transparent; color: #0d3a2fb3; }
 .story { padding: 22px 2px 17px; }
 .eyebrow { margin: 0; color: #167353; font-size: 10px; font-weight: 900; letter-spacing: .15em; }
 .story h1, .state h1 { margin: 8px 0 6px; font-size: 23px; line-height: 1.03; letter-spacing: -.055em; }

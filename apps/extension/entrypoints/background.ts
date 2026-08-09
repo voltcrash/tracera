@@ -1,4 +1,7 @@
 import type { PageSnapshot } from "../shared/contracts";
+import { createClerkClient } from "@clerk/chrome-extension/client";
+
+const clerkPublishableKey = import.meta.env.WXT_CLERK_PUBLISHABLE_KEY;
 
 export default defineBackground(() => {
   // Let Chrome own the toolbar-click behavior. This is more reliable than
@@ -39,7 +42,26 @@ export default defineBackground(() => {
       .catch((error) => sendResponse({ error: String(error) }));
     return true;
   });
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== "tracera:auth-token") return;
+    void freshClerkToken()
+      .then((token) => sendResponse({ token }))
+      .catch((error) => {
+        console.error("Unable to refresh the Clerk session", error);
+        sendResponse({ token: null });
+      });
+    return true;
+  });
 });
+
+async function freshClerkToken() {
+  if (!clerkPublishableKey) return null;
+  const clerk = await createClerkClient({
+    publishableKey: clerkPublishableKey,
+    background: true,
+  });
+  return clerk.session?.getToken() ?? null;
+}
 
 async function extractPage(
   tabId: number,

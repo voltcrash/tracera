@@ -3,6 +3,7 @@ import type {
   ClaimResult,
   PageSnapshot,
 } from "../../shared/contracts";
+import { createClerkClient } from "@clerk/chrome-extension/client";
 import "./style.css";
 
 const API_URL = (
@@ -12,8 +13,79 @@ const appElement = document.querySelector<HTMLElement>("#app");
 
 if (!appElement) throw new Error("Tracera side panel could not start.");
 const app: HTMLElement = appElement;
+const clerkPublishableKey = import.meta.env.WXT_CLERK_PUBLISHABLE_KEY;
+const extensionUrl = chrome.runtime.getURL(".");
+const sidePanelUrl = `${extensionUrl}sidepanel.html`;
+const clerk = clerkPublishableKey
+  ? createClerkClient({ publishableKey: clerkPublishableKey })
+  : null;
+let analysisStarted = false;
 
-void startAnalysis();
+void initialize();
+
+async function initialize() {
+  if (!clerk) {
+    renderError(
+      "Clerk is not configured. Add WXT_CLERK_PUBLISHABLE_KEY before building the extension.",
+    );
+    return;
+  }
+  try {
+    await clerk.load({
+      afterSignOutUrl: sidePanelUrl,
+      signInForceRedirectUrl: sidePanelUrl,
+      signUpForceRedirectUrl: sidePanelUrl,
+      allowedRedirectProtocols: ["chrome-extension:"],
+    });
+    clerk.addListener(renderForAuthState);
+    renderForAuthState();
+  } catch (error) {
+    renderError(
+      error instanceof Error
+        ? error.message
+        : "Tracera could not initialize account access.",
+    );
+  }
+}
+
+function renderForAuthState() {
+  if (clerk?.user) {
+    if (!analysisStarted) void provisionAndStart();
+    return;
+  }
+  analysisStarted = false;
+  renderSignedOut();
+}
+
+async function provisionAndStart() {
+  analysisStarted = true;
+  const token = await getAuthToken();
+  if (token) {
+    void fetch(`${API_URL}/auth/me`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+  await startAnalysis();
+}
+
+function renderSignedOut() {
+  app.innerHTML = `
+    <header><div class="brand"><span class="brand-mark">T</span><span>tracera</span></div></header>
+    <section class="state auth-state">
+      <p class="eyebrow">YOUR TRACERA ACCOUNT</p>
+      <h1>Keep this evidence trail attached to you.</h1>
+      <p>Sign in to save private traces and use the same account as the web and mobile apps.</p>
+      <button id="sign-in" type="button">Sign in</button>
+      <button id="sign-up" class="secondary-button" type="button">Create account</button>
+      <button id="continue-guest" class="quiet-button" type="button">Continue without an account</button>
+    </section>`;
+  document.querySelector<HTMLButtonElement>("#sign-in")?.addEventListener("click", () => clerk?.openSignIn({}));
+  document.querySelector<HTMLButtonElement>("#sign-up")?.addEventListener("click", () => clerk?.openSignUp({}));
+  document.querySelector<HTMLButtonElement>("#continue-guest")?.addEventListener("click", () => {
+    analysisStarted = true;
+    void startAnalysis();
+  });
+}
 
 async function startAnalysis(forceReanalysis = false) {
   renderLoading();
@@ -33,9 +105,12 @@ async function startAnalysis(forceReanalysis = false) {
       throw new Error(extracted.error ?? "This page could not be read.");
     }
 
+    const token = await getAuthToken();
+    const headers = new Headers({ "Content-Type": "application/json" });
+    if (token) headers.set("authorization", `Bearer ${token}`);
     const response = await fetch(`${API_URL}/analyze`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         text: extracted.snapshot.text,
         sourceUrl: extracted.snapshot.url,
@@ -67,6 +142,13 @@ async function startAnalysis(forceReanalysis = false) {
         : "Tracera could not analyze this page.",
     );
   }
+}
+
+async function getAuthToken() {
+  const response = (await chrome.runtime.sendMessage({
+    type: "tracera:auth-token",
+  })) as { token?: string | null } | undefined;
+  return response?.token ?? clerk?.session?.getToken() ?? null;
 }
 
 function renderLoading() {
@@ -101,7 +183,10 @@ function renderResult(result: AnalysisResponse, page: PageSnapshot) {
   app.innerHTML = `
     <header>
       <div class="brand"><span class="brand-mark">T</span><span>tracera</span></div>
-      <button class="quiet-button" id="recheck" type="button">Re-check</button>
+      <div class="header-actions">
+        <button class="quiet-button" id="account" type="button">${clerk?.user ? "Sign out" : "Sign in"}</button>
+        <button class="quiet-button" id="recheck" type="button">Re-check</button>
+      </div>
     </header>
     <section class="story"><p class="eyebrow">${result.cached ? "RECENT TRACE" : "PAGE TRACE"}</p><h1>${escapeHtml(page.title || source)}</h1><p>${escapeHtml(source)}</p></section>
     <section class="score-card"><div><p class="eyebrow">TRACERA SCORE</p><strong>${score}</strong><span>/100</span></div><p>${scoreSummary(score)}</p></section>
@@ -116,6 +201,12 @@ function renderResult(result: AnalysisResponse, page: PageSnapshot) {
   document
     .querySelector<HTMLButtonElement>("#recheck")
     ?.addEventListener("click", () => void startAnalysis(true));
+  document
+    .querySelector<HTMLButtonElement>("#account")
+    ?.addEventListener("click", () => {
+      if (clerk?.user) void clerk.signOut();
+      else clerk?.openSignIn({});
+    });
 }
 
 function renderGroundZero(result: AnalysisResponse) {
