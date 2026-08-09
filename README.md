@@ -136,12 +136,15 @@ pnpm --filter api exec wrangler login
    ```sh
    export NEXT_PUBLIC_API_URL='https://tracera-api.<account>.workers.dev'
    export NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY='pk_live_...'
+   export NEXT_PUBLIC_CLERK_PROXY_URL='https://tracera.example.com/__clerk'
    pnpm run deploy:web
    ```
 
-   Also set `TRACERA_API_URL` on the web Worker to the same API URL; it is used
-   only by the server-side `/api/health` route. Point the API's `WEB_ORIGIN` and
-   `PUBLIC_WEB_URL` at the deployed web custom domain after it is attached.
+   Also set `TRACERA_API_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
+   `NEXT_PUBLIC_CLERK_PROXY_URL`, and `CLERK_SECRET_KEY` on the web Worker. The
+   last three power the first-party `/__clerk` proxy so privacy browsers do not
+   need to load Clerk from a third-party origin. Point the API's `WEB_ORIGIN`
+   and `PUBLIC_WEB_URL` at the deployed web custom domain after it is attached.
 
 Run `pnpm --filter api cf:dev` or `pnpm --filter web cf:preview` for local
 Workers previews. The Worker configuration intentionally contains no secrets.

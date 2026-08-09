@@ -1,7 +1,8 @@
 "use client";
 
-import { SignUp } from "@clerk/nextjs";
+import { ClerkLoaded, ClerkLoading, SignUp } from "@clerk/nextjs";
 import Link from "next/link";
+import { AuthLoadingState } from "../components/auth-loading-state";
 
 export default function SignupPage() {
   return (
@@ -13,11 +14,16 @@ export default function SignupPage() {
         >
           ← Back to Tracera
         </Link>
-        <SignUp
-          routing="hash"
-          signInUrl="/login"
-          forceRedirectUrl="/auth/complete"
-        />
+        <ClerkLoading>
+          <AuthLoadingState />
+        </ClerkLoading>
+        <ClerkLoaded>
+          <SignUp
+            routing="hash"
+            signInUrl="/login"
+            forceRedirectUrl="/auth/complete"
+          />
+        </ClerkLoaded>
       </section>
     </main>
   );
