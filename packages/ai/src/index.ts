@@ -5,6 +5,7 @@ export {
   type JsonSchema,
   type StructuredOutputAttempt,
   StructuredOutputError,
+  StructuredOutputProvider,
 } from "./provider.js";
 export {
   GeminiProvider,
