@@ -3,9 +3,13 @@ packages:
   - "packages/*"
 minimumReleaseAge: 0
 allowBuilds:
+  browser-tabs-lock: false
+  bufferutil: false
+  core-js: false
   esbuild: true
   msgpackr-extract: true
   sharp: true
   spawn-sync: true
+  utf-8-validate: false
   # Wrangler's local preview runtime is distributed as a package build.
   workerd: true

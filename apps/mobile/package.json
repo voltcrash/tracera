@@ -14,6 +14,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@clerk/expo": "^4.2.3",
     "expo": "^54.0.36",
     "expo-image-picker": "~17.0.11",
     "expo-secure-store": "^57.0.1",
