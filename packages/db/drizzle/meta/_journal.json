@@ -99,6 +99,13 @@
       "when": 1786274000000,
       "tag": "0013_domain_trust_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786275000000,
+      "tag": "0014_full_text_search",
+      "breakpoints": true
     }
   ]
 }

@@ -695,7 +695,7 @@ export async function listChecks(
   ownerUserId?: string,
 ) {
   const offset = (page - 1) * pageSize;
-  const search = `%${query.trim()}%`;
+  const search = query.trim();
   const [items, total] = await Promise.all([
     pool.query<{
       id: string;
@@ -728,14 +728,36 @@ export async function listChecks(
                SELECT COUNT(*)::text FROM trace_appearances
                 WHERE check_id IN (SELECT id FROM descendants)) AS appearance_count
        FROM checks item
-       WHERE item.raw_input ILIKE $1
+       WHERE (
+           $1 = ''
+           OR item.search_document @@ websearch_to_tsquery('english', $1)
+           OR EXISTS (
+             SELECT 1 FROM claims claim
+              WHERE claim.check_id = item.id
+                AND claim.search_document @@ websearch_to_tsquery('english', $1)
+           )
+         )
          AND (item.visibility = 'public' OR item.owner_user_id = $4)
-       ORDER BY item.created_at DESC
+       ORDER BY
+         CASE WHEN $1 = '' THEN 0
+              ELSE ts_rank(item.search_document, websearch_to_tsquery('english', $1))
+          END DESC,
+         item.created_at DESC
        LIMIT $2 OFFSET $3`,
       [search, pageSize, offset, ownerUserId ?? null],
     ),
     pool.query<{ count: string }>(
-      "SELECT COUNT(*)::text AS count FROM checks WHERE raw_input ILIKE $1 AND (visibility = 'public' OR owner_user_id = $2)",
+      `SELECT COUNT(*)::text AS count FROM checks item
+        WHERE (
+          $1 = ''
+          OR item.search_document @@ websearch_to_tsquery('english', $1)
+          OR EXISTS (
+            SELECT 1 FROM claims claim
+             WHERE claim.check_id = item.id
+               AND claim.search_document @@ websearch_to_tsquery('english', $1)
+          )
+        )
+        AND (item.visibility = 'public' OR item.owner_user_id = $2)`,
       [search, ownerUserId ?? null],
     ),
   ]);

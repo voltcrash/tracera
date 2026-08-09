@@ -9,6 +9,7 @@ Tracera helps people assess news, claims, links, and images by tracing claims ba
 - Finds the earliest known source ("Ground Zero") and retrieves corroborating or conflicting evidence.
 - Produces claim verdicts, evidence-quality signals, and a multi-factor Tracera Score.
 - Stores verified claims for future deduplication, related context, and re-checking.
+- Searches both submitted stories and decomposed claims with PostgreSQL full-text search.
 
 ## Apps
 
