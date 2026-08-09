@@ -10,10 +10,12 @@ import { tokenCache } from "@clerk/expo/token-cache";
 import {
   ActivityIndicator,
   Alert,
+  DynamicColorIOS,
   Image,
   KeyboardAvoidingView,
   Linking,
   Platform,
+  PlatformColor,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -22,6 +24,7 @@ import {
   Text,
   TextInput,
   View,
+  useColorScheme,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 
@@ -121,6 +124,7 @@ export default function App() {
 }
 
 function TraceraApp() {
+  const colorScheme = useColorScheme();
   const { getToken, isSignedIn, signOut: clerkSignOut } = useClerkAuth();
   const { user: clerkUser } = useUser();
   const [tab, setTab] = useState<"trace" | "hub">("trace");
@@ -283,7 +287,7 @@ function TraceraApp() {
   if (authMode) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle={colorScheme === "dark" ? "light-content" : "dark-content"} />
         <AuthScreen
           mode={authMode}
           onBack={() => setAuthMode(null)}
@@ -296,7 +300,7 @@ function TraceraApp() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={colorScheme === "dark" ? "light-content" : "dark-content"} />
       <KeyboardAvoidingView
         behavior={Platform.select({ ios: "padding", default: undefined })}
         style={styles.app}
@@ -452,7 +456,7 @@ function TraceScreen({
             ]}
           >
             {isTracing ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={COLORS.onDark} />
             ) : (
               <Text style={styles.traceButtonText}>Analyze →</Text>
             )}
@@ -723,7 +727,7 @@ function MobileAlertSubscription({
         keyboardType="email-address"
         onChangeText={setEmail}
         placeholder="you@example.com"
-        placeholderTextColor="#9BB6AB"
+        placeholderTextColor={COLORS.muted}
         style={styles.mobileAlertInput}
         value={email}
       />
@@ -985,7 +989,7 @@ function AuthScreen({
             ]}
           >
             {submitting ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={COLORS.onDark} />
             ) : (
               <Text style={styles.authSubmitText}>
                 {awaitingVerification
@@ -1119,13 +1123,33 @@ function clerkErrorMessage(error: unknown) {
   return messageFrom(error);
 }
 
+function adaptiveColor(
+  light: string,
+  dark: string,
+  androidAttribute: string,
+) {
+  if (Platform.OS === "ios") return DynamicColorIOS({ light, dark });
+  if (Platform.OS === "android") return PlatformColor(`?attr/${androidAttribute}`);
+  return light;
+}
+
 const COLORS = {
-  ink: "#10221F",
-  green: "#087A5A",
-  pale: "#F4F6F2",
-  mint: "#DDF8EC",
-  muted: "#8B9B96",
-  border: "#DDE5E0",
+  ink: adaptiveColor("#10221F", "#E8F5EF", "textColorPrimary"),
+  brand: "#10221F",
+  green: adaptiveColor("#087A5A", "#72DBB5", "colorAccent"),
+  pale: adaptiveColor("#F4F6F2", "#071612", "colorBackground"),
+  surface: adaptiveColor("#FFFFFF", "#10231E", "colorBackgroundFloating"),
+  surfaceSubtle: adaptiveColor("#F8FAF7", "#142A24", "colorBackgroundFloating"),
+  mint: adaptiveColor("#DDF8EC", "#14382E", "colorBackgroundFloating"),
+  muted: adaptiveColor("#8B9B96", "#9EB8AE", "textColorSecondary"),
+  border: adaptiveColor("#DDE5E0", "#CFF4E51C", "textColorTertiary"),
+  onDark: "#FFFFFF",
+  onDarkMuted: "#B8CDC5",
+  error: adaptiveColor("#9C302B", "#FDA4AF", "colorError"),
+  errorSurface: adaptiveColor("#FFF3F2", "#391D20", "colorBackgroundFloating"),
+  successSurface: adaptiveColor("#EAF9F1", "#12372D", "colorBackgroundFloating"),
+  warningSurface: adaptiveColor("#FFF1CB", "#3B3019", "colorBackgroundFloating"),
+  neutralSurface: adaptiveColor("#EDF0EF", "#25332F", "colorBackgroundFloating"),
 };
 
 const styles = StyleSheet.create({
@@ -1138,11 +1162,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#E5EBE7",
-    backgroundColor: "rgba(244,246,242,0.97)",
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.pale,
   },
   brandRow: { flexDirection: "row", alignItems: "center" },
-  wordmarkLogo: { width: 118, height: 30 },
+  wordmarkLogo: { width: 118, height: 30, tintColor: COLORS.ink },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 13 },
   hubLink: { color: COLORS.green, fontSize: 13, fontWeight: "800" },
   authLink: { color: COLORS.ink, fontSize: 13, fontWeight: "800" },
@@ -1166,7 +1190,7 @@ const styles = StyleSheet.create({
   heroCopy: {
     maxWidth: 340,
     marginTop: 15,
-    color: "#597069",
+    color: COLORS.muted,
     fontSize: 16,
     lineHeight: 24,
     textAlign: "center",
@@ -1174,9 +1198,9 @@ const styles = StyleSheet.create({
   composer: {
     marginTop: 34,
     borderWidth: 1,
-    borderColor: "#D8E2DC",
+    borderColor: COLORS.border,
     borderRadius: 26,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.surface,
     padding: 10,
     shadowColor: "#0B3125",
     shadowOffset: { width: 0, height: 13 },
@@ -1189,7 +1213,7 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 19,
     color: COLORS.ink,
-    backgroundColor: "#F8FAF7",
+    backgroundColor: COLORS.surfaceSubtle,
     fontSize: 16,
     lineHeight: 24,
   },
@@ -1207,7 +1231,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 13,
-    backgroundColor: COLORS.ink,
+    backgroundColor: COLORS.brand,
     paddingHorizontal: 16,
     paddingVertical: 13,
     shadowColor: "#71DABD",
@@ -1225,12 +1249,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  helpText: { color: "#83928D", fontSize: 12 },
+  helpText: { color: COLORS.muted, fontSize: 12 },
   exampleButton: { color: COLORS.green, fontSize: 13, fontWeight: "800" },
   privacyText: {
     marginTop: "auto",
     paddingTop: 38,
-    color: "#8B9994",
+    color: COLORS.muted,
     fontSize: 11,
     lineHeight: 16,
     textAlign: "center",
@@ -1242,7 +1266,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
     borderRadius: 19,
-    backgroundColor: "#E8F0EB",
+    backgroundColor: COLORS.surfaceSubtle,
   },
   selectedImage: { width: "100%", height: 210 },
   imageCaption: {
@@ -1273,24 +1297,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     borderWidth: 1,
-    borderColor: "#BFEAD7",
+    borderColor: COLORS.border,
     borderRadius: 16,
-    backgroundColor: "#EAF9F1",
+    backgroundColor: COLORS.successSurface,
     padding: 15,
   },
   noticeCopy: { flex: 1 },
   noticeTitle: { color: COLORS.ink, fontSize: 14, fontWeight: "800" },
-  noticeText: { marginTop: 3, color: "#4D6A61", fontSize: 13 },
+  noticeText: { marginTop: 3, color: COLORS.muted, fontSize: 13 },
   errorNotice: {
     marginTop: 20,
     borderWidth: 1,
-    borderColor: "#F5C9C6",
+    borderColor: COLORS.error,
     borderRadius: 16,
-    backgroundColor: "#FFF3F2",
+    backgroundColor: COLORS.errorSurface,
     padding: 15,
   },
-  errorTitle: { color: "#9C302B", fontSize: 14, fontWeight: "900" },
-  errorText: { marginTop: 5, color: "#9C302B", fontSize: 13, lineHeight: 19 },
+  errorTitle: { color: COLORS.error, fontSize: 14, fontWeight: "900" },
+  errorText: { marginTop: 5, color: COLORS.error, fontSize: 13, lineHeight: 19 },
   resultScroll: { padding: 20, paddingBottom: 36 },
   resultBackButton: {
     alignSelf: "flex-start",
@@ -1314,7 +1338,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
     overflow: "hidden",
     borderRadius: 25,
-    backgroundColor: COLORS.ink,
+    backgroundColor: COLORS.brand,
     padding: 22,
   },
   scoreEyebrow: {
@@ -1372,9 +1396,9 @@ const styles = StyleSheet.create({
   claimCard: {
     marginTop: 11,
     borderWidth: 1,
-    borderColor: "#DDE6E0",
+    borderColor: COLORS.border,
     borderRadius: 20,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.surface,
     padding: 17,
   },
   claimTopline: {
@@ -1384,7 +1408,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   claimNumber: {
-    color: "#71847C",
+    color: COLORS.muted,
     fontSize: 10,
     fontWeight: "900",
     letterSpacing: 1.3,
@@ -1396,16 +1420,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: "uppercase",
   },
-  supported: { backgroundColor: "#DDF7EA" },
-  supportedText: { color: "#087A5A" },
-  contradicted: { backgroundColor: "#FFE4E1" },
-  contradictedText: { color: "#B4322C" },
-  misleading: { backgroundColor: "#FFF1CB" },
-  misleadingText: { color: "#A96B00" },
-  mixed: { backgroundColor: "#EEE8FF" },
-  mixedText: { color: "#6346AA" },
-  unverified: { backgroundColor: "#EDF0EF" },
-  unverifiedText: { color: "#596863" },
+  supported: { backgroundColor: COLORS.successSurface },
+  supportedText: { color: COLORS.green },
+  contradicted: { backgroundColor: COLORS.errorSurface },
+  contradictedText: { color: COLORS.error },
+  misleading: { backgroundColor: COLORS.warningSurface },
+  misleadingText: { color: COLORS.green },
+  mixed: { backgroundColor: COLORS.neutralSurface },
+  mixedText: { color: COLORS.muted },
+  unverified: { backgroundColor: COLORS.neutralSurface },
+  unverifiedText: { color: COLORS.muted },
   claimText: {
     marginTop: 13,
     color: COLORS.ink,
@@ -1416,11 +1440,11 @@ const styles = StyleSheet.create({
   chipRow: { marginTop: 12, flexDirection: "row", flexWrap: "wrap", gap: 7 },
   infoChip: {
     borderRadius: 999,
-    backgroundColor: "#EEF4F0",
+    backgroundColor: COLORS.surfaceSubtle,
     paddingHorizontal: 9,
     paddingVertical: 6,
   },
-  infoChipText: { color: "#536A61", fontSize: 11, fontWeight: "800" },
+  infoChipText: { color: COLORS.muted, fontSize: 11, fontWeight: "800" },
   reasonRow: { marginTop: 11, flexDirection: "row", gap: 9 },
   reasonDot: {
     width: 5,
@@ -1429,15 +1453,15 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: "#20A874",
   },
-  reasonText: { flex: 1, color: "#51675F", fontSize: 13, lineHeight: 19 },
+  reasonText: { flex: 1, color: COLORS.muted, fontSize: 13, lineHeight: 19 },
   sourceBlock: {
     marginTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#E7ECE9",
+    borderTopColor: COLORS.border,
     paddingTop: 13,
   },
   sourcesEyebrow: {
-    color: "#7A8D85",
+    color: COLORS.muted,
     fontSize: 9,
     fontWeight: "900",
     letterSpacing: 1.3,
@@ -1445,25 +1469,25 @@ const styles = StyleSheet.create({
   sourceLink: {
     marginTop: 8,
     borderRadius: 10,
-    backgroundColor: "#F0F8F3",
+    backgroundColor: COLORS.surfaceSubtle,
     padding: 10,
   },
-  sourceTitle: { color: "#145C46", fontSize: 13, fontWeight: "800" },
-  sourcePublisher: { marginTop: 2, color: "#73837D", fontSize: 11 },
+  sourceTitle: { color: COLORS.green, fontSize: 13, fontWeight: "800" },
+  sourcePublisher: { marginTop: 2, color: COLORS.muted, fontSize: 11 },
   newTraceButton: {
     alignItems: "center",
     marginTop: 27,
     borderRadius: 14,
-    backgroundColor: "#D9F3E6",
+    backgroundColor: COLORS.mint,
     padding: 15,
   },
-  newTraceText: { color: "#07533D", fontSize: 14, fontWeight: "900" },
+  newTraceText: { color: COLORS.green, fontSize: 14, fontWeight: "900" },
   timelineCard: {
     marginTop: 24,
     borderWidth: 1,
-    borderColor: "#DDE6E0",
+    borderColor: COLORS.border,
     borderRadius: 20,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.surface,
     padding: 17,
   },
   timelineTitle: {
@@ -1485,23 +1509,23 @@ const styles = StyleSheet.create({
   timelineCopy: {
     flex: 1,
     borderLeftWidth: 2,
-    borderLeftColor: "#D9F3E6",
+    borderLeftColor: COLORS.border,
     marginLeft: -17,
     paddingLeft: 20,
     paddingBottom: 4,
   },
   timelineLabel: { color: COLORS.ink, fontSize: 13, fontWeight: "900" },
-  timelineDate: { marginTop: 2, color: "#798B84", fontSize: 11 },
+  timelineDate: { marginTop: 2, color: COLORS.muted, fontSize: 11 },
   timelineScore: {
     marginTop: 5,
-    color: "#496158",
+    color: COLORS.muted,
     fontSize: 13,
     lineHeight: 19,
   },
   mobileAlertCard: {
     marginTop: 16,
     borderRadius: 20,
-    backgroundColor: COLORS.ink,
+    backgroundColor: COLORS.brand,
     padding: 17,
   },
   mobileAlertTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
@@ -1514,7 +1538,7 @@ const styles = StyleSheet.create({
   mobileAlertInput: {
     marginTop: 14,
     borderRadius: 11,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.surface,
     color: COLORS.ink,
     fontSize: 14,
     paddingHorizontal: 12,
@@ -1527,7 +1551,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#9CF0D1",
     paddingVertical: 11,
   },
-  mobileAlertButtonText: { color: COLORS.ink, fontSize: 13, fontWeight: "900" },
+  mobileAlertButtonText: { color: COLORS.brand, fontSize: 13, fontWeight: "900" },
   mobileAlertStatus: {
     marginTop: 10,
     color: "#D5E8E0",
@@ -1537,9 +1561,9 @@ const styles = StyleSheet.create({
   groundZeroCard: {
     marginTop: 18,
     borderWidth: 1,
-    borderColor: "#BFEAD7",
+    borderColor: COLORS.border,
     borderRadius: 20,
-    backgroundColor: "#EAF9F1",
+    backgroundColor: COLORS.successSurface,
     padding: 17,
   },
   groundZeroTitle: {
@@ -1551,7 +1575,7 @@ const styles = StyleSheet.create({
   },
   groundZeroText: {
     marginTop: 6,
-    color: "#496158",
+    color: COLORS.muted,
     fontSize: 12,
     lineHeight: 18,
   },
@@ -1565,29 +1589,29 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: -1.6,
   },
-  hubCopy: { marginTop: 10, color: "#597069", fontSize: 16, lineHeight: 24 },
+  hubCopy: { marginTop: 10, color: COLORS.muted, fontSize: 16, lineHeight: 24 },
   hubLoading: { marginTop: 28 },
   emptyHub: {
     marginTop: 26,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#DDE6E0",
+    borderColor: COLORS.border,
     borderRadius: 20,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.surface,
     padding: 25,
   },
   emptyHubTitle: { color: COLORS.ink, fontSize: 16, fontWeight: "900" },
-  emptyHubCopy: { marginTop: 6, color: "#6F817A", fontSize: 13 },
+  emptyHubCopy: { marginTop: 6, color: COLORS.muted, fontSize: 13 },
   hubCard: {
     marginTop: 13,
     borderWidth: 1,
-    borderColor: "#DDE6E0",
+    borderColor: COLORS.border,
     borderRadius: 18,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.surface,
     padding: 16,
   },
   hubCardTop: { flexDirection: "row", justifyContent: "space-between" },
-  hubDate: { color: "#798B84", fontSize: 11, fontWeight: "800" },
+  hubDate: { color: COLORS.muted, fontSize: 11, fontWeight: "800" },
   hubScore: { color: COLORS.green, fontSize: 13, fontWeight: "900" },
   hubInput: {
     marginTop: 10,
@@ -1598,7 +1622,7 @@ const styles = StyleSheet.create({
   },
   hubEvidence: {
     marginTop: 10,
-    color: "#6F817A",
+    color: COLORS.muted,
     fontSize: 12,
     textTransform: "capitalize",
   },
@@ -1618,6 +1642,7 @@ const styles = StyleSheet.create({
     width: 158,
     height: 37,
     marginBottom: 58,
+    tintColor: COLORS.ink,
   },
   authTitle: {
     marginTop: 12,
@@ -1626,20 +1651,20 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: -1.4,
   },
-  authCopy: { marginTop: 9, color: "#597069", fontSize: 16, lineHeight: 24 },
+  authCopy: { marginTop: 9, color: COLORS.muted, fontSize: 16, lineHeight: 24 },
   authForm: { marginTop: 32 },
   authLabel: {
     marginTop: 15,
-    color: "#3D554C",
+    color: COLORS.muted,
     fontSize: 13,
     fontWeight: "800",
   },
   authInput: {
     marginTop: 8,
     borderWidth: 1,
-    borderColor: "#D8E2DC",
+    borderColor: COLORS.border,
     borderRadius: 14,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.surface,
     color: COLORS.ink,
     fontSize: 16,
     paddingHorizontal: 14,
@@ -1650,7 +1675,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 25,
     borderRadius: 14,
-    backgroundColor: COLORS.ink,
+    backgroundColor: COLORS.brand,
     paddingVertical: 15,
   },
   authSubmitText: { color: "#fff", fontSize: 15, fontWeight: "900" },
@@ -1661,6 +1686,6 @@ const styles = StyleSheet.create({
     gap: 5,
     marginTop: 26,
   },
-  authSwitchText: { color: "#6F817A", fontSize: 13 },
+  authSwitchText: { color: COLORS.muted, fontSize: 13 },
   authSwitchLink: { color: COLORS.green, fontSize: 13, fontWeight: "900" },
 });

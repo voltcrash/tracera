@@ -17,6 +17,15 @@ export default function SignupPage() {
           routing="hash"
           signInUrl="/login"
           forceRedirectUrl="/auth/complete"
+          appearance={{
+            variables: {
+              colorBackground: "var(--tracera-surface)",
+              colorForeground: "var(--tracera-foreground)",
+              colorInput: "var(--tracera-surface-subtle)",
+              colorInputForeground: "var(--tracera-foreground)",
+              colorMutedForeground: "var(--tracera-muted)",
+            },
+          }}
         />
       </section>
     </main>
