@@ -86,6 +86,16 @@ pnpm dev:mobile
 4. Aggregate factual accuracy, corroboration, framing, evidence quality, source reputation, and recency into the Tracera Score.
 5. Persist claims and embeddings for deduplication, related-context retrieval, and decay monitoring.
 
+### Reanalysis policy
+
+Exact submissions use an adaptive reuse window based on publication age: 2
+hours for breaking stories, 6 hours for developing stories, 12 hours for
+recent or undated text, and 24 hours for established stories. Uploaded images
+without a publication date use a 6-hour window. Evidence is normally reviewed
+again after 6, 12, 24, or 72 hours respectively; thin evidence and inconclusive
+scores accelerate that review. `DEDUP_MAX_AGE_HOURS` is an operational cap on
+reuse, not the product policy itself.
+
 ### Domain reputation refinement
 
 High-confidence, high-evidence verdicts produce bounded domain-reputation

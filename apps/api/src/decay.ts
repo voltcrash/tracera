@@ -141,7 +141,7 @@ async function recheck(check: DueCheck, env: Bindings) {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const recheck = (await response.json()) as {
-      check?: { id?: string };
+      check?: { id?: string; nextReviewAt?: string };
       traceraScore?: { overall?: number };
     };
     const previousScore = scoreFromStoredAnalysis(check.analysis);
@@ -166,14 +166,19 @@ async function recheck(check: DueCheck, env: Bindings) {
         detail: { recheckId: recheck.check.id, previousScore, currentScore },
       });
     }
-    await pool.query(
-      "UPDATE checks SET next_review_at = NOW() + INTERVAL '24 hours' WHERE id=$1",
-      [check.id],
-    );
+    // The newly persisted child owns the next adaptive review. Retire this
+    // version so one trace does not accumulate multiple active schedules.
+    await pool.query("UPDATE checks SET next_review_at = NULL WHERE id=$1", [
+      check.id,
+    ]);
     await recordDecayEvent({
       checkId: check.id,
       eventType: "completed",
-      detail: { recheckId: recheck.check?.id, changed },
+      detail: {
+        recheckId: recheck.check?.id,
+        changed,
+        nextReviewAt: recheck.check?.nextReviewAt,
+      },
     });
   } catch (error) {
     await recordDecayEvent({

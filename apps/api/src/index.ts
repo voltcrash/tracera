@@ -51,6 +51,7 @@ import {
   type ClerkBindings,
 } from "./auth.js";
 import { runDecaySweep } from "./decay.js";
+import { reanalysisPolicy } from "./reanalysis-policy.js";
 
 export type Bindings = ClerkBindings & {
   DATABASE_URL?: string;
@@ -331,7 +332,16 @@ async function runAnalysis(
       typeof body === "object" &&
       (body as { forceReanalysis?: unknown }).forceReanalysis,
     );
-    const cacheHours = environmentNumber("DEDUP_MAX_AGE_HOURS", 24, 1, 24 * 30);
+    const initialPolicy = reanalysisPolicy({
+      inputType: normalized.inputType,
+      publishedAt: normalized.publishedAt,
+    });
+    // This environment value is an operational safety cap, not the product
+    // duration. The freshness policy chooses the actual reuse window.
+    const cacheHours = Math.min(
+      initialPolicy.dedupHours,
+      environmentNumber("DEDUP_MAX_AGE_HOURS", 24, 1, 24 * 30),
+    );
     const cached =
       forceReanalysis || recheckOf
         ? null
@@ -361,8 +371,8 @@ async function runAnalysis(
           reuse: {
             state: "reused_exact",
             expiresAt: cached.expiresAt,
-            policy:
-              "This is an identical recent submission. Similar stories are analyzed again and only prior verified claims are used as context.",
+            policyBand: initialPolicy.band,
+            policy: `${initialPolicy.reason} Similar stories are analyzed again and only prior verified claims are used as context.`,
           },
           check: { id: cached.id, createdAt: cached.createdAt },
           claims: cached.analysis.claims,
@@ -371,7 +381,8 @@ async function runAnalysis(
       };
     }
 
-    // User-triggered checks stay synchronous; scheduled rechecks run in the BullMQ worker.
+    // User-triggered checks stay synchronous; scheduled rechecks run through
+    // the Cron-driven durable Upstash queue.
     const auditLog: Array<{ stage: string; prompt: string }> = [];
     const result = await executeAnalysis(
       () => analyzeText(normalized.text, provider, auditLog, emit),
@@ -422,6 +433,12 @@ async function runAnalysis(
           visibility,
           user?.id,
         );
+    const completedPolicy = reanalysisPolicy({
+      inputType: normalized.inputType,
+      publishedAt: normalized.publishedAt,
+      evidenceQuality: result.score.evidenceQuality.score / 100,
+      overallScore: result.score.overall,
+    });
     const stored = await persistCheck({
       rawInput: normalized.rawInput,
       inputType: normalized.inputType,
@@ -466,6 +483,7 @@ async function runAnalysis(
         : relatedStory
           ? "related_story"
           : "first_check",
+      nextReviewHours: completedPolicy.nextReviewHours,
     });
     await recordDomainOutcomeSignals({
       checkId: stored.id,
@@ -500,6 +518,9 @@ async function runAnalysis(
               ? "scheduled_recheck"
               : "fresh",
           relatedContextClaims: relatedContextCount(result.claims),
+          policyBand: completedPolicy.band,
+          nextReviewAt: stored.nextReviewAt,
+          policy: completedPolicy.reason,
         },
       },
     };

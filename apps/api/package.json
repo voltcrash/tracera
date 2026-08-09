@@ -7,6 +7,7 @@
     "dev": "wrangler dev",
     "build": "tsc --noEmit",
     "start": "wrangler dev",
+    "test": "tsx --test test/*.test.ts",
     "check-types": "tsc --noEmit",
     "cf:dev": "wrangler dev",
     "cf:typegen": "wrangler types --env-interface CloudflareEnv",
@@ -23,6 +24,7 @@
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
+    "tsx": "^4.20.6",
     "typescript": "5.9.2",
     "wrangler": "^4.120.0"
   }

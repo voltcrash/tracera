@@ -422,15 +422,28 @@ export async function persistCheck(input: {
   visibility?: "public" | "private";
   supersedesCheckId?: string;
   lineageReason?: "first_check" | "related_story" | "scheduled_recheck";
-}): Promise<{ id: string; createdAt: string }> {
+  nextReviewHours?: number;
+}): Promise<{ id: string; createdAt: string; nextReviewAt: string }> {
+  const nextReviewHours = input.nextReviewHours ?? 24;
+  if (
+    !Number.isInteger(nextReviewHours) ||
+    nextReviewHours < 1 ||
+    nextReviewHours > 24 * 365
+  ) {
+    throw new Error("Next-review hours must be an integer between 1 and 8760.");
+  }
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
-    const check = await client.query<{ id: string; created_at: string }>(
+    const check = await client.query<{
+      id: string;
+      created_at: string;
+      next_review_at: string;
+    }>(
       `INSERT INTO checks (input_type, raw_input, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, visibility, supersedes_check_id, lineage_reason, next_review_at)
-       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14, NOW() + INTERVAL '24 hours')
-       RETURNING id, created_at`,
+       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14, NOW() + ($15 * INTERVAL '1 hour'))
+       RETURNING id, created_at, next_review_at`,
       [
         input.inputType ?? "text",
         input.rawInput,
@@ -446,6 +459,7 @@ export async function persistCheck(input: {
         input.visibility ?? "public",
         input.supersedesCheckId ?? null,
         input.lineageReason ?? "first_check",
+        nextReviewHours,
       ],
     );
     const storedCheck = check.rows[0];
@@ -483,7 +497,11 @@ export async function persistCheck(input: {
     );
 
     await client.query("COMMIT");
-    return { id: storedCheck.id, createdAt: storedCheck.created_at };
+    return {
+      id: storedCheck.id,
+      createdAt: storedCheck.created_at,
+      nextReviewAt: storedCheck.next_review_at,
+    };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
