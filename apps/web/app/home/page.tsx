@@ -113,7 +113,7 @@ export default function Home() {
   }
 
   return (
-    <main className="paper-grid min-h-screen bg-[#f4f6f2] text-emerald-950">
+    <main className="app-enter paper-grid min-h-screen bg-[#f4f6f2] text-emerald-950">
       <div className="mx-auto max-w-6xl px-5 sm:px-8">
         <AppHeader active="home" />
         <section className="mx-auto flex min-h-[calc(100vh-10rem)] max-w-3xl flex-col justify-center py-16 sm:py-24">

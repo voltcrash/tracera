@@ -39,8 +39,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       signInUrl="/login"
       signUpUrl="/signup"
-      signInFallbackRedirectUrl="/home"
-      signUpFallbackRedirectUrl="/home"
+      signInForceRedirectUrl="/auth/complete"
+      signUpForceRedirectUrl="/auth/complete"
+      signInFallbackRedirectUrl="/auth/complete"
+      signUpFallbackRedirectUrl="/auth/complete"
     >
       <AuthBridge>{children}</AuthBridge>
     </ClerkProvider>
@@ -50,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 function AuthBridge({ children }: { children: React.ReactNode }) {
   const { getToken, isLoaded, isSignedIn } = useClerkAuth();
   const { signOut: clerkSignOut } = useClerk();
-  const { user: clerkUser } = useUser();
+  const { isLoaded: isUserLoaded, user: clerkUser } = useUser();
 
   const apiFetch = useCallback(
     async (input: string, init: RequestInit = {}) => {
@@ -81,11 +83,14 @@ function AuthBridge({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      isLoading: !isLoaded,
+      // Clerk's session and user resources finish independently. Waiting for
+      // both prevents the destination header from briefly flashing "Log in"
+      // after a successful sign-in.
+      isLoading: !isLoaded || !isUserLoaded,
       apiFetch,
       signOut: () => clerkSignOut({ redirectUrl: "/" }),
     }),
-    [apiFetch, clerkSignOut, isLoaded, user],
+    [apiFetch, clerkSignOut, isLoaded, isUserLoaded, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

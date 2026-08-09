@@ -13,7 +13,11 @@ export default function SignupPage() {
         >
           ← Back to Tracera
         </Link>
-        <SignUp routing="hash" signInUrl="/login" />
+        <SignUp
+          routing="hash"
+          signInUrl="/login"
+          forceRedirectUrl="/auth/complete"
+        />
       </section>
     </main>
   );
