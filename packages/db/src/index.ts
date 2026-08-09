@@ -357,6 +357,54 @@ export async function findReusableExactCheck(
     : null;
 }
 
+/** Finds a semantically related recent trace to extend as a story lineage. */
+export async function findRelatedStoryCheck(
+  embedding: number[],
+  similarityThreshold: number,
+  maxAgeHours: number,
+  visibility: "public" | "private",
+  ownerUserId?: string,
+) {
+  const result = await pool.query<{ id: string; similarity: number }>(
+    `SELECT id, 1 - (embedding <=> $1::vector) AS similarity
+       FROM checks
+      WHERE created_at >= NOW() - ($2 * INTERVAL '1 hour')
+        AND 1 - (embedding <=> $1::vector) >= $3
+        AND visibility = $4
+        AND ($4 = 'public' OR owner_user_id = $5)
+      ORDER BY embedding <=> $1::vector, created_at DESC
+      LIMIT 1`,
+    [
+      toVector(embedding),
+      maxAgeHours,
+      similarityThreshold,
+      visibility,
+      ownerUserId ?? null,
+    ],
+  );
+  const row = result.rows[0];
+  return row ? { id: row.id, similarity: Number(row.similarity) } : null;
+}
+
+export async function recordTraceAppearance(input: {
+  checkId: string;
+  sourceUrl?: string;
+  sourceDomain?: string;
+  occurrenceType: "exact_resubmission" | "related_story";
+}) {
+  await pool.query(
+    `INSERT INTO trace_appearances
+       (check_id, source_url, source_domain, occurrence_type)
+     VALUES ($1, $2, $3, $4)`,
+    [
+      input.checkId,
+      input.sourceUrl ?? null,
+      input.sourceDomain ?? null,
+      input.occurrenceType,
+    ],
+  );
+}
+
 /** Saves a completed check and the normalized, individually embedded claims atomically. */
 export async function persistCheck(input: {
   rawInput: string;
@@ -373,14 +421,15 @@ export async function persistCheck(input: {
   ownerUserId?: string;
   visibility?: "public" | "private";
   supersedesCheckId?: string;
+  lineageReason?: "first_check" | "related_story" | "scheduled_recheck";
 }): Promise<{ id: string; createdAt: string }> {
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
     const check = await client.query<{ id: string; created_at: string }>(
-      `INSERT INTO checks (input_type, raw_input, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, visibility, supersedes_check_id, next_review_at)
-       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, NOW() + INTERVAL '24 hours')
+      `INSERT INTO checks (input_type, raw_input, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, visibility, supersedes_check_id, lineage_reason, next_review_at)
+       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14, NOW() + INTERVAL '24 hours')
        RETURNING id, created_at`,
       [
         input.inputType ?? "text",
@@ -396,6 +445,7 @@ export async function persistCheck(input: {
         input.ownerUserId ?? null,
         input.visibility ?? "public",
         input.supersedesCheckId ?? null,
+        input.lineageReason ?? "first_check",
       ],
     );
     const storedCheck = check.rows[0];
@@ -420,6 +470,18 @@ export async function persistCheck(input: {
       );
     }
 
+    await client.query(
+      `INSERT INTO trace_appearances
+         (check_id, source_url, source_domain, occurrence_type)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        storedCheck.id,
+        input.sourceUrl ?? null,
+        input.sourceDomain ?? null,
+        input.lineageReason ?? "first_check",
+      ],
+    );
+
     await client.query("COMMIT");
     return { id: storedCheck.id, createdAt: storedCheck.created_at };
   } catch (error) {
@@ -430,19 +492,25 @@ export async function persistCheck(input: {
   }
 }
 
-export async function getTraceTimeline(id: string) {
+export async function getTraceTimeline(id: string, ownerUserId?: string) {
   const result = await pool.query(
     `WITH RECURSIVE
        ancestors AS (
-         SELECT id, supersedes_check_id, tracera_score, created_at
-           FROM checks WHERE id = $1
+         SELECT id, supersedes_check_id, tracera_score, created_at,
+                source_url, source_domain, lineage_reason
+           FROM checks
+          WHERE id = $1 AND (visibility = 'public' OR owner_user_id = $2)
          UNION ALL
-         SELECT parent.id, parent.supersedes_check_id, parent.tracera_score, parent.created_at
+         SELECT parent.id, parent.supersedes_check_id, parent.tracera_score,
+                parent.created_at, parent.source_url, parent.source_domain,
+                parent.lineage_reason
            FROM checks AS parent
            JOIN ancestors AS child ON child.supersedes_check_id = parent.id
+          WHERE parent.visibility = 'public' OR parent.owner_user_id = $2
        ),
        root AS (
-         SELECT id, supersedes_check_id, tracera_score, created_at
+         SELECT id, supersedes_check_id, tracera_score, created_at,
+                source_url, source_domain, lineage_reason
            FROM ancestors
           WHERE supersedes_check_id IS NULL
           LIMIT 1
@@ -450,12 +518,44 @@ export async function getTraceTimeline(id: string) {
        descendants AS (
          SELECT * FROM root
          UNION ALL
-         SELECT child.id, child.supersedes_check_id, child.tracera_score, child.created_at
+         SELECT child.id, child.supersedes_check_id, child.tracera_score,
+                child.created_at, child.source_url, child.source_domain,
+                child.lineage_reason
            FROM checks AS child
            JOIN descendants AS parent ON child.supersedes_check_id = parent.id
+          WHERE child.visibility = 'public' OR child.owner_user_id = $2
        )
      SELECT * FROM descendants ORDER BY created_at`,
-    [id],
+    [id, ownerUserId ?? null],
+  );
+  return result.rows;
+}
+
+export async function getTraceAppearances(id: string, ownerUserId?: string) {
+  const result = await pool.query(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, supersedes_check_id FROM checks
+        WHERE id = $1 AND (visibility = 'public' OR owner_user_id = $2)
+       UNION ALL
+       SELECT parent.id, parent.supersedes_check_id
+         FROM checks parent JOIN ancestors child ON child.supersedes_check_id = parent.id
+        WHERE parent.visibility = 'public' OR parent.owner_user_id = $2
+     ), root AS (
+       SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
+     ), descendants AS (
+       SELECT id FROM root
+       UNION ALL
+       SELECT child.id FROM checks child
+         JOIN descendants parent ON child.supersedes_check_id = parent.id
+        WHERE child.visibility = 'public' OR child.owner_user_id = $2
+     )
+     SELECT appearance.id, appearance.check_id, appearance.source_url,
+            appearance.source_domain, appearance.occurrence_type,
+            appearance.observed_at
+       FROM trace_appearances appearance
+      WHERE appearance.check_id IN (SELECT id FROM descendants)
+      ORDER BY appearance.observed_at`,
+    [id, ownerUserId ?? null],
   );
   return result.rows;
 }
@@ -607,11 +707,30 @@ export async function listChecks(
       published_at: string | null;
       next_review_at: string | null;
       visibility: "public" | "private";
+      appearance_count: string;
     }>(
-      `SELECT id, raw_input, tracera_score, created_at, source_domain, source_url, published_at, next_review_at, visibility
-       FROM checks
-       WHERE raw_input ILIKE $1 AND (visibility = 'public' OR owner_user_id = $4)
-       ORDER BY created_at DESC
+      `SELECT item.id, item.raw_input, item.tracera_score, item.created_at,
+              item.source_domain, item.source_url, item.published_at,
+              item.next_review_at, item.visibility,
+              (WITH RECURSIVE ancestors AS (
+                 SELECT id, supersedes_check_id FROM checks WHERE id = item.id
+                 UNION ALL
+                 SELECT parent.id, parent.supersedes_check_id FROM checks parent
+                   JOIN ancestors child ON child.supersedes_check_id = parent.id
+               ), root AS (
+                 SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
+               ), descendants AS (
+                 SELECT id FROM root
+                 UNION ALL
+                 SELECT child.id FROM checks child
+                   JOIN descendants parent ON child.supersedes_check_id = parent.id
+               )
+               SELECT COUNT(*)::text FROM trace_appearances
+                WHERE check_id IN (SELECT id FROM descendants)) AS appearance_count
+       FROM checks item
+       WHERE item.raw_input ILIKE $1
+         AND (item.visibility = 'public' OR item.owner_user_id = $4)
+       ORDER BY item.created_at DESC
        LIMIT $2 OFFSET $3`,
       [search, pageSize, offset, ownerUserId ?? null],
     ),
@@ -631,6 +750,7 @@ export async function listChecks(
       sourceUrl: row.source_url,
       publishedAt: row.published_at,
       visibility: row.visibility,
+      appearanceCount: Number(row.appearance_count),
       reanalysisState:
         row.next_review_at &&
         new Date(row.next_review_at).getTime() <= Date.now()

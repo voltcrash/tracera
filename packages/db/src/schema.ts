@@ -33,6 +33,9 @@ export const checks = pgTable("checks", {
   groundZero: jsonb("ground_zero"),
   prompts: jsonb("prompts").notNull().default([]),
   supersedesCheckId: uuid("supersedes_check_id"),
+  lineageReason: varchar("lineage_reason", { length: 32 })
+    .notNull()
+    .default("first_check"),
   nextReviewAt: timestamp("next_review_at", { withTimezone: true }),
   /** Null preserves public/anonymous traces created before accounts were introduced. */
   ownerUserId: uuid("owner_user_id").references(() => users.id, {
@@ -45,6 +48,19 @@ export const checks = pgTable("checks", {
   /** Complete structured pipeline result, used when a fresh check is reused. */
   analysis: jsonb("analysis").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const traceAppearances = pgTable("trace_appearances", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  checkId: uuid("check_id")
+    .notNull()
+    .references(() => checks.id, { onDelete: "cascade" }),
+  sourceUrl: text("source_url"),
+  sourceDomain: text("source_domain"),
+  occurrenceType: varchar("occurrence_type", { length: 32 }).notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });

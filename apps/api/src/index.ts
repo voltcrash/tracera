@@ -6,15 +6,18 @@ import {
   configureDatabase,
   findGroundZeroCorpusHistory,
   findLatestCheckByRawInput,
+  findRelatedStoryCheck,
   findReusableExactCheck,
   getCheckById,
   getDecayObservability,
   getMediaDietPreference,
+  getTraceAppearances,
   getTraceTimeline,
   listChecks,
   mediaDietReport,
   optedInMediaDietRecipients,
   persistCheck,
+  recordTraceAppearance,
   subscribeToCheck,
   setMediaDietPreference,
   unsubscribeFromCheck,
@@ -238,6 +241,12 @@ app.post("/analyze", async (context) => {
     // A previous version stored empty analyses when a URL was sent as text.
     // Never serve that invalid cache entry; rerun it with normalized link input.
     if (cached && hasRetrievedEvidence(cached.analysis.claims)) {
+      await recordTraceAppearance({
+        checkId: cached.id,
+        sourceUrl: normalized.sourceUrl,
+        sourceDomain: normalized.sourceDomain,
+        occurrenceType: "exact_resubmission",
+      });
       return context.json({
         cached: true,
         reuse: {
@@ -290,6 +299,15 @@ app.post("/analyze", async (context) => {
       groundZeroHistory,
       archiveHistory,
     );
+    const relatedStory = recheckOf
+      ? null
+      : await findRelatedStoryCheck(
+          inputEmbedding,
+          environmentNumber("STORY_SIMILARITY_THRESHOLD", 0.84, 0, 1),
+          environmentNumber("STORY_MAX_AGE_HOURS", 24 * 90, 1, 24 * 3650),
+          visibility,
+          user?.id,
+        );
     const stored = await persistCheck({
       rawInput: normalized.rawInput,
       inputType: normalized.inputType,
@@ -328,7 +346,12 @@ app.post("/analyze", async (context) => {
       ],
       ownerUserId: parentCheck?.ownerUserId ?? user?.id,
       visibility,
-      supersedesCheckId: recheckOf ?? undefined,
+      supersedesCheckId: recheckOf ?? relatedStory?.id,
+      lineageReason: recheckOf
+        ? "scheduled_recheck"
+        : relatedStory
+          ? "related_story"
+          : "first_check",
     });
 
     return context.json(
@@ -367,7 +390,15 @@ app.get("/checks/:id/timeline", async (context) => {
   const user = await currentUser(context);
   if (!(await getCheckById(id, user?.id)))
     return context.json({ error: "Check not found." }, 404);
-  return context.json({ timeline: await getTraceTimeline(id) });
+  return context.json({ timeline: await getTraceTimeline(id, user?.id) });
+});
+app.get("/checks/:id/appearances", async (context) => {
+  const id = context.req.param("id");
+  if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
+  const user = await currentUser(context);
+  if (!(await getCheckById(id, user?.id)))
+    return context.json({ error: "Check not found." }, 404);
+  return context.json({ appearances: await getTraceAppearances(id, user?.id) });
 });
 app.post("/checks/:id/alerts", async (context) => {
   const id = context.req.param("id");

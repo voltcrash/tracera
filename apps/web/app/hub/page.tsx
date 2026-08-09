@@ -16,6 +16,7 @@ type CheckSummary = {
   publishedAt: string | null;
   visibility: "public" | "private";
   reanalysisState: "scheduled" | "review_due";
+  appearanceCount: number;
 };
 
 export default function HubPage() {
@@ -185,6 +186,9 @@ export default function HubPage() {
                           ? "re-analysis due"
                           : "monitoring"}
                         {check.visibility === "private" ? " · private" : ""}
+                        {check.appearanceCount > 1
+                          ? ` · seen ${check.appearanceCount}×`
+                          : ""}
                       </p>
                     </div>
                     <time

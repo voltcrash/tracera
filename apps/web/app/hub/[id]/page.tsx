@@ -30,6 +30,16 @@ type TimelineEntry = {
   supersedes_check_id: string | null;
   tracera_score: TraceraScore;
   created_at: string;
+  source_domain: string | null;
+  lineage_reason: "first_check" | "related_story" | "scheduled_recheck";
+};
+type AppearanceEntry = {
+  id: string;
+  check_id: string;
+  source_url: string | null;
+  source_domain: string | null;
+  occurrence_type: string;
+  observed_at: string;
 };
 
 export default function CheckDetailPage({
@@ -39,6 +49,7 @@ export default function CheckDetailPage({
 }) {
   const [check, setCheck] = useState<Check | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [appearances, setAppearances] = useState<AppearanceEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { apiFetch } = useAuth();
 
@@ -47,20 +58,31 @@ export default function CheckDetailPage({
       Promise.all([
         apiFetch(`${apiUrl}/checks/${id}`),
         apiFetch(`${apiUrl}/checks/${id}/timeline`),
+        apiFetch(`${apiUrl}/checks/${id}/appearances`),
       ])
-        .then(async ([checkResponse, timelineResponse]) => {
-          const [checkData, timelineData] = await Promise.all([
-            checkResponse.json(),
-            timelineResponse.json(),
-          ]);
-          if (!checkResponse.ok) {
-            throw new Error(checkData.error ?? "Unable to load this check.");
-          }
-          setCheck(checkData.check);
-          if (timelineResponse.ok && Array.isArray(timelineData.timeline)) {
-            setTimeline(timelineData.timeline);
-          }
-        })
+        .then(
+          async ([checkResponse, timelineResponse, appearancesResponse]) => {
+            const [checkData, timelineData, appearancesData] =
+              await Promise.all([
+                checkResponse.json(),
+                timelineResponse.json(),
+                appearancesResponse.json(),
+              ]);
+            if (!checkResponse.ok) {
+              throw new Error(checkData.error ?? "Unable to load this check.");
+            }
+            setCheck(checkData.check);
+            if (timelineResponse.ok && Array.isArray(timelineData.timeline)) {
+              setTimeline(timelineData.timeline);
+            }
+            if (
+              appearancesResponse.ok &&
+              Array.isArray(appearancesData.appearances)
+            ) {
+              setAppearances(appearancesData.appearances);
+            }
+          },
+        )
         .catch((requestError) =>
           setError(
             requestError instanceof Error
@@ -135,7 +157,7 @@ export default function CheckDetailPage({
               {check.rawInput}
             </blockquote>
             <AlertSubscription checkId={check.id} />
-            <TraceTimeline entries={timeline} />
+            <TraceTimeline entries={timeline} appearances={appearances} />
             <AnalysisResult
               claims={check.analysis.claims}
               score={check.analysis.score ?? check.traceraScore}
@@ -217,8 +239,14 @@ function AlertSubscription({ checkId }: { checkId: string }) {
   );
 }
 
-function TraceTimeline({ entries }: { entries: TimelineEntry[] }) {
-  if (entries.length === 0) return null;
+function TraceTimeline({
+  entries,
+  appearances,
+}: {
+  entries: TimelineEntry[];
+  appearances: AppearanceEntry[];
+}) {
+  if (entries.length === 0 && appearances.length === 0) return null;
   return (
     <section className="mt-8 rounded-[1.75rem] border border-emerald-950/10 bg-white p-6 shadow-[0_18px_50px_-35px_rgba(16,34,31,.4)] sm:p-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -231,7 +259,8 @@ function TraceTimeline({ entries }: { entries: TimelineEntry[] }) {
           </h2>
         </div>
         <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800">
-          {entries.length} {entries.length === 1 ? "version" : "versions"}
+          {entries.length} {entries.length === 1 ? "version" : "versions"} ·{" "}
+          {appearances.length} appearances
         </span>
       </div>
       <ol className="mt-7 space-y-4 border-l-2 border-emerald-100 pl-5">
@@ -247,7 +276,11 @@ function TraceTimeline({ entries }: { entries: TimelineEntry[] }) {
               <span className="absolute -left-[1.85rem] top-1.5 size-3 rounded-full border-[3px] border-white bg-emerald-500 shadow-sm" />
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <p className="text-sm font-black text-emerald-950">
-                  {index === 0 ? "First checked" : "Evidence rechecked"}
+                  {entry.lineage_reason === "related_story"
+                    ? "Story appeared from a related submission"
+                    : entry.lineage_reason === "scheduled_recheck"
+                      ? "Evidence rechecked"
+                      : "First checked"}
                 </p>
                 <time
                   className="text-xs font-medium text-emerald-950/50"
@@ -277,10 +310,37 @@ function TraceTimeline({ entries }: { entries: TimelineEntry[] }) {
                   </span>
                 )}
               </p>
+              {entry.source_domain && (
+                <p className="mt-1 text-xs font-medium text-emerald-700">
+                  Observed at {entry.source_domain}
+                </p>
+              )}
             </li>
           );
         })}
       </ol>
+      {appearances.some(
+        (item) => item.occurrence_type === "exact_resubmission",
+      ) && (
+        <div className="mt-6 border-t border-emerald-950/8 pt-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
+            Repeat sightings
+          </p>
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+            {appearances
+              .filter((item) => item.occurrence_type === "exact_resubmission")
+              .map((item) => (
+                <li
+                  key={item.id}
+                  className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-950/65"
+                >
+                  {item.source_domain ?? "Direct submission"} ·{" "}
+                  {new Date(item.observed_at).toLocaleString()}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
