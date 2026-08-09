@@ -26,16 +26,16 @@ async function initialize() {
     true;
   if (!clerk) {
     if (!clerkPublishableKey) {
-      // Account sync is optional for analysis. A missing auth configuration
-      // must never make the extension itself unusable.
-      await startAnalysis();
+      renderAuthUnavailable(
+        "Tracera account access is not configured in this extension build.",
+      );
       return;
     }
     try {
       clerk = createClerkClient({ publishableKey: clerkPublishableKey });
     } catch (error) {
       console.error("Unable to create the Clerk client", error);
-      await startAnalysis();
+      renderAuthUnavailable("Tracera could not start account access.");
       return;
     }
   }
@@ -54,7 +54,7 @@ async function initialize() {
     renderForAuthState();
   } catch (error) {
     console.error("Tracera could not initialize account access", error);
-    await startAnalysis();
+    renderAuthUnavailable("Tracera could not connect to account access.");
   }
 }
 
@@ -70,11 +70,16 @@ function renderForAuthState() {
 async function provisionAndStart() {
   analysisStarted = true;
   const token = await getAuthToken();
-  if (token) {
-    void fetch(`${apiUrl}/auth/me`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
+  if (!token) {
+    analysisStarted = false;
+    renderAuthUnavailable(
+      "Your account session could not be restored. Please try again.",
+    );
+    return;
   }
+  void fetch(`${apiUrl}/auth/me`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
   await startAnalysis();
 }
 
@@ -84,10 +89,9 @@ function renderSignedOut() {
     <section class="state auth-state">
       <p class="eyebrow">YOUR TRACERA ACCOUNT</p>
       <h1>Keep this evidence trail attached to you.</h1>
-      <p>Sign in to save private traces and use the same account as the web and mobile apps.</p>
+      <p>Sign in to check this page and keep your private traces synced across the web, mobile, and extension apps.</p>
       <button id="sign-in" type="button">Sign in</button>
       <button id="sign-up" class="secondary-button" type="button">Create account</button>
-      <button id="continue-guest" class="quiet-button" type="button">Continue without an account</button>
     </section>`;
   document
     .querySelector<HTMLButtonElement>("#sign-in")
@@ -95,12 +99,20 @@ function renderSignedOut() {
   document
     .querySelector<HTMLButtonElement>("#sign-up")
     ?.addEventListener("click", () => clerk?.openSignUp({}));
+}
+
+function renderAuthUnavailable(message: string) {
+  app.innerHTML = `
+    <header><div class="brand"><span class="brand-mark">T</span><span>tracera</span></div></header>
+    <section class="state error" role="alert">
+      <p class="eyebrow">ACCOUNT ACCESS PAUSED</p>
+      <h1>We could not connect your Tracera account.</h1>
+      <p>${escapeHtml(message)}</p>
+      <button id="retry-auth" type="button">Try again</button>
+    </section>`;
   document
-    .querySelector<HTMLButtonElement>("#continue-guest")
-    ?.addEventListener("click", () => {
-      analysisStarted = true;
-      void startAnalysis();
-    });
+    .querySelector<HTMLButtonElement>("#retry-auth")
+    ?.addEventListener("click", () => void initialize());
 }
 
 async function startAnalysis(forceReanalysis = false) {
@@ -122,8 +134,15 @@ async function startAnalysis(forceReanalysis = false) {
     }
 
     const token = await getAuthToken();
+    if (!token) {
+      analysisStarted = false;
+      renderAuthUnavailable(
+        "Your account session could not be restored. Please try again.",
+      );
+      return;
+    }
     const headers = new Headers({ "Content-Type": "application/json" });
-    if (token) headers.set("authorization", `Bearer ${token}`);
+    headers.set("authorization", `Bearer ${token}`);
     const response = await fetch(`${apiUrl}/analyze`, {
       method: "POST",
       headers,

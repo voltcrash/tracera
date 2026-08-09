@@ -103,8 +103,18 @@ async function analyzeTabReactively(tabId: number) {
 
     await setBadge(tabId, "…", "#146b50");
     const token = await freshClerkToken();
+    if (!token) {
+      await chrome.tabs
+        .sendMessage(tabId, {
+          type: "tracera:highlight-claims",
+          claims: [],
+        })
+        .catch(() => undefined);
+      await chrome.action.setBadgeText({ tabId, text: "" });
+      return;
+    }
     const headers = new Headers({ "content-type": "application/json" });
-    if (token) headers.set("authorization", `Bearer ${token}`);
+    headers.set("authorization", `Bearer ${token}`);
     const response = await fetch(`${apiUrl}/analyze`, {
       method: "POST",
       headers,
