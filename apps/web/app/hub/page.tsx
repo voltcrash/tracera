@@ -255,11 +255,14 @@ function MediaDietCard() {
   async function toggle() {
     const next = !enabled;
     setEnabled(next);
-    const response = await apiFetch(`${apiUrl}/reports/media-diet/preferences`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ enabled: next, frequency: "monthly" }),
-    });
+    const response = await apiFetch(
+      `${apiUrl}/reports/media-diet/preferences`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: next, frequency: "monthly" }),
+      },
+    );
     if (!response.ok) setEnabled(!next);
   }
   if (!report) return null;

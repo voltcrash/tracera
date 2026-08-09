@@ -79,12 +79,18 @@ function renderSignedOut() {
       <button id="sign-up" class="secondary-button" type="button">Create account</button>
       <button id="continue-guest" class="quiet-button" type="button">Continue without an account</button>
     </section>`;
-  document.querySelector<HTMLButtonElement>("#sign-in")?.addEventListener("click", () => clerk?.openSignIn({}));
-  document.querySelector<HTMLButtonElement>("#sign-up")?.addEventListener("click", () => clerk?.openSignUp({}));
-  document.querySelector<HTMLButtonElement>("#continue-guest")?.addEventListener("click", () => {
-    analysisStarted = true;
-    void startAnalysis();
-  });
+  document
+    .querySelector<HTMLButtonElement>("#sign-in")
+    ?.addEventListener("click", () => clerk?.openSignIn({}));
+  document
+    .querySelector<HTMLButtonElement>("#sign-up")
+    ?.addEventListener("click", () => clerk?.openSignUp({}));
+  document
+    .querySelector<HTMLButtonElement>("#continue-guest")
+    ?.addEventListener("click", () => {
+      analysisStarted = true;
+      void startAnalysis();
+    });
 }
 
 async function startAnalysis(forceReanalysis = false) {

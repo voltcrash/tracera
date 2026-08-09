@@ -1,9 +1,5 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
-import {
-  findUserByClerkId,
-  linkUserToClerk,
-  type AuthUser,
-} from "@repo/db";
+import { findUserByClerkId, linkUserToClerk, type AuthUser } from "@repo/db";
 
 export type ClerkBindings = {
   CLERK_SECRET_KEY?: string;
@@ -35,7 +31,7 @@ export async function authenticatedUser(
       .map((party) => party.trim())
       .filter(Boolean);
     const claims = await verifyToken(token, {
-      jwtKey: env.CLERK_JWT_KEY,
+      jwtKey: env.CLERK_JWT_KEY.replace(/\\n/g, "\n"),
       ...(authorizedParties?.length ? { authorizedParties } : {}),
     });
     const existing = await findUserByClerkId(claims.sub);

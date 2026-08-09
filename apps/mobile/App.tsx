@@ -111,7 +111,10 @@ export default function App() {
     throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required.");
   }
   return (
-    <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
+    <ClerkProvider
+      publishableKey={CLERK_PUBLISHABLE_KEY}
+      tokenCache={tokenCache}
+    >
       <TraceraApp />
     </ClerkProvider>
   );
@@ -926,8 +929,8 @@ function AuthScreen({
           {awaitingVerification
             ? `Enter the verification code sent to ${email.trim()}.`
             : signingUp
-            ? "Save your evidence trails in one place."
-            : "Sign in to continue your evidence trail."}
+              ? "Save your evidence trails in one place."
+              : "Sign in to continue your evidence trail."}
         </Text>
         <View style={styles.authForm}>
           {awaitingVerification ? (
@@ -1000,21 +1003,23 @@ function AuthScreen({
             )}
           </Pressable>
         </View>
-        {!awaitingVerification && <View style={styles.authSwitch}>
-          <Text style={styles.authSwitchText}>
-            {signingUp ? "Already have an account?" : "New to Tracera?"}
-          </Text>
-          <Pressable
-            onPress={() => {
-              setError(null);
-              onModeChange(signingUp ? "login" : "signup");
-            }}
-          >
-            <Text style={styles.authSwitchLink}>
-              {signingUp ? "Sign in" : "Create an account"}
+        {!awaitingVerification && (
+          <View style={styles.authSwitch}>
+            <Text style={styles.authSwitchText}>
+              {signingUp ? "Already have an account?" : "New to Tracera?"}
             </Text>
-          </Pressable>
-        </View>}
+            <Pressable
+              onPress={() => {
+                setError(null);
+                onModeChange(signingUp ? "login" : "signup");
+              }}
+            >
+              <Text style={styles.authSwitchLink}>
+                {signingUp ? "Sign in" : "Create an account"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );

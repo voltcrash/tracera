@@ -12,14 +12,14 @@ Tracera helps people assess news, claims, links, and images by tracing claims ba
 
 ## Apps
 
-| Package | Purpose |
-| --- | --- |
-| `apps/web` | Next.js web app, including auth and News Hub. |
-| `apps/mobile` | Expo / React Native app for iOS and Android. |
-| `apps/api` | Hono API, verification pipeline, auth, and scheduled decay checks. |
-| `apps/extension` | Manifest V3 browser extension. |
-| `packages/ai` | Provider-agnostic AI and retrieval pipeline. |
-| `packages/db` | Drizzle schema, migrations, and pgvector access. |
+| Package          | Purpose                                                            |
+| ---------------- | ------------------------------------------------------------------ |
+| `apps/web`       | Next.js web app, including auth and News Hub.                      |
+| `apps/mobile`    | Expo / React Native app for iOS and Android.                       |
+| `apps/api`       | Hono API, verification pipeline, auth, and scheduled decay checks. |
+| `apps/extension` | Manifest V3 browser extension.                                     |
+| `packages/ai`    | Provider-agnostic AI and retrieval pipeline.                       |
+| `packages/db`    | Drizzle schema, migrations, and pgvector access.                   |
 
 ## Stack
 
@@ -27,7 +27,7 @@ Turborepo, pnpm, Next.js, Expo, Hono, Neon Postgres with pgvector, Upstash Redis
 
 ## Local setup
 
-Requirements: Node 18+, pnpm 11.20.0, PostgreSQL with pgvector, Redis, and an AI provider API key. Set `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, and `AI_EMBEDDING_MODEL` in `apps/api/.env` before starting the API. Anthropic generation requires a separate embeddings provider because Anthropic does not provide embeddings.
+Requirements: Node 20.9+, pnpm 11.20.0, PostgreSQL with pgvector, Redis, a Clerk application, and an AI provider API key. Set `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, and `AI_EMBEDDING_MODEL` in `apps/api/.env` before starting the API. Anthropic generation requires a separate embeddings provider because Anthropic does not provide embeddings.
 
 `AI_PROVIDER` accepts `gemini`, `openai`, `openrouter`, `anthropic`, or `openai-compatible`. The last option requires `AI_BASE_URL`; use the `AI_EMBEDDING_*` variables to use a different provider for embeddings.
 
@@ -36,8 +36,33 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 cp apps/mobile/.env.example apps/mobile/.env
+cp apps/extension/.env.example apps/extension/.env
 pnpm --filter @repo/db db:migrate
 ```
+
+### Authentication
+
+Clerk owns passwords, email verification, recovery, and sessions on every
+platform. Tracera keeps a local `users` row only as the owner of checks, alerts,
+and report preferences. On the first authenticated API request, an existing
+local row with the same email is linked to the Clerk user so prior Tracera data
+is preserved.
+
+In the Clerk Dashboard:
+
+1. Enable email/password sign-in and email-code verification.
+2. Enable Native API for Expo and the Chrome extension.
+3. Copy the publishable key into the web, mobile, and extension environment
+   files. Put the secret key and JWT public key only in the API environment.
+4. Configure the web development/production origins and the extension's
+   `chrome-extension://<ID>` as allowed origins.
+5. Give the extension a stable Chrome ID, then set its Frontend API URL and
+   public key in `apps/extension/.env`. The extension requests `cookies` and
+   `storage`, as required by Clerk's Manifest V3 SDK.
+
+The database migration removes Tracera's password hashes, account tokens, and
+session table. Existing users must create or sign into their Clerk account with
+the same email to reclaim their stored checks.
 
 Set `EXPO_PUBLIC_API_URL` in `apps/mobile/.env` to your Mac's current LAN IP, for example `http://192.168.1.40:3001`. Do not use `localhost` when testing on a phone.
 
@@ -68,10 +93,9 @@ pnpm build
 
 ## Cloudflare deployment
 
-The web and API applications deploy as independent Cloudflare Workers. Mobile
-and the browser extension remain unchanged. The API's hourly Cron Trigger
-replaces the former long-running BullMQ process; Upstash is used over its REST
-endpoint for distributed authentication rate limiting.
+The web and API applications deploy as independent Cloudflare Workers. The
+API's hourly Cron Trigger replaces the former long-running BullMQ process.
+Upstash continues to provide the Worker-compatible cache endpoint.
 
 Wrangler is installed as a project dependency, not globally. Authenticate with:
 
@@ -98,9 +122,10 @@ pnpm --filter api exec wrangler login
    Set its secrets in the Cloudflare dashboard or with `wrangler secret put
    <NAME> --config apps/api/wrangler.jsonc`. Required values are
    `DATABASE_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`,
-   `WEB_ORIGIN`, `PUBLIC_WEB_URL`, `INTERNAL_API_URL`,
-   `INTERNAL_WORKER_TOKEN`, `COOKIE_SECURE=true`, and the configured `AI_*`
-   values. `INTERNAL_API_URL` is the deployed API URL and is used by the hourly
+   `WEB_ORIGIN`, `CLERK_SECRET_KEY`, `CLERK_JWT_KEY`, `INTERNAL_API_URL`,
+   `INTERNAL_WORKER_TOKEN`, and the configured `AI_*` values. The Clerk JWT
+   public key lets the Worker verify sessions locally without a Clerk API call.
+   `INTERNAL_API_URL` is the deployed API URL and is used by the hourly
    decay trigger to invoke `/analyze`. Add the optional retrieval and Resend
    values from [`apps/api/.env.example`](apps/api/.env.example) as needed.
 
@@ -109,6 +134,7 @@ pnpm --filter api exec wrangler login
 
    ```sh
    export NEXT_PUBLIC_API_URL='https://tracera-api.<account>.workers.dev'
+   export NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY='pk_live_...'
    pnpm run deploy:web
    ```
 

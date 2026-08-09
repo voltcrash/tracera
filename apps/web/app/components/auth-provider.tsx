@@ -1,9 +1,22 @@
 "use client";
 
-import { ClerkProvider, useAuth as useClerkAuth, useClerk, useUser } from "@clerk/nextjs";
-import { createContext, useCallback, useContext, useEffect, useMemo } from "react";
+import {
+  ClerkProvider,
+  useAuth as useClerkAuth,
+  useClerk,
+  useUser,
+} from "@clerk/nextjs";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+} from "react";
 
-const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "");
+const apiUrl = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
+).replace(/\/$/, "");
 
 export type AuthUser = {
   id: string;
@@ -60,7 +73,8 @@ function AuthBridge({ children }: { children: React.ReactNode }) {
     return {
       id: clerkUser.id,
       email,
-      createdAt: clerkUser.createdAt?.toISOString() ?? new Date(0).toISOString(),
+      createdAt:
+        clerkUser.createdAt?.toISOString() ?? new Date(0).toISOString(),
     };
   }, [clerkUser]);
 

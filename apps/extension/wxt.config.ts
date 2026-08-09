@@ -2,7 +2,9 @@ import { defineConfig } from "wxt";
 
 export default defineConfig({
   manifest: () => {
-    const configuredApiHost = apiHostPermission(import.meta.env.WXT_TRACERA_API_URL);
+    const configuredApiHost = apiHostPermission(
+      import.meta.env.WXT_TRACERA_API_URL,
+    );
     const clerkFrontendHost = apiHostPermission(
       import.meta.env.WXT_CLERK_FRONTEND_API_URL,
     );

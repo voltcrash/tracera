@@ -1,7 +1,19 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
-  "globalEnv": ["REDIS_URL"],
+  "globalEnv": [
+    "REDIS_URL",
+    "TRACERA_API_URL",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_SITE_URL",
+    "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+    "EXPO_PUBLIC_API_URL",
+    "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY",
+    "WXT_TRACERA_API_URL",
+    "WXT_CLERK_PUBLISHABLE_KEY",
+    "WXT_CLERK_FRONTEND_API_URL",
+    "WXT_EXTENSION_PUBLIC_KEY"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

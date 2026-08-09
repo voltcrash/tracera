@@ -70,7 +70,7 @@ app.use(
         : undefined;
     },
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization", "X-Tracera-Mobile"],
+    allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   }),
 );
@@ -660,9 +660,7 @@ function aiProviderName(value: string | undefined): AiProviderName {
     "openai-compatible",
   ];
   if (!provider || !supported.includes(provider as AiProviderName)) {
-    throw new Error(
-      `AI_PROVIDER must be one of: ${supported.join(", ")}.`,
-    );
+    throw new Error(`AI_PROVIDER must be one of: ${supported.join(", ")}.`);
   }
   return provider as AiProviderName;
 }
