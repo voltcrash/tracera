@@ -52,6 +52,14 @@ import {
 } from "./auth.js";
 import { runDecaySweep } from "./decay.js";
 import { reanalysisPolicy } from "./reanalysis-policy.js";
+import {
+  authenticatePublicApiKey,
+  consumePublicApiQuota,
+  parsePublicAnalysisInput,
+  PUBLIC_API_VERSION,
+  publicOpenApiDocument,
+  type PublicQuotaResult,
+} from "./public-api.js";
 
 export type Bindings = ClerkBindings & {
   DATABASE_URL?: string;
@@ -65,7 +73,13 @@ let upstash: Redis | undefined;
 let upstashConfig: string | undefined;
 
 app.use("*", async (context, next) => {
-  configureDatabase(context.env.DATABASE_URL);
+  if (
+    context.req.path !== "/" &&
+    context.req.path !== "/v1" &&
+    context.req.path !== "/v1/openapi.json"
+  ) {
+    configureDatabase(context.env.DATABASE_URL);
+  }
   await next();
 });
 app.use("/*", async (context, next) =>
@@ -74,13 +88,19 @@ app.use("/*", async (context, next) =>
     // install. Reflect only that origin (and the configured web app) so its
     // side panel can call the Worker without opening CORS to arbitrary sites.
     origin: (origin) => {
-      const webOrigin = context.env.WEB_ORIGIN;
+      const webOrigin = context.env?.WEB_ORIGIN;
       return origin === webOrigin || origin?.startsWith("chrome-extension://")
         ? origin
         : undefined;
     },
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-API-Key"],
+    exposeHeaders: [
+      "RateLimit-Limit",
+      "RateLimit-Remaining",
+      "RateLimit-Reset",
+      "Retry-After",
+    ],
     credentials: true,
   })(context, next),
 );
@@ -98,6 +118,54 @@ function upstashRedis(env: Bindings) {
   return upstash;
 }
 
+type PublicAccessQuotaResult =
+  | PublicQuotaResult
+  | {
+      allowed: false;
+      status: 503;
+      code: "quota_unavailable";
+      message: string;
+    };
+
+async function publicApiQuota(
+  context: Context<{ Bindings: Bindings }>,
+  keyId: string,
+): Promise<PublicAccessQuotaResult> {
+  const redis = upstashRedis(context.env);
+  if (!redis) {
+    return {
+      allowed: false,
+      status: 503,
+      code: "quota_unavailable",
+      message: "Public API quotas are temporarily unavailable.",
+    };
+  }
+
+  const minuteLimit = configuredPositiveInteger(
+    context.env.PUBLIC_API_RATE_LIMIT_PER_MINUTE ??
+      process.env.PUBLIC_API_RATE_LIMIT_PER_MINUTE,
+    30,
+    10_000,
+  );
+  const dailyLimit = configuredPositiveInteger(
+    context.env.PUBLIC_API_DAILY_QUOTA ?? process.env.PUBLIC_API_DAILY_QUOTA,
+    1_000,
+    1_000_000,
+  );
+  return consumePublicApiQuota(redis, keyId, { minuteLimit, dailyLimit });
+}
+
+function configuredPositiveInteger(
+  value: string | undefined,
+  fallback: number,
+  maximum: number,
+) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= maximum
+    ? parsed
+    : fallback;
+}
+
 async function checkRedis(env: Bindings) {
   const cache = upstashRedis(env);
   if (!cache) return "not configured";
@@ -106,6 +174,197 @@ async function checkRedis(env: Bindings) {
 }
 
 app.get("/", (context) => context.json({ message: "Hello from Tracera API." }));
+
+app.get("/v1/openapi.json", (context) => context.json(publicOpenApiDocument));
+app.get("/v1", (context) =>
+  context.json({
+    apiVersion: PUBLIC_API_VERSION,
+    name: "Tracera Public API",
+    openapi: "/v1/openapi.json",
+  }),
+);
+
+app.use("/v1/*", async (context, next) => {
+  const configuredKeys =
+    context.env.PUBLIC_API_KEYS ??
+    process.env.PUBLIC_API_KEYS ??
+    context.env.PUBLIC_API_KEY ??
+    process.env.PUBLIC_API_KEY;
+  if (!configuredKeys) {
+    return context.json(
+      {
+        apiVersion: PUBLIC_API_VERSION,
+        error: {
+          code: "api_unavailable",
+          message: "Public API access is not configured.",
+        },
+      },
+      503,
+    );
+  }
+  const access = await authenticatePublicApiKey(
+    context.req.header("x-api-key"),
+    configuredKeys,
+  );
+  if (!access.authenticated || !access.keyId) {
+    return context.json(
+      {
+        apiVersion: PUBLIC_API_VERSION,
+        error: {
+          code: "unauthorized",
+          message: "A valid API key is required.",
+        },
+      },
+      401,
+    );
+  }
+  const quota = await publicApiQuota(context, access.keyId).catch(
+    (error): PublicAccessQuotaResult => {
+      console.warn("Public API quota check failed", error);
+      return {
+        allowed: false,
+        status: 503,
+        code: "quota_unavailable",
+        message: "Public API quotas are temporarily unavailable.",
+      };
+    },
+  );
+  if (!quota.allowed) {
+    if ("retryAfter" in quota) {
+      context.header("Retry-After", String(quota.retryAfter));
+    }
+    return context.json(
+      {
+        apiVersion: PUBLIC_API_VERSION,
+        error: { code: quota.code, message: quota.message },
+      },
+      quota.status,
+    );
+  }
+  context.header("RateLimit-Limit", String(quota.limit));
+  context.header("RateLimit-Remaining", String(quota.remaining));
+  context.header("RateLimit-Reset", String(quota.resetAt));
+  context.header("Cache-Control", "no-store");
+  await next();
+});
+
+app.get("/v1/checks", async (context) => {
+  const page = positiveInteger(context.req.query("page"), 1, 10_000);
+  const pageSize = positiveInteger(context.req.query("pageSize"), 20, 100);
+  const query = (context.req.query("q") ?? "").slice(0, 200);
+  const result = await listChecks(page, pageSize, query);
+  return context.json({
+    apiVersion: PUBLIC_API_VERSION,
+    data: result.checks.map(
+      ({ visibility: _visibility, rawInput, ...check }) => ({
+        ...check,
+        summary: rawInput,
+      }),
+    ),
+    pagination: {
+      page,
+      pageSize,
+      total: result.total,
+      totalPages: Math.ceil(result.total / pageSize),
+    },
+  });
+});
+
+app.post("/v1/checks", async (context) => {
+  const contentLength = Number(context.req.header("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > 7_100_000) {
+    return context.json(
+      {
+        apiVersion: PUBLIC_API_VERSION,
+        error: {
+          code: "payload_too_large",
+          message: "Request body is too large.",
+        },
+      },
+      413,
+    );
+  }
+  const parsed = parsePublicAnalysisInput(
+    await context.req.json().catch(() => null),
+  );
+  if (!parsed.success) {
+    return context.json(
+      {
+        apiVersion: PUBLIC_API_VERSION,
+        error: { code: "invalid_request", message: parsed.error },
+      },
+      400,
+    );
+  }
+  const result = await runAnalysis(context, parsed.data);
+  if (result.status >= 400) {
+    const message =
+      typeof result.payload.error === "string"
+        ? result.payload.error
+        : "Analysis failed.";
+    return context.json(
+      {
+        apiVersion: PUBLIC_API_VERSION,
+        error: {
+          code:
+            result.status === 422 ? "no_checkable_claims" : "analysis_failed",
+          message,
+        },
+      },
+      result.status,
+    );
+  }
+  return context.json(
+    { apiVersion: PUBLIC_API_VERSION, ...result.payload },
+    result.status,
+  );
+});
+
+app.get("/v1/checks/:id", async (context) => {
+  const id = context.req.param("id");
+  if (!isUuid(id)) {
+    return context.json(
+      {
+        apiVersion: PUBLIC_API_VERSION,
+        error: { code: "not_found", message: "Trace not found." },
+      },
+      404,
+    );
+  }
+  const check = await getCheckById(id);
+  return check
+    ? context.json({ apiVersion: PUBLIC_API_VERSION, data: publicCheck(check) })
+    : context.json(
+        {
+          apiVersion: PUBLIC_API_VERSION,
+          error: { code: "not_found", message: "Trace not found." },
+        },
+        404,
+      );
+});
+
+function publicCheck(
+  check: NonNullable<Awaited<ReturnType<typeof getCheckById>>>,
+) {
+  return {
+    id: check.id,
+    input: {
+      type: check.inputType,
+      // Avoid returning a multi-megabyte data URI. Image provenance metadata
+      // and the structured analysis remain available below.
+      value: check.inputType === "image" ? null : check.rawInput,
+      sourceUrl: check.sourceUrl,
+      sourceDomain: check.sourceDomain,
+      publishedAt: check.publishedAt,
+    },
+    claims: check.analysis.claims,
+    traceraScore: check.analysis.score ?? check.traceraScore,
+    framingAnalysis: check.analysis.framing ?? null,
+    groundZero: check.groundZero,
+    createdAt: check.createdAt,
+    nextReviewAt: check.nextReviewAt,
+  };
+}
 
 app.get("/auth/me", async (context) => {
   const user = await currentUser(context);
@@ -595,18 +854,6 @@ app.delete("/checks/:id/alerts", async (context) => {
   await unsubscribeFromCheck(id, email);
   return context.body(null, 204);
 });
-app.get("/v1/checks/:id", async (context) => {
-  if (
-    process.env.PUBLIC_API_KEY &&
-    context.req.header("x-api-key") !== process.env.PUBLIC_API_KEY
-  )
-    return context.json({ error: "Unauthorized" }, 401);
-  const check = await getCheckById(context.req.param("id"));
-  return check
-    ? context.json({ check })
-    : context.json({ error: "Not found" }, 404);
-});
-
 app.get("/checks", async (context) => {
   const page = positiveInteger(context.req.query("page"), 1, 10_000);
   const pageSize = positiveInteger(context.req.query("pageSize"), 20, 100);

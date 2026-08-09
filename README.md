@@ -110,6 +110,14 @@ Editorial corrections use the internal
 and applied score are retained in the same audit trail. Inspect the history at
 `GET /internal/domains/:domain/trust-history`.
 
+### Public API
+
+The versioned public API supports submitting text, links, and images, searching
+public traces, and retrieving a completed trace. It requires API keys and
+enforces shared per-minute and daily quotas through Upstash. The OpenAPI
+document is served at `GET /v1/openapi.json`; setup and examples are in
+[`docs/public-api.md`](docs/public-api.md).
+
 ## Checks
 
 ```sh

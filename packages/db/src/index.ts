@@ -826,6 +826,7 @@ export async function getCheckById(
 ) {
   const result = await pool.query<{
     id: string;
+    input_type: string;
     raw_input: string;
     tracera_score: unknown;
     analysis: StoredAnalysis;
@@ -838,7 +839,7 @@ export async function getCheckById(
     visibility: "public" | "private";
     owner_user_id: string | null;
   }>(
-    `SELECT id, raw_input, tracera_score, analysis, created_at, source_domain, source_url, published_at, ground_zero, next_review_at, visibility, owner_user_id
+    `SELECT id, input_type, raw_input, tracera_score, analysis, created_at, source_domain, source_url, published_at, ground_zero, next_review_at, visibility, owner_user_id
      FROM checks
      WHERE id = $1 AND ($3::boolean OR visibility = 'public' OR owner_user_id = $2)
      LIMIT 1`,
@@ -849,6 +850,7 @@ export async function getCheckById(
   return row
     ? {
         id: row.id,
+        inputType: row.input_type,
         rawInput: row.raw_input,
         traceraScore: row.tracera_score,
         analysis: row.analysis,
