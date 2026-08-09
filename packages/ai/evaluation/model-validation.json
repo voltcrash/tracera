@@ -1,0 +1,104 @@
+[
+  {
+    "id": "nasa-warming",
+    "label": "true",
+    "articleUrl": "https://science.nasa.gov/climate-change/evidence/",
+    "articleText": "Earth's average surface temperature has risen about 2 degrees Fahrenheit since the late 19th century, driven largely by carbon dioxide emissions and other human activities.",
+    "expectedVerdict": "supported",
+    "expectedTerms": ["temperature", "2", "carbon dioxide"],
+    "evidence": [
+      {
+        "id": "nasa",
+        "title": "NASA climate evidence",
+        "url": "https://science.nasa.gov/climate-change/evidence/",
+        "snippet": "The planet has warmed by about 2 degrees Fahrenheit since the late nineteenth century, largely because of increased carbon dioxide emissions.",
+        "credibility": 0.98
+      }
+    ]
+  },
+  {
+    "id": "false-vaccine-announcement",
+    "label": "false",
+    "articleUrl": "https://www.factcheck.org/2017/11/debunking-false-vaccine-claim/",
+    "articleText": "The Food and Drug Administration announced that vaccines cause autism.",
+    "expectedVerdict": "contradicted",
+    "expectedTerms": ["Food and Drug Administration", "vaccines", "autism"],
+    "evidence": [
+      {
+        "id": "factcheck",
+        "title": "Debunking False Vaccine Claim",
+        "url": "https://www.factcheck.org/2017/11/debunking-false-vaccine-claim/",
+        "snippet": "The FDA made no such announcement, and evidence does not link vaccination to autism.",
+        "credibility": 0.9
+      }
+    ]
+  },
+  {
+    "id": "misleading-vaccine-trials",
+    "label": "misleading",
+    "articleUrl": "https://www.factcheck.org/2026/04/the-persistent-misleading-claim-that-vaccines-arent-properly-tested-for-safety/",
+    "articleText": "Not a single childhood vaccine on the schedule has ever been through a double-blind placebo-based trial before licensure, so their risk profile is unknown.",
+    "expectedVerdict": "misleading",
+    "expectedTerms": ["childhood vaccine", "placebo", "licensure"],
+    "evidence": [
+      {
+        "id": "factcheck",
+        "title": "Vaccine safety testing claim",
+        "url": "https://www.factcheck.org/2026/04/the-persistent-misleading-claim-that-vaccines-arent-properly-tested-for-safety/",
+        "snippet": "The claim uses an artificially narrow definition of placebo and misunderstands vaccine safety trials; childhood vaccines undergo safety testing before approval.",
+        "credibility": 0.9
+      }
+    ]
+  },
+  {
+    "id": "earthquake-animals",
+    "label": "false",
+    "articleUrl": "https://www.usgs.gov/programs/earthquake-hazards/earthquake-facts-earthquake-fantasy",
+    "articleText": "Changes in animal behavior can reliably predict the timing, location, and magnitude of earthquakes.",
+    "expectedVerdict": "contradicted",
+    "expectedTerms": ["animal behavior", "predict", "earthquakes"],
+    "evidence": [
+      {
+        "id": "usgs",
+        "title": "Earthquake Facts and Fantasy",
+        "url": "https://www.usgs.gov/programs/earthquake-hazards/earthquake-facts-earthquake-fantasy",
+        "snippet": "Animal behavior cannot be used to predict earthquakes because no reproducible connection has been established.",
+        "credibility": 0.98
+      }
+    ]
+  },
+  {
+    "id": "climate-chart-cherry-pick",
+    "label": "misleading",
+    "articleUrl": "https://apnews.com/article/b39d0f06c6510abff6b77ff091c27056",
+    "articleText": "A temperature graph covering 2015 through 2022 proves that Earth is cooling and carbon-driven global warming is a hoax.",
+    "expectedVerdict": "misleading",
+    "expectedTerms": ["temperature", "2015", "2022", "cooling"],
+    "evidence": [
+      {
+        "id": "ap",
+        "title": "Temperature graph misrepresented",
+        "url": "https://apnews.com/article/b39d0f06c6510abff6b77ff091c27056",
+        "snippet": "The short period was taken out of context; the complete 140-year series shows a strong warming trend.",
+        "credibility": 0.94
+      }
+    ]
+  },
+  {
+    "id": "mmr-effectiveness",
+    "label": "true",
+    "articleUrl": "https://www.cdc.gov/measles/hcp/vaccine-considerations/",
+    "articleText": "Two doses of measles vaccine are about 97 percent effective at preventing measles.",
+    "expectedVerdict": "supported",
+    "expectedTerms": ["two doses", "97", "measles"],
+    "evidence": [
+      {
+        "id": "cdc",
+        "title": "Measles Vaccine Recommendations",
+        "url": "https://www.cdc.gov/measles/hcp/vaccine-considerations/",
+        "snippet": "Two doses of measles vaccine are 97 percent effective at preventing measles.",
+        "credibility": 0.98
+      }
+    ]
+  }
+]
