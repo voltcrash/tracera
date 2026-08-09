@@ -11,26 +11,14 @@ import {
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
+  /** Clerk owns the identity; this UUID remains Tracera's internal relation key. */
+  clerkUserId: text("clerk_user_id").unique(),
   /** Always stored lowercase so email addresses are unique case-insensitively. */
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
-
-export const authSessions = pgTable("auth_sessions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  /** SHA-256 hash of the opaque browser token; the token itself is never persisted. */
-  tokenHash: text("token_hash").notNull().unique(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });

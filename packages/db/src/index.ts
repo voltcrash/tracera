@@ -96,124 +96,41 @@ export interface AuthUser {
   createdAt: string;
 }
 
-interface AuthUserWithPassword extends AuthUser {
-  passwordHash: string;
-}
-
-export async function createUser(input: {
+export async function linkUserToClerk(input: {
+  clerkUserId: string;
   email: string;
-  passwordHash: string;
 }): Promise<AuthUser | null> {
-  const result = await pool.query<AuthUser>(
-    `INSERT INTO users (email, password_hash)
-     VALUES ($1, $2)
-     ON CONFLICT (email) DO NOTHING
+  const claimed = await pool.query<AuthUser>(
+    `UPDATE users
+        SET clerk_user_id = $1, updated_at = NOW()
+      WHERE email = $2 AND clerk_user_id IS NULL
      RETURNING id, email, created_at AS "createdAt"`,
-    [input.email, input.passwordHash],
+    [input.clerkUserId, input.email],
+  );
+  if (claimed.rows[0]) return claimed.rows[0];
+
+  const result = await pool.query<AuthUser>(
+    `INSERT INTO users (clerk_user_id, email)
+     VALUES ($1, $2)
+     ON CONFLICT (clerk_user_id) DO UPDATE
+       SET email = EXCLUDED.email, updated_at = NOW()
+     RETURNING id, email, created_at AS "createdAt"`,
+    [input.clerkUserId, input.email],
   );
   return result.rows[0] ?? null;
 }
 
-export async function findUserByEmail(
-  email: string,
-): Promise<AuthUserWithPassword | null> {
-  const result = await pool.query<AuthUserWithPassword>(
-    `SELECT id, email, password_hash AS "passwordHash", created_at AS "createdAt"
-     FROM users
-     WHERE email = $1
-     LIMIT 1`,
-    [email],
-  );
-  return result.rows[0] ?? null;
-}
-
-export async function createAuthSession(input: {
-  userId: string;
-  tokenHash: string;
-  expiresAt: Date;
-}) {
-  await pool.query(
-    `INSERT INTO auth_sessions (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
-    [input.userId, input.tokenHash, input.expiresAt],
-  );
-}
-
-export async function findUserBySessionTokenHash(
-  tokenHash: string,
+export async function findUserByClerkId(
+  clerkUserId: string,
 ): Promise<AuthUser | null> {
   const result = await pool.query<AuthUser>(
-    `SELECT users.id, users.email, users.created_at AS "createdAt"
-     FROM auth_sessions
-     INNER JOIN users ON users.id = auth_sessions.user_id
-     WHERE auth_sessions.token_hash = $1
-       AND auth_sessions.expires_at > NOW()
+    `SELECT id, email, created_at AS "createdAt"
+     FROM users
+     WHERE clerk_user_id = $1
      LIMIT 1`,
-    [tokenHash],
+    [clerkUserId],
   );
   return result.rows[0] ?? null;
-}
-
-export async function deleteAuthSession(tokenHash: string) {
-  await pool.query("DELETE FROM auth_sessions WHERE token_hash = $1", [
-    tokenHash,
-  ]);
-}
-
-export async function listAuthSessions(userId: string) {
-  const result = await pool.query<{
-    id: string;
-    created_at: string;
-    expires_at: string;
-  }>(
-    "SELECT id, created_at, expires_at FROM auth_sessions WHERE user_id = $1 AND expires_at > NOW() ORDER BY created_at DESC",
-    [userId],
-  );
-  return result.rows.map((row) => ({
-    id: row.id,
-    createdAt: row.created_at,
-    expiresAt: row.expires_at,
-  }));
-}
-export async function deleteAuthSessionById(userId: string, sessionId: string) {
-  await pool.query("DELETE FROM auth_sessions WHERE user_id = $1 AND id = $2", [
-    userId,
-    sessionId,
-  ]);
-}
-export async function createAccountToken(input: {
-  userId: string;
-  tokenHash: string;
-  kind: "verify_email" | "reset_password";
-  expiresAt: Date;
-}) {
-  await pool.query(
-    "INSERT INTO account_tokens (user_id, token_hash, kind, expires_at) VALUES ($1, $2, $3, $4)",
-    [input.userId, input.tokenHash, input.kind, input.expiresAt],
-  );
-}
-export async function consumeAccountToken(
-  tokenHash: string,
-  kind: "verify_email" | "reset_password",
-) {
-  const result = await pool.query<{ user_id: string }>(
-    "UPDATE account_tokens SET used_at = NOW() WHERE token_hash = $1 AND kind = $2 AND used_at IS NULL AND expires_at > NOW() RETURNING user_id",
-    [tokenHash, kind],
-  );
-  return result.rows[0]?.user_id ?? null;
-}
-export async function markEmailVerified(userId: string) {
-  await pool.query(
-    "UPDATE users SET email_verified_at = NOW(), updated_at = NOW() WHERE id = $1",
-    [userId],
-  );
-}
-export async function updateUserPassword(userId: string, passwordHash: string) {
-  await pool.query(
-    "UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1",
-    [userId, passwordHash],
-  );
-  await pool.query("DELETE FROM auth_sessions WHERE user_id = $1", [userId]);
 }
 
 export async function setMediaDietPreference(

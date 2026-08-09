@@ -1,10 +1,7 @@
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
   alertSubscriptionForCheck,
-  deleteAuthSessionById,
-  findUserByEmail,
   checkDatabase,
   configureDatabase,
   findGroundZeroCorpusHistory,
@@ -15,7 +12,6 @@ import {
   getMediaDietPreference,
   getTraceTimeline,
   listChecks,
-  listAuthSessions,
   mediaDietReport,
   optedInMediaDietRecipients,
   persistCheck,
@@ -39,25 +35,14 @@ import {
 } from "@repo/ai";
 import { Redis } from "@upstash/redis";
 import {
-  authenticateUser,
-  createSession,
-  createAccountActionToken,
-  consumeAccountActionToken,
-  getUserForSession,
+  authenticatedUser,
   isValidEmail,
-  isValidPassword,
   normalizeEmail,
-  hashPassword,
-  markEmailVerified,
-  registerUser,
-  revokeSession,
-  SESSION_COOKIE,
-  sessionCookieOptions,
-  updateUserPassword,
+  type ClerkBindings,
 } from "./auth.js";
 import { runDecaySweep } from "./decay.js";
 
-export type Bindings = {
+export type Bindings = ClerkBindings & {
   DATABASE_URL?: string;
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
@@ -65,21 +50,11 @@ export type Bindings = {
 };
 
 export const app = new Hono<{ Bindings: Bindings }>();
-const rateLimitHits = new Map<string, { count: number; resetAt: number }>();
 let upstash: Redis | undefined;
 let upstashConfig: string | undefined;
 
 app.use("*", async (context, next) => {
   configureDatabase(context.env.DATABASE_URL);
-  await next();
-});
-app.use("/auth/*", async (context, next) => {
-  const key = `${context.req.path}:${context.req.header("x-forwarded-for") ?? "local"}`;
-  if (!(await isWithinAuthRateLimit(key, context.env)))
-    return context.json(
-      { error: "Too many attempts. Please try again shortly." },
-      429,
-    );
   await next();
 });
 app.use(
@@ -115,24 +90,6 @@ function upstashRedis(env: Bindings) {
   return upstash;
 }
 
-async function isWithinAuthRateLimit(key: string, env: Bindings) {
-  const cache = upstashRedis(env);
-  if (cache) {
-    const count = await cache.incr(`rate-limit:auth:${key}`);
-    if (count === 1) await cache.expire(`rate-limit:auth:${key}`, 60);
-    return count <= 12;
-  }
-
-  // Keep local development usable without a hosted Upstash database.
-  const now = Date.now();
-  const hit = rateLimitHits.get(key);
-  const current =
-    !hit || hit.resetAt <= now ? { count: 0, resetAt: now + 60_000 } : hit;
-  current.count += 1;
-  rateLimitHits.set(key, current);
-  return current.count <= 12;
-}
-
 async function checkRedis(env: Bindings) {
   const cache = upstashRedis(env);
   if (!cache) return "not configured";
@@ -142,142 +99,14 @@ async function checkRedis(env: Bindings) {
 
 app.get("/", (context) => context.json({ message: "Hello from Tracera API." }));
 
-app.post("/auth/signup", async (context) => {
-  const body = await context.req.json().catch(() => null);
-  const email = normalizeEmail(body?.email);
-  const password = body?.password;
-  if (!isValidEmail(email)) {
-    return context.json({ error: "Enter a valid email address." }, 400);
-  }
-  if (!isValidPassword(password)) {
-    return context.json(
-      { error: "Password must be between 8 and 128 characters." },
-      400,
-    );
-  }
-
-  try {
-    const user = await registerUser(email, password);
-    if (!user) {
-      return context.json(
-        { error: "An account with this email already exists." },
-        409,
-      );
-    }
-    const session = await createSession(user.id);
-    void sendAccountAction(user.id, user.email, "verify_email").catch((error) =>
-      console.warn("Could not send verification email", error),
-    );
-    setCookie(
-      context,
-      SESSION_COOKIE,
-      session.token,
-      sessionCookieOptions(session.expiresAt),
-    );
-    return context.json(sessionResponse(context, user, session), 201);
-  } catch (error) {
-    console.error("Sign-up failed", error);
-    return context.json({ error: "Unable to create your account." }, 503);
-  }
-});
-
-app.post("/auth/login", async (context) => {
-  const body = await context.req.json().catch(() => null);
-  const email = normalizeEmail(body?.email);
-  const password = body?.password;
-  if (!isValidEmail(email) || typeof password !== "string") {
-    return context.json({ error: "Invalid email or password." }, 400);
-  }
-
-  try {
-    const user = await authenticateUser(email, password);
-    if (!user)
-      return context.json({ error: "Invalid email or password." }, 401);
-    const session = await createSession(user.id);
-    setCookie(
-      context,
-      SESSION_COOKIE,
-      session.token,
-      sessionCookieOptions(session.expiresAt),
-    );
-    return context.json(sessionResponse(context, user, session));
-  } catch (error) {
-    console.error("Login failed", error);
-    return context.json({ error: "Unable to sign you in." }, 503);
-  }
-});
-
-app.post("/auth/logout", async (context) => {
-  await revokeSession(sessionToken(context));
-  deleteCookie(context, SESSION_COOKIE, sessionCookieOptions());
-  return context.body(null, 204);
-});
-
 app.get("/auth/me", async (context) => {
-  const user = await getUserForSession(sessionToken(context));
+  const user = await currentUser(context);
   return user
     ? context.json({ user })
     : context.json({ error: "Not authenticated." }, 401);
 });
-
-app.post("/auth/request-verification", async (context) => {
-  const user = await getUserForSession(sessionToken(context));
-  if (!user) return context.json({ error: "Not authenticated." }, 401);
-  await sendAccountAction(user.id, user.email, "verify_email");
-  return context.body(null, 204);
-});
-app.post("/auth/verify-email", async (context) => {
-  const body = await context.req.json().catch(() => null);
-  if (typeof body?.token !== "string")
-    return context.json({ error: "A verification token is required." }, 400);
-  const userId = await consumeAccountActionToken(body.token, "verify_email");
-  if (!userId)
-    return context.json(
-      { error: "This verification link is invalid or expired." },
-      400,
-    );
-  await markEmailVerified(userId);
-  return context.body(null, 204);
-});
-app.post("/auth/forgot-password", async (context) => {
-  const body = await context.req.json().catch(() => null);
-  const email = normalizeEmail(body?.email);
-  if (isValidEmail(email)) {
-    const user = await findUserByEmail(email);
-    if (user) await sendAccountAction(user.id, user.email, "reset_password");
-  }
-  return context.body(null, 204);
-});
-app.post("/auth/reset-password", async (context) => {
-  const body = await context.req.json().catch(() => null);
-  if (typeof body?.token !== "string" || !isValidPassword(body?.password))
-    return context.json(
-      { error: "A valid reset token and password are required." },
-      400,
-    );
-  const userId = await consumeAccountActionToken(body.token, "reset_password");
-  if (!userId)
-    return context.json(
-      { error: "This reset link is invalid or expired." },
-      400,
-    );
-  await updateUserPassword(userId, await hashPassword(body.password));
-  return context.body(null, 204);
-});
-app.get("/auth/sessions", async (context) => {
-  const user = await getUserForSession(sessionToken(context));
-  return user
-    ? context.json({ sessions: await listAuthSessions(user.id) })
-    : context.json({ error: "Not authenticated." }, 401);
-});
-app.delete("/auth/sessions/:id", async (context) => {
-  const user = await getUserForSession(sessionToken(context));
-  if (!user) return context.json({ error: "Not authenticated." }, 401);
-  await deleteAuthSessionById(user.id, context.req.param("id"));
-  return context.body(null, 204);
-});
 app.get("/reports/media-diet", async (context) => {
-  const user = await getUserForSession(sessionToken(context));
+  const user = await currentUser(context);
   if (!user) return context.json({ error: "Not authenticated." }, 401);
   return context.json({
     report: await mediaDietReport(user.id),
@@ -285,7 +114,7 @@ app.get("/reports/media-diet", async (context) => {
   });
 });
 app.put("/reports/media-diet/preferences", async (context) => {
-  const user = await getUserForSession(sessionToken(context));
+  const user = await currentUser(context);
   const body = await context.req.json().catch(() => null);
   if (!user) return context.json({ error: "Not authenticated." }, 401);
   const frequency = body?.frequency === "weekly" ? "weekly" : "monthly";
@@ -373,7 +202,7 @@ app.post("/analyze", async (context) => {
   try {
     const recheckOf = authorizedRecheckId(context, body);
     const requestSignal = context.req.raw.signal;
-    const user = await getUserForSession(sessionToken(context));
+    const user = await currentUser(context);
     const parentCheck = recheckOf
       ? await getCheckById(recheckOf, undefined, true)
       : null;
@@ -507,7 +336,7 @@ app.post("/analyze", async (context) => {
 app.get("/checks/:id/timeline", async (context) => {
   const id = context.req.param("id");
   if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
-  const user = await getUserForSession(sessionToken(context));
+  const user = await currentUser(context);
   if (!(await getCheckById(id, user?.id)))
     return context.json({ error: "Check not found." }, 404);
   return context.json({ timeline: await getTraceTimeline(id) });
@@ -515,7 +344,7 @@ app.get("/checks/:id/timeline", async (context) => {
 app.post("/checks/:id/alerts", async (context) => {
   const id = context.req.param("id");
   const body = await context.req.json().catch(() => null);
-  const user = await getUserForSession(sessionToken(context));
+  const user = await currentUser(context);
   const email =
     user?.email ?? (typeof body?.email === "string" ? body.email.trim() : "");
   if (!isUuid(id) || !isValidEmail(email))
@@ -528,7 +357,7 @@ app.post("/checks/:id/alerts", async (context) => {
   return context.json({ subscription: await subscribeToCheck(id, email) }, 201);
 });
 app.get("/checks/:id/alerts", async (context) => {
-  const user = await getUserForSession(sessionToken(context));
+  const user = await currentUser(context);
   const id = context.req.param("id");
   if (!user || !isUuid(id))
     return context.json({ error: "Not authenticated." }, 401);
@@ -539,7 +368,7 @@ app.get("/checks/:id/alerts", async (context) => {
 app.delete("/checks/:id/alerts", async (context) => {
   const id = context.req.param("id");
   const body = await context.req.json().catch(() => null);
-  const user = await getUserForSession(sessionToken(context));
+  const user = await currentUser(context);
   const requestedEmail =
     typeof body?.email === "string" ? body.email.trim() : "";
   const email = user?.email ?? requestedEmail;
@@ -573,7 +402,7 @@ app.get("/checks", async (context) => {
   const query = (context.req.query("q") ?? "").slice(0, 200);
 
   try {
-    const user = await getUserForSession(sessionToken(context));
+    const user = await currentUser(context);
     const result = await listChecks(page, pageSize, query, user?.id);
     return context.json({
       checks: result.checks,
@@ -601,7 +430,7 @@ app.get("/checks/:id", async (context) => {
   if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
 
   try {
-    const user = await getUserForSession(sessionToken(context));
+    const user = await currentUser(context);
     const check = await getCheckById(id, user?.id);
     if (!check) return context.json({ error: "Check not found." }, 404);
     return context.json({ check });
@@ -965,56 +794,15 @@ function isUuid(value: string) {
   );
 }
 
-function sessionToken(context: Context) {
-  const authorization = context.req.header("authorization");
-  const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-  return bearer ?? getCookie(context, SESSION_COOKIE);
-}
-
-function sessionResponse(
-  context: Context,
-  user: { id: string; email: string; createdAt: string },
-  session: { token: string },
-) {
-  return context.req.header("x-tracera-mobile") === "1"
-    ? { user, sessionToken: session.token }
-    : { user };
-}
-
-async function sendAccountAction(
-  userId: string,
-  email: string,
-  kind: "verify_email" | "reset_password",
-) {
-  const token = await createAccountActionToken(userId, kind);
-  const route = kind === "verify_email" ? "verify-email" : "reset-password";
-  const link = `${(process.env.PUBLIC_WEB_URL ?? "http://localhost:3000").replace(/\/$/, "")}/${route}?token=${encodeURIComponent(token)}`;
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.ALERT_FROM_EMAIL;
-  if (!apiKey || !from) {
-    console.info(`${kind} link generated for ${email}: ${link}`);
-    return;
-  }
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [email],
-      subject:
-        kind === "verify_email"
-          ? "Verify your Tracera email"
-          : "Reset your Tracera password",
-      text: `Use this link within one hour: ${link}`,
-    }),
+function currentUser(context: Context<{ Bindings: Bindings }>) {
+  return authenticatedUser(context.req.raw, {
+    CLERK_SECRET_KEY:
+      context.env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET_KEY,
+    CLERK_JWT_KEY: context.env.CLERK_JWT_KEY ?? process.env.CLERK_JWT_KEY,
+    CLERK_AUTHORIZED_PARTIES:
+      context.env.CLERK_AUTHORIZED_PARTIES ??
+      process.env.CLERK_AUTHORIZED_PARTIES,
   });
-  if (!response.ok)
-    throw new Error(
-      `Account email delivery failed with HTTP ${response.status}.`,
-    );
 }
 
 export default {
