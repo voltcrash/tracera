@@ -92,7 +92,7 @@ pnpm --filter api exec wrangler login
 3. Deploy the API Worker once to establish its Worker URL:
 
    ```sh
-   pnpm deploy:api
+   pnpm run deploy:api
    ```
 
    Set its secrets in the Cloudflare dashboard or with `wrangler secret put
@@ -109,7 +109,7 @@ pnpm --filter api exec wrangler login
 
    ```sh
    export NEXT_PUBLIC_API_URL='https://tracera-api.<account>.workers.dev'
-   pnpm deploy:web
+   pnpm run deploy:web
    ```
 
    Also set `TRACERA_API_URL` on the web Worker to the same API URL; it is used
