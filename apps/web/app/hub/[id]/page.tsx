@@ -9,8 +9,8 @@ import {
 } from "../../components/analysis-result";
 import { AppHeader } from "../../components/app-header";
 import { useAuth } from "../../components/auth-provider";
+import { apiUrl } from "../../lib/api";
 
-const apiUrl = "https://api.tracera.voltcrash.com";
 type Check = {
   id: string;
   rawInput: string;

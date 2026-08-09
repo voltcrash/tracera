@@ -9,8 +9,8 @@ import {
 } from "../components/analysis-result";
 import { AppHeader } from "../components/app-header";
 import { useAuth } from "../components/auth-provider";
+import { apiUrl } from "../lib/api";
 
-const apiUrl = "https://api.tracera.voltcrash.com";
 const example =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
 const MAX_IMAGE_BYTES = 5_000_000;

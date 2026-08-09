@@ -3,8 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useAuth } from "../../components/auth-provider";
-
-const apiUrl = "https://api.tracera.voltcrash.com";
+import { apiUrl } from "../../lib/api";
 
 export default function AuthCompletePage() {
   const { apiFetch, isLoading, user } = useAuth();

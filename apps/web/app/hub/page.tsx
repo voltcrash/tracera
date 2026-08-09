@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "../components/app-header";
 import { useAuth } from "../components/auth-provider";
 import type { TraceraScore } from "../components/analysis-result";
+import { apiUrl } from "../lib/api";
 
-const apiUrl = "https://api.tracera.voltcrash.com";
 type CheckSummary = {
   id: string;
   rawInput: string;
@@ -32,11 +32,15 @@ export default function HubPage() {
   const [filter, setFilter] = useState<"all" | "high" | "review">("all");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [requestVersion, setRequestVersion] = useState(0);
   useEffect(() => {
+    const controller = new AbortController();
     const handle = setTimeout(() => {
       setLoading(true);
+      setError(null);
       apiFetch(
         `${apiUrl}/checks?page=${page}&pageSize=20&q=${encodeURIComponent(query)}`,
+        { signal: controller.signal },
       )
         .then(async (response) => {
           const data = await response.json();
@@ -45,17 +49,23 @@ export default function HubPage() {
           setChecks(data.checks);
           setPagination(data.pagination);
         })
-        .catch((requestError) =>
+        .catch((requestError) => {
+          if (controller.signal.aborted) return;
           setError(
             requestError instanceof Error
               ? requestError.message
               : "Unable to load checks.",
-          ),
-        )
-        .finally(() => setLoading(false));
+          );
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
     }, 250);
-    return () => clearTimeout(handle);
-  }, [apiFetch, page, query]);
+    return () => {
+      clearTimeout(handle);
+      controller.abort();
+    };
+  }, [apiFetch, page, query, requestVersion]);
   const visible = useMemo(
     () =>
       checks.filter(
@@ -148,12 +158,21 @@ export default function HubPage() {
           </div>
           {loading && <Loading />}
           {error && (
-            <p
+            <div
               className="mt-8 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
               role="alert"
             >
-              {error}
-            </p>
+              <div className="flex items-center justify-between gap-4">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  onClick={() => setRequestVersion((version) => version + 1)}
+                  className="shrink-0 rounded-lg border border-rose-300 bg-white px-3 py-2 font-bold transition hover:bg-rose-100"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
           )}
           {!loading && !error && visible.length === 0 && (
             <p className="mt-8 rounded-3xl border border-dashed border-emerald-950/20 bg-white p-10 text-center text-emerald-950/60">

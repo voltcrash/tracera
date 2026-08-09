@@ -13,8 +13,7 @@ import {
   useEffect,
   useMemo,
 } from "react";
-
-const apiUrl = "https://api.tracera.voltcrash.com";
+import { apiUrl } from "../lib/api";
 
 export type AuthUser = {
   id: string;

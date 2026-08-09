@@ -51,6 +51,7 @@ import {
   type ClerkBindings,
 } from "./auth.js";
 import { runDecaySweep } from "./decay.js";
+import { allowedCorsOrigin } from "./cors-origin.js";
 import { reanalysisPolicy } from "./reanalysis-policy.js";
 import {
   authenticatePublicApiKey,
@@ -88,8 +89,8 @@ app.use("/*", async (context, next) =>
     // install. Reflect only that origin (and the configured web app) so its
     // side panel can call the Worker without opening CORS to arbitrary sites.
     origin: (origin) => {
-      const webOrigin = context.env?.WEB_ORIGIN;
-      return origin === webOrigin || origin?.startsWith("chrome-extension://")
+      return allowedCorsOrigin(origin, context.env?.WEB_ORIGIN) ||
+        origin?.startsWith("chrome-extension://")
         ? origin
         : undefined;
     },
