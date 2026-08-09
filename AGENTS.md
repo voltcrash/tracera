@@ -46,7 +46,10 @@ Web, mobile, browser extension.
 
 - Core API: Hono
 - Database: Postgres + pgvector
-- Cache / queue: Redis + BullMQ
+- Cache / queue: Upstash Redis REST. Scheduled decay work uses a durable
+  ready/processing/dead-letter list queue driven by Cloudflare Cron; BullMQ is
+  intentionally not used because the Worker runtime has no persistent TCP
+  process.
 - ORM: Drizzle
 - Search: Postgres full-text search (`tsvector` + GIN), covering submissions and atomic claims.
 
@@ -78,7 +81,7 @@ Before writing pipeline code, validate the chosen hosted model's output quality 
 7. **Evidence-quality scoring** — separate signal alongside the verdict: how much/strong/recent is the evidence this verdict rests on.
 8. **Aggregation (Tracera Score)** — roll per-claim verdicts + evidence quality + source credibility into the multi-dimensional nutrition-label score described above.
 9. **Persist + embed** — store result in `checks` (and a normalized `claims` table, embedded individually — not the whole article as one vector) for RAG/dedup reuse.
-10. **Decay monitoring hook** — scheduled BullMQ job to periodically re-check high-traffic/high-recency items and trigger update/decay alerts if verdicts change.
+10. **Decay monitoring hook** — Cloudflare Cron feeds an Upstash-backed durable queue that periodically re-checks high-traffic/high-recency items and triggers update/decay alerts if verdicts change.
 
 ### RAG strategy
 

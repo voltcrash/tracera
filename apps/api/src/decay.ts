@@ -1,28 +1,128 @@
 import {
   activeAlertEmailsForTrace,
   dueChecks,
+  getDecayCheckById,
   markAlertSubscriptionsNotified,
   pool,
   recordDecayEvent,
 } from "@repo/db";
+import { Redis } from "@upstash/redis";
 import type { Bindings } from "./index.js";
 
+type DueCheck = NonNullable<Awaited<ReturnType<typeof getDecayCheckById>>>;
+type DecayJob = { checkId: string; attempts: number };
+const DECAY_QUEUE = "tracera:decay:ready";
+const DECAY_PROCESSING = "tracera:decay:processing";
+const DECAY_DEAD_LETTER = "tracera:decay:dead-letter";
+const DECAY_SWEEP_LOCK = "tracera:decay:sweep-lock";
+
 /**
- * Cloudflare Cron Triggers invoke this once per hour. Rechecks are submitted
- * directly to the API Worker because BullMQ requires a persistent TCP worker,
- * which is not available in the Workers runtime.
+ * Cloudflare Cron Triggers invoke this once per hour. Upstash lists provide a
+ * durable ready/processing queue because BullMQ requires a persistent TCP
+ * worker, which is not available in the Workers runtime.
  */
 export async function runDecaySweep(env: Bindings) {
   const checks = await dueChecks();
-  for (const check of checks) {
-    await recheck(check, env);
+  const redis = decayRedis(env);
+  if (!redis) {
+    await Promise.allSettled(checks.map((check) => recheck(check, env)));
+    return;
+  }
+
+  const lockToken = crypto.randomUUID();
+  const locked = await redis.set(DECAY_SWEEP_LOCK, lockToken, {
+    nx: true,
+    ex: 55 * 60,
+  });
+  if (locked !== "OK") return;
+
+  try {
+    await recoverInterruptedJobs(redis);
+    for (const check of checks) {
+      const jobKey = decayJobKey(check.id);
+      const queued = await redis.set(jobKey, "queued", {
+        nx: true,
+        ex: 6 * 60 * 60,
+      });
+      if (queued !== "OK") continue;
+      await redis.lpush(DECAY_QUEUE, {
+        checkId: check.id,
+        attempts: 0,
+      } satisfies DecayJob);
+      await recordDecayEvent({ checkId: check.id, eventType: "scheduled" });
+    }
+
+    const jobsToProcess = Math.min(await redis.llen(DECAY_QUEUE), 25);
+    for (let index = 0; index < jobsToProcess; index += 1) {
+      const job = await redis.lmove<DecayJob>(
+        DECAY_QUEUE,
+        DECAY_PROCESSING,
+        "right",
+        "left",
+      );
+      if (!job) break;
+      try {
+        const check = await getDecayCheckById(job.checkId);
+        if (check) await recheck(check, env);
+        await Promise.all([
+          redis.lrem(DECAY_PROCESSING, 1, job),
+          redis.del(decayJobKey(job.checkId)),
+        ]);
+      } catch {
+        await redis.lrem(DECAY_PROCESSING, 1, job);
+        if (job.attempts >= 2) {
+          await pool.query(
+            "UPDATE checks SET next_review_at = NOW() + INTERVAL '7 days' WHERE id = $1",
+            [job.checkId],
+          );
+          await Promise.all([
+            redis.lpush(DECAY_DEAD_LETTER, {
+              ...job,
+              attempts: job.attempts + 1,
+            }),
+            redis.del(decayJobKey(job.checkId)),
+          ]);
+        } else {
+          await redis.lpush(DECAY_QUEUE, {
+            ...job,
+            attempts: job.attempts + 1,
+          });
+        }
+      }
+    }
+  } finally {
+    await redis.eval(
+      "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+      [DECAY_SWEEP_LOCK],
+      [lockToken],
+    );
   }
 }
 
-async function recheck(
-  check: Awaited<ReturnType<typeof dueChecks>>[number],
-  env: Bindings,
-) {
+function decayRedis(env: Bindings) {
+  const url = env.UPSTASH_REDIS_REST_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+  const token =
+    env.UPSTASH_REDIS_REST_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+  return url && token ? new Redis({ url, token }) : null;
+}
+
+async function recoverInterruptedJobs(redis: Redis) {
+  while (await redis.llen(DECAY_PROCESSING)) {
+    const recovered = await redis.lmove(
+      DECAY_PROCESSING,
+      DECAY_QUEUE,
+      "right",
+      "left",
+    );
+    if (!recovered) break;
+  }
+}
+
+function decayJobKey(checkId: string) {
+  return `tracera:decay:job:${checkId}`;
+}
+
+async function recheck(check: DueCheck, env: Bindings) {
   await recordDecayEvent({ checkId: check.id, eventType: "started" });
   try {
     const apiUrl = requiredApiUrl(env);

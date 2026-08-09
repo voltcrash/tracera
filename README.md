@@ -110,8 +110,10 @@ pnpm build
 ## Cloudflare deployment
 
 The web and API applications deploy as independent Cloudflare Workers. The
-API's hourly Cron Trigger replaces the former long-running BullMQ process.
-Upstash continues to provide the Worker-compatible cache endpoint.
+API's hourly Cron Trigger feeds an Upstash ready/processing/dead-letter queue.
+Processing leases, deduplicated jobs, crash recovery, and three-attempt
+dead-lettering replace the former long-running BullMQ process while remaining
+compatible with the Worker runtime.
 
 Wrangler is installed as a project dependency, not globally. Authenticate with:
 

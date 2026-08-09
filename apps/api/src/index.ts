@@ -83,8 +83,6 @@ app.use("/*", async (context, next) =>
     credentials: true,
   })(context, next),
 );
-let analysisQueue: Promise<void> = Promise.resolve();
-
 function upstashRedis(env: Bindings) {
   const url = env.UPSTASH_REDIS_REST_URL ?? process.env.UPSTASH_REDIS_REST_URL;
   const token =
@@ -375,7 +373,7 @@ async function runAnalysis(
 
     // User-triggered checks stay synchronous; scheduled rechecks run in the BullMQ worker.
     const auditLog: Array<{ stage: string; prompt: string }> = [];
-    const result = await serializeAnalysis(
+    const result = await executeAnalysis(
       () => analyzeText(normalized.text, provider, auditLog, emit),
       requestSignal,
     );
@@ -930,20 +928,15 @@ function aiProviderName(value: string | undefined): AiProviderName {
   return provider as AiProviderName;
 }
 
-function serializeAnalysis<T>(
+function executeAnalysis<T>(
   run: () => Promise<T>,
   signal: AbortSignal,
 ): Promise<T> {
-  const result = analysisQueue.then(() => {
-    if (signal.aborted)
-      throw signal.reason ?? new Error("Analysis request was cancelled.");
-    return run();
-  });
-  analysisQueue = result.then(
-    () => undefined,
-    () => undefined,
-  );
-  return result;
+  if (signal.aborted)
+    return Promise.reject(
+      signal.reason ?? new Error("Analysis request was cancelled."),
+    );
+  return run();
 }
 
 async function normalizeWithStoredFallback(

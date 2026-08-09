@@ -640,13 +640,30 @@ export async function activeAlertEmailsForTrace(checkId: string) {
   );
   return result.rows.map((row) => row.email);
 }
-export async function dueChecks(limit = 50) {
+export interface DecayCheck {
+  id: string;
+  raw_input: string;
+  input_type: string;
+  source_url: string | null;
+  analysis: unknown;
+}
+
+export async function dueChecks(limit = 50): Promise<DecayCheck[]> {
   return (
-    await pool.query(
+    await pool.query<DecayCheck>(
       `SELECT id, raw_input, input_type, source_url, analysis FROM checks WHERE next_review_at <= NOW() ORDER BY next_review_at LIMIT $1`,
       [limit],
     )
   ).rows;
+}
+
+export async function getDecayCheckById(id: string) {
+  const result = await pool.query<DecayCheck>(
+    `SELECT id, raw_input, input_type, source_url, analysis
+       FROM checks WHERE id = $1 AND next_review_at <= NOW()`,
+    [id],
+  );
+  return result.rows[0] ?? null;
 }
 
 export async function recordDecayEvent(input: {
