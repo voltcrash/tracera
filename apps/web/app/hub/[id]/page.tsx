@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import {
   AnalysisResult,
+  ScoreCard,
   type ClaimResult,
   type TraceraScore,
 } from "../../components/analysis-result";
@@ -154,16 +155,40 @@ export default function CheckDetailPage({
                   : ""}
               </p>
             )}
-            <blockquote className="mt-8 rounded-[1.75rem] border border-emerald-950/10 border-l-4 border-l-emerald-500 bg-white p-6 text-base leading-7 text-emerald-950/75 shadow-[0_18px_50px_-35px_rgba(16,34,31,.55)] sm:p-8">
-              {check.rawInput}
-            </blockquote>
-            <AlertSubscription checkId={check.id} />
-            <TraceTimeline entries={timeline} appearances={appearances} />
+            <div className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-stretch">
+              <section className="flex min-h-64 flex-col justify-between rounded-[1.75rem] border border-emerald-950/10 bg-white p-6 shadow-[0_18px_50px_-35px_rgba(16,34,31,.55)] sm:p-8">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">
+                    Checked statement
+                  </p>
+                  <blockquote className="mt-5 max-w-3xl text-xl font-bold leading-8 tracking-[-.02em] text-emerald-950 sm:text-2xl sm:leading-9">
+                    “{check.rawInput}”
+                  </blockquote>
+                </div>
+                <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-emerald-950/8 pt-5 text-xs font-semibold text-emerald-950/50">
+                  <span>
+                    {check.analysis.claims.length} atomic{" "}
+                    {check.analysis.claims.length === 1 ? "claim" : "claims"}
+                  </span>
+                  <span>
+                    Evidence checked{" "}
+                    {new Date(check.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </section>
+              <ScoreCard
+                score={check.analysis.score ?? check.traceraScore}
+                sticky={false}
+              />
+            </div>
             <AnalysisResult
               claims={check.analysis.claims}
               score={check.analysis.score ?? check.traceraScore}
+              showScore={false}
             />
             {check.groundZero && <GroundZeroCard trace={check.groundZero} />}
+            <TraceTimeline entries={timeline} appearances={appearances} />
+            <AlertSubscription checkId={check.id} />
           </section>
         )}
       </div>
@@ -208,35 +233,49 @@ function AlertSubscription({ checkId }: { checkId: string }) {
   return (
     <form
       onSubmit={subscribe}
-      className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl bg-emerald-950 p-4 text-white"
+      className="mt-8 rounded-[1.75rem] border border-emerald-950/10 bg-white p-6 shadow-[0_18px_50px_-35px_rgba(16,34,31,.4)] sm:flex sm:items-center sm:gap-6 sm:p-8"
     >
       <div className="min-w-52 flex-1">
-        <p className="text-sm font-black">Follow this trace</p>
-        <p className="text-xs text-white/65">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">
+          Stay updated
+        </p>
+        <p className="mt-2 text-xl font-black tracking-[-.035em] text-emerald-950">
+          Follow this trace.
+        </p>
+        <p className="mt-1 text-sm leading-6 text-emerald-950/55">
           Get an email when new evidence materially changes its score.
         </p>
       </div>
-      <input
-        required
-        type="email"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        placeholder="you@example.com"
-        className="rounded-xl px-3 py-2 text-sm text-emerald-950 outline-none"
-      />
-      <button className="rounded-xl bg-[#9cf0d1] px-4 py-2 text-sm font-black text-emerald-950">
-        {subscribed ? "Alert active" : "Notify me"}
-      </button>
-      {subscribed && (
-        <button
-          type="button"
-          onClick={() => void unsubscribe()}
-          className="text-xs font-bold text-white/75 underline"
-        >
-          Unsubscribe
-        </button>
-      )}
-      {status && <p className="w-full text-xs text-white/80">{status}</p>}
+      <div className="mt-5 sm:mt-0 sm:w-[28rem]">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label className="flex-1">
+            <span className="sr-only">Email address for trace updates</span>
+            <input
+              required
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              className="w-full rounded-xl border border-emerald-950/10 bg-[#f4f6f2] px-4 py-3 text-sm text-emerald-950 outline-none transition placeholder:text-emerald-950/35 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+            />
+          </label>
+          <button className="rounded-xl bg-emerald-950 px-5 py-3 text-sm font-black text-white shadow-[3px_3px_0_#8ee8cb] transition hover:-translate-y-0.5">
+            {subscribed ? "Alert active" : "Notify me"}
+          </button>
+        </div>
+        <div className="mt-3 flex min-h-5 items-center gap-3">
+          {subscribed && (
+            <button
+              type="button"
+              onClick={() => void unsubscribe()}
+              className="text-xs font-bold text-emerald-800 underline underline-offset-2"
+            >
+              Unsubscribe
+            </button>
+          )}
+          {status && <p className="text-xs text-emerald-950/60">{status}</p>}
+        </div>
+      </div>
     </form>
   );
 }

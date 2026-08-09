@@ -41,13 +41,17 @@ type EvidenceSource = {
 export function AnalysisResult({
   claims,
   score,
+  showScore = true,
 }: {
   claims: ClaimResult[];
   score: TraceraScore;
+  showScore?: boolean;
 }) {
   return (
-    <section className="mt-8 grid gap-6 lg:grid-cols-[1fr_21rem]">
-      <div className="order-2 lg:order-1">
+    <section
+      className={`mt-8 grid gap-6 ${showScore ? "lg:grid-cols-[1fr_21rem]" : ""}`}
+    >
+      <div className={showScore ? "order-2 lg:order-1" : ""}>
         <div className="flex items-end justify-between">
           <div>
             <p className="text-xs font-black tracking-[0.18em] text-emerald-800">
@@ -140,12 +144,18 @@ export function AnalysisResult({
           ))}
         </div>
       </div>
-      <ScoreCard score={score} />
+      {showScore && <ScoreCard score={score} />}
     </section>
   );
 }
 
-export function ScoreCard({ score }: { score: TraceraScore }) {
+export function ScoreCard({
+  score,
+  sticky = true,
+}: {
+  score: TraceraScore;
+  sticky?: boolean;
+}) {
   const rows = [
     ["Factual accuracy", score.factualAccuracy],
     ["Source corroboration", score.sourceCorroboration],
@@ -155,7 +165,9 @@ export function ScoreCard({ score }: { score: TraceraScore }) {
   ] as const;
 
   return (
-    <aside className="noise order-1 h-fit overflow-hidden rounded-3xl bg-emerald-950 p-6 text-white shadow-[0_20px_55px_-22px_rgba(6,78,59,.7)] lg:sticky lg:top-6 lg:order-2">
+    <aside
+      className={`noise order-1 h-fit overflow-hidden rounded-3xl bg-emerald-950 p-6 text-white shadow-[0_20px_55px_-22px_rgba(6,78,59,.7)] lg:order-2 ${sticky ? "lg:sticky lg:top-6" : ""}`}
+    >
       <p className="relative z-10 text-[10px] font-black tracking-[0.2em] text-[#9cf0d1]">
         TRACERA SCORE
       </p>
