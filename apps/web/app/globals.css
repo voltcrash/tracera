@@ -1,15 +1,5 @@
 @import "tailwindcss";
 
-:root {
-  color-scheme: light dark;
-  --tracera-background: #f4f6f2;
-  --tracera-surface: #ffffff;
-  --tracera-surface-subtle: #f5f8f4;
-  --tracera-foreground: #10221f;
-  --tracera-muted: #597069;
-  --tracera-border: rgba(16, 34, 31, .12);
-}
-
 html,
 body {
   max-width: 100vw;
@@ -17,8 +7,8 @@ body {
 }
 
 body {
-  background: var(--tracera-background);
-  color: var(--tracera-foreground);
+  background: #f4f6f2;
+  color: #10221f;
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
@@ -38,68 +28,8 @@ body {
 }
 
 .paper-grid {
-  background-image: linear-gradient(var(--tracera-border) 1px, transparent 1px), linear-gradient(90deg, var(--tracera-border) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(16, 34, 31, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(16, 34, 31, .035) 1px, transparent 1px);
   background-size: 28px 28px;
-}
-
-/*
- * The product predates semantic color utilities, so these rules bridge the
- * existing Tailwind palette to system dark mode without a client-side theme
- * script or a flash of the wrong theme. New UI should prefer the variables
- * above directly.
- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --tracera-background: #071612;
-    --tracera-surface: #10231e;
-    --tracera-surface-subtle: #142a24;
-    --tracera-foreground: #e8f5ef;
-    --tracera-muted: #9eb8ae;
-    --tracera-border: rgba(207, 244, 229, .11);
-  }
-
-  [class~="bg-[#f4f6f2]"],
-  [class~="bg-[#f7faf9]"] { background-color: var(--tracera-background); }
-  [class~="bg-white"],
-  [class~="bg-white/65"],
-  [class~="bg-white/80"] { background-color: var(--tracera-surface); }
-  [class~="bg-[#f5f8f4]"],
-  [class~="bg-[#f8faf7]"] { background-color: var(--tracera-surface-subtle); }
-  [class~="bg-[#dff7ed]"] { background-color: #12372d; }
-
-  [class*="text-emerald-950"],
-  [class*="text-slate-950"] { color: var(--tracera-foreground); }
-  [class*="text-emerald-900"],
-  [class*="text-emerald-800"],
-  [class*="text-emerald-700"] { color: #72dbb5; }
-  [class*="text-slate-500"] { color: #a9bbb4; }
-
-  [class*="border-emerald-950"],
-  [class*="border-emerald-900"] { border-color: var(--tracera-border); }
-  [class*="border-emerald-100"],
-  [class*="border-emerald-200"] { border-color: rgba(114, 219, 181, .22); }
-
-  [class~="bg-emerald-50"],
-  [class~="bg-emerald-50/60"],
-  [class~="bg-emerald-50/70"],
-  [class~="bg-emerald-100"] { background-color: #14382e; }
-  [class~="bg-slate-100"] { background-color: #25332f; }
-  [class~="bg-amber-100"] { background-color: #3b3019; }
-  [class~="bg-rose-50"],
-  [class~="bg-rose-100"] { background-color: #391d20; }
-  [class~="bg-violet-100"] { background-color: #2d2541; }
-  [class*="border-rose-200"] { border-color: #6f3539; }
-  [class*="text-rose-800"] { color: #fda4af; }
-  [class*="text-amber-800"] { color: #fcd34d; }
-  [class*="text-slate-700"] { color: #cbd5e1; }
-  [class*="text-violet-800"] { color: #c4b5fd; }
-
-  [class~="bg-[#9cf0d1]"][class*="text-emerald-950"] {
-    color: #10221f;
-  }
-
-  input,
-  textarea { caret-color: #72dbb5; }
 }
 
 .noise {

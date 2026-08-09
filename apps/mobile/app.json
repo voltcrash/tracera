@@ -4,7 +4,7 @@
     "slug": "tracera",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "scheme": "tracera",
     "ios": {
       "supportsTablet": true,

@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { AuthProvider } from "./components/auth-provider";
 import "./globals.css";
@@ -21,14 +21,6 @@ export const metadata: Metadata = {
     description: "Understand what a story gets right, wrong, and leaves out.",
     images: ["/og.png"],
   },
-};
-
-export const viewport: Viewport = {
-  colorScheme: "light dark",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f6f2" },
-    { media: "(prefers-color-scheme: dark)", color: "#071612" },
-  ],
 };
 
 export default function RootLayout({
