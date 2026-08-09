@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   aggregateScore,
+  analyzeFraming,
   extractClaims,
+  normalizeInput,
   scoreClaim,
   traceGroundZero,
   type AiProvider,
   type ClaimVerdict,
 } from "../src/index.js";
+import { extractExifMetadata } from "../src/pipeline/image-metadata.js";
 
 const claim = {
   id: "claim-1",
@@ -35,6 +38,9 @@ test("claim extraction discards model claims that introduce unsupported details"
     async embed() {
       return [];
     },
+    async generateFromImage() {
+      throw new Error("Image generation is not used in this test.");
+    },
   };
 
   const claims = await extractClaims(
@@ -54,6 +60,9 @@ test("an empty evidence set remains explicitly unverified", async () => {
     },
     async embed() {
       return [];
+    },
+    async generateFromImage() {
+      throw new Error("Image generation is not used in this test.");
     },
   };
 
@@ -97,6 +106,90 @@ test("the Tracera Score retains evidence and source signals separately", () => {
   assert.equal(score.evidenceQuality.score, 70);
   assert.equal(score.sourceReputation.score, 90);
   assert.equal(score.recency.flag, "current");
+});
+
+test("article-level framing analysis drives the framing dimension", async () => {
+  const provider: AiProvider = {
+    async generate() {
+      return {
+        emotionalLanguageLevel: 0.8,
+        factualSkewLevel: 0.6,
+        contextOmissionRisk: 0.5,
+        findings: ["The headline uses an inflammatory label."],
+      } as never;
+    },
+    async generateFromImage() {
+      throw new Error("Image generation is not used in this test.");
+    },
+    async embed() {
+      return [];
+    },
+  };
+  const framing = await analyzeFraming(
+    provider,
+    "A shocking report calls researchers traitors without supplying context.",
+  );
+  assert.equal(framing.integrityScore, 0.34);
+
+  const score = aggregateScore([], framing);
+  assert.equal(score.framingManipulation.score, 34);
+});
+
+test("image normalization sends the actual image through the multimodal provider", async () => {
+  const image = "data:image/png;base64,aGVsbG8=";
+  let receivedImage: string | undefined;
+  const provider: AiProvider = {
+    async generate() {
+      throw new Error("Text generation is not used for image OCR.");
+    },
+    async generateFromImage(_prompt, input) {
+      receivedImage = input.data;
+      return { text: "Visible headline" } as never;
+    },
+    async embed() {
+      return [];
+    },
+  };
+
+  const normalized = await normalizeInput(
+    { image, imageMimeType: "image/png" },
+    provider,
+  );
+  assert.equal(receivedImage, image);
+  assert.equal(normalized.text, "Visible headline");
+  assert.equal(normalized.imageMetadata?.ocrProvider, "model_fallback");
+});
+
+test("JPEG EXIF metadata is extracted without trusting malformed binary data", () => {
+  const tiff = Buffer.alloc(44);
+  tiff.write("II", 0, "ascii");
+  tiff.writeUInt16LE(42, 2);
+  tiff.writeUInt32LE(8, 4);
+  tiff.writeUInt16LE(2, 8);
+  tiff.writeUInt16LE(0x010f, 10);
+  tiff.writeUInt16LE(2, 12);
+  tiff.writeUInt32LE(6, 14);
+  tiff.writeUInt32LE(38, 18);
+  tiff.writeUInt16LE(0x0112, 22);
+  tiff.writeUInt16LE(3, 24);
+  tiff.writeUInt32LE(1, 26);
+  tiff.writeUInt16LE(6, 30);
+  tiff.writeUInt32LE(0, 34);
+  tiff.write("Canon\0", 38, "ascii");
+  const payload = Buffer.concat([Buffer.from("Exif\0\0", "binary"), tiff]);
+  const jpeg = Buffer.concat([
+    Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0, payload.length + 2]),
+    payload,
+    Buffer.from([0xff, 0xd9]),
+  ]);
+  const metadata = extractExifMetadata(
+    `data:image/jpeg;base64,${jpeg.toString("base64")}`,
+  );
+  assert.deepEqual(metadata, { "Camera make": "Canon", Orientation: "6" });
+  assert.equal(
+    extractExifMetadata("data:image/jpeg;base64,bm90LWEtanBlZw=="),
+    undefined,
+  );
 });
 
 test("Ground Zero distinguishes a canonical repost and an explicit citation", () => {

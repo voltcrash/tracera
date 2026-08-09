@@ -37,6 +37,7 @@ export interface StoredClaim {
 export interface StoredAnalysis {
   claims: unknown[];
   score: unknown;
+  framing?: unknown;
 }
 
 export interface CachedCheck {

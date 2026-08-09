@@ -9,6 +9,12 @@ export interface GenerateOptions {
   onStructuredOutputAttempt?: (attempt: StructuredOutputAttempt) => void;
 }
 
+export interface ImageInput {
+  /** A public HTTP(S) URL or a base64 data URI. */
+  data: string;
+  mimeType?: string;
+}
+
 export interface StructuredOutputAttempt {
   attempt: number;
   valid: boolean;
@@ -22,6 +28,12 @@ export interface StructuredOutputAttempt {
 export interface AiProvider {
   generate<TSchema extends z.ZodType>(
     prompt: string,
+    schema: TSchema,
+    options?: GenerateOptions,
+  ): Promise<z.output<TSchema>>;
+  generateFromImage<TSchema extends z.ZodType>(
+    prompt: string,
+    image: ImageInput,
     schema: TSchema,
     options?: GenerateOptions,
   ): Promise<z.output<TSchema>>;
@@ -48,16 +60,40 @@ export abstract class StructuredOutputProvider implements AiProvider {
     schema: TSchema,
     options?: GenerateOptions,
   ): Promise<z.output<TSchema>> {
+    return this.generateAndValidate(schema, options, (jsonSchema) =>
+      this.generateRaw(prompt, jsonSchema, options),
+    );
+  }
+
+  async generateFromImage<TSchema extends z.ZodType>(
+    prompt: string,
+    image: ImageInput,
+    schema: TSchema,
+    options?: GenerateOptions,
+  ): Promise<z.output<TSchema>> {
+    return this.generateAndValidate(schema, options, (jsonSchema) =>
+      this.generateImageRaw(prompt, image, jsonSchema, options),
+    );
+  }
+
+  private async generateAndValidate<TSchema extends z.ZodType>(
+    schema: TSchema,
+    options: GenerateOptions | undefined,
+    generate: (schema: JsonSchema) => Promise<string>,
+  ): Promise<z.output<TSchema>> {
     const jsonSchema = z.toJSONSchema(schema) as JsonSchema;
     const failures: string[] = [];
 
     // One initial attempt plus exactly one repair retry for invalid structure.
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const raw = await this.generateRaw(prompt, jsonSchema, options);
+      const raw = await generate(jsonSchema);
       const result = this.parseOutput(raw, schema);
 
       if (result.success) {
-        options?.onStructuredOutputAttempt?.({ attempt: attempt + 1, valid: true });
+        options?.onStructuredOutputAttempt?.({
+          attempt: attempt + 1,
+          valid: true,
+        });
         return result.data;
       }
 
@@ -80,6 +116,13 @@ export abstract class StructuredOutputProvider implements AiProvider {
     options?: GenerateOptions,
   ): Promise<string>;
 
+  protected abstract generateImageRaw(
+    prompt: string,
+    image: ImageInput,
+    schema: JsonSchema,
+    options?: GenerateOptions,
+  ): Promise<string>;
+
   private parseOutput<TSchema extends z.ZodType>(
     raw: string,
     schema: TSchema,
@@ -98,7 +141,10 @@ export abstract class StructuredOutputProvider implements AiProvider {
     } catch (error) {
       return {
         success: false,
-        reason: error instanceof Error ? error.message : "Response was not valid JSON.",
+        reason:
+          error instanceof Error
+            ? error.message
+            : "Response was not valid JSON.",
       };
     }
   }

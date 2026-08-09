@@ -99,6 +99,17 @@ export interface ClaimVerdict {
   evidenceQuality: number;
 }
 
+export interface FramingAnalysis {
+  /** 0 is neutral; 1 is highly emotionally manipulative. */
+  emotionalLanguageLevel: number;
+  /** 0 is factually balanced wording; 1 is severe presentation skew. */
+  factualSkewLevel: number;
+  contextOmissionRisk: number;
+  /** Higher is better and feeds the nutrition-label score. */
+  integrityScore: number;
+  findings: string[];
+}
+
 export interface ScoreDimension {
   score: number;
   label: "strong" | "moderate" | "weak";

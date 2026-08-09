@@ -21,6 +21,7 @@ import {
 } from "@repo/db";
 import {
   aggregateScore,
+  analyzeFraming,
   createAiProvider,
   extractClaims,
   retrieveSources,
@@ -31,6 +32,8 @@ import {
   type AiProviderConfig,
   type AiProviderName,
   type ClaimVerdict,
+  type EvidenceSource,
+  type FramingAnalysis,
   type TraceraScore,
 } from "@repo/ai";
 import { Redis } from "@upstash/redis";
@@ -254,10 +257,25 @@ app.post("/analyze", async (context) => {
       () => analyzeText(normalized.text, provider, auditLog),
       requestSignal,
     );
-    const groundZeroSources = result.claims.flatMap((claim) => [
-      ...claim.supportingSources,
-      ...claim.contradictingSources,
-    ]);
+    const submittedSource: EvidenceSource[] =
+      normalized.sourceUrl && normalized.publishedAt
+        ? [
+            {
+              id: "submitted-source",
+              type: "web_search",
+              title: normalized.sourceDomain ?? "Submitted publisher",
+              url: normalized.sourceUrl,
+              canonicalUrl: normalized.sourceUrl,
+              sourceDomain: normalized.sourceDomain,
+              publishedAt: normalized.publishedAt,
+              publisherPublishedAt: normalized.publishedAt,
+            },
+          ]
+        : [];
+    const groundZeroSources = [
+      ...submittedSource,
+      ...result.claims.flatMap((claim) => claim.consideredSources),
+    ];
     const groundZeroHistory = await findGroundZeroCorpusHistory(
       [
         normalized.sourceUrl,
@@ -274,7 +292,11 @@ app.post("/analyze", async (context) => {
       publishedAt: normalized.publishedAt,
       inputEmbedding,
       traceraScore: result.score,
-      analysis: { claims: result.claims, score: result.score },
+      analysis: {
+        claims: result.claims,
+        score: result.score,
+        framing: result.framing,
+      },
       claims: result.claims.map((claim, index) => ({
         claimText: claim.claim.claimText,
         claimType: claim.claim.claimType,
@@ -309,6 +331,7 @@ app.post("/analyze", async (context) => {
         check: stored,
         claims: result.claims,
         traceraScore: result.score,
+        framingAnalysis: result.framing,
         groundZero,
         inputMetadata: normalized.imageMetadata,
         reuse: {
@@ -453,12 +476,26 @@ async function analyzeText(
   claims: ClaimVerdict[];
   claimEmbeddings: number[][];
   score: TraceraScore;
+  framing: FramingAnalysis;
 }> {
   const audit = {
     onPrompt: (record: { stage: string; prompt: string }) =>
       auditLog.push(record),
+    onStructuredOutputAttempt: (record: {
+      stage: string;
+      attempt: number;
+      valid: boolean;
+      error?: string;
+    }) =>
+      auditLog.push({
+        stage: "structured_output_attempt",
+        prompt: JSON.stringify(record),
+      }),
   };
-  const extractedClaims = await extractClaims(provider, text, audit);
+  const [extractedClaims, framing] = await Promise.all([
+    extractClaims(provider, text, audit),
+    analyzeFraming(provider, text, audit),
+  ]);
   if (extractedClaims.length === 0) {
     throw new Error(
       "No checkable claims could be extracted. Please provide the article text or a public news link.",
@@ -496,7 +533,12 @@ async function analyzeText(
     claimEmbeddings.push(claimEmbedding);
   }
 
-  return { claims, claimEmbeddings, score: aggregateScore(claims) };
+  return {
+    claims,
+    claimEmbeddings,
+    score: aggregateScore(claims, framing),
+    framing,
+  };
 }
 
 function relatedContextCount(claims: ClaimVerdict[]) {

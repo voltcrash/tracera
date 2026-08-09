@@ -1,9 +1,13 @@
 import { z } from "zod";
 import type { AiProvider } from "../provider.js";
+import type { StructuredOutputAttempt } from "../provider.js";
 import type { ExtractedClaim } from "./types.js";
 
 export interface PromptAuditOptions {
   onPrompt?: (record: { stage: string; prompt: string }) => void;
+  onStructuredOutputAttempt?: (
+    record: StructuredOutputAttempt & { stage: string },
+  ) => void;
 }
 
 const extractedClaimSchema = z.object({
@@ -65,7 +69,13 @@ export async function extractClaims(
 ): Promise<ExtractedClaim[]> {
   const prompt = buildClaimExtractionPrompt(text);
   audit?.onPrompt?.({ stage: "claim_extraction", prompt });
-  const result = await provider.generate(prompt, extractionSchema);
+  const result = await provider.generate(prompt, extractionSchema, {
+    onStructuredOutputAttempt: (attempt) =>
+      audit?.onStructuredOutputAttempt?.({
+        stage: "claim_extraction",
+        ...attempt,
+      }),
+  });
 
   return result.claims
     .filter((claim) => claim.claimType === "factual_assertion")

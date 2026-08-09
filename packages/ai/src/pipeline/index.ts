@@ -1,4 +1,5 @@
 export { aggregateScore } from "./aggregate-score.js";
+export { analyzeFraming, buildFramingPrompt } from "./analyze-framing.js";
 export {
   buildClaimExtractionPrompt,
   extractClaims,
@@ -18,4 +19,5 @@ export type {
   VerifyTextOptions,
   NormalizedInput,
   GroundZeroResult,
+  FramingAnalysis,
 } from "./types.js";

@@ -59,7 +59,13 @@ export async function scoreClaim(
   }));
   const prompt = buildVerdictPrompt(claim, evidence);
   audit?.onPrompt?.({ stage: "verdict_generation", prompt });
-  const generated = await provider.generate(prompt, verdictSchema);
+  const generated = await provider.generate(prompt, verdictSchema, {
+    onStructuredOutputAttempt: (attempt) =>
+      audit?.onStructuredOutputAttempt?.({
+        stage: "verdict_generation",
+        ...attempt,
+      }),
+  });
   const sourceById = new Map(sources.map((source) => [source.id, source]));
   const supportingSources = generated.supportingSourceIds
     .map((id) => sourceById.get(id))

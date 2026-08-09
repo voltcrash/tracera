@@ -1,12 +1,19 @@
 export {
   type AiProvider,
   type GenerateOptions,
+  type ImageInput,
   type JsonSchema,
   type StructuredOutputAttempt,
   StructuredOutputError,
 } from "./provider.js";
-export { GeminiProvider, type GeminiProviderOptions } from "./providers/gemini.js";
-export { AnthropicProvider, type AnthropicProviderOptions } from "./providers/anthropic.js";
+export {
+  GeminiProvider,
+  type GeminiProviderOptions,
+} from "./providers/gemini.js";
+export {
+  AnthropicProvider,
+  type AnthropicProviderOptions,
+} from "./providers/anthropic.js";
 export {
   OpenAiCompatibleProvider,
   type OpenAiCompatibleProviderOptions,
@@ -20,6 +27,7 @@ export {
 } from "./create-provider.js";
 export {
   aggregateScore,
+  analyzeFraming,
   extractClaims,
   retrieveSources,
   scoreClaim,
@@ -34,5 +42,6 @@ export {
   type VerifyTextOptions,
   type NormalizedInput,
   type GroundZeroResult,
+  type FramingAnalysis,
   type RawAnalysisInput,
 } from "./pipeline/index.js";

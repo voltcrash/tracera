@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import { z } from "zod";
 import type { AiProvider } from "../provider.js";
 import type { NormalizedInput } from "./types.js";
+import { extractExifMetadata } from "./image-metadata.js";
 
 const ARTICLE_FETCH_TIMEOUT_MS = 15_000;
 const MAX_ARTICLE_BYTES = 2_000_000;
@@ -23,11 +24,10 @@ export async function normalizeInput(
 ): Promise<NormalizedInput> {
   if (input.url) return normalizeUrl(input.url);
   if (input.image) {
-    const text = await extractImageText(
-      input.image,
-      input.imageMimeType,
-      provider,
-    );
+    const [text, reverseSearchUrl] = await Promise.all([
+      extractImageText(input.image, input.imageMimeType, provider),
+      findReverseImageSearch(input.image, input.imageMimeType),
+    ]);
     return {
       inputType: "image",
       rawInput: input.image,
@@ -35,9 +35,8 @@ export async function normalizeInput(
       imageMetadata: {
         mimeType: input.imageMimeType,
         ocrProvider: process.env.OCR_ENDPOINT ? "configured" : "model_fallback",
-        reverseSearchUrl: input.image.startsWith("http")
-          ? `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(input.image)}`
-          : undefined,
+        reverseSearchUrl,
+        exif: extractExifMetadata(input.image),
       },
     };
   }
@@ -262,11 +261,41 @@ async function extractImageText(
     const payload = (await response.json()) as { text?: string };
     if (payload.text?.trim()) return payload.text.trim();
   }
-  const result = await provider.generate(
-    `Extract all visible news text from this image reference. Image: ${image.slice(0, 8000)}`,
+  const result = await provider.generateFromImage(
+    "Transcribe all visible text exactly. Preserve names, dates, numbers, captions, and source labels. Do not infer text that is not visible.",
+    { data: image, mimeType },
     z.object({ text: z.string().min(1) }),
   );
   return result.text;
+}
+
+async function findReverseImageSearch(image: string, mimeType?: string) {
+  if (/^https?:\/\//i.test(image)) {
+    return `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(image)}`;
+  }
+  const endpoint = process.env.REVERSE_IMAGE_SEARCH_ENDPOINT;
+  if (!endpoint) return undefined;
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(process.env.REVERSE_IMAGE_SEARCH_API_KEY
+          ? {
+              authorization: `Bearer ${process.env.REVERSE_IMAGE_SEARCH_API_KEY}`,
+            }
+          : {}),
+      },
+      body: JSON.stringify({ image, mimeType }),
+    });
+    if (!response.ok) return undefined;
+    const payload = (await response.json()) as { searchUrl?: unknown };
+    return typeof payload.searchUrl === "string"
+      ? payload.searchUrl
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function sourceDomain(value: string) {
