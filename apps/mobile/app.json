@@ -3,15 +3,21 @@
     "name": "Tracera",
     "slug": "tracera",
     "version": "0.1.0",
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "tracera",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tracera.mobile"
+      "bundleIdentifier": "com.tracera.mobile",
+      "icon": "./assets/icon.png"
     },
     "android": {
-      "package": "com.tracera.mobile"
+      "package": "com.tracera.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F4FBF7"
+      }
     },
     "plugins": [
       [
