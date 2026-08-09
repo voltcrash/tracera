@@ -8,6 +8,7 @@ import {
   type TraceraScore,
 } from "../../components/analysis-result";
 import { AppHeader } from "../../components/app-header";
+import { useAuth } from "../../components/auth-provider";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 type Check = {
@@ -39,12 +40,13 @@ export default function CheckDetailPage({
   const [check, setCheck] = useState<Check | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const { apiFetch } = useAuth();
 
   useEffect(() => {
     params.then(({ id }) =>
       Promise.all([
-        fetch(`${apiUrl}/checks/${id}`, { credentials: "include" }),
-        fetch(`${apiUrl}/checks/${id}/timeline`, { credentials: "include" }),
+        apiFetch(`${apiUrl}/checks/${id}`),
+        apiFetch(`${apiUrl}/checks/${id}/timeline`),
       ])
         .then(async ([checkResponse, timelineResponse]) => {
           const [checkData, timelineData] = await Promise.all([
@@ -67,7 +69,7 @@ export default function CheckDetailPage({
           ),
         ),
     );
-  }, [params]);
+  }, [apiFetch, params]);
 
   return (
     <main className="paper-grid min-h-screen bg-[#f4f6f2] text-emerald-950">
@@ -146,13 +148,14 @@ export default function CheckDetailPage({
 }
 
 function AlertSubscription({ checkId }: { checkId: string }) {
+  const { apiFetch } = useAuth();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [subscribed, setSubscribed] = useState(false);
   async function subscribe(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus(null);
-    const response = await fetch(`${apiUrl}/checks/${checkId}/alerts`, {
+    const response = await apiFetch(`${apiUrl}/checks/${checkId}/alerts`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email }),
@@ -166,9 +169,8 @@ function AlertSubscription({ checkId }: { checkId: string }) {
     if (response.ok) setSubscribed(true);
   }
   async function unsubscribe() {
-    const response = await fetch(`${apiUrl}/checks/${checkId}/alerts`, {
+    const response = await apiFetch(`${apiUrl}/checks/${checkId}/alerts`, {
       method: "DELETE",
-      credentials: "include",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email }),
     });

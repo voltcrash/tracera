@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { ClerkProvider, useAuth as useClerkAuth, useClerk, useUser } from "@clerk/nextjs";
+import { createContext, useCallback, useContext, useEffect, useMemo } from "react";
 
 const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "");
 
@@ -13,51 +14,64 @@ export type AuthUser = {
 type AuthContextValue = {
   user: AuthUser | null;
   isLoading: boolean;
-  setUser: (user: AuthUser | null) => void;
+  apiFetch: (input: string, init?: RequestInit) => Promise<Response>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  return (
+    <ClerkProvider
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      signInUrl="/login"
+      signUpUrl="/signup"
+      signInFallbackRedirectUrl="/home"
+      signUpFallbackRedirectUrl="/home"
+    >
+      <AuthBridge>{children}</AuthBridge>
+    </ClerkProvider>
+  );
+}
 
+function AuthBridge({ children }: { children: React.ReactNode }) {
+  const { getToken, isLoaded, isSignedIn } = useClerkAuth();
+  const { signOut: clerkSignOut } = useClerk();
+  const { user: clerkUser } = useUser();
+
+  const apiFetch = useCallback(
+    async (input: string, init: RequestInit = {}) => {
+      const token = await getToken();
+      const headers = new Headers(init.headers);
+      if (token) headers.set("authorization", `Bearer ${token}`);
+      return fetch(input, { ...init, headers });
+    },
+    [getToken],
+  );
+
+  // Provision/link the local Tracera profile as soon as Clerk restores a session.
   useEffect(() => {
-    let active = true;
-    fetch(`${apiUrl}/auth/me`, { credentials: "include" })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return (await response.json()) as { user: AuthUser };
-      })
-      .then((data) => {
-        if (active) setUser(data?.user ?? null);
-      })
-      .catch(() => {
-        if (active) setUser(null);
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-    return () => {
-      active = false;
+    if (isSignedIn) void apiFetch(`${apiUrl}/auth/me`);
+  }, [apiFetch, isSignedIn]);
+
+  const user = useMemo<AuthUser | null>(() => {
+    const email = clerkUser?.primaryEmailAddress?.emailAddress;
+    if (!clerkUser || !email) return null;
+    return {
+      id: clerkUser.id,
+      email,
+      createdAt: clerkUser.createdAt?.toISOString() ?? new Date(0).toISOString(),
     };
-  }, []);
+  }, [clerkUser]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      isLoading,
-      setUser,
-      signOut: async () => {
-        await fetch(`${apiUrl}/auth/logout`, {
-          method: "POST",
-          credentials: "include",
-        });
-        setUser(null);
-      },
+      isLoading: !isLoaded,
+      apiFetch,
+      signOut: () => clerkSignOut({ redirectUrl: "/" }),
     }),
-    [isLoading, user],
+    [apiFetch, clerkSignOut, isLoaded, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -19,7 +19,7 @@ type CheckSummary = {
 };
 
 export default function HubPage() {
-  const { user } = useAuth();
+  const { apiFetch, user } = useAuth();
   const [checks, setChecks] = useState<CheckSummary[]>([]);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -34,9 +34,8 @@ export default function HubPage() {
   useEffect(() => {
     const handle = setTimeout(() => {
       setLoading(true);
-      fetch(
+      apiFetch(
         `${apiUrl}/checks?page=${page}&pageSize=20&q=${encodeURIComponent(query)}`,
-        { credentials: "include" },
       )
         .then(async (response) => {
           const data = await response.json();
@@ -55,7 +54,7 @@ export default function HubPage() {
         .finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(handle);
-  }, [page, query]);
+  }, [apiFetch, page, query]);
   const visible = useMemo(
     () =>
       checks.filter(
@@ -234,6 +233,7 @@ export default function HubPage() {
 }
 
 function MediaDietCard() {
+  const { apiFetch } = useAuth();
   const [report, setReport] = useState<{
     periodDays: number;
     totalChecks: number;
@@ -242,7 +242,7 @@ function MediaDietCard() {
   } | null>(null);
   const [enabled, setEnabled] = useState(false);
   useEffect(() => {
-    fetch(`${apiUrl}/reports/media-diet`, { credentials: "include" })
+    apiFetch(`${apiUrl}/reports/media-diet`)
       .then(async (response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (data) {
@@ -251,13 +251,12 @@ function MediaDietCard() {
         }
       })
       .catch(() => undefined);
-  }, []);
+  }, [apiFetch]);
   async function toggle() {
     const next = !enabled;
     setEnabled(next);
-    const response = await fetch(`${apiUrl}/reports/media-diet/preferences`, {
+    const response = await apiFetch(`${apiUrl}/reports/media-diet/preferences`, {
       method: "PUT",
-      credentials: "include",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ enabled: next, frequency: "monthly" }),
     });

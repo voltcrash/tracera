@@ -33,7 +33,7 @@ type ImageMetadata = {
 };
 
 export default function Home() {
-  const { user } = useAuth();
+  const { apiFetch, user } = useAuth();
   const [text, setText] = useState("");
   const [image, setImage] = useState<{
     dataUrl: string;
@@ -68,9 +68,8 @@ export default function Home() {
         : isHttpUrl(value)
           ? { url: value }
           : { text: value };
-      const response = await fetch(`${apiUrl}/analyze`, {
+      const response = await apiFetch(`${apiUrl}/analyze`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...request,
