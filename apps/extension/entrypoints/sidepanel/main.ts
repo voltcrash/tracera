@@ -18,10 +18,14 @@ const clerk = clerkPublishableKey
   ? createClerkClient({ publishableKey: clerkPublishableKey })
   : null;
 let analysisStarted = false;
+let reactiveEnabled = false;
 
 void initialize();
 
 async function initialize() {
+  reactiveEnabled =
+    (await chrome.storage.local.get("reactiveEnabled")).reactiveEnabled ===
+    true;
   if (!clerk) {
     renderError(
       "Clerk is not configured. Add WXT_CLERK_PUBLISHABLE_KEY before building the extension.",
@@ -188,6 +192,7 @@ function renderResult(result: AnalysisResponse, page: PageSnapshot) {
     <header>
       <div class="brand"><span class="brand-mark">T</span><span>tracera</span></div>
       <div class="header-actions">
+        <button class="quiet-button ${reactiveEnabled ? "active" : ""}" id="reactive" type="button" aria-pressed="${reactiveEnabled}" title="When enabled, Tracera automatically checks public pages after navigation">Live ${reactiveEnabled ? "on" : "off"}</button>
         <button class="quiet-button" id="account" type="button">${clerk?.user ? "Sign out" : "Sign in"}</button>
         <button class="quiet-button" id="recheck" type="button">Re-check</button>
       </div>
@@ -202,6 +207,27 @@ function renderResult(result: AnalysisResponse, page: PageSnapshot) {
     </section>
     ${renderGroundZero(result)}
     <section class="claims"><div class="section-heading"><p class="eyebrow">CLAIM BREAKDOWN</p><span>${result.claims.length} checked</span></div>${result.claims.map(renderClaim).join("")}</section>`;
+  document
+    .querySelector<HTMLButtonElement>("#reactive")
+    ?.addEventListener("click", async () => {
+      reactiveEnabled = !reactiveEnabled;
+      await chrome.storage.local.set({ reactiveEnabled });
+      if (!reactiveEnabled) {
+        const [tab] = await chrome.tabs.query({
+          active: true,
+          lastFocusedWindow: true,
+        });
+        if (tab?.id) {
+          await chrome.runtime.sendMessage({
+            type: "tracera:highlight-claims",
+            tabId: tab.id,
+            claims: [],
+          });
+          await chrome.action.setBadgeText({ tabId: tab.id, text: "" });
+        }
+      }
+      renderResult(result, page);
+    });
   document
     .querySelector<HTMLButtonElement>("#recheck")
     ?.addEventListener("click", () => void startAnalysis(true));

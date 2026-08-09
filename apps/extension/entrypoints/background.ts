@@ -2,6 +2,9 @@ import type { PageSnapshot } from "../shared/contracts";
 import { createClerkClient } from "@clerk/chrome-extension/client";
 
 const clerkPublishableKey = import.meta.env.WXT_CLERK_PUBLISHABLE_KEY;
+const API_URL = "https://api.tracera.voltcrash.com";
+const reactiveTimers = new Map<number, ReturnType<typeof setTimeout>>();
+const reactiveControllers = new Map<number, AbortController>();
 
 export default defineBackground(() => {
   // Let Chrome own the toolbar-click behavior. This is more reliable than
@@ -17,6 +20,22 @@ export default defineBackground(() => {
   void enableActionClick();
   chrome.runtime.onInstalled.addListener(enableActionClick);
   chrome.runtime.onStartup.addListener(enableActionClick);
+
+  chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+    if (change.status !== "complete" || !isPublicPage(tab.url)) return;
+    scheduleReactiveAnalysis(tabId);
+  });
+  chrome.tabs.onActivated.addListener(({ tabId }) =>
+    scheduleReactiveAnalysis(tabId),
+  );
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || changes.reactiveEnabled?.newValue !== true) return;
+    void chrome.tabs
+      .query({ active: true, lastFocusedWindow: true })
+      .then(([tab]) => {
+        if (tab?.id) scheduleReactiveAnalysis(tab.id, 0);
+      });
+  });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type !== "tracera:extract-page") return;
@@ -53,6 +72,90 @@ export default defineBackground(() => {
     return true;
   });
 });
+
+function scheduleReactiveAnalysis(tabId: number, delayMs = 1_200) {
+  reactiveControllers.get(tabId)?.abort();
+  const previous = reactiveTimers.get(tabId);
+  if (previous) clearTimeout(previous);
+  reactiveTimers.set(
+    tabId,
+    setTimeout(() => {
+      reactiveTimers.delete(tabId);
+      void analyzeTabReactively(tabId);
+    }, delayMs),
+  );
+}
+
+async function analyzeTabReactively(tabId: number) {
+  const { reactiveEnabled } = await chrome.storage.local.get("reactiveEnabled");
+  if (reactiveEnabled !== true) return;
+  const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+  if (!isPublicPage(tab?.url) || !tab?.active) return;
+
+  try {
+    const controller = new AbortController();
+    reactiveControllers.set(tabId, controller);
+    const extracted = await extractPage(tabId);
+    if (!extracted.snapshot) return;
+    const fingerprint = await pageFingerprint(extracted.snapshot);
+    const cacheKey = `reactive-page:${tabId}`;
+    const cached = await chrome.storage.session.get(cacheKey);
+    if (cached[cacheKey] === fingerprint) return;
+
+    await setBadge(tabId, "…", "#146b50");
+    const token = await freshClerkToken();
+    const headers = new Headers({ "content-type": "application/json" });
+    if (token) headers.set("authorization", `Bearer ${token}`);
+    const response = await fetch(`${API_URL}/analyze`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        text: extracted.snapshot.text,
+        sourceUrl: extracted.snapshot.url,
+      }),
+      signal: controller.signal,
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      claims?: unknown[];
+    } | null;
+    if (!response.ok || !Array.isArray(payload?.claims)) {
+      throw new Error(`Reactive analysis failed with HTTP ${response.status}.`);
+    }
+    const currentTab = await chrome.tabs.get(tabId).catch(() => undefined);
+    if (currentTab?.url !== extracted.snapshot.url) return;
+    await chrome.tabs.sendMessage(tabId, {
+      type: "tracera:highlight-claims",
+      claims: payload.claims,
+    });
+    await chrome.storage.session.set({ [cacheKey]: fingerprint });
+    await setBadge(tabId, "✓", "#146b50");
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return;
+    console.warn("Tracera reactive analysis paused", { tabId, error });
+    await setBadge(tabId, "!", "#a16207");
+  } finally {
+    reactiveControllers.delete(tabId);
+  }
+}
+
+async function pageFingerprint(snapshot: PageSnapshot) {
+  const data = new TextEncoder().encode(`${snapshot.url}\n${snapshot.text}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function setBadge(tabId: number, text: string, color: string) {
+  await Promise.all([
+    chrome.action.setBadgeText({ tabId, text }),
+    chrome.action.setBadgeBackgroundColor({ tabId, color }),
+  ]);
+}
+
+function isPublicPage(url: string | undefined): url is string {
+  return Boolean(url && /^https?:\/\//i.test(url));
+}
 
 async function freshClerkToken() {
   if (!clerkPublishableKey) return null;
