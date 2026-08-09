@@ -75,6 +75,8 @@ export interface GroundZeroResult {
       | "publisher"
       | "repost"
       | "cites_earlier_source"
+      | "chronology_conflict"
+      | "archive_snapshot"
       | "corpus_history";
     targetUrl?: string;
   }>;
@@ -84,6 +86,11 @@ export interface GroundZeroResult {
     sourceDomain?: string | null;
     publishedAt?: string | null;
     createdAt: string;
+  }>;
+  archiveHistory: Array<{
+    url: string;
+    firstSeenAt: string;
+    archivedUrl: string;
   }>;
 }
 

@@ -231,3 +231,56 @@ test("Ground Zero distinguishes a canonical repost and an explicit citation", ()
     ["publisher", "repost", "cites_earlier_source"],
   );
 });
+
+test("Ground Zero lowers confidence for index dates and citation chronology conflicts", () => {
+  const result = traceGroundZero(
+    [
+      {
+        id: "indexed-earliest",
+        type: "web_search",
+        title: "Search-index candidate",
+        url: "https://one.example/story",
+        sourceDomain: "one.example",
+        publishedAt: "2026-01-01T10:00:00Z",
+      },
+      {
+        id: "middle",
+        type: "newsapi",
+        title: "Middle report",
+        url: "https://two.example/story",
+        sourceDomain: "two.example",
+        publishedAt: "2026-01-01T11:00:00Z",
+        publisherPublishedAt: "2026-01-01T11:00:00Z",
+        citedUrls: ["https://three.example/story"],
+      },
+      {
+        id: "future-target",
+        type: "publisher_rss",
+        title: "Later declared report",
+        url: "https://three.example/story",
+        sourceDomain: "three.example",
+        publishedAt: "2026-01-01T12:00:00Z",
+        publisherPublishedAt: "2026-01-01T12:00:00Z",
+      },
+    ],
+    [],
+    [
+      {
+        url: "https://one.example/story",
+        firstSeenAt: "2026-01-02T00:00:00Z",
+        archivedUrl:
+          "https://web.archive.org/web/20260102000000/https://one.example/story",
+      },
+    ],
+  );
+
+  assert.equal(result.confidence, "low");
+  assert.ok(
+    result.relationships.some(
+      (relationship) => relationship.relation === "chronology_conflict",
+    ),
+  );
+  assert.ok(
+    result.signals.some((signal) => signal.includes("web archive capture")),
+  );
+});

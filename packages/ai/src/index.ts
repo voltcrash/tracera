@@ -33,6 +33,7 @@ export {
   scoreClaim,
   verifyText,
   normalizeInput,
+  retrieveArchiveHistory,
   traceGroundZero,
   type ClaimVerdict,
   type EvidenceSource,

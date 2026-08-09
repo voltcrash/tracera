@@ -25,6 +25,7 @@ import {
   createAiProvider,
   extractClaims,
   retrieveSources,
+  retrieveArchiveHistory,
   scoreClaim,
   normalizeInput,
   traceGroundZero,
@@ -283,7 +284,12 @@ app.post("/analyze", async (context) => {
       ].filter((url): url is string => Boolean(url)),
       user?.id,
     );
-    const groundZero = traceGroundZero(groundZeroSources, groundZeroHistory);
+    const archiveHistory = await retrieveArchiveHistory(groundZeroSources);
+    const groundZero = traceGroundZero(
+      groundZeroSources,
+      groundZeroHistory,
+      archiveHistory,
+    );
     const stored = await persistCheck({
       rawInput: normalized.rawInput,
       inputType: normalized.inputType,
