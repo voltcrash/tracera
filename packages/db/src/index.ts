@@ -106,7 +106,7 @@ export async function linkUserToClerk(input: {
   const claimed = await pool.query<AuthUser>(
     `UPDATE users
         SET clerk_user_id = $1, updated_at = NOW()
-      WHERE email = $2 AND clerk_user_id IS NULL
+      WHERE email = $2
      RETURNING id, email, created_at AS "createdAt"`,
     [input.clerkUserId, input.email],
   );
