@@ -202,10 +202,75 @@ app.get("/internal/decay/observability", async (context) => {
   });
 });
 
+type AnalysisProgress = {
+  stage: string;
+  message: string;
+  claimIndex?: number;
+  claimCount?: number;
+};
+type ProgressEmitter = (progress: AnalysisProgress) => void;
+
 app.post("/analyze", async (context) => {
   const body = await context.req.json().catch(() => null);
+  const result = await runAnalysis(context, body);
+  return context.json(result.payload, result.status);
+});
 
+app.post("/analyze/stream", async (context) => {
+  const body = await context.req.json().catch(() => null);
+  const encoder = new TextEncoder();
+  let cancelled = false;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const emit = (event: string, data: unknown) => {
+        if (cancelled) return;
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+        );
+      };
+      emit("progress", {
+        stage: "accepted",
+        message: "Trace accepted for analysis.",
+      });
+      void runAnalysis(context, body, (progress) => emit("progress", progress))
+        .then((result) => {
+          emit(result.status < 400 ? "complete" : "error", result.payload);
+          if (!cancelled) controller.close();
+        })
+        .catch((error) => {
+          emit("error", {
+            error: error instanceof Error ? error.message : "Analysis failed.",
+          });
+          if (!cancelled) controller.close();
+        });
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+    },
+  });
+});
+
+async function runAnalysis(
+  context: Context<{ Bindings: Bindings }>,
+  body: unknown,
+  emit: ProgressEmitter = () => undefined,
+): Promise<{
+  payload: Record<string, unknown>;
+  status: 200 | 201 | 422 | 503;
+}> {
   try {
+    emit({
+      stage: "normalizing",
+      message: "Reading and normalizing the submission.",
+    });
     const recheckOf = authorizedRecheckId(context, body);
     const requestSignal = context.req.raw.signal;
     const user = await currentUser(context);
@@ -222,6 +287,10 @@ app.post("/analyze", async (context) => {
     const aiConfiguration = configuredAiConfiguration();
     const provider = createAiProvider(aiConfiguration);
     const normalized = await normalizeWithStoredFallback(body, provider);
+    emit({
+      stage: "embedding",
+      message: "Checking for recent and related traces.",
+    });
     const inputEmbedding = await provider.embed(normalized.text);
     const forceReanalysis = Boolean(
       body &&
@@ -247,24 +316,31 @@ app.post("/analyze", async (context) => {
         sourceDomain: normalized.sourceDomain,
         occurrenceType: "exact_resubmission",
       });
-      return context.json({
-        cached: true,
-        reuse: {
-          state: "reused_exact",
-          expiresAt: cached.expiresAt,
-          policy:
-            "This is an identical recent submission. Similar stories are analyzed again and only prior verified claims are used as context.",
-        },
-        check: { id: cached.id, createdAt: cached.createdAt },
-        claims: cached.analysis.claims,
-        traceraScore: cached.analysis.score,
+      emit({
+        stage: "reused",
+        message: "A recent identical trace was reused.",
       });
+      return {
+        status: 200,
+        payload: {
+          cached: true,
+          reuse: {
+            state: "reused_exact",
+            expiresAt: cached.expiresAt,
+            policy:
+              "This is an identical recent submission. Similar stories are analyzed again and only prior verified claims are used as context.",
+          },
+          check: { id: cached.id, createdAt: cached.createdAt },
+          claims: cached.analysis.claims,
+          traceraScore: cached.analysis.score,
+        },
+      };
     }
 
     // User-triggered checks stay synchronous; scheduled rechecks run in the BullMQ worker.
     const auditLog: Array<{ stage: string; prompt: string }> = [];
     const result = await serializeAnalysis(
-      () => analyzeText(normalized.text, provider, auditLog),
+      () => analyzeText(normalized.text, provider, auditLog, emit),
       requestSignal,
     );
     const submittedSource: EvidenceSource[] =
@@ -294,6 +370,10 @@ app.post("/analyze", async (context) => {
       user?.id,
     );
     const archiveHistory = await retrieveArchiveHistory(groundZeroSources);
+    emit({
+      stage: "origin",
+      message: "Tracing the earliest known publication.",
+    });
     const groundZero = traceGroundZero(
       groundZeroSources,
       groundZeroHistory,
@@ -354,8 +434,13 @@ app.post("/analyze", async (context) => {
           : "first_check",
     });
 
-    return context.json(
-      {
+    emit({
+      stage: "persisted",
+      message: "The completed evidence trail was saved.",
+    });
+    return {
+      status: 201,
+      payload: {
         cached: false,
         check: stored,
         claims: result.claims,
@@ -372,17 +457,18 @@ app.post("/analyze", async (context) => {
           relatedContextClaims: relatedContextCount(result.claims),
         },
       },
-      201,
-    );
+    };
   } catch (error) {
     console.error("Analysis failed", error);
     const message = error instanceof Error ? error.message : "Analysis failed.";
-    return context.json(
-      { error: message },
-      message.startsWith("No checkable claims could be extracted") ? 422 : 503,
-    );
+    return {
+      payload: { error: message },
+      status: message.startsWith("No checkable claims could be extracted")
+        ? 422
+        : 503,
+    };
   }
-});
+}
 
 app.get("/checks/:id/timeline", async (context) => {
   const id = context.req.param("id");
@@ -509,6 +595,7 @@ async function analyzeText(
   text: string,
   provider: AiProvider,
   auditLog: Array<{ stage: string; prompt: string }>,
+  emit: ProgressEmitter = () => undefined,
 ): Promise<{
   claims: ClaimVerdict[];
   claimEmbeddings: number[][];
@@ -529,6 +616,10 @@ async function analyzeText(
         prompt: JSON.stringify(record),
       }),
   };
+  emit({
+    stage: "claims",
+    message: "Separating factual claims from framing and opinion.",
+  });
   const [extractedClaims, framing] = await Promise.all([
     extractClaims(provider, text, audit),
     analyzeFraming(provider, text, audit),
@@ -541,7 +632,13 @@ async function analyzeText(
   const claims: ClaimVerdict[] = [];
   const claimEmbeddings: number[][] = [];
 
-  for (const claim of extractedClaims) {
+  for (const [claimIndex, claim] of extractedClaims.entries()) {
+    emit({
+      stage: "retrieval",
+      message: `Finding evidence for claim ${claimIndex + 1} of ${extractedClaims.length}.`,
+      claimIndex,
+      claimCount: extractedClaims.length,
+    });
     const claimEmbedding = await provider.embed(claim.claimText);
     const sources = await retrieveSources(claim, {
       provider,
@@ -566,6 +663,12 @@ async function analyzeText(
       }),
     });
     const verdict = await scoreClaim(provider, claim, sources, audit);
+    emit({
+      stage: "verdict",
+      message: `Scored claim ${claimIndex + 1} of ${extractedClaims.length}.`,
+      claimIndex,
+      claimCount: extractedClaims.length,
+    });
     claims.push(verdict);
     claimEmbeddings.push(claimEmbedding);
   }

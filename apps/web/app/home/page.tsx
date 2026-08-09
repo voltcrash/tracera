@@ -31,6 +31,14 @@ type ImageMetadata = {
   exif?: Record<string, string>;
   ocrProvider?: "configured" | "model_fallback";
 };
+type AnalysisResponse = {
+  claims: ClaimResult[];
+  traceraScore: TraceraScore;
+  cached: boolean;
+  groundZero?: GroundZero;
+  reuse?: ReuseState;
+  inputMetadata?: ImageMetadata;
+};
 
 export default function Home() {
   const { apiFetch, user } = useAuth();
@@ -40,16 +48,10 @@ export default function Home() {
     mimeType: string;
     name: string;
   } | null>(null);
-  const [result, setResult] = useState<{
-    claims: ClaimResult[];
-    traceraScore: TraceraScore;
-    cached: boolean;
-    groundZero?: GroundZero;
-    reuse?: ReuseState;
-    inputMetadata?: ImageMetadata;
-  } | null>(null);
+  const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState("Preparing the evidence trace.");
   const [privateTrace, setPrivateTrace] = useState(false);
 
   async function analyze(
@@ -61,6 +63,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setProgress("Preparing the evidence trace.");
     try {
       const value = text.trim();
       const request = image
@@ -68,7 +71,7 @@ export default function Home() {
         : isHttpUrl(value)
           ? { url: value }
           : { text: value };
-      const response = await apiFetch(`${apiUrl}/analyze`, {
+      const response = await apiFetch(`${apiUrl}/analyze/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -77,10 +80,8 @@ export default function Home() {
           ...(privateTrace ? { visibility: "private" } : {}),
         }),
       });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error ?? "Unable to analyze this text.");
-      setResult(data);
+      if (!response.ok) throw new Error("Unable to start this analysis.");
+      setResult(await readAnalysisStream(response, setProgress));
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -231,9 +232,9 @@ export default function Home() {
             >
               <Spinner />
               <span>
-                <strong>Tracing sources and checking claims.</strong>
+                <strong>{progress}</strong>
                 <br />
-                We&apos;re separating evidence from assertion.
+                Results will appear as soon as the complete trace is ready.
               </span>
             </div>
           )}
@@ -276,6 +277,45 @@ export default function Home() {
       </div>
     </main>
   );
+}
+
+async function readAnalysisStream(
+  response: Response,
+  onProgress: (message: string) => void,
+): Promise<AnalysisResponse> {
+  if (!response.body) throw new Error("The analysis stream was unavailable.");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completed: AnalysisResponse | undefined;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      const event = frame.match(/^event:\s*(.+)$/m)?.[1];
+      const rawData = frame.match(/^data:\s*(.+)$/m)?.[1];
+      if (!event || !rawData) continue;
+      const data = JSON.parse(rawData) as {
+        message?: unknown;
+        error?: unknown;
+      } & Partial<AnalysisResponse>;
+      if (event === "progress" && typeof data.message === "string") {
+        onProgress(data.message);
+      } else if (event === "error") {
+        throw new Error(
+          typeof data.error === "string" ? data.error : "Analysis failed.",
+        );
+      } else if (event === "complete") {
+        completed = data as AnalysisResponse;
+      }
+    }
+    if (done) break;
+  }
+  if (!completed) throw new Error("The analysis stream ended unexpectedly.");
+  return completed;
 }
 
 function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
