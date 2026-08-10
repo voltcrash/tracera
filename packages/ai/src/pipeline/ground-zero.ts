@@ -185,7 +185,10 @@ export async function retrieveArchiveHistory(
         .map((source) => canonical(source))
         .filter((url): url is string => Boolean(url)),
     ),
-  ].slice(0, 5);
+    // Archive lookups happen after the full analysis and database retrieval.
+    // Two candidates are sufficient to strengthen chronology without exhausting
+    // the Worker's subrequest allowance before persistence.
+  ].slice(0, 2);
   const results = await Promise.all(
     urls.map(async (url) => {
       try {

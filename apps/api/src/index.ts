@@ -72,6 +72,10 @@ export type Bindings = AuthBindings & {
 export const app = new Hono<{ Bindings: Bindings }>();
 let upstash: Redis | undefined;
 let upstashConfig: string | undefined;
+const currentUserByRequest = new WeakMap<
+  Request,
+  ReturnType<typeof authenticatedUser>
+>();
 
 app.use("*", async (context, next) => {
   if (
@@ -1390,7 +1394,10 @@ function isUuid(value: string) {
 }
 
 function currentUser(context: Context<{ Bindings: Bindings }>) {
-  return authenticatedUser(context.req.raw, {
+  const request = context.req.raw;
+  const cached = currentUserByRequest.get(request);
+  if (cached) return cached;
+  const user = authenticatedUser(request, {
     BETTER_AUTH_SECRET:
       context.env.BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
     GOOGLE_CLIENT_ID:
@@ -1398,6 +1405,8 @@ function currentUser(context: Context<{ Bindings: Bindings }>) {
     GOOGLE_CLIENT_SECRET:
       context.env.GOOGLE_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
   });
+  currentUserByRequest.set(request, user);
+  return user;
 }
 
 export default {

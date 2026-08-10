@@ -3,6 +3,15 @@ import type { AiProvider } from "../provider.js";
 import type { EvidenceSource, ExtractedClaim } from "./types.js";
 
 const MAX_EVIDENCE_SOURCES = 5;
+// Analysis runs inside a Cloudflare Worker. Keep evidence discovery bounded so
+// a three-claim trace leaves enough of the 50-subrequest Free-plan allowance
+// for AI calls, database reads, archive checks, and the final transaction.
+const DEFAULT_EXTERNAL_REQUEST_LIMIT = 5;
+
+type EvidenceFetch = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response | undefined>;
 
 interface RetrieveSourcesOptions {
   provider: AiProvider;
@@ -14,6 +23,8 @@ interface RetrieveSourcesOptions {
   webSearchEndpoint?: string;
   webSearchApiKey?: string;
   claimEmbedding?: number[];
+  /** Primarily exposed for stricter runtimes and deterministic tests. */
+  externalRequestLimit?: number;
 }
 
 interface FactCheckResponse {
@@ -40,50 +51,47 @@ export async function retrieveSources(
   claim: ExtractedClaim,
   options: RetrieveSourcesOptions,
 ): Promise<EvidenceSource[]> {
-  const [
-    corpus,
-    factChecks,
-    newsApi,
-    gdelt,
-    publisherFeeds,
-    googleNews,
-    webSearch,
-  ] = await Promise.all([
-    safelyRetrieve("corpus", () =>
-      retrieveCorpusSources(
-        claim,
-        options.provider,
-        options.claimEmbedding,
-        options.corpusSimilarityThreshold ?? 0.78,
-        options.corpusLimit ?? 5,
+  const evidenceFetch = limitedFetch(
+    options.externalRequestLimit ?? DEFAULT_EXTERNAL_REQUEST_LIMIT,
+  );
+  const [corpus, factChecks, newsApi, gdelt, googleNews, webSearch] =
+    await Promise.all([
+      safelyRetrieve("corpus", () =>
+        retrieveCorpusSources(
+          claim,
+          options.provider,
+          options.claimEmbedding,
+          options.corpusSimilarityThreshold ?? 0.78,
+          options.corpusLimit ?? 5,
+        ),
       ),
-    ),
-    safelyRetrieve("Google Fact Check", () =>
-      retrieveGoogleFactCheckSources(
-        claim,
-        options.factCheckApiKey,
-        options.factCheckLimit ?? 5,
+      safelyRetrieve("Google Fact Check", () =>
+        retrieveGoogleFactCheckSources(
+          claim,
+          options.factCheckApiKey,
+          options.factCheckLimit ?? 5,
+          evidenceFetch,
+        ),
       ),
-    ),
-    safelyRetrieve("NewsAPI", () =>
-      retrieveNewsApiSources(claim, options.newsApiKey),
-    ),
-    safelyRetrieve("GDELT", () => retrieveGdeltSources(claim)),
-    safelyRetrieve("publisher feeds", () =>
-      retrievePublisherFeedSources(claim),
-    ),
-    // Google News RSS is a no-key fallback for breaking stories. It gives
-    // the pipeline a broad set of independent publisher candidates when
-    // GDELT is rate limited and optional search providers are not configured.
-    safelyRetrieve("Google News RSS", () => retrieveGoogleNewsSources(claim)),
-    safelyRetrieve("web search", () =>
-      retrieveWebSearchSources(
-        claim,
-        options.webSearchEndpoint,
-        options.webSearchApiKey,
+      safelyRetrieve("NewsAPI", () =>
+        retrieveNewsApiSources(claim, options.newsApiKey, evidenceFetch),
       ),
-    ),
-  ]);
+      safelyRetrieve("GDELT", () => retrieveGdeltSources(claim, evidenceFetch)),
+      // Google News RSS is a no-key fallback for breaking stories. It gives
+      // the pipeline a broad set of independent publisher candidates when
+      // GDELT is rate limited and optional search providers are not configured.
+      safelyRetrieve("Google News RSS", () =>
+        retrieveGoogleNewsSources(claim, evidenceFetch),
+      ),
+      safelyRetrieve("web search", () =>
+        retrieveWebSearchSources(
+          claim,
+          options.webSearchEndpoint,
+          options.webSearchApiKey,
+          evidenceFetch,
+        ),
+      ),
+    ]);
   // Treat retrieval APIs as candidate generators. Nothing reaches the model
   // until it has passed a deterministic subject-relevance gate.
   const deduplicated = deduplicateSources([
@@ -91,7 +99,6 @@ export async function retrieveSources(
     ...factChecks,
     ...newsApi,
     ...gdelt,
-    ...publisherFeeds,
     ...googleNews,
     ...webSearch,
   ]);
@@ -107,7 +114,7 @@ export async function retrieveSources(
         : defaultCredibility(source.type),
     })),
   );
-  return enrichEvidenceSnippets(ranked);
+  return enrichEvidenceSnippets(ranked, evidenceFetch);
 }
 
 /**
@@ -115,11 +122,14 @@ export async function retrieveSources(
  * evidence by themselves. For publisher URLs, refresh the snippet from the
  * document's description/lead text before it reaches verdict generation.
  */
-async function enrichEvidenceSnippets(sources: EvidenceSource[]) {
+async function enrichEvidenceSnippets(
+  sources: EvidenceSource[],
+  evidenceFetch: EvidenceFetch,
+) {
   return Promise.all(
     sources.map(async (source) => {
       if (!source.url || source.type === "corpus") return source;
-      const metadata = await retrieveArticleMetadata(source.url);
+      const metadata = await retrieveArticleMetadata(source.url, evidenceFetch);
       return {
         ...source,
         snippet: metadata.snippet ?? source.snippet,
@@ -172,6 +182,7 @@ async function retrieveGoogleFactCheckSources(
   claim: ExtractedClaim,
   apiKey: string | undefined,
   pageSize: number,
+  evidenceFetch: EvidenceFetch,
 ): Promise<EvidenceSource[]> {
   if (!apiKey) {
     return [];
@@ -184,7 +195,8 @@ async function retrieveGoogleFactCheckSources(
   url.searchParams.set("pageSize", String(pageSize));
   url.searchParams.set("key", apiKey);
 
-  const response = await fetch(url);
+  const response = await evidenceFetch(url);
+  if (!response) return [];
   const payload = (await response.json()) as FactCheckResponse;
 
   if (!response.ok || payload.error) {
@@ -219,13 +231,17 @@ async function retrieveGoogleFactCheckSources(
 async function retrieveNewsApiSources(
   claim: ExtractedClaim,
   apiKey?: string,
+  evidenceFetch: EvidenceFetch = limitedFetch(DEFAULT_EXTERNAL_REQUEST_LIMIT),
 ): Promise<EvidenceSource[]> {
   if (!apiKey) return [];
   const url = new URL("https://newsapi.org/v2/everything");
   url.searchParams.set("q", claim.claimText);
   url.searchParams.set("pageSize", "8");
   url.searchParams.set("sortBy", "relevancy");
-  const response = await fetch(url, { headers: { "X-Api-Key": apiKey } });
+  const response = await evidenceFetch(url, {
+    headers: { "X-Api-Key": apiKey },
+  });
+  if (!response) return [];
   if (!response.ok) return [];
   const payload = (await response.json()) as {
     articles?: Array<{
@@ -257,6 +273,7 @@ async function retrieveNewsApiSources(
 
 async function retrieveGdeltSources(
   claim: ExtractedClaim,
+  evidenceFetch: EvidenceFetch,
 ): Promise<EvidenceSource[]> {
   const url = new URL("https://api.gdeltproject.org/api/v2/doc/doc");
   url.searchParams.set(
@@ -267,7 +284,8 @@ async function retrieveGdeltSources(
   url.searchParams.set("format", "json");
   url.searchParams.set("maxrecords", "8");
   url.searchParams.set("timespan", "1week");
-  const response = await requestGdelt(url);
+  const response = await requestGdelt(url, evidenceFetch);
+  if (!response) return [];
   const payload = (await response.json()) as {
     articles?: Array<{
       title: string;
@@ -277,36 +295,29 @@ async function retrieveGdeltSources(
     }>;
   };
   const claimTerms = significantTerms(claim.claimText);
-  const sources = await Promise.all(
-    (payload.articles ?? []).map(async (article, index) => {
-      const snippet = await retrieveArticleDescription(article.url);
-      return {
-        id: `gdelt:${index}`,
-        type: "gdelt" as const,
-        title: article.title,
-        url: article.url,
-        sourceDomain: article.domain ?? domain(article.url),
-        snippet,
-        similarity: sourceRelevance(
-          claimTerms,
-          `${article.title} ${snippet ?? ""}`,
-        ),
-        publishedAt: normalizeGdeltDate(article.seendate),
-      };
-    }),
-  );
+  const sources = (payload.articles ?? []).map((article, index) => {
+    return {
+      id: `gdelt:${index}`,
+      type: "gdelt" as const,
+      title: article.title,
+      url: article.url,
+      sourceDomain: article.domain ?? domain(article.url),
+      similarity: sourceRelevance(claimTerms, article.title),
+      publishedAt: normalizeGdeltDate(article.seendate),
+    };
+  });
   return sources.filter((source) => passesRelevanceGate(claim, source));
 }
 
-async function requestGdelt(url: URL) {
+async function requestGdelt(url: URL, evidenceFetch: EvidenceFetch) {
   if (Date.now() < gdeltUnavailableUntil) {
     throw new Error(
       "GDELT is temporarily unavailable after a recent connection failure.",
     );
   }
-  let resolveRequest!: (response: Response) => void;
+  let resolveRequest!: (response: Response | undefined) => void;
   let rejectRequest!: (error: unknown) => void;
-  const result = new Promise<Response>((resolve, reject) => {
+  const result = new Promise<Response | undefined>((resolve, reject) => {
     resolveRequest = resolve;
     rejectRequest = reject;
   });
@@ -316,11 +327,19 @@ async function requestGdelt(url: URL) {
       const waitMs = Math.max(0, 6_000 - (Date.now() - lastGdeltRequestAt));
       if (waitMs > 0) await delay(waitMs);
       lastGdeltRequestAt = Date.now();
-      let response = await fetchGdelt(url);
+      let response = await fetchGdelt(url, evidenceFetch);
+      if (!response) {
+        resolveRequest(undefined);
+        return;
+      }
       if (response.status === 429) {
         await delay(6_000);
         lastGdeltRequestAt = Date.now();
-        response = await fetchGdelt(url);
+        response = await fetchGdelt(url, evidenceFetch);
+        if (!response) {
+          resolveRequest(undefined);
+          return;
+        }
       }
       if (!response.ok)
         throw new Error(`GDELT request failed with HTTP ${response.status}.`);
@@ -337,8 +356,8 @@ async function requestGdelt(url: URL) {
   return result;
 }
 
-function fetchGdelt(url: URL) {
-  return fetch(url, {
+function fetchGdelt(url: URL, evidenceFetch: EvidenceFetch) {
+  return evidenceFetch(url, {
     headers: { "user-agent": "Tracera/1.0 (+news verification)" },
     signal: AbortSignal.timeout(20_000),
   });
@@ -412,13 +431,17 @@ interface ArticleMetadata {
   citedUrls?: string[];
 }
 
-async function retrieveArticleMetadata(url: string): Promise<ArticleMetadata> {
+async function retrieveArticleMetadata(
+  url: string,
+  evidenceFetch: EvidenceFetch,
+): Promise<ArticleMetadata> {
   try {
-    const response = await fetch(url, {
+    const response = await evidenceFetch(url, {
       headers: { "user-agent": "Tracera/1.0 (+news verification)" },
       redirect: "follow",
       signal: AbortSignal.timeout(8_000),
     });
+    if (!response) return {};
     if (!response.ok) return {};
     const html = (await response.text()).slice(0, 250_000);
     const description =
@@ -451,10 +474,6 @@ async function retrieveArticleMetadata(url: string): Promise<ArticleMetadata> {
   } catch {
     return {};
   }
-}
-
-async function retrieveArticleDescription(url: string) {
-  return (await retrieveArticleMetadata(url)).snippet;
 }
 
 function normalizePublisherDate(value: string | undefined) {
@@ -502,65 +521,6 @@ function normalizeGdeltDate(value?: string) {
     : value;
 }
 
-const PUBLISHER_FEEDS = [
-  { publisher: "The Guardian", url: "https://www.theguardian.com/world/rss" },
-  { publisher: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
-  { publisher: "DW", url: "https://rss.dw.com/rdf/rss-en-world" },
-  { publisher: "NPR", url: "https://feeds.npr.org/1004/rss.xml" },
-  { publisher: "France 24", url: "https://www.france24.com/en/rss" },
-  {
-    publisher: "ABC News",
-    url: "https://abcnews.com/abcnews/internationalheadlines",
-  },
-] as const;
-
-async function retrievePublisherFeedSources(
-  claim: ExtractedClaim,
-): Promise<EvidenceSource[]> {
-  const claimTerms = significantTerms(claim.claimText);
-  const feeds = await Promise.all(
-    PUBLISHER_FEEDS.map(async (feed) => {
-      try {
-        const response = await fetch(feed.url, {
-          headers: { "user-agent": "Tracera/1.0 (+news verification)" },
-          signal: AbortSignal.timeout(10_000),
-        });
-        if (!response.ok) return [];
-        const xml = await response.text();
-        return (xml.match(/<item\b[^>]*>[\s\S]*?<\/item>/gi) ?? []).flatMap(
-          (item, itemIndex) => {
-            const title = xmlValue(item, "title");
-            const link = xmlValue(item, "link");
-            const description = stripMarkup(xmlValue(item, "description"));
-            const similarity = sourceRelevance(
-              claimTerms,
-              `${title} ${description}`,
-            );
-            if (!title || !link) return [];
-            const source: EvidenceSource = {
-              id: `rss:${feed.publisher.toLowerCase().replace(/[^a-z0-9]+/g, "-")}:${itemIndex}`,
-              type: "publisher_rss" as const,
-              title,
-              url: link,
-              publisher: feed.publisher,
-              sourceDomain: domain(link),
-              snippet: description.slice(0, 1_200),
-              similarity,
-              publishedAt: normalizeFeedDate(
-                xmlValue(item, "pubDate") ?? xmlValue(item, "dc:date"),
-              ),
-            };
-            return passesRelevanceGate(claim, source) ? [source] : [];
-          },
-        );
-      } catch {
-        return [];
-      }
-    }),
-  );
-  return feeds.flat().slice(0, 12);
-}
-
 /**
  * Google News exposes a public RSS endpoint which is useful as a resilient
  * candidate generator for very recent stories. Results are still subject to
@@ -569,6 +529,7 @@ async function retrievePublisherFeedSources(
  */
 async function retrieveGoogleNewsSources(
   claim: ExtractedClaim,
+  evidenceFetch: EvidenceFetch,
 ): Promise<EvidenceSource[]> {
   const url = new URL("https://news.google.com/rss/search");
   url.searchParams.set("q", claim.claimText.slice(0, 500));
@@ -576,10 +537,11 @@ async function retrieveGoogleNewsSources(
   url.searchParams.set("gl", "US");
   url.searchParams.set("ceid", "US:en");
 
-  const response = await fetch(url, {
+  const response = await evidenceFetch(url, {
     headers: { "user-agent": "Tracera/1.0 (+news verification)" },
     signal: AbortSignal.timeout(12_000),
   });
+  if (!response) return [];
   if (!response.ok) return [];
 
   const xml = await response.text();
@@ -788,13 +750,15 @@ async function retrieveWebSearchSources(
   claim: ExtractedClaim,
   endpoint?: string,
   apiKey?: string,
+  evidenceFetch: EvidenceFetch = limitedFetch(DEFAULT_EXTERNAL_REQUEST_LIMIT),
 ): Promise<EvidenceSource[]> {
   if (!endpoint || !apiKey) return [];
   const url = new URL(endpoint);
   url.searchParams.set("q", claim.claimText);
-  const response = await fetch(url, {
+  const response = await evidenceFetch(url, {
     headers: { Authorization: `Bearer ${apiKey}` },
   });
+  if (!response) return [];
   if (!response.ok) return [];
   const payload = (await response.json()) as {
     results?: Array<{
@@ -835,6 +799,15 @@ function domain(value?: string) {
 }
 function defaultCredibility(type: EvidenceSource["type"]) {
   return type === "google_fact_check" ? 0.85 : type === "corpus" ? 0.75 : 0.5;
+}
+
+function limitedFetch(limit: number): EvidenceFetch {
+  let remaining = Number.isInteger(limit) && limit > 0 ? limit : 0;
+  return async (input, init) => {
+    if (remaining <= 0) return undefined;
+    remaining -= 1;
+    return fetch(input, init);
+  };
 }
 async function safelyRetrieve(
   label: string,

@@ -5,6 +5,7 @@ import {
   analyzeFraming,
   extractClaims,
   normalizeInput,
+  retrieveSources,
   scoreClaim,
   traceGroundZero,
   type AiProvider,
@@ -70,6 +71,52 @@ test("an empty evidence set remains explicitly unverified", async () => {
   assert.equal(result.verdict, "unverified");
   assert.equal(result.confidence, 0.2);
   assert.equal(result.evidenceQuality, 0);
+});
+
+test("evidence retrieval respects the Worker subrequest budget", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  let requests = 0;
+  console.warn = () => undefined;
+  globalThis.fetch = async () => {
+    requests += 1;
+    return new Response("{}", {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const provider: AiProvider = {
+    async generate() {
+      throw new Error("Text generation is not used during retrieval.");
+    },
+    async generateFromImage() {
+      throw new Error("Image generation is not used during retrieval.");
+    },
+    async embed() {
+      return Array.from({ length: 1024 }, () => 0);
+    },
+  };
+
+  try {
+    const sources = await retrieveSources(claim, {
+      provider,
+      claimEmbedding: Array.from({ length: 1024 }, () => 0),
+      // Avoid a real corpus query; the retrieval layer treats this invalid
+      // optional source just like any other unavailable provider.
+      corpusLimit: 0,
+      factCheckApiKey: "test-fact-check-key",
+      newsApiKey: "test-news-key",
+      webSearchEndpoint: "https://search.example.test",
+      webSearchApiKey: "test-search-key",
+      externalRequestLimit: 2,
+    });
+
+    assert.deepEqual(sources, []);
+    assert.equal(requests, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
 });
 
 test("the Tracera Score retains evidence and source signals separately", () => {
