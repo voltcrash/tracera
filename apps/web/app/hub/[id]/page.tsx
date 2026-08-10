@@ -9,6 +9,7 @@ import {
   type TraceraScore,
 } from "../../components/analysis-result";
 import { AppHeader } from "../../components/app-header";
+import { AccountRequired } from "../../components/account-required";
 import { useAuth } from "../../components/auth-provider";
 import {
   GroundZeroCard,
@@ -53,9 +54,10 @@ export default function CheckDetailPage({
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [appearances, setAppearances] = useState<AppearanceEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { apiFetch } = useAuth();
+  const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
 
   useEffect(() => {
+    if (isAuthLoading || !user) return;
     params.then(({ id }) =>
       Promise.all([
         apiFetch(`${apiUrl}/checks/${id}`),
@@ -93,30 +95,43 @@ export default function CheckDetailPage({
           ),
         ),
     );
-  }, [apiFetch, params]);
+  }, [apiFetch, isAuthLoading, params, user]);
 
   return (
     <main className="paper-grid min-h-screen bg-[#f4f6f2] text-emerald-950">
       <div className="mx-auto max-w-6xl px-5 sm:px-8">
         <AppHeader active="hub" />
-        {error && (
-          <p
-            className="mt-10 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
-        {!check && !error && (
+        {isAuthLoading && (
           <p
             className="mt-10 text-sm font-medium text-emerald-950/55"
             role="status"
           >
-            Reassembling the evidence trail…
+            Restoring your account…
           </p>
         )}
-        {check && (
-          <section className="py-12 sm:py-16">
+        {!isAuthLoading && !user && (
+          <AccountRequired feature="this News Hub trace" />
+        )}
+        {!isAuthLoading && user && (
+          <>
+            {error && (
+              <p
+                className="mt-10 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+                role="alert"
+              >
+                {error}
+              </p>
+            )}
+            {!check && !error && (
+              <p
+                className="mt-10 text-sm font-medium text-emerald-950/55"
+                role="status"
+              >
+                Reassembling the evidence trail…
+              </p>
+            )}
+            {check && (
+              <section className="py-12 sm:py-16">
             <Link
               href="/hub"
               className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-bold text-emerald-800 shadow-sm transition hover:-translate-x-0.5"
@@ -188,8 +203,10 @@ export default function CheckDetailPage({
             />
             {check.groundZero && <GroundZeroCard trace={check.groundZero} />}
             <TraceTimeline entries={timeline} appearances={appearances} />
-            <AlertSubscription checkId={check.id} />
-          </section>
+                <AlertSubscription checkId={check.id} />
+              </section>
+            )}
+          </>
         )}
       </div>
     </main>

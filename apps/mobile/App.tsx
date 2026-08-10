@@ -123,8 +123,10 @@ function TraceraApp() {
         createdAt: new Date(session.data.user.createdAt).toISOString(),
       }
     : null;
+  const isSignedIn = Boolean(session.data?.user);
 
   const loadHub = useCallback(async () => {
+    if (!isSignedIn) return;
     setIsLoadingHub(true);
     try {
       const response = await mobileFetch(`${API_URL}/checks?pageSize=20`);
@@ -140,11 +142,11 @@ function TraceraApp() {
     } finally {
       setIsLoadingHub(false);
     }
-  }, []);
+  }, [isSignedIn]);
 
   useEffect(() => {
-    if (tab === "hub") void loadHub();
-  }, [loadHub, tab]);
+    if (tab === "hub" && isSignedIn) void loadHub();
+  }, [isSignedIn, loadHub, tab]);
 
   async function openCheck(check: HubCheck) {
     setIsLoadingDetail(true);
@@ -178,6 +180,23 @@ function TraceraApp() {
   async function signOut() {
     await authClient.signOut();
     setAuthMode(null);
+    setTab("trace");
+    setHubAnalysis(null);
+    setHubChecks([]);
+  }
+
+  function promptForAccount(feature: "fact-check" | "News Hub") {
+    Alert.alert(
+      feature === "fact-check"
+        ? "Sign in to start a fact-check"
+        : "Sign in to open the News Hub",
+      "Log in or create an account to continue with Tracera.",
+      [
+        { text: "Not now", style: "cancel" },
+        { text: "Create account", onPress: () => setAuthMode("signup") },
+        { text: "Log in", onPress: () => setAuthMode("login") },
+      ],
+    );
   }
 
   async function chooseImage() {
@@ -217,15 +236,7 @@ function TraceraApp() {
     const value = input.trim();
     if (!value && !image) return;
     if (!authUser) {
-      Alert.alert(
-        "Sign in to start a fact-check",
-        "Log in or create an account to trace this item against the evidence.",
-        [
-          { text: "Not now", style: "cancel" },
-          { text: "Create account", onPress: () => setAuthMode("signup") },
-          { text: "Log in", onPress: () => setAuthMode("login") },
-        ],
-      );
+      promptForAccount("fact-check");
       return;
     }
 
@@ -296,7 +307,12 @@ function TraceraApp() {
             />
           </View>
           <View style={styles.headerActions}>
-            <Pressable onPress={() => setTab("hub")} hitSlop={8}>
+            <Pressable
+              onPress={() =>
+                authUser ? setTab("hub") : promptForAccount("News Hub")
+              }
+              hitSlop={8}
+            >
               <Text style={styles.hubLink}>News Hub</Text>
             </Pressable>
             <Pressable
@@ -312,7 +328,7 @@ function TraceraApp() {
           </View>
         </View>
 
-        {tab === "trace" ? (
+        {tab === "trace" || !authUser ? (
           <TraceScreen
             analysis={analysis}
             error={error}

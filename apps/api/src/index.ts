@@ -808,6 +808,9 @@ async function runAnalysis(
   }
 }
 
+app.use("/checks", requireSignedInUser);
+app.use("/checks/*", requireSignedInUser);
+
 app.get("/checks/:id/timeline", async (context) => {
   const id = context.req.param("id");
   if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
@@ -916,6 +919,19 @@ app.get("/checks/:id", async (context) => {
     );
   }
 });
+
+async function requireSignedInUser(
+  context: Context<{ Bindings: Bindings }>,
+  next: () => Promise<void>,
+) {
+  if (!(await currentUser(context))) {
+    return context.json(
+      { error: "Sign in or create an account to open the News Hub." },
+      401,
+    );
+  }
+  await next();
+}
 
 async function analyzeText(
   text: string,

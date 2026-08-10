@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "../components/app-header";
+import { AccountRequired } from "../components/account-required";
 import { useAuth } from "../components/auth-provider";
 import type { TraceraScore } from "../components/analysis-result";
 import { apiUrl } from "../lib/api";
@@ -20,7 +21,7 @@ type CheckSummary = {
 };
 
 export default function HubPage() {
-  const { apiFetch, user } = useAuth();
+  const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
   const [checks, setChecks] = useState<CheckSummary[]>([]);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -34,6 +35,7 @@ export default function HubPage() {
   const [loading, setLoading] = useState(true);
   const [requestVersion, setRequestVersion] = useState(0);
   useEffect(() => {
+    if (isAuthLoading || !user) return;
     const controller = new AbortController();
     const handle = setTimeout(() => {
       setLoading(true);
@@ -65,7 +67,7 @@ export default function HubPage() {
       clearTimeout(handle);
       controller.abort();
     };
-  }, [apiFetch, page, query, requestVersion]);
+  }, [apiFetch, isAuthLoading, page, query, requestVersion, user]);
   const visible = useMemo(
     () =>
       checks.filter(
@@ -88,7 +90,10 @@ export default function HubPage() {
     <main className="paper-grid min-h-screen bg-[#f4f6f2] text-emerald-950">
       <div className="mx-auto max-w-6xl px-5 sm:px-8">
         <AppHeader active="hub" />
-        <section className="py-12 sm:py-16">
+        {isAuthLoading && <Loading />}
+        {!isAuthLoading && !user && <AccountRequired feature="the News Hub" />}
+        {!isAuthLoading && user && (
+          <section className="py-12 sm:py-16">
           <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
               <p className="text-[10px] font-black tracking-[.2em] text-emerald-700">
@@ -249,7 +254,8 @@ export default function HubPage() {
               </div>
             </>
           )}
-        </section>
+          </section>
+        )}
       </div>
     </main>
   );

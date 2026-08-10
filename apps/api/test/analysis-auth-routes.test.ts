@@ -27,3 +27,17 @@ for (const path of ["/analyze", "/analyze/stream"]) {
     });
   });
 }
+
+for (const path of [
+  "/checks",
+  "/checks/00000000-0000-4000-8000-000000000000",
+]) {
+  test(`${path} requires a signed-in user`, async () => {
+    const response = await app.request(path, {}, env);
+
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), {
+      error: "Sign in or create an account to open the News Hub.",
+    });
+  });
+}
