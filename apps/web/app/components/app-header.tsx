@@ -16,7 +16,7 @@ export function AppHeader({ active }: { active?: "home" | "hub" }) {
   }
 
   return (
-    <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 border-b border-emerald-950/10 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-x-2 sm:py-5">
+    <header className="app-header-panel sticky top-3 z-50 mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 rounded-2xl border border-emerald-950/10 bg-[#f4f6f2]/88 px-4 py-3 shadow-[0_16px_42px_-32px_rgba(16,34,31,.68)] backdrop-blur-xl sm:mt-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-x-2 sm:px-5">
       <Link
         href="/"
         className="group col-start-1 row-start-1 block w-fit rounded-lg transition group-hover:-translate-y-0.5"
@@ -32,7 +32,7 @@ export function AppHeader({ active }: { active?: "home" | "hub" }) {
         />
       </Link>
       <nav
-        className="col-span-2 col-start-1 row-start-2 grid grid-cols-2 rounded-full bg-emerald-950/5 p-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:flex sm:items-center sm:gap-1 sm:bg-transparent sm:p-0"
+        className="col-span-2 col-start-1 row-start-2 grid grid-cols-2 rounded-xl bg-emerald-950/5 p-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:flex sm:items-center sm:gap-1 sm:rounded-full sm:bg-transparent sm:p-0"
         aria-label="Primary navigation"
       >
         <Link
