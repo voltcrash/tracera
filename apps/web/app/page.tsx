@@ -10,29 +10,6 @@ const scoreDimensions = [
   { label: "Framing & language", value: 64, color: "bg-[#d8b4fe]" },
 ];
 
-const faqs = [
-  {
-    question: "Does Tracera just label a whole article true or false?",
-    answer:
-      "No. It separates a story into checkable claims, evaluates each claim against relevant evidence, and keeps the verdict and the quality of that evidence distinct.",
-  },
-  {
-    question: "What can I submit?",
-    answer:
-      "Paste a claim, a headline, article text, or a public link. You can also upload an image so Tracera can inspect visible text and available provenance details.",
-  },
-  {
-    question: "What happens when the evidence changes?",
-    answer:
-      "A trace can be checked again as new reporting appears. Tracera preserves its history, shows score movement, and can notify you when a material update occurs.",
-  },
-  {
-    question: "Can I keep a trace private?",
-    answer:
-      "Yes. Signed-in users can keep sensitive research private, while public traces can contribute useful context to the wider News Hub.",
-  },
-];
-
 export default function LandingPage() {
   return (
     <main className="landing-page paper-grid min-h-screen overflow-hidden bg-[#f4f6f2] text-[#10221f]">
@@ -629,62 +606,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="border-y border-emerald-950/10 py-24 sm:py-28">
-          <div className="grid gap-12 lg:grid-cols-[.7fr_1.3fr] lg:items-end">
-            <div>
-              <p className="landing-kicker">Built for careful readers</p>
-              <h2 className="mt-5 text-4xl font-black leading-[.96] tracking-[-.06em] sm:text-5xl">
-                Less reacting. More knowing.
-              </h2>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <AudienceCard
-                symbol="✦"
-                title="For readers"
-                copy="Check the story before you share the story."
-              />
-              <AudienceCard
-                symbol="⌁"
-                title="For journalists"
-                copy="Audit sources and surface missing context faster."
-              />
-              <AudienceCard
-                symbol="◎"
-                title="For researchers"
-                copy="Preserve a traceable record as evidence evolves."
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-14 py-24 sm:py-32 lg:grid-cols-[.75fr_1.25fr] lg:gap-20">
-          <div>
-            <p className="landing-kicker">Questions, answered</p>
-            <h2 className="mt-5 text-4xl font-black leading-[.96] tracking-[-.06em] sm:text-5xl">
-              The short version.
-            </h2>
-            <p className="mt-5 max-w-sm text-base leading-7 text-emerald-950/58">
-              The best way to understand a trace is to run one.
-            </p>
-          </div>
-          <div className="divide-y divide-emerald-950/10 border-y border-emerald-950/10">
-            {faqs.map((faq, index) => (
-              <details key={faq.question} className="faq-row group">
-                <summary>
-                  <span className="mr-5 text-xs font-black text-emerald-700">
-                    0{index + 1}
-                  </span>
-                  <span className="flex-1">{faq.question}</span>
-                  <span className="faq-plus" aria-hidden="true">
-                    +
-                  </span>
-                </summary>
-                <p>{faq.answer}</p>
-              </details>
-            ))}
-          </div>
-        </section>
-
         <section className="landing-cta relative mb-8 overflow-hidden rounded-[2.5rem] bg-[#b7f1dc] px-6 py-16 text-center sm:px-12 sm:py-20">
           <div className="cta-ring cta-ring-one" aria-hidden="true" />
           <div className="cta-ring cta-ring-two" aria-hidden="true" />
@@ -711,7 +632,7 @@ export default function LandingPage() {
         </section>
 
         <footer className="flex flex-col gap-6 py-8 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center">
             <Image
               src="/brand/tracera-wordmark-cropped.png"
               alt="Tracera"
@@ -719,10 +640,6 @@ export default function LandingPage() {
               height={29}
               className="h-7 w-auto"
             />
-            <span className="hidden h-5 w-px bg-emerald-950/12 sm:block" />
-            <p className="text-xs font-semibold text-emerald-950/45">
-              Evidence, not echoes.
-            </p>
           </div>
           <nav
             className="flex flex-wrap gap-x-6 gap-y-2 text-xs font-bold text-emerald-950/55"
@@ -1121,23 +1038,5 @@ function HubRow({
         </small>
       </span>
     </div>
-  );
-}
-
-function AudienceCard({
-  symbol,
-  title,
-  copy,
-}: {
-  symbol: string;
-  title: string;
-  copy: string;
-}) {
-  return (
-    <article className="rounded-2xl border border-emerald-950/10 bg-white/60 p-5">
-      <span className="text-xl text-emerald-700">{symbol}</span>
-      <h3 className="mt-7 text-sm font-black">{title}</h3>
-      <p className="mt-2 text-xs leading-5 text-emerald-950/52">{copy}</p>
-    </article>
   );
 }

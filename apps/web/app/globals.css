@@ -771,46 +771,6 @@ body {
   transform: rotate(21deg);
 }
 
-.faq-row summary {
-  display: flex;
-  cursor: pointer;
-  list-style: none;
-  align-items: center;
-  padding: 1.4rem 0;
-  font-size: 0.94rem;
-  font-weight: 850;
-}
-
-.faq-row summary::-webkit-details-marker {
-  display: none;
-}
-
-.faq-row p {
-  max-width: 42rem;
-  padding: 0 3.5rem 1.5rem 2.25rem;
-  color: rgba(16, 34, 31, 0.58);
-  font-size: 0.85rem;
-  line-height: 1.75;
-}
-
-.faq-plus {
-  display: grid;
-  width: 1.8rem;
-  height: 1.8rem;
-  place-items: center;
-  border-radius: 999px;
-  background: rgba(16, 34, 31, 0.06);
-  color: #176a56;
-  transition:
-    transform 220ms ease,
-    background-color 180ms ease;
-}
-
-.faq-row[open] .faq-plus {
-  transform: rotate(45deg);
-  background: #dff7ed;
-}
-
 .landing-cta::before {
   content: "";
   position: absolute;
