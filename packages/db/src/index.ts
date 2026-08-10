@@ -286,6 +286,70 @@ export async function findReusableExactCheck(
     : null;
 }
 
+/** Reuses a recent image when either its bytes match or its extracted text is
+ * nearly identical. Clipboard and screenshot tools may re-encode the same
+ * visible image, so byte equality alone is not a stable image identity. */
+export async function findReusableImageCheck(
+  rawInput: string,
+  embedding: number[],
+  maxAgeHours: number,
+  similarityThreshold: number,
+  ownerUserId?: string,
+): Promise<CachedCheck | null> {
+  const result = await pool.query<{
+    id: string;
+    raw_input: string;
+    tracera_score: unknown;
+    analysis: StoredAnalysis;
+    created_at: string;
+    expires_at: string;
+    similarity: number;
+    exact_match: boolean;
+  }>(
+    `SELECT id, raw_input, tracera_score, analysis, created_at,
+            created_at + ($3 * INTERVAL '1 hour') AS expires_at,
+            raw_input = $1 AS exact_match,
+            1 - (embedding <=> $2::vector) AS similarity
+       FROM checks
+      WHERE input_type = 'image'
+        AND created_at >= NOW() - ($3 * INTERVAL '1 hour')
+        AND (visibility = 'public' OR owner_user_id = $4)
+      ORDER BY CASE WHEN raw_input = $1 THEN 0
+                    ELSE embedding <=> $2::vector
+                END,
+               created_at DESC
+      LIMIT 1`,
+    [rawInput, toVector(embedding), maxAgeHours, ownerUserId ?? null],
+  );
+  const row = result.rows[0];
+  const similarity = Number(row?.similarity);
+  if (
+    !row ||
+    !isReusableImageMatch(row.exact_match, similarity, similarityThreshold)
+  )
+    return null;
+  return {
+    id: row.id,
+    rawInput: row.raw_input,
+    traceraScore: row.tracera_score,
+    analysis: row.analysis,
+    createdAt: row.created_at,
+    similarity,
+    expiresAt: row.expires_at,
+  };
+}
+
+export function isReusableImageMatch(
+  exactMatch: boolean,
+  similarity: number,
+  similarityThreshold: number,
+) {
+  return (
+    exactMatch ||
+    (Number.isFinite(similarity) && similarity >= similarityThreshold)
+  );
+}
+
 /** Finds a semantically related recent trace to extend as a story lineage. */
 export async function findRelatedStoryCheck(
   embedding: number[],

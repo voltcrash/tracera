@@ -9,6 +9,7 @@ import {
   findLatestCheckByRawInput,
   findRelatedStoryCheck,
   findReusableExactCheck,
+  findReusableImageCheck,
   getCheckById,
   getDecayObservability,
   getMediaDietPreference,
@@ -621,15 +622,34 @@ async function runAnalysis(
     const cached =
       forceReanalysis || recheckOf
         ? null
-        : await findReusableExactCheck(
-            normalized.rawInput,
-            cacheHours,
-            user?.id,
-          );
+        : normalized.inputType === "image"
+          ? await findReusableImageCheck(
+              normalized.rawInput,
+              inputEmbedding,
+              cacheHours,
+              environmentNumber(
+                "IMAGE_DEDUP_SIMILARITY_THRESHOLD",
+                0.98,
+                0.9,
+                1,
+              ),
+              user?.id,
+            )
+          : await findReusableExactCheck(
+              normalized.rawInput,
+              cacheHours,
+              user?.id,
+            );
 
     // A previous version stored empty analyses when a URL was sent as text.
-    // Never serve that invalid cache entry; rerun it with normalized link input.
-    if (cached && hasRetrievedEvidence(cached.analysis.claims)) {
+    // Never serve an incomplete cache entry. Image checks may validly finish
+    // without a relevant external source, so a stored claim is sufficient.
+    if (
+      cached &&
+      (normalized.inputType === "image"
+        ? cached.analysis.claims.length > 0
+        : hasRetrievedEvidence(cached.analysis.claims))
+    ) {
       await recordTraceAppearance({
         checkId: cached.id,
         sourceUrl: normalized.sourceUrl,
