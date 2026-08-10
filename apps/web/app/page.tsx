@@ -1,6 +1,15 @@
+import { createAuth } from "@repo/auth";
+import { configureDatabase } from "@repo/db";
+import { getSessionCookie } from "better-auth/cookies";
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { LandingEvidenceGraph } from "./components/landing-evidence-graph";
+import { webRuntimeEnv } from "./lib/server-runtime";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const scoreDimensions = [
   { label: "Factual accuracy", value: 86, color: "bg-[#adf3d7]" },
@@ -10,7 +19,22 @@ const scoreDimensions = [
   { label: "Framing & language", value: 64, color: "bg-[#d8b4fe]" },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const requestHeaders = await headers();
+  const sessionToken = getSessionCookie(requestHeaders, {
+    cookiePrefix: "tracera",
+  });
+
+  if (sessionToken) {
+    const env = webRuntimeEnv();
+    configureDatabase(env.DATABASE_URL);
+    const session = await createAuth(env).api.getSession({
+      headers: requestHeaders,
+    });
+
+    if (session?.user) redirect("/home");
+  }
+
   return (
     <main className="landing-page paper-grid min-h-screen overflow-hidden bg-[#f4f6f2] text-[#10221f]">
       <div className="landing-aurora landing-aurora-one" aria-hidden="true" />
