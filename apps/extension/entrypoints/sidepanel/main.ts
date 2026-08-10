@@ -3,84 +3,22 @@ import type {
   ClaimResult,
   PageSnapshot,
 } from "../../shared/contracts";
-import { createClerkClient } from "@clerk/chrome-extension/client";
-import { apiUrl, clerkPublishableKey } from "../../shared/config";
+import { apiUrl } from "../../shared/config";
 import "./style.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
 
 if (!appElement) throw new Error("Tracera side panel could not start.");
 const app: HTMLElement = appElement;
-const extensionUrl = chrome.runtime.getURL(".");
-const sidePanelUrl = `${extensionUrl}sidepanel.html`;
-let clerk: ReturnType<typeof createClerkClient> | null = null;
-let analysisStarted = false;
 let reactiveEnabled = false;
 
 void initialize();
 
 async function initialize() {
-  renderLoading("Starting the extension and restoring your account.");
   reactiveEnabled =
     (await chrome.storage.local.get("reactiveEnabled")).reactiveEnabled ===
     true;
-  if (!clerk) {
-    if (!clerkPublishableKey) {
-      renderAuthUnavailable(
-        "Tracera account access is not configured in this extension build.",
-      );
-      return;
-    }
-    try {
-      clerk = createClerkClient({ publishableKey: clerkPublishableKey });
-    } catch (error) {
-      console.error("Unable to create the Clerk client", error);
-      renderAuthUnavailable("Tracera could not start account access.");
-      return;
-    }
-  }
-  try {
-    await withTimeout(
-      clerk.load({
-        afterSignOutUrl: sidePanelUrl,
-        signInForceRedirectUrl: sidePanelUrl,
-        signUpForceRedirectUrl: sidePanelUrl,
-        allowedRedirectProtocols: ["chrome-extension:"],
-      }),
-      8_000,
-      "Account service timed out.",
-    );
-    clerk.addListener(renderForAuthState);
-    renderForAuthState();
-  } catch (error) {
-    console.error("Tracera could not initialize account access", error);
-    renderAuthUnavailable("Tracera could not connect to account access.");
-  }
-}
-
-function renderForAuthState() {
-  if (clerk?.user) {
-    if (!analysisStarted) void provisionAndStart();
-    return;
-  }
-  analysisStarted = false;
   renderSignedOut();
-}
-
-async function provisionAndStart() {
-  analysisStarted = true;
-  const token = await getAuthToken();
-  if (!token) {
-    analysisStarted = false;
-    renderAuthUnavailable(
-      "Your account session could not be restored. Please try again.",
-    );
-    return;
-  }
-  void fetch(`${apiUrl}/auth/me`, {
-    headers: { authorization: `Bearer ${token}` },
-  });
-  await startAnalysis();
 }
 
 function renderSignedOut() {
@@ -95,10 +33,14 @@ function renderSignedOut() {
     </section>`;
   document
     .querySelector<HTMLButtonElement>("#sign-in")
-    ?.addEventListener("click", () => clerk?.openSignIn({}));
+    ?.addEventListener("click", () => void openAccountPage("login"));
   document
     .querySelector<HTMLButtonElement>("#sign-up")
-    ?.addEventListener("click", () => clerk?.openSignUp({}));
+    ?.addEventListener("click", () => void openAccountPage("signup"));
+}
+
+async function openAccountPage(page: "login" | "signup") {
+  await chrome.tabs.create({ url: `https://tracera.voltcrash.com/${page}` });
 }
 
 function renderAuthUnavailable(message: string) {
@@ -135,7 +77,6 @@ async function startAnalysis(forceReanalysis = false) {
 
     const token = await getAuthToken();
     if (!token) {
-      analysisStarted = false;
       renderAuthUnavailable(
         "Your account session could not be restored. Please try again.",
       );
@@ -180,10 +121,7 @@ async function startAnalysis(forceReanalysis = false) {
 }
 
 async function getAuthToken() {
-  const response = (await chrome.runtime.sendMessage({
-    type: "tracera:auth-token",
-  })) as { token?: string | null } | undefined;
-  return response?.token ?? clerk?.session?.getToken() ?? null;
+  return null;
 }
 
 function renderLoading(
@@ -222,7 +160,7 @@ function renderResult(result: AnalysisResponse, page: PageSnapshot) {
       <div class="brand"><span class="brand-mark">T</span><span>tracera</span></div>
       <div class="header-actions">
         <button class="quiet-button ${reactiveEnabled ? "active" : ""}" id="reactive" type="button" aria-pressed="${reactiveEnabled}" title="When enabled, Tracera automatically checks public pages after navigation">Live ${reactiveEnabled ? "on" : "off"}</button>
-        <button class="quiet-button" id="account" type="button">${clerk?.user ? "Sign out" : "Sign in"}</button>
+        <button class="quiet-button" id="account" type="button">Sign in</button>
         <button class="quiet-button" id="recheck" type="button">Re-check</button>
       </div>
     </header>
@@ -262,10 +200,7 @@ function renderResult(result: AnalysisResponse, page: PageSnapshot) {
     ?.addEventListener("click", () => void startAnalysis(true));
   document
     .querySelector<HTMLButtonElement>("#account")
-    ?.addEventListener("click", () => {
-      if (clerk?.user) void clerk.signOut();
-      else clerk?.openSignIn({});
-    });
+    ?.addEventListener("click", () => void openAccountPage("login"));
 }
 
 function renderGroundZero(result: AnalysisResponse) {
@@ -359,24 +294,4 @@ function escapeHtml(value: string) {
 
 function escapeAttribute(value: string) {
   return escapeHtml(value).replace(/`/g, "&#96;");
-}
-
-function withTimeout<T>(
-  promise: Promise<T>,
-  milliseconds: number,
-  message: string,
-) {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(message)), milliseconds);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
 }

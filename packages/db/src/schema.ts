@@ -11,8 +11,6 @@ import {
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
-  /** Clerk owns the identity; this UUID remains Tracera's internal relation key. */
-  clerkUserId: text("clerk_user_id").unique(),
   /** Always stored lowercase so email addresses are unique case-insensitively. */
   email: text("email").notNull().unique(),
   createdAt: timestamp("created_at", { withTimezone: true })

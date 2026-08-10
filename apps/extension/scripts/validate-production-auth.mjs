@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 // Vite/WXT gives mode-specific files precedence over the generic .env file.
-// Read only the one value needed for validation and never print credentials.
 const values = {};
 for (const filename of [
   ".env",
@@ -19,22 +18,13 @@ for (const filename of [
   }
 }
 
-const publishableKey =
-  process.env.WXT_CLERK_PUBLISHABLE_KEY ?? values.WXT_CLERK_PUBLISHABLE_KEY;
-const frontendApiUrl =
-  process.env.WXT_CLERK_FRONTEND_API_URL ?? values.WXT_CLERK_FRONTEND_API_URL;
+const apiUrl =
+  process.env.WXT_TRACERA_API_URL ?? values.WXT_TRACERA_API_URL;
 
-if (!publishableKey?.startsWith("pk_live_")) {
+if (!apiUrl?.startsWith("https://")) {
   console.error(
-    "Production extension builds require WXT_CLERK_PUBLISHABLE_KEY=pk_live_…. " +
+    "Production extension builds require an HTTPS WXT_TRACERA_API_URL. " +
       "Use `pnpm build:development` only for an explicitly non-production package.",
-  );
-  process.exit(1);
-}
-
-if (!frontendApiUrl || /\.accounts\.dev(?:\/|$)/i.test(frontendApiUrl)) {
-  console.error(
-    "Production extension builds require the production WXT_CLERK_FRONTEND_API_URL, not a Clerk accounts.dev host.",
   );
   process.exit(1);
 }

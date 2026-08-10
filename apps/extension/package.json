@@ -14,8 +14,5 @@
     "@types/chrome": "^0.2.5",
     "typescript": "5.9.2",
     "wxt": "^0.19.25"
-  },
-  "dependencies": {
-    "@clerk/chrome-extension": "^3.1.67"
   }
 }

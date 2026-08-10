@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  ClerkProvider,
-  useAuth as useClerkAuth,
-  useSignIn,
-  useSignUp,
-  useUser,
-} from "@clerk/expo";
-import { tokenCache } from "@clerk/expo/token-cache";
-import {
   ActivityIndicator,
   Alert,
   Image,
@@ -94,33 +86,16 @@ type StoredCheck = HubCheck & {
 const API_URL = "https://api.tracera.voltcrash.com";
 const EXAMPLE =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
-const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-let mobileTokenProvider: (() => Promise<string | null>) | null = null;
 
 async function mobileFetch(input: string, init: RequestInit = {}) {
-  const headers = new Headers(init.headers);
-  const token = await mobileTokenProvider?.();
-  if (token) headers.set("authorization", `Bearer ${token}`);
-  return fetch(input, { ...init, headers });
+  return fetch(input, init);
 }
 
 export default function App() {
-  if (!CLERK_PUBLISHABLE_KEY) {
-    throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required.");
-  }
-  return (
-    <ClerkProvider
-      publishableKey={CLERK_PUBLISHABLE_KEY}
-      tokenCache={tokenCache}
-    >
-      <TraceraApp />
-    </ClerkProvider>
-  );
+  return <TraceraApp />;
 }
 
 function TraceraApp() {
-  const { getToken, isSignedIn, signOut: clerkSignOut } = useClerkAuth();
-  const { user: clerkUser } = useUser();
   const [tab, setTab] = useState<"trace" | "hub">("trace");
   const [input, setInput] = useState("");
   const [image, setImage] = useState<{
@@ -136,15 +111,7 @@ function TraceraApp() {
   const [hubAnalysis, setHubAnalysis] = useState<Analysis | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup" | null>(null);
-  mobileTokenProvider = () => getToken();
-  const authUser: AuthUser | null = clerkUser?.primaryEmailAddress?.emailAddress
-    ? {
-        id: clerkUser.id,
-        email: clerkUser.primaryEmailAddress.emailAddress,
-        createdAt:
-          clerkUser.createdAt?.toISOString() ?? new Date(0).toISOString(),
-      }
-    : null;
+  const [authUser] = useState<AuthUser | null>(null);
 
   const loadHub = useCallback(async () => {
     setIsLoadingHub(true);
@@ -167,10 +134,6 @@ function TraceraApp() {
   useEffect(() => {
     if (tab === "hub") void loadHub();
   }, [loadHub, tab]);
-
-  useEffect(() => {
-    if (isSignedIn) void mobileFetch(`${API_URL}/auth/me`);
-  }, [isSignedIn]);
 
   async function openCheck(check: HubCheck) {
     setIsLoadingDetail(true);
@@ -202,7 +165,7 @@ function TraceraApp() {
   }
 
   async function signOut() {
-    await clerkSignOut();
+    setAuthMode(null);
   }
 
   async function chooseImage() {
@@ -838,7 +801,6 @@ function HubCard({ check, onPress }: { check: HubCheck; onPress: () => void }) {
 function AuthScreen({
   mode,
   onBack,
-  onAuthenticated,
   onModeChange,
 }: {
   mode: "login" | "signup";
@@ -846,61 +808,7 @@ function AuthScreen({
   onAuthenticated: () => void;
   onModeChange: (mode: "login" | "signup") => void;
 }) {
-  const { signIn } = useSignIn();
-  const { signUp } = useSignUp();
-  const [email, setEmail] = useState("");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [awaitingVerification, setAwaitingVerification] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const signingUp = mode === "signup";
-
-  async function submit() {
-    setSubmitting(true);
-    setError(null);
-    try {
-      if (signingUp) {
-        if (awaitingVerification) {
-          const result = await signUp.verifications.verifyEmailCode({
-            code: verificationCode,
-          });
-          if (result.error) throw result.error;
-          const finalized = await signUp.finalize();
-          if (finalized.error) throw finalized.error;
-          onAuthenticated();
-          return;
-        }
-
-        const result = await signUp.create({ emailAddress: email.trim() });
-        if (result.error) throw result.error;
-        const verification = await signUp.verifications.sendEmailCode();
-        if (verification.error) throw verification.error;
-        setAwaitingVerification(true);
-        return;
-      }
-
-      if (awaitingVerification) {
-        const result = await signIn.emailCode.verifyCode({
-          code: verificationCode,
-        });
-        if (result.error) throw result.error;
-        const finalized = await signIn.finalize();
-        if (finalized.error) throw finalized.error;
-        onAuthenticated();
-        return;
-      }
-
-      const result = await signIn.emailCode.sendCode({
-        emailAddress: email.trim(),
-      });
-      if (result.error) throw result.error;
-      setAwaitingVerification(true);
-    } catch (authError) {
-      setError(clerkErrorMessage(authError));
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   return (
     <KeyboardAvoidingView
@@ -921,95 +829,20 @@ function AuthScreen({
         />
         <Text style={styles.eyebrow}>YOUR TRACERA ACCOUNT</Text>
         <Text style={styles.authTitle}>
-          {awaitingVerification
-            ? "Check your email"
-            : signingUp
-              ? "Create your account"
-              : "Welcome back"}
+          {signingUp ? "Account creation is paused" : "Sign-in is paused"}
         </Text>
         <Text style={styles.authCopy}>
-          {awaitingVerification
-            ? `Enter the verification code sent to ${email.trim()}.`
-            : signingUp
-              ? "Save your evidence trails in one place."
-              : "Sign in to continue your evidence trail."}
+          Account access is temporarily unavailable while authentication is
+          upgraded.
         </Text>
-        <View style={styles.authForm}>
-          {awaitingVerification ? (
-            <>
-              <Text style={styles.authLabel}>Verification code</Text>
-              <TextInput
-                autoComplete="one-time-code"
-                keyboardType="number-pad"
-                onChangeText={setVerificationCode}
-                placeholder="123456"
-                placeholderTextColor={COLORS.muted}
-                style={styles.authInput}
-                value={verificationCode}
-              />
-            </>
-          ) : (
-            <>
-              <Text style={styles.authLabel}>Email</Text>
-              <TextInput
-                autoCapitalize="none"
-                autoComplete="email"
-                keyboardType="email-address"
-                onChangeText={setEmail}
-                placeholder="you@example.com"
-                placeholderTextColor={COLORS.muted}
-                style={styles.authInput}
-                value={email}
-              />
-            </>
-          )}
-          {error ? <ErrorNotice message={error} /> : null}
-          <Pressable
-            disabled={
-              submitting ||
-              (awaitingVerification
-                ? verificationCode.length < 6
-                : !email.trim())
-            }
-            onPress={() => void submit()}
-            style={({ pressed }) => [
-              styles.authSubmit,
-              (submitting ||
-                (awaitingVerification
-                  ? verificationCode.length < 6
-                  : !email.trim())) &&
-                styles.traceButtonDisabled,
-              pressed && styles.pressed,
-            ]}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.authSubmitText}>
-                {awaitingVerification
-                  ? "Verify email"
-                  : "Send verification code"}
-              </Text>
-            )}
-          </Pressable>
-        </View>
-        {!awaitingVerification && (
-          <View style={styles.authSwitch}>
-            <Text style={styles.authSwitchText}>
-              {signingUp ? "Already have an account?" : "New to Tracera?"}
-            </Text>
-            <Pressable
-              onPress={() => {
-                setError(null);
-                onModeChange(signingUp ? "login" : "signup");
-              }}
-            >
-              <Text style={styles.authSwitchLink}>
-                {signingUp ? "Sign in" : "Create an account"}
-              </Text>
-            </Pressable>
-          </View>
-        )}
+        <Pressable
+          onPress={() => onModeChange(signingUp ? "login" : "signup")}
+          style={styles.authSubmit}
+        >
+          <Text style={styles.authSubmitText}>
+            {signingUp ? "View sign-in" : "View account creation"}
+          </Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -1098,23 +931,6 @@ function messageFrom(error: unknown) {
   return error instanceof Error
     ? error.message
     : "Something went wrong. Please try again.";
-}
-
-function clerkErrorMessage(error: unknown) {
-  if (error && typeof error === "object") {
-    const candidate = error as {
-      longMessage?: unknown;
-      message?: unknown;
-      errors?: Array<{ longMessage?: string; message?: string }>;
-    };
-    const detail = candidate.errors?.[0];
-    if (detail?.longMessage || detail?.message) {
-      return detail.longMessage ?? detail.message ?? "Unable to continue.";
-    }
-    if (typeof candidate.longMessage === "string") return candidate.longMessage;
-    if (typeof candidate.message === "string") return candidate.message;
-  }
-  return messageFrom(error);
 }
 
 const COLORS = {

@@ -48,7 +48,7 @@ import {
   authenticatedUser,
   isValidEmail,
   normalizeEmail,
-  type ClerkBindings,
+  type AuthBindings,
 } from "./auth.js";
 import { runDecaySweep } from "./decay.js";
 import { allowedCorsOrigin } from "./cors-origin.js";
@@ -62,7 +62,7 @@ import {
   type PublicQuotaResult,
 } from "./public-api.js";
 
-export type Bindings = ClerkBindings & {
+export type Bindings = AuthBindings & {
   DATABASE_URL?: string;
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
@@ -1336,14 +1336,7 @@ function isUuid(value: string) {
 }
 
 function currentUser(context: Context<{ Bindings: Bindings }>) {
-  return authenticatedUser(context.req.raw, {
-    CLERK_SECRET_KEY:
-      context.env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET_KEY,
-    CLERK_JWT_KEY: context.env.CLERK_JWT_KEY ?? process.env.CLERK_JWT_KEY,
-    CLERK_AUTHORIZED_PARTIES:
-      context.env.CLERK_AUTHORIZED_PARTIES ??
-      process.env.CLERK_AUTHORIZED_PARTIES,
-  });
+  return authenticatedUser(context.req.raw, {});
 }
 
 export default {

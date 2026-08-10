@@ -1,6 +1,5 @@
 import type { PageSnapshot } from "../shared/contracts";
-import { createClerkClient } from "@clerk/chrome-extension/client";
-import { apiUrl, clerkPublishableKey } from "../shared/config";
+import { apiUrl } from "../shared/config";
 
 const reactiveTimers = new Map<number, ReturnType<typeof setTimeout>>();
 const reactiveControllers = new Map<number, AbortController>();
@@ -60,16 +59,6 @@ export default defineBackground(() => {
       .catch((error) => sendResponse({ error: String(error) }));
     return true;
   });
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== "tracera:auth-token") return;
-    void freshClerkToken()
-      .then((token) => sendResponse({ token }))
-      .catch((error) => {
-        console.error("Unable to refresh the Clerk session", error);
-        sendResponse({ token: null });
-      });
-    return true;
-  });
 });
 
 function scheduleReactiveAnalysis(tabId: number, delayMs = 1_200) {
@@ -102,7 +91,7 @@ async function analyzeTabReactively(tabId: number) {
     if (cached[cacheKey] === fingerprint) return;
 
     await setBadge(tabId, "…", "#146b50");
-    const token = await freshClerkToken();
+    const token = await authToken();
     if (!token) {
       await chrome.tabs
         .sendMessage(tabId, {
@@ -166,39 +155,8 @@ function isPublicPage(url: string | undefined): url is string {
   return Boolean(url && /^https?:\/\//i.test(url));
 }
 
-async function freshClerkToken() {
-  if (!clerkPublishableKey) return null;
-  return withTimeout(
-    (async () => {
-      const clerk = await createClerkClient({
-        publishableKey: clerkPublishableKey,
-        background: true,
-      });
-      return clerk.session?.getToken() ?? null;
-    })(),
-    5_000,
-    null,
-  );
-}
-
-function withTimeout<T>(
-  promise: Promise<T>,
-  milliseconds: number,
-  fallback: T,
-) {
-  return new Promise<T>((resolve) => {
-    const timer = setTimeout(() => resolve(fallback), milliseconds);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      () => {
-        clearTimeout(timer);
-        resolve(fallback);
-      },
-    );
-  });
+async function authToken(): Promise<string | null> {
+  return null;
 }
 
 async function extractPage(

@@ -105,43 +105,6 @@ export interface AuthUser {
   createdAt: string;
 }
 
-export async function linkUserToClerk(input: {
-  clerkUserId: string;
-  email: string;
-}): Promise<AuthUser | null> {
-  const claimed = await pool.query<AuthUser>(
-    `UPDATE users
-        SET clerk_user_id = $1, updated_at = NOW()
-      WHERE email = $2
-     RETURNING id, email, created_at AS "createdAt"`,
-    [input.clerkUserId, input.email],
-  );
-  if (claimed.rows[0]) return claimed.rows[0];
-
-  const result = await pool.query<AuthUser>(
-    `INSERT INTO users (clerk_user_id, email)
-     VALUES ($1, $2)
-     ON CONFLICT (clerk_user_id) DO UPDATE
-       SET email = EXCLUDED.email, updated_at = NOW()
-     RETURNING id, email, created_at AS "createdAt"`,
-    [input.clerkUserId, input.email],
-  );
-  return result.rows[0] ?? null;
-}
-
-export async function findUserByClerkId(
-  clerkUserId: string,
-): Promise<AuthUser | null> {
-  const result = await pool.query<AuthUser>(
-    `SELECT id, email, created_at AS "createdAt"
-     FROM users
-     WHERE clerk_user_id = $1
-     LIMIT 1`,
-    [clerkUserId],
-  );
-  return result.rows[0] ?? null;
-}
-
 export async function setMediaDietPreference(
   userId: string,
   enabled: boolean,

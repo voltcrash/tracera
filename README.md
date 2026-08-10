@@ -26,7 +26,7 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 - **API:** Hono
 - **Data:** Neon Postgres, pgvector, PostgreSQL full-text search, Drizzle ORM
 - **Cache and durable work queue:** Upstash Redis REST
-- **Authentication:** Clerk
+- **Authentication:** Temporarily unavailable during the identity-system migration
 - **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible APIs
 
 ## Current deployment architecture
@@ -35,7 +35,7 @@ The Next.js web application and Hono API are deployed as separate Cloudflare Wor
 
 The API Worker connects to Neon Postgres for application data, full-text search, claim embeddings, and vector retrieval. Upstash Redis provides REST-based caching, API rate limits, and the durable ready/processing/dead-letter queue used for decay monitoring. An hourly Cloudflare Cron Trigger schedules re-analysis work, and the Worker processes queued checks without relying on a persistent server process.
 
-Clerk manages identity and sessions across clients. The API calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
+Account-backed features are temporarily unavailable during the identity-system migration. The API calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
 
 ```mermaid
 flowchart TB
@@ -54,7 +54,6 @@ flowchart TB
     subgraph Data["Data and infrastructure"]
         Neon["Neon Postgres<br/>pgvector + full-text search"]
         Upstash["Upstash Redis REST<br/>cache + rate limits + durable queue"]
-        Clerk["Clerk<br/>identity + sessions"]
     end
 
     subgraph Intelligence["Verification services"]
@@ -66,11 +65,6 @@ flowchart TB
     Web --> API
     Mobile --> API
     Extension --> API
-
-    User -. authentication .-> Clerk
-    Mobile -. authentication .-> Clerk
-    Extension -. authentication .-> Clerk
-    API -. session verification .-> Clerk
 
     API <--> Neon
     API <--> Upstash

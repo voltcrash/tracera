@@ -11,9 +11,6 @@ export default defineConfig({
       import.meta.env.WXT_TRACERA_API_URL ||
         "https://api.tracera.voltcrash.com",
     );
-    const clerkFrontendHost = apiHostPermission(
-      import.meta.env.WXT_CLERK_FRONTEND_API_URL,
-    );
     return {
       name: "Tracera",
       description: "Trace the evidence behind the article you are reading.",
@@ -28,7 +25,6 @@ export default defineConfig({
         "http://*/*",
         "https://*/*",
         ...(configuredApiHost ? [configuredApiHost] : []),
-        ...(clerkFrontendHost ? [clerkFrontendHost] : []),
       ],
       action: {
         default_title: "Analyze this page with Tracera",
