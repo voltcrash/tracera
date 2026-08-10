@@ -6,6 +6,17 @@ Tracera combats misinformation by evaluating text, links, images, and news sourc
 
 Tracera also preserves verified claims for deduplication, related-context retrieval, score re-evaluation, and timelines that show how a story's credibility changes as new evidence appears.
 
+## Features
+
+- **Multi-format analysis:** Check news presented as text, links, or images through one verification flow.
+- **Claim decomposition:** Break a story into atomic, individually verifiable factual claims instead of judging the article as a whole.
+- **Ground Zero tracing:** Identify and surface the earliest known source of a story or claim.
+- **Evidence-backed verdicts:** Cross-check each claim against reputable sources and distinguish supporting, conflicting, and inconclusive evidence.
+- **Evidence-quality confidence:** Show how strong, recent, and complete the available evidence is separately from the claim verdict.
+- **Tracera Score:** Summarize source reputation, factual skew, manipulative language, recency, and cross-source corroboration in a transparent rating.
+- **Trace timelines:** Track previous checks, reappearances, and score changes as a story develops.
+- **Verified claims corpus:** Reuse prior analysis for deduplication and related context while periodically re-checking claims as evidence changes.
+
 ## Stack
 
 - **Monorepo:** Turborepo, pnpm, TypeScript
