@@ -143,16 +143,6 @@ export default function Home() {
             onSubmit={analyze}
             className="analyze-composer mt-10 overflow-hidden rounded-[2rem] border border-emerald-950/10 bg-white shadow-[0_28px_75px_-46px_rgba(16,34,31,.62)]"
           >
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-950/8 px-5 py-4 sm:px-6">
-              <div className="flex flex-wrap gap-2">
-                <InputBadge icon="Aa" label="Text" active={!image} />
-                <InputBadge icon="↗" label="Link" />
-                <InputBadge icon="◫" label="Image" active={Boolean(image)} />
-              </div>
-              <span className="text-[9px] font-black tracking-[.14em] text-emerald-950/35">
-                MULTI-FORMAT ANALYSIS
-              </span>
-            </div>
             <label className="sr-only" htmlFor="story-input">
               Story or claim to analyze
             </label>
@@ -198,8 +188,9 @@ export default function Home() {
                 >
                   ✦ Try an example
                 </button>
-                <label className="cursor-pointer text-xs font-black text-emerald-800 transition hover:text-emerald-600">
-                  ◫ Add image
+                <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-black text-emerald-800 transition hover:text-emerald-600">
+                  <ImageIcon />
+                  Add image
                   <input
                     type="file"
                     accept="image/*"
@@ -321,24 +312,22 @@ export default function Home() {
   );
 }
 
-function InputBadge({
-  icon,
-  label,
-  active = false,
-}: {
-  icon: string;
-  label: string;
-  active?: boolean;
-}) {
+function ImageIcon() {
   return (
-    <span
-      className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[10px] font-black ${active ? "bg-emerald-950 text-white" : "bg-emerald-950/5 text-emerald-950/45"}`}
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-4"
     >
-      <span className={active ? "text-[#9cf0d1]" : "text-emerald-700"}>
-        {icon}
-      </span>
-      {label}
-    </span>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
+    </svg>
   );
 }
 
