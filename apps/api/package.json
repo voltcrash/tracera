@@ -12,6 +12,7 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@repo/auth": "workspace:*",
     "@repo/ai": "workspace:*",
     "@repo/db": "workspace:*",
     "@upstash/redis": "^1.38.2",

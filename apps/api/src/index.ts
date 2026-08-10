@@ -1336,7 +1336,14 @@ function isUuid(value: string) {
 }
 
 function currentUser(context: Context<{ Bindings: Bindings }>) {
-  return authenticatedUser(context.req.raw, {});
+  return authenticatedUser(context.req.raw, {
+    BETTER_AUTH_SECRET:
+      context.env.BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
+    GOOGLE_CLIENT_ID:
+      context.env.GOOGLE_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET:
+      context.env.GOOGLE_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
+  });
 }
 
 export default {

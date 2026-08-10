@@ -99,6 +99,13 @@
       "when": 1786275000000,
       "tag": "0014_full_text_search",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1786350000000,
+      "tag": "0015_better_auth",
+      "breakpoints": true
     }
   ]
 }

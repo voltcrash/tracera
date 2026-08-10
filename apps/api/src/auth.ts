@@ -1,6 +1,7 @@
+import { createAuth, type AuthRuntimeEnv } from "@repo/auth";
 import type { AuthUser } from "@repo/db";
 
-export type AuthBindings = Record<never, never>;
+export type AuthBindings = AuthRuntimeEnv;
 
 export function normalizeEmail(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -11,8 +12,21 @@ export function isValidEmail(email: string) {
 }
 
 export async function authenticatedUser(
-  _request: Request,
-  _env: AuthBindings,
+  request: Request,
+  env: AuthBindings,
 ): Promise<AuthUser | null> {
-  return null;
+  try {
+    const session = await createAuth(env).api.getSession({
+      headers: request.headers,
+    });
+    if (!session) return null;
+    return {
+      id: session.user.id,
+      email: session.user.email,
+      createdAt: session.user.createdAt.toISOString(),
+    };
+  } catch (error) {
+    console.warn("Session verification failed", error);
+    return null;
+  }
 }
