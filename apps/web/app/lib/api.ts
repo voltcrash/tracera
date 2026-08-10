@@ -1,3 +1,2 @@
-export const apiUrl = (
-  process.env.NEXT_PUBLIC_API_URL ?? "https://api.tracera.voltcrash.com"
-).replace(/\/$/, "");
+/** Browser API traffic stays on the Tracera origin and is proxied server-side. */
+export const apiUrl = "/api/tracera";

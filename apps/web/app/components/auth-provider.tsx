@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo } from "react";
+import { authClient } from "../lib/auth-client";
 
 export type AuthUser = {
   id: string;
@@ -18,18 +19,30 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const session = authClient.useSession();
   const apiFetch = useCallback(
-    (input: string, init: RequestInit = {}) => fetch(input, init),
+    (input: string, init: RequestInit = {}) =>
+      fetch(input, { ...init, credentials: "include" }),
     [],
   );
+  const user = useMemo<AuthUser | null>(() => {
+    if (!session.data?.user) return null;
+    return {
+      id: session.data.user.id,
+      email: session.data.user.email,
+      createdAt: new Date(session.data.user.createdAt).toISOString(),
+    };
+  }, [session.data?.user]);
   const value = useMemo<AuthContextValue>(
     () => ({
-      user: null,
-      isLoading: false,
+      user,
+      isLoading: session.isPending,
       apiFetch,
-      signOut: async () => undefined,
+      signOut: async () => {
+        await authClient.signOut();
+      },
     }),
-    [apiFetch],
+    [apiFetch, session.isPending, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
