@@ -36,3 +36,48 @@ The Next.js web application and Hono API are deployed as separate Cloudflare Wor
 The API Worker connects to Neon Postgres for application data, full-text search, claim embeddings, and vector retrieval. Upstash Redis provides REST-based caching, API rate limits, and the durable ready/processing/dead-letter queue used for decay monitoring. An hourly Cloudflare Cron Trigger schedules re-analysis work, and the Worker processes queued checks without relying on a persistent server process.
 
 Clerk manages identity and sessions across clients. The API calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
+
+```mermaid
+flowchart TB
+    subgraph Clients
+        User["Web user"]
+        Mobile["Mobile app<br/>React Native + Expo"]
+        Extension["Browser extension<br/>WXT + Manifest V3"]
+    end
+
+    subgraph Cloudflare["Cloudflare"]
+        Web["Web Worker<br/>Next.js<br/>tracera.voltcrash.com"]
+        API["API Worker<br/>Hono<br/>api.tracera.voltcrash.com"]
+        Cron["Hourly Cron Trigger"]
+    end
+
+    subgraph Data["Data and infrastructure"]
+        Neon["Neon Postgres<br/>pgvector + full-text search"]
+        Upstash["Upstash Redis REST<br/>cache + rate limits + durable queue"]
+        Clerk["Clerk<br/>identity + sessions"]
+    end
+
+    subgraph Intelligence["Verification services"]
+        AI["Hosted AI providers<br/>generation + embeddings"]
+        Retrieval["External retrieval services<br/>fact checks + news + web search"]
+    end
+
+    User --> Web
+    Web --> API
+    Mobile --> API
+    Extension --> API
+
+    User -. authentication .-> Clerk
+    Mobile -. authentication .-> Clerk
+    Extension -. authentication .-> Clerk
+    API -. session verification .-> Clerk
+
+    API <--> Neon
+    API <--> Upstash
+    API --> AI
+    API --> Retrieval
+
+    Cron --> API
+    API -->|enqueue re-analysis| Upstash
+    Upstash -->|process queued checks| API
+```
