@@ -13,8 +13,14 @@ CREATE TABLE "users" (
 );
 
 UPDATE "checks" SET "owner_user_id" = NULL;
+UPDATE "domain_trust_events" SET "reviewer_user_id" = NULL;
+TRUNCATE TABLE "media_diet_preferences";
 ALTER TABLE "checks" ADD CONSTRAINT "checks_owner_user_id_users_id_fk"
   FOREIGN KEY ("owner_user_id") REFERENCES "users"("id") ON DELETE SET NULL;
+ALTER TABLE "domain_trust_events" ADD CONSTRAINT "domain_trust_events_reviewer_user_id_users_id_fk"
+  FOREIGN KEY ("reviewer_user_id") REFERENCES "users"("id") ON DELETE SET NULL;
+ALTER TABLE "media_diet_preferences" ADD CONSTRAINT "media_diet_preferences_user_id_users_id_fk"
+  FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;
 
 CREATE TABLE "sessions" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
