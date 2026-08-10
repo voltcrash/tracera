@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
-const TRACERA_API_URL = "https://api.tracera.voltcrash.com";
+const TRACERA_API_URL =
+  process.env.TRACERA_API_URL ?? "https://api.tracera.voltcrash.com";
 
 export async function GET() {
   try {
