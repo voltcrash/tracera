@@ -26,16 +26,18 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 - **API:** Hono
 - **Data:** Neon Postgres, pgvector, PostgreSQL full-text search, Drizzle ORM
 - **Cache and durable work queue:** Upstash Redis REST
-- **Authentication:** Temporarily unavailable during the identity-system migration
+- **Authentication:** Better Auth with Google OAuth, Drizzle, and Neon Postgres
 - **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible APIs
 
 ## Current deployment architecture
 
-The Next.js web application and Hono API are deployed as separate Cloudflare Workers. The web Worker serves the product at `tracera.voltcrash.com`, while all web, mobile, and browser-extension clients communicate with the API Worker at `api.tracera.voltcrash.com`.
+The Next.js web application and Hono API are deployed as separate Cloudflare Workers. The web Worker serves the product at `tracera.voltcrash.com`. Browser and extension requests use the first-party `/api/tracera/*` proxy on that origin; the proxy communicates with the API Worker at `api.tracera.voltcrash.com` server-side. The mobile app communicates with the API Worker directly.
 
 The API Worker connects to Neon Postgres for application data, full-text search, claim embeddings, and vector retrieval. Upstash Redis provides REST-based caching, API rate limits, and the durable ready/processing/dead-letter queue used for decay monitoring. An hourly Cloudflare Cron Trigger schedules re-analysis work, and the Worker processes queued checks without relying on a persistent server process.
 
-Account-backed features are temporarily unavailable during the identity-system migration. The API calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
+Better Auth is mounted by the web Worker at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google is the only enabled identity provider. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit OAuth redirect leaves the site for Google's account flow. The API Worker validates the same Better Auth session for authenticated web, mobile, and extension requests.
+
+The API calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
 
 ```mermaid
 flowchart TB
@@ -61,10 +63,10 @@ flowchart TB
         Retrieval["External retrieval services<br/>fact checks + news + web search"]
     end
 
-    User --> Web
-    Web --> API
-    Mobile --> API
-    Extension --> API
+    User -->|same-origin /api/auth/* and /api/tracera/*| Web
+    Extension -->|same-origin session and API proxy| Web
+    Web -->|server-side proxy| API
+    Mobile -->|Better Auth bearer session| API
 
     API <--> Neon
     API <--> Upstash
