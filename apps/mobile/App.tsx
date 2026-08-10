@@ -216,6 +216,18 @@ function TraceraApp() {
   async function trace() {
     const value = input.trim();
     if (!value && !image) return;
+    if (!authUser) {
+      Alert.alert(
+        "Sign in to start a fact-check",
+        "Log in or create an account to trace this item against the evidence.",
+        [
+          { text: "Not now", style: "cancel" },
+          { text: "Create account", onPress: () => setAuthMode("signup") },
+          { text: "Log in", onPress: () => setAuthMode("login") },
+        ],
+      );
+      return;
+    }
 
     setIsTracing(true);
     setError(null);

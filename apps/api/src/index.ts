@@ -507,12 +507,24 @@ type ProgressEmitter = (progress: AnalysisProgress) => void;
 
 app.post("/analyze", async (context) => {
   const body = await context.req.json().catch(() => null);
+  if (!(await canRunAnalysis(context, body))) {
+    return context.json(
+      { error: "Sign in or create an account to start a fact-check." },
+      401,
+    );
+  }
   const result = await runAnalysis(context, body);
   return context.json(result.payload, result.status);
 });
 
 app.post("/analyze/stream", async (context) => {
   const body = await context.req.json().catch(() => null);
+  if (!(await canRunAnalysis(context, body))) {
+    return context.json(
+      { error: "Sign in or create an account to start a fact-check." },
+      401,
+    );
+  }
   const encoder = new TextEncoder();
   let cancelled = false;
   const stream = new ReadableStream<Uint8Array>({
@@ -1255,7 +1267,10 @@ async function normalizeWithStoredFallback(
 }
 
 /** Scheduled rechecks are the only callers allowed to bypass input deduplication. */
-function authorizedRecheckId(context: Context, body: unknown) {
+function authorizedRecheckId(
+  context: Context<{ Bindings: Bindings }>,
+  body: unknown,
+) {
   const recheckOf =
     body &&
     typeof body === "object" &&
@@ -1264,12 +1279,35 @@ function authorizedRecheckId(context: Context, body: unknown) {
       : undefined;
   if (!recheckOf) return null;
 
-  const token = process.env.INTERNAL_WORKER_TOKEN;
+  const token =
+    context.env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
   if (!token || context.req.header("x-tracera-worker-token") !== token) {
     throw new Error("Unauthorized recheck request.");
   }
   if (!isUuid(recheckOf)) throw new Error("Invalid recheck target.");
   return recheckOf;
+}
+
+async function canRunAnalysis(
+  context: Context<{ Bindings: Bindings }>,
+  body: unknown,
+) {
+  if (await currentUser(context)) return true;
+
+  const recheckOf =
+    body &&
+    typeof body === "object" &&
+    typeof (body as { recheckOf?: unknown }).recheckOf === "string"
+      ? (body as { recheckOf: string }).recheckOf
+      : undefined;
+  if (!recheckOf) return false;
+
+  const configuredToken =
+    context.env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
+  return Boolean(
+    configuredToken &&
+    context.req.header("x-tracera-worker-token") === configuredToken,
+  );
 }
 
 function requestedVisibility(

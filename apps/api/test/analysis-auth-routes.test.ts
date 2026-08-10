@@ -1,0 +1,29 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { app, type Bindings } from "../src/index.js";
+
+const env = {
+  DATABASE_URL: "postgresql://user:password@localhost/tracera",
+  BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long",
+  GOOGLE_CLIENT_ID: "test-client-id",
+  GOOGLE_CLIENT_SECRET: "test-client-secret",
+} satisfies Bindings;
+
+for (const path of ["/analyze", "/analyze/stream"]) {
+  test(`${path} requires a signed-in user`, async () => {
+    const response = await app.request(
+      path,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: "A claim to check." }),
+      },
+      env,
+    );
+
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), {
+      error: "Sign in or create an account to start a fact-check.",
+    });
+  });
+}

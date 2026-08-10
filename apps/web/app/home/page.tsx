@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   AnalysisResult,
   type ClaimResult,
@@ -39,7 +40,7 @@ type AnalysisResponse = {
 };
 
 export default function Home() {
-  const { apiFetch, user } = useAuth();
+  const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
   const [text, setText] = useState("");
   const [image, setImage] = useState<{
     dataUrl: string;
@@ -51,6 +52,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("Preparing the evidence trace.");
   const [privateTrace, setPrivateTrace] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
   async function analyze(
     event?: FormEvent<HTMLFormElement>,
@@ -58,6 +60,11 @@ export default function Home() {
   ) {
     event?.preventDefault();
     if (!text.trim() && !image) return;
+    if (!user) {
+      setShowAuthPrompt(true);
+      return;
+    }
+    setShowAuthPrompt(false);
     setLoading(true);
     setError(null);
     setResult(null);
@@ -192,7 +199,9 @@ export default function Home() {
               </div>
               <button
                 type="submit"
-                disabled={loading || (!text.trim() && !image)}
+                disabled={
+                  loading || isAuthLoading || (!text.trim() && !image)
+                }
                 className="inline-flex items-center gap-2 rounded-xl bg-emerald-950 px-5 py-3 text-sm font-black text-white shadow-[3px_3px_0_#8ee8cb] transition hover:-translate-y-0.5 hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               >
                 {loading ? (
@@ -218,6 +227,31 @@ export default function Home() {
               </label>
             )}
           </form>
+          {showAuthPrompt && !user && (
+            <div
+              className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center text-sm text-emerald-950"
+              role="status"
+            >
+              <p className="font-bold">Sign in to start this fact-check.</p>
+              <p className="mt-1 text-emerald-950/65">
+                Log in or create an account to trace it against the evidence.
+              </p>
+              <div className="mt-4 flex justify-center gap-2">
+                <Link
+                  href="/login"
+                  className="rounded-xl bg-emerald-950 px-4 py-2.5 font-black text-white transition hover:bg-emerald-800"
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/signup"
+                  className="rounded-xl border border-emerald-950/15 bg-white px-4 py-2.5 font-black text-emerald-950 transition hover:bg-emerald-100"
+                >
+                  Create account
+                </Link>
+              </div>
+            </div>
+          )}
           <p className="mt-4 text-center text-xs font-medium text-emerald-950/45">
             Links are detected automatically. Images up to 5 MB can be checked
             for visible text.
