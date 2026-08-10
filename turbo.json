@@ -2,7 +2,6 @@
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "globalEnv": [
-    "REDIS_URL",
     "TRACERA_API_URL",
     "NEXT_PUBLIC_API_URL",
     "NEXT_PUBLIC_SITE_URL",
@@ -18,12 +17,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [
-        ".next/**",
-        "!.next/cache/**",
-        "!.next/dev/**",
-        "dist/**"
-      ]
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "dist/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]

@@ -41,10 +41,6 @@ yarn-error.log*
 .pnpm-store/
 .tmp-tracera-deck/
 tmp/
-draft_rag/**/venv/
-draft_rag/**/__pycache__/
-draft_rag/**/.pytest_cache/
-draft_rag/**/data/
 apps/extension/.wxt/
 apps/extension/.output/
 apps/extension/node_modules/
