@@ -284,46 +284,6 @@ export async function findRelatedClaimsByEmbedding(
   }));
 }
 
-/** Finds the closest recent input above the deduplication similarity threshold. */
-export async function findRecentCheckByEmbedding(
-  embedding: number[],
-  similarityThreshold: number,
-  maxAgeHours: number,
-): Promise<CachedCheck | null> {
-  const result = await pool.query<{
-    id: string;
-    raw_input: string;
-    tracera_score: unknown;
-    analysis: StoredAnalysis;
-    created_at: string;
-    expires_at: string;
-    similarity: number;
-  }>(
-    `SELECT id, raw_input, tracera_score, analysis, created_at,
-       created_at + ($2 * INTERVAL '1 hour') AS expires_at,
-       1 - (embedding <=> $1::vector) AS similarity
-     FROM checks
-     WHERE created_at >= NOW() - ($2 * INTERVAL '1 hour')
-       AND 1 - (embedding <=> $1::vector) >= $3
-     ORDER BY embedding <=> $1::vector
-     LIMIT 1`,
-    [toVector(embedding), maxAgeHours, similarityThreshold],
-  );
-  const row = result.rows[0];
-
-  return row
-    ? {
-        id: row.id,
-        rawInput: row.raw_input,
-        traceraScore: row.tracera_score,
-        analysis: row.analysis,
-        createdAt: row.created_at,
-        similarity: Number(row.similarity),
-        expiresAt: row.expires_at,
-      }
-    : null;
-}
-
 /** Reuses only a normalized-identical submission within the configured window. */
 export async function findReusableExactCheck(
   rawInput: string,
