@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useState } from "react";
+import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -102,6 +102,25 @@ export default function Home() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+
+    await addImage(file);
+  }
+
+  function pasteImage(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const file =
+      Array.from(event.clipboardData.items)
+        .find((item) => item.kind === "file" && item.type.startsWith("image/"))
+        ?.getAsFile() ??
+      Array.from(event.clipboardData.files).find((item) =>
+        item.type.startsWith("image/"),
+      );
+    if (!file) return;
+
+    event.preventDefault();
+    void addImage(file, "Pasted image");
+  }
+
+  async function addImage(file: File, fallbackName = "Image") {
     if (!file.type.startsWith("image/")) {
       setError("Choose an image file to analyze.");
       return;
@@ -110,12 +129,20 @@ export default function Home() {
       setError("Choose an image smaller than 5 MB.");
       return;
     }
-    setError(null);
-    setImage({
-      dataUrl: await readFileAsDataUrl(file),
-      mimeType: file.type,
-      name: file.name,
-    });
+    try {
+      setError(null);
+      setImage({
+        dataUrl: await readFileAsDataUrl(file),
+        mimeType: file.type,
+        name: file.name || fallbackName,
+      });
+    } catch (readError) {
+      setError(
+        readError instanceof Error
+          ? readError.message
+          : "The image could not be read.",
+      );
+    }
   }
 
   return (
@@ -172,10 +199,11 @@ export default function Home() {
                 id="story-input"
                 value={text}
                 onChange={(event) => setText(event.target.value)}
+                onPaste={pasteImage}
                 disabled={loading}
                 required={!image}
                 rows={5}
-                placeholder="Paste a headline, claim, article, or public link…"
+                placeholder="Paste a headline, claim, article, public link, or image…"
                 className="min-h-44 w-full resize-none bg-transparent p-6 text-base font-medium leading-7 outline-none placeholder:text-emerald-950/28 disabled:bg-slate-50 sm:min-h-48 sm:p-7"
               />
             )}
