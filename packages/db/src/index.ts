@@ -663,7 +663,9 @@ export async function listChecks(
   const [items, total] = await Promise.all([
     pool.query<{
       id: string;
+      input_type: string;
       raw_input: string;
+      primary_claim: string | null;
       tracera_score: unknown;
       created_at: string;
       source_domain: string | null;
@@ -673,7 +675,15 @@ export async function listChecks(
       visibility: "public" | "private";
       appearance_count: string;
     }>(
-      `SELECT item.id, item.raw_input, item.tracera_score, item.created_at,
+      `SELECT item.id, item.input_type, item.raw_input,
+              COALESCE(
+                item.analysis #>> '{claims,0,claim,claimText}',
+                (SELECT claim.claim_text FROM claims claim
+                  WHERE claim.check_id = item.id
+                  ORDER BY claim.created_at, claim.id
+                  LIMIT 1)
+              ) AS primary_claim,
+              item.tracera_score, item.created_at,
               item.source_domain, item.source_url, item.published_at,
               item.next_review_at, item.visibility,
               (WITH RECURSIVE ancestors AS (
@@ -729,7 +739,9 @@ export async function listChecks(
   return {
     checks: items.rows.map((row) => ({
       id: row.id,
-      rawInput: snippet(row.raw_input),
+      rawInput: snippet(
+        displayInput(row.input_type, row.raw_input, row.primary_claim),
+      ),
       traceraScore: row.tracera_score,
       createdAt: row.created_at,
       sourceDomain: row.source_domain,
@@ -757,6 +769,7 @@ export async function getCheckById(
     id: string;
     input_type: string;
     raw_input: string;
+    primary_claim: string | null;
     tracera_score: unknown;
     analysis: StoredAnalysis;
     created_at: string;
@@ -768,7 +781,16 @@ export async function getCheckById(
     visibility: "public" | "private";
     owner_user_id: string | null;
   }>(
-    `SELECT id, input_type, raw_input, tracera_score, analysis, created_at, source_domain, source_url, published_at, ground_zero, next_review_at, visibility, owner_user_id
+    `SELECT id, input_type, raw_input,
+            COALESCE(
+              analysis #>> '{claims,0,claim,claimText}',
+              (SELECT claim.claim_text FROM claims claim
+                WHERE claim.check_id = checks.id
+                ORDER BY claim.created_at, claim.id
+                LIMIT 1)
+            ) AS primary_claim,
+            tracera_score, analysis, created_at, source_domain, source_url,
+            published_at, ground_zero, next_review_at, visibility, owner_user_id
      FROM checks
      WHERE id = $1 AND ($3::boolean OR visibility = 'public' OR owner_user_id = $2)
      LIMIT 1`,
@@ -781,6 +803,11 @@ export async function getCheckById(
         id: row.id,
         inputType: row.input_type,
         rawInput: row.raw_input,
+        displayInput: displayInput(
+          row.input_type,
+          row.raw_input,
+          row.primary_claim,
+        ),
         traceraScore: row.tracera_score,
         analysis: row.analysis,
         createdAt: row.created_at,
@@ -803,6 +830,15 @@ export async function findLatestCheckByRawInput(rawInput: string) {
     [rawInput],
   );
   return result.rows[0]?.analysis ?? null;
+}
+
+function displayInput(
+  inputType: string,
+  rawInput: string,
+  primaryClaim: string | null,
+) {
+  if (inputType !== "image") return rawInput;
+  return primaryClaim?.trim() || "Image-based trace";
 }
 
 function snippet(input: string) {

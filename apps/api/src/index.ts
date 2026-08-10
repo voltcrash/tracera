@@ -911,7 +911,10 @@ app.get("/checks/:id", async (context) => {
     const user = await currentUser(context);
     const check = await getCheckById(id, user?.id);
     if (!check) return context.json({ error: "Check not found." }, 404);
-    return context.json({ check });
+    const { rawInput: _rawInput, displayInput, ...checkDetails } = check;
+    return context.json({
+      check: { ...checkDetails, rawInput: displayInput },
+    });
   } catch (error) {
     console.error("Could not retrieve check", error);
     return context.json(
