@@ -106,6 +106,13 @@
       "when": 1786350000000,
       "tag": "0015_better_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786377800000,
+      "tag": "0016_bound_check_search_document",
+      "breakpoints": true
     }
   ]
 }
