@@ -120,45 +120,58 @@ export default function Home() {
 
   return (
     <main className="app-enter paper-grid min-h-screen bg-[#f4f6f2] text-emerald-950">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <AppHeader active="home" />
-        <section className="mx-auto flex min-h-[calc(100vh-10rem)] max-w-3xl flex-col justify-center py-16 sm:py-24">
+        <section
+          className={`mx-auto flex max-w-4xl flex-col justify-center ${result || loading ? "py-12 sm:py-16" : "min-h-[calc(100vh-10rem)] py-16 sm:py-24"}`}
+        >
           <div className="text-center">
-            <p className="text-[10px] font-black tracking-[.2em] text-emerald-700">
+            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-950/10 bg-white/70 px-3 py-1.5 text-[10px] font-black tracking-[.17em] text-emerald-700 shadow-sm">
+              <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" />
               START A TRACE
             </p>
-            <h1 className="mt-4 text-4xl font-black tracking-[-.065em] sm:text-6xl">
-              What would you like to check?
+            <h1 className="mt-5 text-4xl font-black leading-[.94] tracking-[-.07em] sm:text-6xl">
+              Trace a story to its source.
             </h1>
-            <p className="mx-auto mt-4 max-w-lg text-base leading-7 text-emerald-950/60">
-              Paste a claim, headline, article, or link. We’ll trace it back to
-              the evidence.
+            <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-emerald-950/58">
+              Paste what you&apos;ve seen. Tracera will separate the claims,
+              retrieve the evidence, and show exactly how the verdict was built.
             </p>
           </div>
 
           <form
             onSubmit={analyze}
-            className="mt-10 rounded-[2rem] border border-emerald-950/10 bg-white p-3 shadow-[0_25px_70px_-42px_rgba(16,34,31,.55)] sm:p-4"
+            className="analyze-composer mt-10 overflow-hidden rounded-[2rem] border border-emerald-950/10 bg-white shadow-[0_28px_75px_-46px_rgba(16,34,31,.62)]"
           >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-950/8 px-5 py-4 sm:px-6">
+              <div className="flex flex-wrap gap-2">
+                <InputBadge icon="Aa" label="Text" active={!image} />
+                <InputBadge icon="↗" label="Link" />
+                <InputBadge icon="◫" label="Image" active={Boolean(image)} />
+              </div>
+              <span className="text-[9px] font-black tracking-[.14em] text-emerald-950/35">
+                MULTI-FORMAT ANALYSIS
+              </span>
+            </div>
             <label className="sr-only" htmlFor="story-input">
               Story or claim to analyze
             </label>
             {image ? (
-              <div className="relative overflow-hidden rounded-[1.35rem] bg-[#f8faf7] p-4">
+              <div className="relative m-3 overflow-hidden rounded-[1.35rem] bg-[#f3f7f3] p-4 sm:m-4">
                 <Image
                   src={image.dataUrl}
                   alt="Selected for analysis"
                   width={800}
                   height={400}
                   unoptimized
-                  className="h-52 w-full rounded-xl object-contain"
+                  className="h-56 w-full rounded-xl object-contain"
                 />
                 <div className="mt-3 flex items-center justify-between gap-3 text-sm font-semibold text-emerald-950/70">
                   <span className="truncate">{image.name}</span>
                   <button
                     type="button"
                     onClick={() => setImage(null)}
-                    className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-emerald-800 shadow-sm"
+                    className="shrink-0 rounded-lg border border-emerald-950/8 bg-white px-3 py-1.5 text-xs font-black text-emerald-800 shadow-sm"
                   >
                     Remove
                   </button>
@@ -172,21 +185,21 @@ export default function Home() {
                 disabled={loading}
                 required={!image}
                 rows={5}
-                placeholder="Paste a story, claim, or link…"
-                className="w-full resize-none rounded-[1.35rem] bg-[#f8faf7] p-5 text-base leading-7 outline-none placeholder:text-emerald-950/30 focus:bg-white focus:ring-4 focus:ring-emerald-100 disabled:bg-slate-100 sm:p-6"
+                placeholder="Paste a headline, claim, article, or public link…"
+                className="min-h-44 w-full resize-none bg-transparent p-6 text-base font-medium leading-7 outline-none placeholder:text-emerald-950/28 disabled:bg-slate-50 sm:min-h-48 sm:p-7"
               />
             )}
-            <div className="flex items-center justify-between gap-4 px-2 pb-2 pt-3 sm:px-3">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-emerald-950/8 bg-[#f7f9f6] px-5 py-4 sm:px-6">
+              <div className="flex items-center gap-4">
                 <button
                   type="button"
                   onClick={() => setText(example)}
-                  className="text-sm font-bold text-emerald-800 transition hover:text-emerald-600"
+                  className="text-xs font-black text-emerald-800 transition hover:text-emerald-600"
                 >
-                  Try an example
+                  ✦ Try an example
                 </button>
-                <label className="cursor-pointer text-sm font-bold text-emerald-800 transition hover:text-emerald-600">
-                  Add image
+                <label className="cursor-pointer text-xs font-black text-emerald-800 transition hover:text-emerald-600">
+                  ◫ Add image
                   <input
                     type="file"
                     accept="image/*"
@@ -199,10 +212,8 @@ export default function Home() {
               </div>
               <button
                 type="submit"
-                disabled={
-                  loading || isAuthLoading || (!text.trim() && !image)
-                }
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-950 px-5 py-3 text-sm font-black text-white shadow-[3px_3px_0_#8ee8cb] transition hover:-translate-y-0.5 hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                disabled={loading || isAuthLoading || (!text.trim() && !image)}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-950 px-5 py-3.5 text-sm font-black text-white shadow-[3px_3px_0_#8ee8cb] transition hover:-translate-y-0.5 hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               >
                 {loading ? (
                   <>
@@ -216,13 +227,14 @@ export default function Home() {
               </button>
             </div>
             {user && (
-              <label className="mt-1 flex cursor-pointer items-center gap-2 px-3 pb-2 text-xs font-semibold text-emerald-950/60">
+              <label className="flex cursor-pointer items-center gap-2 border-t border-emerald-950/8 px-6 py-3 text-[10px] font-bold text-emerald-950/48">
                 <input
                   type="checkbox"
                   checked={privateTrace}
                   onChange={(event) => setPrivateTrace(event.target.checked)}
                   disabled={loading}
-                />{" "}
+                  className="accent-emerald-800"
+                />
                 Keep this trace private
               </label>
             )}
@@ -252,24 +264,11 @@ export default function Home() {
               </div>
             </div>
           )}
-          <p className="mt-4 text-center text-xs font-medium text-emerald-950/45">
-            Links are detected automatically. Images up to 5 MB can be checked
-            for visible text.
+          <p className="mt-4 text-center text-[10px] font-bold tracking-[.04em] text-emerald-950/38">
+            LINKS DETECT AUTOMATICALLY · IMAGES UP TO 5 MB · PRIVATE BY CHOICE
           </p>
 
-          {loading && (
-            <div
-              className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
-              role="status"
-            >
-              <Spinner />
-              <span>
-                <strong>{progress}</strong>
-                <br />
-                Results will appear as soon as the complete trace is ready.
-              </span>
-            </div>
-          )}
+          {loading && <TraceProgress progress={progress} />}
           {error && (
             <p
               className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
@@ -280,10 +279,21 @@ export default function Home() {
           )}
         </section>
         {result && (
-          <section className="pb-16">
-            <div className="mb-2 flex items-center gap-2 text-sm font-bold text-emerald-700">
-              <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.15)]" />{" "}
-              Analysis complete{" "}
+          <section className="pb-20">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-950/10 bg-white/70 px-5 py-4 shadow-[0_16px_40px_-34px_rgba(16,34,31,.6)]">
+              <div className="flex items-center gap-3">
+                <span className="grid size-9 place-items-center rounded-xl bg-emerald-950 text-[#9cf0d1]">
+                  ✓
+                </span>
+                <div>
+                  <p className="text-[9px] font-black tracking-[.16em] text-emerald-700">
+                    TRACE COMPLETE
+                  </p>
+                  <p className="mt-0.5 text-sm font-black text-emerald-950">
+                    Evidence trail assembled
+                  </p>
+                </div>
+              </div>
               <ReuseNotice reuse={result.reuse} cached={result.cached} />
             </div>
             <AnalysisResult
@@ -309,6 +319,97 @@ export default function Home() {
       </div>
     </main>
   );
+}
+
+function InputBadge({
+  icon,
+  label,
+  active = false,
+}: {
+  icon: string;
+  label: string;
+  active?: boolean;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[10px] font-black ${active ? "bg-emerald-950 text-white" : "bg-emerald-950/5 text-emerald-950/45"}`}
+    >
+      <span className={active ? "text-[#9cf0d1]" : "text-emerald-700"}>
+        {icon}
+      </span>
+      {label}
+    </span>
+  );
+}
+
+const traceStages = [
+  { label: "Prepare", detail: "Read submission" },
+  { label: "Claims", detail: "Separate facts" },
+  { label: "Evidence", detail: "Check sources" },
+  { label: "Origin", detail: "Trace Ground Zero" },
+  { label: "Complete", detail: "Save the trail" },
+];
+
+function TraceProgress({ progress }: { progress: string }) {
+  const current = traceProgressIndex(progress);
+  return (
+    <section
+      className="trace-progress-panel noise mt-6 overflow-hidden rounded-[2rem] bg-[#0e3028] p-6 text-white shadow-[0_28px_65px_-36px_rgba(6,78,59,.8)] sm:p-7"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-[9px] font-black tracking-[.18em] text-[#9cf0d1]">
+            LIVE EVIDENCE TRACE
+          </p>
+          <h2 className="mt-2 text-xl font-black tracking-[-.035em]">
+            {progress}
+          </h2>
+        </div>
+        <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1.5 text-[9px] font-black text-white/58">
+          <Spinner /> ANALYZING
+        </span>
+      </div>
+      <ol className="relative z-10 mt-7 grid gap-2 sm:grid-cols-5">
+        {traceStages.map((stage, index) => {
+          const state =
+            index < current ? "done" : index === current ? "active" : "waiting";
+          return (
+            <li
+              key={stage.label}
+              className={`trace-progress-step trace-progress-step-${state}`}
+            >
+              <span className="trace-progress-number">
+                {state === "done" ? "✓" : String(index + 1).padStart(2, "0")}
+              </span>
+              <span>
+                <strong>{stage.label}</strong>
+                <small>{stage.detail}</small>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="relative z-10 mt-5 h-1 overflow-hidden rounded-full bg-white/10">
+        <span
+          className="trace-progress-bar block h-full rounded-full bg-[#9cf0d1]"
+          style={{ width: `${((current + 1) / traceStages.length) * 100}%` }}
+        />
+      </div>
+    </section>
+  );
+}
+
+function traceProgressIndex(progress: string) {
+  const message = progress.toLowerCase();
+  if (message.includes("saved") || message.includes("completed")) return 4;
+  if (message.includes("earliest") || message.includes("publication")) return 3;
+  if (message.includes("evidence") || message.includes("scored claim"))
+    return 2;
+  if (message.includes("separating") || message.includes("factual claims"))
+    return 1;
+  return 0;
 }
 
 async function readAnalysisStream(
@@ -353,42 +454,72 @@ async function readAnalysisStream(
 function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
   const exif = Object.entries(metadata.exif ?? {});
   return (
-    <section className="mt-6 rounded-3xl border border-emerald-950/10 bg-white p-6 text-sm text-emerald-950/70 shadow-[0_8px_30px_-18px_rgba(16,34,31,.3)]">
-      <p className="text-[10px] font-black tracking-[.18em] text-emerald-800">
-        IMAGE PROVENANCE
-      </p>
-      <p className="mt-2">
-        OCR:{" "}
-        {metadata.ocrProvider === "configured"
-          ? "configured OCR provider"
-          : "fallback OCR processing"}{" "}
-        · {metadata.mimeType ?? "unknown image type"}
-      </p>
-      {exif.length ? (
-        <dl className="mt-3 grid gap-1">
-          {exif.map(([key, value]) => (
-            <div key={key}>
-              <dt className="inline font-bold">{key}: </dt>
-              <dd className="inline">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <p className="mt-2 text-emerald-950/50">
-          No embedded EXIF details were available.
-        </p>
-      )}
-      {metadata.reverseSearchUrl && (
-        <a
-          href={metadata.reverseSearchUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-block font-bold text-emerald-800 underline"
-        >
-          Search this image on Google Lens →
-        </a>
-      )}
+    <section className="landing-view-reveal mt-5 overflow-hidden rounded-[2rem] border border-violet-950/10 bg-[#eee8fb] p-6 shadow-[0_24px_60px_-46px_rgba(16,34,31,.5)] sm:p-8">
+      <div className="grid gap-7 sm:grid-cols-[.75fr_1.25fr] sm:items-start">
+        <div>
+          <p className="text-[10px] font-black tracking-[.18em] text-violet-700">
+            IMAGE PROVENANCE
+          </p>
+          <h2 className="mt-3 text-2xl font-black leading-tight tracking-[-.045em] text-violet-950">
+            The file leaves clues too.
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-violet-950/55">
+            Visible text and embedded metadata were inspected alongside the
+            claims.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-violet-950/8 bg-white/65 p-4">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <ProvenanceMetric
+              label="OCR"
+              value={
+                metadata.ocrProvider === "configured"
+                  ? "Provider verified"
+                  : "Model fallback"
+              }
+            />
+            <ProvenanceMetric
+              label="File type"
+              value={metadata.mimeType ?? "Unknown"}
+            />
+            {exif.slice(0, 4).map(([key, value]) => (
+              <ProvenanceMetric key={key} label={key} value={value} />
+            ))}
+          </div>
+          {!exif.length && (
+            <p className="mt-3 rounded-xl bg-violet-50 px-3 py-2.5 text-xs font-semibold text-violet-950/52">
+              No embedded EXIF details were available.
+            </p>
+          )}
+          {metadata.reverseSearchUrl && (
+            <a
+              href={metadata.reverseSearchUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex items-center gap-2 text-xs font-black text-violet-800 transition hover:gap-3"
+            >
+              Search with Google Lens <span>↗</span>
+            </a>
+          )}
+        </div>
+      </div>
     </section>
+  );
+}
+
+function ProvenanceMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-white/80 px-3 py-2.5">
+      <p className="text-[8px] font-black uppercase tracking-[.12em] text-violet-950/35">
+        {label}
+      </p>
+      <p
+        className="mt-1 truncate text-[10px] font-black text-violet-950/72"
+        title={value}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -401,28 +532,27 @@ function ReuseNotice({
 }) {
   if (reuse?.state === "reused_exact" && reuse.expiresAt) {
     return (
-      <span className="font-medium text-emerald-950/50">
-        · identical recent trace reused until{" "}
-        {new Date(reuse.expiresAt).toLocaleString()}
+      <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-[9px] font-black text-emerald-800">
+        RECENT TRACE REUSED · {new Date(reuse.expiresAt).toLocaleDateString()}
       </span>
     );
   }
   if (reuse?.state === "reanalyzed")
     return (
-      <span className="font-medium text-emerald-950/50">
-        · freshly re-analyzed on request
+      <span className="rounded-full bg-violet-100 px-3 py-1.5 text-[9px] font-black text-violet-800">
+        FRESHLY RE-ANALYZED
       </span>
     );
   if (reuse && reuse.relatedContextClaims)
     return (
-      <span className="font-medium text-emerald-950/50">
-        · analyzed fresh with {reuse.relatedContextClaims} related verified
-        claim{reuse.relatedContextClaims === 1 ? "" : "s"} as context
+      <span className="rounded-full bg-amber-100 px-3 py-1.5 text-[9px] font-black text-amber-800">
+        {reuse.relatedContextClaims} RELATED CLAIM
+        {reuse.relatedContextClaims === 1 ? "" : "S"} USED
       </span>
     );
   return cached ? (
-    <span className="font-medium text-emerald-950/50">
-      · recent matching check
+    <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[9px] font-black text-slate-700">
+      RECENT MATCHING CHECK
     </span>
   ) : null;
 }
