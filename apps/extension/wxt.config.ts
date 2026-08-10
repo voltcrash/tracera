@@ -7,10 +7,7 @@ const productionExtensionPublicKey =
 
 export default defineConfig({
   manifest: () => {
-    const configuredApiHost = apiHostPermission(
-      import.meta.env.WXT_TRACERA_API_URL ||
-        "https://api.tracera.voltcrash.com",
-    );
+    const traceraHost = "https://tracera.voltcrash.com/*";
     return {
       name: "Tracera",
       description: "Trace the evidence behind the article you are reading.",
@@ -21,11 +18,7 @@ export default defineConfig({
       // Reading an article from the side panel needs an explicit page host grant.
       // `activeTab` alone is not reliably retained after Chrome opens a side panel.
       // Tracera analyzes public news pages, so support both public web schemes.
-      host_permissions: [
-        "http://*/*",
-        "https://*/*",
-        ...(configuredApiHost ? [configuredApiHost] : []),
-      ],
+      host_permissions: ["http://*/*", "https://*/*", traceraHost],
       action: {
         default_title: "Analyze this page with Tracera",
         default_icon: {
@@ -44,13 +37,3 @@ export default defineConfig({
     };
   },
 });
-
-function apiHostPermission(value: string | undefined) {
-  if (!value) return undefined;
-  try {
-    const url = new URL(value);
-    return `${url.protocol}//${url.hostname}/*`;
-  } catch {
-    return undefined;
-  }
-}

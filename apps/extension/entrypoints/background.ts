@@ -48,6 +48,11 @@ export default defineBackground(() => {
     void extractPage(tabId).then(sendResponse);
     return true;
   });
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== "tracera:auth-token") return;
+    void authToken().then((token) => sendResponse({ token }));
+    return true;
+  });
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type !== "tracera:highlight-claims") return;
     const tabId =
@@ -156,6 +161,16 @@ function isPublicPage(url: string | undefined): url is string {
 }
 
 async function authToken(): Promise<string | null> {
+  for (const name of [
+    "__Secure-tracera.session_token",
+    "tracera.session_token",
+  ]) {
+    const cookie = await chrome.cookies.get({
+      url: "https://tracera.voltcrash.com",
+      name,
+    });
+    if (cookie?.value) return cookie.value;
+  }
   return null;
 }
 

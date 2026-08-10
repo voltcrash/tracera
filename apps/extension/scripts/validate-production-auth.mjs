@@ -18,13 +18,9 @@ for (const filename of [
   }
 }
 
-const apiUrl =
-  process.env.WXT_TRACERA_API_URL ?? values.WXT_TRACERA_API_URL;
-
-if (!apiUrl?.startsWith("https://")) {
+if (values.WXT_TRACERA_API_URL || process.env.WXT_TRACERA_API_URL) {
   console.error(
-    "Production extension builds require an HTTPS WXT_TRACERA_API_URL. " +
-      "Use `pnpm build:development` only for an explicitly non-production package.",
+    "WXT_TRACERA_API_URL is no longer supported. Authentication and API traffic are pinned to https://tracera.voltcrash.com.",
   );
   process.exit(1);
 }

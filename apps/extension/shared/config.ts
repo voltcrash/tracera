@@ -1,5 +1,3 @@
-const configuredApiUrl = import.meta.env.WXT_TRACERA_API_URL;
-
-export const apiUrl = (
-  configuredApiUrl || "https://api.tracera.voltcrash.com"
-).replace(/\/$/, "");
+export const siteUrl = "https://tracera.voltcrash.com";
+export const authUrl = `${siteUrl}/api/auth`;
+export const apiUrl = `${siteUrl}/api/tracera`;

@@ -1,4 +1,4 @@
-import { createAuth } from "@repo/auth";
+import { createAuth, TRACERA_EXTENSION_ORIGIN } from "@repo/auth";
 import { configureDatabase } from "@repo/db";
 import { webRuntimeEnv } from "../../../lib/server-runtime";
 
@@ -6,9 +6,27 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 async function authHandler(request: Request) {
+  if (request.method === "OPTIONS") {
+    return withExtensionCors(new Response(null, { status: 204 }), request);
+  }
   const env = webRuntimeEnv();
   configureDatabase(env.DATABASE_URL);
-  return createAuth(env).handler(request);
+  return withExtensionCors(await createAuth(env).handler(request), request);
 }
 
-export { authHandler as GET, authHandler as POST };
+function withExtensionCors(response: Response, request: Request) {
+  if (request.headers.get("origin") !== TRACERA_EXTENSION_ORIGIN) {
+    return response;
+  }
+  response.headers.set("access-control-allow-origin", TRACERA_EXTENSION_ORIGIN);
+  response.headers.set("access-control-allow-methods", "GET, POST, OPTIONS");
+  response.headers.set(
+    "access-control-allow-headers",
+    "Content-Type, Authorization",
+  );
+  response.headers.set("access-control-expose-headers", "Set-Auth-Token");
+  response.headers.set("vary", "Origin");
+  return response;
+}
+
+export { authHandler as GET, authHandler as OPTIONS, authHandler as POST };

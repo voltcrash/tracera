@@ -3,7 +3,7 @@ import type {
   ClaimResult,
   PageSnapshot,
 } from "../../shared/contracts";
-import { apiUrl } from "../../shared/config";
+import { apiUrl, authUrl, siteUrl } from "../../shared/config";
 import "./style.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -11,14 +11,38 @@ const appElement = document.querySelector<HTMLElement>("#app");
 if (!appElement) throw new Error("Tracera side panel could not start.");
 const app: HTMLElement = appElement;
 let reactiveEnabled = false;
+let signedIn = false;
 
 void initialize();
+chrome.cookies.onChanged.addListener(({ cookie }) => {
+  if (
+    cookie.domain.replace(/^\./, "") === "tracera.voltcrash.com" &&
+    cookie.name.endsWith("tracera.session_token")
+  ) {
+    void initialize();
+  }
+});
 
 async function initialize() {
+  renderLoading("Restoring your Tracera session.");
   reactiveEnabled =
     (await chrome.storage.local.get("reactiveEnabled")).reactiveEnabled ===
     true;
-  renderSignedOut();
+  const token = await getAuthToken();
+  signedIn = Boolean(token);
+  if (!token) {
+    renderSignedOut();
+    return;
+  }
+  const profile = await fetch(`${apiUrl}/auth/me`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!profile.ok) {
+    signedIn = false;
+    renderSignedOut();
+    return;
+  }
+  await startAnalysis();
 }
 
 function renderSignedOut() {
@@ -40,7 +64,28 @@ function renderSignedOut() {
 }
 
 async function openAccountPage(page: "login" | "signup") {
-  await chrome.tabs.create({ url: `https://tracera.voltcrash.com/${page}` });
+  await chrome.tabs.create({ url: `${siteUrl}/${page}` });
+}
+
+async function signOut() {
+  const token = await getAuthToken();
+  if (token) {
+    await fetch(`${authUrl}/sign-out`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: "{}",
+    }).catch(() => undefined);
+  }
+  await Promise.all(
+    ["__Secure-tracera.session_token", "tracera.session_token"].map((name) =>
+      chrome.cookies.remove({ url: siteUrl, name }),
+    ),
+  );
+  signedIn = false;
+  renderSignedOut();
 }
 
 function renderAuthUnavailable(message: string) {
@@ -121,7 +166,10 @@ async function startAnalysis(forceReanalysis = false) {
 }
 
 async function getAuthToken() {
-  return null;
+  const response = (await chrome.runtime.sendMessage({
+    type: "tracera:auth-token",
+  })) as { token?: string | null } | undefined;
+  return response?.token ?? null;
 }
 
 function renderLoading(
@@ -160,7 +208,7 @@ function renderResult(result: AnalysisResponse, page: PageSnapshot) {
       <div class="brand"><span class="brand-mark">T</span><span>tracera</span></div>
       <div class="header-actions">
         <button class="quiet-button ${reactiveEnabled ? "active" : ""}" id="reactive" type="button" aria-pressed="${reactiveEnabled}" title="When enabled, Tracera automatically checks public pages after navigation">Live ${reactiveEnabled ? "on" : "off"}</button>
-        <button class="quiet-button" id="account" type="button">Sign in</button>
+        <button class="quiet-button" id="account" type="button">${signedIn ? "Sign out" : "Sign in"}</button>
         <button class="quiet-button" id="recheck" type="button">Re-check</button>
       </div>
     </header>
@@ -200,7 +248,9 @@ function renderResult(result: AnalysisResponse, page: PageSnapshot) {
     ?.addEventListener("click", () => void startAnalysis(true));
   document
     .querySelector<HTMLButtonElement>("#account")
-    ?.addEventListener("click", () => void openAccountPage("login"));
+    ?.addEventListener("click", () =>
+      signedIn ? void signOut() : void openAccountPage("login"),
+    );
 }
 
 function renderGroundZero(result: AnalysisResponse) {

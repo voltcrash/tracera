@@ -8,6 +8,8 @@ import { bearer } from "better-auth/plugins";
 export const TRACERA_AUTH_BASE_URL = "https://tracera.voltcrash.com";
 export const TRACERA_AUTH_BASE_PATH = "/api/auth";
 export const TRACERA_SESSION_COOKIE = "tracera.session_token";
+export const TRACERA_EXTENSION_ID = "pojehdamemgikkedidbdpopegjfoglih";
+export const TRACERA_EXTENSION_ORIGIN = `chrome-extension://${TRACERA_EXTENSION_ID}`;
 
 export type AuthRuntimeEnv = {
   BETTER_AUTH_SECRET?: string;
@@ -53,6 +55,7 @@ export function createAuth(env: AuthRuntimeEnv) {
     },
     trustedOrigins: [
       TRACERA_AUTH_BASE_URL,
+      TRACERA_EXTENSION_ORIGIN,
       "tracera://",
       "tracera://*",
       ...(process.env.NODE_ENV === "development"
