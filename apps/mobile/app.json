@@ -25,7 +25,8 @@
         {
           "photosPermission": "Allow Tracera to use a news image for verification."
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }

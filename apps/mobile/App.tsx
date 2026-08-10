@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { authClient } from "./src/auth-client";
 
 type ScoreDimension = { score: number; label: string };
 
@@ -88,7 +89,10 @@ const EXAMPLE =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
 
 async function mobileFetch(input: string, init: RequestInit = {}) {
-  return fetch(input, init);
+  const headers = new Headers(init.headers);
+  const cookie = authClient.getCookie();
+  if (cookie) headers.set("cookie", cookie);
+  return fetch(input, { ...init, headers, credentials: "omit" });
 }
 
 export default function App() {
@@ -96,6 +100,7 @@ export default function App() {
 }
 
 function TraceraApp() {
+  const session = authClient.useSession();
   const [tab, setTab] = useState<"trace" | "hub">("trace");
   const [input, setInput] = useState("");
   const [image, setImage] = useState<{
@@ -111,7 +116,13 @@ function TraceraApp() {
   const [hubAnalysis, setHubAnalysis] = useState<Analysis | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup" | null>(null);
-  const [authUser] = useState<AuthUser | null>(null);
+  const authUser: AuthUser | null = session.data?.user
+    ? {
+        id: session.data.user.id,
+        email: session.data.user.email,
+        createdAt: new Date(session.data.user.createdAt).toISOString(),
+      }
+    : null;
 
   const loadHub = useCallback(async () => {
     setIsLoadingHub(true);
@@ -165,6 +176,7 @@ function TraceraApp() {
   }
 
   async function signOut() {
+    await authClient.signOut();
     setAuthMode(null);
   }
 
@@ -801,6 +813,7 @@ function HubCard({ check, onPress }: { check: HubCheck; onPress: () => void }) {
 function AuthScreen({
   mode,
   onBack,
+  onAuthenticated,
   onModeChange,
 }: {
   mode: "login" | "signup";
@@ -809,6 +822,25 @@ function AuthScreen({
   onModeChange: (mode: "login" | "signup") => void;
 }) {
   const signingUp = mode === "signup";
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function continueWithGoogle() {
+    setSubmitting(true);
+    setError(null);
+    const result = await authClient.signIn.social({
+      provider: "google",
+      callbackURL: "/",
+      errorCallbackURL: "/",
+    });
+    if (result.error) {
+      setError(result.error.message ?? "Google sign-in could not start.");
+      setSubmitting(false);
+      return;
+    }
+    await authClient.getSession();
+    onAuthenticated();
+  }
 
   return (
     <KeyboardAvoidingView
@@ -829,20 +861,38 @@ function AuthScreen({
         />
         <Text style={styles.eyebrow}>YOUR TRACERA ACCOUNT</Text>
         <Text style={styles.authTitle}>
-          {signingUp ? "Account creation is paused" : "Sign-in is paused"}
+          {signingUp ? "Create your account" : "Welcome back"}
         </Text>
         <Text style={styles.authCopy}>
-          Account access is temporarily unavailable while authentication is
-          upgraded.
+          Continue with your Google email. Tracera stores the session securely
+          on this device.
         </Text>
+        {error ? <ErrorNotice message={error} /> : null}
         <Pressable
-          onPress={() => onModeChange(signingUp ? "login" : "signup")}
-          style={styles.authSubmit}
+          disabled={submitting}
+          onPress={() => void continueWithGoogle()}
+          style={({ pressed }) => [
+            styles.authSubmit,
+            submitting && styles.traceButtonDisabled,
+            pressed && styles.pressed,
+          ]}
         >
           <Text style={styles.authSubmitText}>
-            {signingUp ? "View sign-in" : "View account creation"}
+            {submitting ? "Opening Google…" : "Continue with Google"}
           </Text>
         </Pressable>
+        <View style={styles.authSwitch}>
+          <Text style={styles.authSwitchText}>
+            {signingUp ? "Already have an account?" : "New to Tracera?"}
+          </Text>
+          <Pressable
+            onPress={() => onModeChange(signingUp ? "login" : "signup")}
+          >
+            <Text style={styles.authSwitchLink}>
+              {signingUp ? "Sign in" : "Create an account"}
+            </Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
