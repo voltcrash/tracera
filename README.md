@@ -179,5 +179,5 @@ pnpm --filter api exec wrangler login
    Worker. Point the API's `WEB_ORIGIN` and `PUBLIC_WEB_URL` at the deployed web
    custom domain after it is attached.
 
-Run `pnpm --filter api cf:dev` or `pnpm --filter web cf:preview` for Worker
+Run `pnpm --filter api dev` or `pnpm --filter web cf:preview` for Worker
 previews. The Worker configuration intentionally contains no secrets.
