@@ -866,7 +866,12 @@ function AuthScreen({
       setSubmitting(false);
       return;
     }
-    await authClient.getSession();
+    const session = await authClient.getSession();
+    if (!session.data) {
+      setError("Google sign-in was not completed. Please try again.");
+      setSubmitting(false);
+      return;
+    }
     onAuthenticated();
   }
 

@@ -67,6 +67,9 @@ export function createAuth(env: AuthRuntimeEnv) {
         ? ["http://localhost:3000", "exp://**"]
         : []),
     ],
+    onAPIError: {
+      errorURL: "/auth/error",
+    },
     advanced: {
       database: { generateId: "uuid" },
       ipAddress: {

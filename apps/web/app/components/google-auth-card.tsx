@@ -13,7 +13,7 @@ export function GoogleAuthCard({ mode }: { mode: "login" | "signup" }) {
     const result = await authClient.signIn.social({
       provider: "google",
       callbackURL: "/auth/complete",
-      errorCallbackURL: `/${mode}?error=oauth`,
+      errorCallbackURL: `/auth/error?flow=${mode}&provider=google`,
     });
     if (result.error) {
       setError(result.error.message ?? "Google sign-in could not start.");
