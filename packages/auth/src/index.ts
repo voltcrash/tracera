@@ -69,6 +69,9 @@ export function createAuth(env: AuthRuntimeEnv) {
     ],
     advanced: {
       database: { generateId: "uuid" },
+      ipAddress: {
+        ipAddressHeaders: ["cf-connecting-ip"],
+      },
       cookiePrefix: "tracera",
       useSecureCookies: true,
     },
