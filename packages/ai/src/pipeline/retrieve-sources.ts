@@ -92,6 +92,18 @@ export async function retrieveSources(
           ),
         )
       : [];
+  const bingNews =
+    primaryGoogleNews.length + contextualGoogleNews.length < 2 &&
+    evidenceFetch.remaining() > 0
+      ? await safelyRetrieve("Bing News RSS", () =>
+          retrieveBingNewsSources(
+            claim,
+            contextualQuery,
+            evidenceFetch,
+            options.storyContext,
+          ),
+        )
+      : [];
 
   const [corpus, factChecks, newsApi, webSearch] = await Promise.all([
     corpusPromise,
@@ -126,6 +138,7 @@ export async function retrieveSources(
   const initialCandidates = [
     ...primaryGoogleNews,
     ...contextualGoogleNews,
+    ...bingNews,
     ...factChecks,
     ...newsApi,
     ...webSearch,
@@ -146,6 +159,7 @@ export async function retrieveSources(
     ...gdelt,
     ...primaryGoogleNews,
     ...contextualGoogleNews,
+    ...bingNews,
     ...webSearch,
   ]);
   const trust = await safelyGetDomainTrustScores(deduplicated);
@@ -623,6 +637,56 @@ async function retrieveGoogleNewsSources(
       return passesRelevanceGate(claim, source, storyContext) ? [source] : [];
     })
     .slice(0, 12);
+}
+
+/** Independent no-key fallback for periods when Google News throttles Worker
+ * egress. Bing redirect URLs are resolved back to publisher URLs before they
+ * enter ranking, provenance, or Ground Zero. */
+async function retrieveBingNewsSources(
+  claim: ExtractedClaim,
+  query: string,
+  evidenceFetch: EvidenceFetch,
+  storyContext?: string,
+): Promise<EvidenceSource[]> {
+  const url = new URL("https://www.bing.com/news/search");
+  url.searchParams.set("q", query.slice(0, 700));
+  url.searchParams.set("format", "rss");
+  const response = await evidenceFetch(url, {
+    headers: { "user-agent": "Tracera/1.0 (+news verification)" },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response?.ok) return [];
+
+  const xml = await response.text();
+  return (xml.match(/<item\b[^>]*>[\s\S]*?<\/item>/gi) ?? [])
+    .flatMap((item, index) => {
+      const title = xmlValue(item, "title");
+      const resultUrl = bingPublisherUrl(xmlValue(item, "link"));
+      if (!title || !resultUrl) return [];
+      const source: EvidenceSource = {
+        id: `bing-news:${index}`,
+        type: "publisher_rss",
+        title,
+        url: resultUrl,
+        publisher: xmlValue(item, "News:Source"),
+        sourceDomain: domain(resultUrl),
+        snippet: stripMarkup(xmlValue(item, "description")).slice(0, 1_200),
+        publishedAt: normalizeFeedDate(xmlValue(item, "pubDate")),
+      };
+      return passesRelevanceGate(claim, source, storyContext) ? [source] : [];
+    })
+    .slice(0, 12);
+}
+
+function bingPublisherUrl(value?: string) {
+  if (!value) return undefined;
+  try {
+    const result = new URL(value);
+    const publisher = result.searchParams.get("url");
+    return publisher && /^https?:\/\//i.test(publisher) ? publisher : value;
+  } catch {
+    return undefined;
+  }
 }
 
 function sourceRelevance(claimTerms: Set<string>, text: string) {

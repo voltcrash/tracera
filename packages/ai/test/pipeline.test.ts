@@ -268,6 +268,65 @@ test("Google News retrieval keeps contextual short claims on the story subject",
   }
 });
 
+test("Bing News provides publisher evidence when Google News is unavailable", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const requestedHosts: string[] = [];
+  console.warn = () => undefined;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requestedHosts.push(url.hostname);
+    if (url.hostname === "news.google.com")
+      return new Response("<rss><channel /></rss>");
+    if (url.hostname === "www.bing.com") {
+      return new Response(`<?xml version="1.0"?><rss><channel><item>
+        <title>Air India captain confirmatory drug test positive</title>
+        <link>http://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Freliable.example%2Fair-india-test</link>
+        <description>The Phuket-Delhi flight captain tested positive in a confirmatory drug test.</description>
+        <pubDate>Tue, 11 Aug 2026 12:33:28 GMT</pubDate>
+        <News:Source>Reliable News</News:Source>
+      </item></channel></rss>`);
+    }
+    return new Response("<html></html>");
+  };
+  const provider: AiProvider = {
+    async generate() {
+      throw new Error("Text generation is not used during retrieval.");
+    },
+    async generateFromImage() {
+      throw new Error("Image generation is not used during retrieval.");
+    },
+    async embed() {
+      return Array.from({ length: 1024 }, () => 0);
+    },
+  };
+  const flightClaim = {
+    ...claim,
+    claimText: "The Air India captain confirmatory drug test was positive.",
+    context: "The captain operated a Phuket-Delhi flight.",
+  };
+
+  try {
+    const sources = await retrieveSources(flightClaim, {
+      provider,
+      claimEmbedding: Array.from({ length: 1024 }, () => 0),
+      corpusLimit: 0,
+      storyContext: flightClaim.context,
+      externalRequestLimit: 4,
+    });
+    assert.deepEqual(requestedHosts.slice(0, 3), [
+      "news.google.com",
+      "news.google.com",
+      "www.bing.com",
+    ]);
+    assert.equal(sources[0]?.url, "https://reliable.example/air-india-test");
+    assert.equal(sources[0]?.publisher, "Reliable News");
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
+});
+
 test("the Tracera Score retains evidence and source signals separately", () => {
   const verdict: ClaimVerdict = {
     claim,
