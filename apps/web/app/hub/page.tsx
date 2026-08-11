@@ -178,7 +178,7 @@ export default function HubPage() {
 
   return (
     <main className="hub-page min-h-screen text-emerald-950">
-      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <AppHeader active="hub" />
         {isAuthLoading && <Loading />}
         {!isAuthLoading && !user && <AccountRequired feature="the News Hub" />}
