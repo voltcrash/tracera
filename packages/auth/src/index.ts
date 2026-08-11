@@ -59,6 +59,7 @@ export function createAuth(env: AuthRuntimeEnv) {
     },
     trustedOrigins: [
       TRACERA_AUTH_BASE_URL,
+      "https://dash.better-auth.com",
       TRACERA_EXTENSION_ORIGIN,
       "tracera://",
       "tracera://*",

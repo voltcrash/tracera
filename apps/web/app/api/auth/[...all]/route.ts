@@ -1,4 +1,7 @@
-import { createAuth, TRACERA_EXTENSION_ORIGIN } from "@repo/auth";
+import {
+  createAuth,
+  TRACERA_EXTENSION_ORIGIN,
+} from "@repo/auth";
 import { configureDatabase } from "@repo/db";
 import { webRuntimeEnv } from "../../../lib/server-runtime";
 
@@ -15,10 +18,14 @@ async function authHandler(request: Request) {
 }
 
 function withExtensionCors(response: Response, request: Request) {
-  if (request.headers.get("origin") !== TRACERA_EXTENSION_ORIGIN) {
+  const origin = request.headers.get("origin");
+  if (
+    origin !== TRACERA_EXTENSION_ORIGIN &&
+    origin !== "https://dash.better-auth.com"
+  ) {
     return response;
   }
-  response.headers.set("access-control-allow-origin", TRACERA_EXTENSION_ORIGIN);
+  response.headers.set("access-control-allow-origin", origin);
   response.headers.set("access-control-allow-methods", "GET, POST, OPTIONS");
   response.headers.set(
     "access-control-allow-headers",
