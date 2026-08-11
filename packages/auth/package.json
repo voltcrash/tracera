@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@better-auth/expo": "^1.6.26",
+    "@better-auth/infra": "^0.3.7",
     "@repo/db": "workspace:*",
     "better-auth": "^1.6.26"
   },

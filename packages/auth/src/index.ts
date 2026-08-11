@@ -1,4 +1,5 @@
 import { expo } from "@better-auth/expo";
+import { dash } from "@better-auth/infra";
 import { db } from "@repo/db";
 import * as databaseSchema from "@repo/db/schema";
 import { betterAuth } from "better-auth/minimal";
@@ -13,6 +14,9 @@ export const TRACERA_EXTENSION_ORIGIN = `chrome-extension://${TRACERA_EXTENSION_
 
 export type AuthRuntimeEnv = {
   BETTER_AUTH_SECRET?: string;
+  BETTER_AUTH_API_KEY?: string;
+  BETTER_AUTH_API_URL?: string;
+  BETTER_AUTH_KV_URL?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
 };
@@ -67,7 +71,15 @@ export function createAuth(env: AuthRuntimeEnv) {
       cookiePrefix: "tracera",
       useSecureCookies: true,
     },
-    plugins: [bearer(), expo()],
+    plugins: [
+      bearer(),
+      expo(),
+      dash({
+        apiKey: required(env.BETTER_AUTH_API_KEY, "BETTER_AUTH_API_KEY"),
+        apiUrl: env.BETTER_AUTH_API_URL,
+        kvUrl: env.BETTER_AUTH_KV_URL,
+      }),
+    ],
   });
 }
 
