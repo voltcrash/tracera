@@ -358,7 +358,7 @@ export default function HubPage() {
 
             {!loading && !error && visible.length > 0 && (
               <>
-                <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-5">
+                <div className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-5">
                   {visible.map((check, index) => (
                     <HubCheckCard
                       key={check.id}
@@ -419,7 +419,7 @@ function HubCheckCard({
   const scoreTone = score >= 70 ? "strong" : score >= 45 ? "mixed" : "weak";
 
   return (
-    <article className="hub-check-card group flex min-h-[16.75rem] flex-col rounded-[1.5rem] border border-emerald-950/10 bg-white p-5 sm:p-6">
+    <article className="hub-check-card group flex min-h-[16.75rem] min-w-0 flex-col overflow-hidden rounded-[1.5rem] border border-emerald-950/10 bg-white p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <span className={`hub-trace-label hub-trace-label-${scoreTone}`}>
@@ -444,7 +444,7 @@ function HubCheckCard({
 
       <Link
         href={`/hub/${check.id}`}
-        className="mt-5 line-clamp-3 text-lg font-black leading-[1.28] tracking-[-.035em] text-emerald-950 outline-offset-4 transition group-hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-emerald-600 sm:text-xl"
+        className="hub-check-title mt-5 min-w-0 line-clamp-3 text-lg font-black leading-[1.28] tracking-[-.035em] text-emerald-950 outline-offset-4 transition group-hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-emerald-600 sm:text-xl"
       >
         {check.rawInput}
       </Link>
@@ -654,7 +654,7 @@ function Stat({
 function Loading({ compact = false }: { compact?: boolean }) {
   return (
     <div
-      className={`${compact ? "mt-5" : "mt-8"} grid gap-4 md:grid-cols-2 xl:grid-cols-3`}
+      className={`${compact ? "mt-5" : "mt-8"} grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 xl:grid-cols-3`}
       role="status"
     >
       {[0, 1, 2].map((item) => (
