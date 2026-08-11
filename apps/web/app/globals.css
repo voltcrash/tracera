@@ -1348,11 +1348,19 @@ body {
 }
 
 .hub-check-card {
+  min-width: 0;
+  max-width: 100%;
   box-shadow: 0 22px 55px -46px rgba(16, 34, 31, 0.62);
   transition:
     transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
     border-color 180ms ease,
     box-shadow 180ms ease;
+}
+
+.hub-check-title {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .hub-check-card:hover {
@@ -1751,6 +1759,19 @@ body {
   .hub-filter-scroll,
   .hub-search-control {
     grid-column: 1 / -1;
+  }
+
+  .hub-filter-scroll {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .hub-filter-tab {
+    width: 100%;
+    min-width: 0;
+    padding-right: 0.55rem;
+    padding-left: 0.55rem;
   }
 
   .hub-search-control {
