@@ -1423,6 +1423,12 @@ function currentUser(context: Context<{ Bindings: Bindings }>) {
   const user = authenticatedUser(request, {
     BETTER_AUTH_SECRET:
       context.env.BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
+    BETTER_AUTH_API_KEY:
+      context.env.BETTER_AUTH_API_KEY ?? process.env.BETTER_AUTH_API_KEY,
+    BETTER_AUTH_API_URL:
+      context.env.BETTER_AUTH_API_URL ?? process.env.BETTER_AUTH_API_URL,
+    BETTER_AUTH_KV_URL:
+      context.env.BETTER_AUTH_KV_URL ?? process.env.BETTER_AUTH_KV_URL,
     GOOGLE_CLIENT_ID:
       context.env.GOOGLE_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET:

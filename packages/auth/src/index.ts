@@ -75,11 +75,15 @@ export function createAuth(env: AuthRuntimeEnv) {
     plugins: [
       bearer(),
       expo(),
-      dash({
-        apiKey: required(env.BETTER_AUTH_API_KEY, "BETTER_AUTH_API_KEY"),
-        apiUrl: env.BETTER_AUTH_API_URL,
-        kvUrl: env.BETTER_AUTH_KV_URL,
-      }),
+      ...(env.BETTER_AUTH_API_KEY
+        ? [
+            dash({
+              apiKey: env.BETTER_AUTH_API_KEY,
+              apiUrl: env.BETTER_AUTH_API_URL,
+              kvUrl: env.BETTER_AUTH_KV_URL,
+            }),
+          ]
+        : []),
     ],
   });
 }
