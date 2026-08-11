@@ -24,6 +24,7 @@ type PrimaryFilter = "all" | "high" | "review" | "seen";
 type SortOrder = "newest" | "oldest" | "highest" | "lowest";
 type PrivacyFilter = "all" | "public" | "private";
 type StatusFilter = "all" | "monitoring" | "review";
+type ViewMode = "grid" | "list";
 
 const primaryFilters: { value: PrimaryFilter; label: string }[] = [
   { value: "all", label: "All checks" },
@@ -53,6 +54,7 @@ export default function HubPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [privacy, setPrivacy] = useState<PrivacyFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +67,10 @@ export default function HubPage() {
         window.localStorage.getItem("tracera-hub-bookmarks") ?? "[]",
       );
       if (Array.isArray(saved)) setBookmarked(new Set(saved));
+      const savedView = window.localStorage.getItem("tracera-hub-view");
+      if (savedView === "grid" || savedView === "list") {
+        setViewMode(savedView);
+      }
     } catch {
       // A malformed browser preference should never block the archive.
     }
@@ -161,6 +167,15 @@ export default function HubPage() {
     });
   }
 
+  function changeViewMode(next: ViewMode) {
+    setViewMode(next);
+    try {
+      window.localStorage.setItem("tracera-hub-view", next);
+    } catch {
+      // Keep the selection for this visit if browser storage is disabled.
+    }
+  }
+
   return (
     <main className="hub-page min-h-screen text-emerald-950">
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
@@ -248,6 +263,29 @@ export default function HubPage() {
                   ))}
                 </select>
               </label>
+
+              <div
+                className="hub-view-toggle"
+                role="group"
+                aria-label="Choose trace library view"
+              >
+                {(["grid", "list"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => changeViewMode(mode)}
+                    aria-pressed={viewMode === mode}
+                    aria-label={`${mode === "grid" ? "Grid" : "List"} view`}
+                    title={`${mode === "grid" ? "Grid" : "List"} view`}
+                    className={`hub-view-button ${viewMode === mode ? "hub-view-button-active" : ""}`}
+                  >
+                    <span
+                      className={`hub-view-icon hub-view-icon-${mode}`}
+                      aria-hidden="true"
+                    />
+                  </button>
+                ))}
+              </div>
 
               <label className="hub-search-control">
                 <span className="sr-only">Search checked items</span>
@@ -346,7 +384,7 @@ export default function HubPage() {
               )}
             </div>
 
-            {loading && <Loading compact />}
+            {loading && <Loading compact viewMode={viewMode} />}
             {!loading && !error && visible.length === 0 && (
               <div className="mt-5 rounded-[1.5rem] border border-dashed border-emerald-950/20 bg-white px-5 py-14 text-center">
                 <p className="font-black text-emerald-950">No traces found.</p>
@@ -358,7 +396,13 @@ export default function HubPage() {
 
             {!loading && !error && visible.length > 0 && (
               <>
-                <div className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-5">
+                <div
+                  className={
+                    viewMode === "grid"
+                      ? "hub-results-grid mt-5 grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-5"
+                      : "hub-results-list mt-5"
+                  }
+                >
                   {visible.map((check, index) => (
                     <HubCheckCard
                       key={check.id}
@@ -366,6 +410,7 @@ export default function HubPage() {
                       traceNumber={(pagination.page - 1) * 20 + index + 1}
                       bookmarked={bookmarked.has(check.id)}
                       onToggleBookmark={() => toggleBookmark(check.id)}
+                      viewMode={viewMode}
                     />
                   ))}
                 </div>
@@ -409,14 +454,64 @@ function HubCheckCard({
   traceNumber,
   bookmarked,
   onToggleBookmark,
+  viewMode,
 }: {
   check: CheckSummary;
   traceNumber: number;
   bookmarked: boolean;
   onToggleBookmark: () => void;
+  viewMode: ViewMode;
 }) {
   const score = Math.max(0, Math.min(100, check.traceraScore.overall));
   const scoreTone = score >= 70 ? "strong" : score >= 45 ? "mixed" : "weak";
+
+  if (viewMode === "list") {
+    return (
+      <article className="hub-list-row group">
+        <div className="hub-list-meta min-w-0">
+          <span className={`hub-trace-label hub-trace-label-${scoreTone}`}>
+            TRACE {String(traceNumber).padStart(2, "0")}
+          </span>
+          <p
+            className="mt-2 truncate text-xs font-bold text-emerald-950/48"
+            title={check.sourceDomain ?? "Direct submission"}
+          >
+            {check.sourceDomain ?? "Direct submission"}
+          </p>
+        </div>
+
+        <Link
+          href={`/hub/${check.id}`}
+          className="hub-check-title hub-list-title min-w-0 line-clamp-2 font-black leading-[1.3] tracking-[-.025em] text-emerald-950 outline-offset-4 transition group-hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-emerald-600"
+        >
+          {check.rawInput}
+        </Link>
+
+        <div className="hub-list-state">
+          <div className="flex flex-wrap gap-1.5">
+            <CheckStatusPills check={check} />
+          </div>
+          <CheckDate check={check} />
+        </div>
+
+        <div className="hub-list-actions">
+          <div
+            className="hub-score-ring"
+            data-tone={scoreTone}
+            style={{ "--score": `${score}%` } as React.CSSProperties}
+            aria-label={`Signal score ${check.traceraScore.overall} out of 100`}
+          >
+            <span>{check.traceraScore.overall}</span>
+          </div>
+          <BookmarkButton
+            bookmarked={bookmarked}
+            onToggleBookmark={onToggleBookmark}
+          />
+          <OpenTraceButton id={check.id} />
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className="hub-check-card group flex min-h-[16.75rem] min-w-0 flex-col overflow-hidden rounded-[1.5rem] border border-emerald-950/10 bg-white p-5 sm:p-6">
@@ -451,55 +546,91 @@ function HubCheckCard({
 
       <div className="mt-auto pt-7">
         <div className="flex flex-wrap gap-1.5">
-          <StatusPill
-            tone={check.reanalysisState === "review_due" ? "amber" : "emerald"}
-            label={
-              check.reanalysisState === "review_due"
-                ? "Review due"
-                : "Monitoring"
-            }
-          />
-          {check.visibility === "private" && (
-            <StatusPill tone="slate" label="Private" />
-          )}
-          {check.appearanceCount > 1 && (
-            <StatusPill
-              tone="violet"
-              label={`Seen ${check.appearanceCount}×`}
-            />
-          )}
+          <CheckStatusPills check={check} />
         </div>
 
         <div className="mt-4 flex items-center gap-3 border-t border-emerald-950/8 pt-4">
-          <time
-            dateTime={check.createdAt}
-            className="mr-auto text-[11px] font-bold text-emerald-950/46"
-          >
-            {new Date(check.createdAt).toLocaleDateString(undefined, {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </time>
-          <button
-            type="button"
-            onClick={onToggleBookmark}
-            aria-pressed={bookmarked}
-            aria-label={bookmarked ? "Remove bookmark" : "Bookmark trace"}
-            className={`hub-bookmark-button ${bookmarked ? "hub-bookmark-button-active" : ""}`}
-          >
-            <span aria-hidden="true">{bookmarked ? "◆" : "◇"}</span>
-          </button>
-          <Link
-            href={`/hub/${check.id}`}
-            aria-label="Open trace"
-            className="grid size-9 shrink-0 place-items-center rounded-full bg-[#074b3d] text-sm text-white shadow-[0_7px_18px_-10px_rgba(7,75,61,.9)] transition group-hover:translate-x-1 group-hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-          >
-            →
-          </Link>
+          <CheckDate check={check} className="mr-auto" />
+          <BookmarkButton
+            bookmarked={bookmarked}
+            onToggleBookmark={onToggleBookmark}
+          />
+          <OpenTraceButton id={check.id} />
         </div>
       </div>
     </article>
+  );
+}
+
+function CheckStatusPills({ check }: { check: CheckSummary }) {
+  return (
+    <>
+      <StatusPill
+        tone={check.reanalysisState === "review_due" ? "amber" : "emerald"}
+        label={
+          check.reanalysisState === "review_due" ? "Review due" : "Monitoring"
+        }
+      />
+      {check.visibility === "private" && (
+        <StatusPill tone="slate" label="Private" />
+      )}
+      {check.appearanceCount > 1 && (
+        <StatusPill tone="violet" label={`Seen ${check.appearanceCount}×`} />
+      )}
+    </>
+  );
+}
+
+function CheckDate({
+  check,
+  className = "",
+}: {
+  check: CheckSummary;
+  className?: string;
+}) {
+  return (
+    <time
+      dateTime={check.createdAt}
+      className={`${className} text-[11px] font-bold text-emerald-950/46`}
+    >
+      {new Date(check.createdAt).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })}
+    </time>
+  );
+}
+
+function BookmarkButton({
+  bookmarked,
+  onToggleBookmark,
+}: {
+  bookmarked: boolean;
+  onToggleBookmark: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggleBookmark}
+      aria-pressed={bookmarked}
+      aria-label={bookmarked ? "Remove bookmark" : "Bookmark trace"}
+      className={`hub-bookmark-button ${bookmarked ? "hub-bookmark-button-active" : ""}`}
+    >
+      <span aria-hidden="true">{bookmarked ? "◆" : "◇"}</span>
+    </button>
+  );
+}
+
+function OpenTraceButton({ id }: { id: string }) {
+  return (
+    <Link
+      href={`/hub/${id}`}
+      aria-label="Open trace"
+      className="grid size-9 shrink-0 place-items-center rounded-full bg-[#074b3d] text-sm text-white shadow-[0_7px_18px_-10px_rgba(7,75,61,.9)] transition group-hover:translate-x-1 group-hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+    >
+      →
+    </Link>
   );
 }
 
@@ -651,16 +782,22 @@ function Stat({
   );
 }
 
-function Loading({ compact = false }: { compact?: boolean }) {
+function Loading({
+  compact = false,
+  viewMode = "grid",
+}: {
+  compact?: boolean;
+  viewMode?: ViewMode;
+}) {
   return (
     <div
-      className={`${compact ? "mt-5" : "mt-8"} grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 xl:grid-cols-3`}
+      className={`${compact ? "mt-5" : "mt-8"} grid grid-cols-[minmax(0,1fr)] gap-4 ${viewMode === "grid" ? "md:grid-cols-2 xl:grid-cols-3" : ""}`}
       role="status"
     >
       {[0, 1, 2].map((item) => (
         <div
           key={item}
-          className="h-[16.75rem] animate-pulse rounded-[1.5rem] border border-emerald-950/8 bg-white/70"
+          className={`${viewMode === "grid" ? "h-[16.75rem]" : "h-32"} animate-pulse rounded-[1.5rem] border border-emerald-950/8 bg-white/70`}
         />
       ))}
       <span className="sr-only">Loading traces…</span>
