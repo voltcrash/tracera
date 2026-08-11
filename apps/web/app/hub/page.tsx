@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AppHeader } from "../components/app-header";
 import { AccountRequired } from "../components/account-required";
-import { useAuth } from "../components/auth-provider";
 import type { TraceraScore } from "../components/analysis-result";
+import { AppHeader } from "../components/app-header";
+import { useAuth } from "../components/auth-provider";
 import { apiUrl } from "../lib/api";
 
 type CheckSummary = {
@@ -20,6 +20,25 @@ type CheckSummary = {
   appearanceCount: number;
 };
 
+type PrimaryFilter = "all" | "high" | "review" | "seen";
+type SortOrder = "newest" | "oldest" | "highest" | "lowest";
+type PrivacyFilter = "all" | "public" | "private";
+type StatusFilter = "all" | "monitoring" | "review";
+
+const primaryFilters: { value: PrimaryFilter; label: string }[] = [
+  { value: "all", label: "All checks" },
+  { value: "high", label: "Strong signal" },
+  { value: "review", label: "Needs review" },
+  { value: "seen", label: "Seen by me" },
+];
+
+const sortOptions: { value: SortOrder; label: string }[] = [
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+  { value: "highest", label: "Highest signal" },
+  { value: "lowest", label: "Lowest signal" },
+];
+
 export default function HubPage() {
   const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
   const [checks, setChecks] = useState<CheckSummary[]>([]);
@@ -30,10 +49,27 @@ export default function HubPage() {
     totalPages: 1,
     total: 0,
   });
-  const [filter, setFilter] = useState<"all" | "high" | "review">("all");
+  const [filter, setFilter] = useState<PrimaryFilter>("all");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
+  const [privacy, setPrivacy] = useState<PrivacyFilter>("all");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [requestVersion, setRequestVersion] = useState(0);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(
+        window.localStorage.getItem("tracera-hub-bookmarks") ?? "[]",
+      );
+      if (Array.isArray(saved)) setBookmarked(new Set(saved));
+    } catch {
+      // A malformed browser preference should never block the archive.
+    }
+  }, []);
+
   useEffect(() => {
     if (isAuthLoading || !user) return;
     const controller = new AbortController();
@@ -63,118 +99,225 @@ export default function HubPage() {
           if (!controller.signal.aborted) setLoading(false);
         });
     }, 250);
+
     return () => {
       clearTimeout(handle);
       controller.abort();
     };
   }, [apiFetch, isAuthLoading, page, query, requestVersion, user]);
-  const visible = useMemo(
-    () =>
-      checks.filter(
-        (check) =>
-          filter === "all" ||
-          (filter === "high"
-            ? check.traceraScore.overall >= 70
-            : check.traceraScore.overall < 70),
-      ),
-    [checks, filter],
-  );
+
+  const visible = useMemo(() => {
+    const filtered = checks.filter((check) => {
+      const score = check.traceraScore.overall;
+      const matchesPrimary =
+        filter === "all" ||
+        (filter === "high" && score >= 70) ||
+        (filter === "review" && score < 70) ||
+        (filter === "seen" && check.appearanceCount > 1);
+      const matchesPrivacy = privacy === "all" || check.visibility === privacy;
+      const matchesStatus =
+        status === "all" ||
+        (status === "monitoring" && check.reanalysisState === "scheduled") ||
+        (status === "review" && check.reanalysisState === "review_due");
+      return matchesPrimary && matchesPrivacy && matchesStatus;
+    });
+
+    return filtered.sort((a, b) => {
+      if (sortOrder === "highest")
+        return b.traceraScore.overall - a.traceraScore.overall;
+      if (sortOrder === "lowest")
+        return a.traceraScore.overall - b.traceraScore.overall;
+      const aTime = new Date(a.createdAt).getTime();
+      const bTime = new Date(b.createdAt).getTime();
+      return sortOrder === "oldest" ? aTime - bTime : bTime - aTime;
+    });
+  }, [checks, filter, privacy, sortOrder, status]);
+
   const average = checks.length
     ? Math.round(
         checks.reduce((sum, item) => sum + item.traceraScore.overall, 0) /
           checks.length,
       )
     : 0;
+  const reviewCount = checks.filter(
+    (item) => item.traceraScore.overall < 70,
+  ).length;
+  const hasSecondaryFilters = privacy !== "all" || status !== "all";
+
+  function toggleBookmark(id: string) {
+    setBookmarked((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        window.localStorage.setItem(
+          "tracera-hub-bookmarks",
+          JSON.stringify([...next]),
+        );
+      } catch {
+        // Keep bookmarks usable for this visit if browser storage is disabled.
+      }
+      return next;
+    });
+  }
 
   return (
-    <main className="paper-grid min-h-screen bg-[#f4f6f2] text-emerald-950">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+    <main className="hub-page min-h-screen text-emerald-950">
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
         <AppHeader active="hub" />
         {isAuthLoading && <Loading />}
         {!isAuthLoading && !user && <AccountRequired feature="the News Hub" />}
         {!isAuthLoading && user && (
-          <section className="py-12 sm:py-16">
-            <div className="grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
-              <div className="rounded-[2rem] border border-emerald-950/10 bg-white/78 p-7 shadow-[0_28px_65px_-48px_rgba(16,34,31,.62)] sm:p-9">
-                <p className="text-[10px] font-black tracking-[.2em] text-emerald-700">
-                  THE NEWS HUB · LIVING ARCHIVE
-                </p>
-                <h1 className="mt-4 max-w-2xl text-5xl font-black leading-[.92] tracking-[-.075em] sm:text-6xl">
-                  The receipts
-                  <span className="block text-emerald-600">stay attached.</span>
-                </h1>
-                <p className="mt-5 max-w-xl text-base leading-7 text-emerald-950/58">
-                  Every check is a living evidence trail—not a one-off verdict.
-                  Search the archive, reopen the sources, and return when the
-                  story changes.
-                </p>
-                <Link
-                  href="/home"
-                  className="mt-7 inline-flex items-center gap-2 rounded-xl bg-emerald-950 px-5 py-3.5 text-sm font-black text-white shadow-[3px_3px_0_#8ee8cb] transition hover:-translate-y-0.5 hover:bg-emerald-800"
-                >
-                  Start a new trace <span>→</span>
-                </Link>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <section className="pb-16 pt-6 sm:pt-8 lg:pb-24">
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr] xl:gap-5">
+              <section className="hub-hero noise relative overflow-hidden rounded-[1.5rem] px-6 py-9 text-white sm:px-10 sm:py-11 lg:min-h-[25rem] lg:px-11">
+                <div className="hub-hero-grid" aria-hidden="true" />
+                <div className="relative z-10 flex h-full flex-col items-start justify-center">
+                  <p className="text-[10px] font-black tracking-[.19em] text-white/80 sm:text-xs">
+                    THE NEWS HUB · LIVING ARCHIVE
+                  </p>
+                  <h1 className="mt-7 max-w-2xl text-[2.8rem] font-black leading-[.92] tracking-[-.07em] sm:text-6xl xl:text-[4.3rem]">
+                    The receipts
+                    <span className="block text-[#49cf9d]">stay attached.</span>
+                  </h1>
+                  <p className="mt-6 max-w-xl text-sm leading-6 text-white/68 sm:text-base sm:leading-7">
+                    Every check is a living evidence trail—not a one-off
+                    verdict. Search the archive, reopen the sources, and return
+                    when the story changes.
+                  </p>
+                  <Link
+                    href="/home"
+                    className="mt-7 inline-flex min-h-11 items-center gap-3 rounded-full bg-[#4bd09f] px-5 py-3 text-sm font-black text-[#0b3028] shadow-[0_14px_35px_-18px_rgba(58,220,164,.9)] transition hover:-translate-y-0.5 hover:bg-[#69ddb3] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#9cf0d1]"
+                  >
+                    Start a new trace <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              </section>
+
+              <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:gap-5">
                 <Stat
-                  value={String(checks.length).padStart(2, "0")}
-                  label="checks in this view"
+                  value={String(pagination.total || checks.length)}
+                  label="Checks in this archive"
                   eyebrow="Archive"
-                  tone="mint"
+                  icon="archive"
                 />
                 <Stat
                   value={`${average}/100`}
-                  label="average signal score"
+                  label="Average signal score"
                   eyebrow="Signal"
-                  tone="dark"
+                  icon="signal"
                 />
                 <Stat
-                  value={String(
-                    checks.filter((item) => item.traceraScore.overall < 70)
-                      .length,
-                  ).padStart(2, "0")}
-                  label="need another look"
+                  value={String(reviewCount)}
+                  label="Need another look"
                   eyebrow="Review queue"
-                  tone="amber"
+                  icon="review"
                 />
+                <MediaDietCard />
               </div>
             </div>
-            {user && <MediaDietCard />}
-            <div className="mt-8 rounded-[1.75rem] border border-emerald-950/10 bg-white p-3 shadow-[0_20px_60px_-42px_rgba(16,34,31,.6)] sm:p-4">
-              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-                <label className="relative">
-                  <span className="sr-only">Search checked items</span>
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search a claim, topic, or story…"
-                    className="w-full rounded-xl bg-[#f5f8f4] px-4 py-3 pl-11 text-sm outline-none placeholder:text-emerald-950/35 focus:ring-4 focus:ring-emerald-100"
-                  />
-                  <span className="absolute left-4 top-3 text-lg text-emerald-800/40">
-                    ⌕
-                  </span>
-                </label>
-                <div className="flex rounded-xl bg-[#f5f8f4] p-1">
-                  {(["all", "high", "review"] as const).map((item) => (
-                    <button
-                      key={item}
-                      onClick={() => setFilter(item)}
-                      className={`rounded-lg px-3 py-2 text-xs font-black transition ${filter === item ? "bg-emerald-950 text-white shadow-sm" : "text-emerald-950/50 hover:text-emerald-950"}`}
-                    >
-                      {item === "all"
-                        ? "All checks"
-                        : item === "high"
-                          ? "Strong signal"
-                          : "Needs review"}
-                    </button>
+
+            <div className="hub-toolbar mt-7 lg:mt-9">
+              <div className="hub-filter-scroll" aria-label="Filter checks">
+                {primaryFilters.map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setFilter(item.value)}
+                    aria-pressed={filter === item.value}
+                    className={`hub-filter-tab ${filter === item.value ? "hub-filter-tab-active" : ""}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <label className="hub-sort-control">
+                <span>Sort by:</span>
+                <select
+                  value={sortOrder}
+                  onChange={(event) =>
+                    setSortOrder(event.target.value as SortOrder)
+                  }
+                  aria-label="Sort checks"
+                >
+                  {sortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
                   ))}
-                </div>
-              </div>
+                </select>
+              </label>
+
+              <label className="hub-search-control">
+                <span className="sr-only">Search checked items</span>
+                <span className="hub-search-icon" aria-hidden="true">
+                  ⌕
+                </span>
+                <input
+                  value={query}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search a claim, topic, or story…"
+                  type="search"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-expanded={filtersOpen}
+                aria-controls="hub-secondary-filters"
+                className={`hub-filters-button ${filtersOpen || hasSecondaryFilters ? "hub-filters-button-active" : ""}`}
+              >
+                Filters
+                {hasSecondaryFilters && <span className="hub-filter-dot" />}
+                <span aria-hidden="true">▽</span>
+              </button>
             </div>
-            {loading && <Loading />}
+
+            {filtersOpen && (
+              <div id="hub-secondary-filters" className="hub-secondary-filters">
+                <FilterGroup
+                  label="Visibility"
+                  value={privacy}
+                  onChange={(value) => setPrivacy(value as PrivacyFilter)}
+                  options={[
+                    ["all", "Any"],
+                    ["public", "Public"],
+                    ["private", "Private"],
+                  ]}
+                />
+                <FilterGroup
+                  label="Trace status"
+                  value={status}
+                  onChange={(value) => setStatus(value as StatusFilter)}
+                  options={[
+                    ["all", "Any"],
+                    ["monitoring", "Monitoring"],
+                    ["review", "Review due"],
+                  ]}
+                />
+                {hasSecondaryFilters && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrivacy("all");
+                      setStatus("all");
+                    }}
+                    className="hub-clear-filters"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
+
             {error && (
               <div
-                className="mt-8 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+                className="mt-7 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
                 role="alert"
               >
                 <div className="flex items-center justify-between gap-4">
@@ -189,52 +332,69 @@ export default function HubPage() {
                 </div>
               </div>
             )}
+
+            <div className="mt-8 flex flex-wrap items-center gap-3 sm:mt-10">
+              <h2 className="text-2xl font-black tracking-[-.045em] sm:text-[1.7rem]">
+                Trace Library
+              </h2>
+              {!loading && !error && (
+                <span className="rounded-full bg-[#eaf0ec] px-3 py-1 text-xs font-bold text-emerald-950/48">
+                  {visible.length === checks.length
+                    ? `${pagination.total} matching checks`
+                    : `${visible.length} shown on this page`}
+                </span>
+              )}
+            </div>
+
+            {loading && <Loading compact />}
             {!loading && !error && visible.length === 0 && (
-              <p className="mt-8 rounded-3xl border border-dashed border-emerald-950/20 bg-white p-10 text-center text-emerald-950/60">
-                No checks match this view.
-              </p>
+              <div className="mt-5 rounded-[1.5rem] border border-dashed border-emerald-950/20 bg-white px-5 py-14 text-center">
+                <p className="font-black text-emerald-950">No traces found.</p>
+                <p className="mt-2 text-sm text-emerald-950/55">
+                  Try a different search or clear one of your filters.
+                </p>
+              </div>
             )}
-            {visible.length > 0 && (
+
+            {!loading && !error && visible.length > 0 && (
               <>
-                <div className="mt-8 flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-black tracking-[.18em] text-emerald-700">
-                      TRACE LIBRARY
-                    </p>
-                    <h2 className="mt-2 text-2xl font-black tracking-[-.045em]">
-                      Every story keeps its evidence.
-                    </h2>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-950/42">
-                    {pagination.total} matching checks
-                  </span>
-                </div>
-                <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-5">
                   {visible.map((check, index) => (
-                    <HubCheckCard key={check.id} check={check} index={index} />
+                    <HubCheckCard
+                      key={check.id}
+                      check={check}
+                      traceNumber={(pagination.page - 1) * 20 + index + 1}
+                      bookmarked={bookmarked.has(check.id)}
+                      onToggleBookmark={() => toggleBookmark(check.id)}
+                    />
                   ))}
                 </div>
-                <div className="mt-4 flex items-center justify-between text-sm">
-                  <span className="text-emerald-950/55">
-                    Page {pagination.page} of {pagination.totalPages}
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      disabled={page <= 1}
-                      onClick={() => setPage(page - 1)}
-                      className="rounded-lg bg-white px-3 py-2 font-bold disabled:opacity-40"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      disabled={page >= pagination.totalPages}
-                      onClick={() => setPage(page + 1)}
-                      className="rounded-lg bg-emerald-950 px-3 py-2 font-bold text-white disabled:opacity-40"
-                    >
-                      Next
-                    </button>
+
+                {pagination.totalPages > 1 && (
+                  <div className="mt-6 flex items-center justify-between gap-4 text-sm">
+                    <span className="text-emerald-950/55">
+                      Page {pagination.page} of {pagination.totalPages}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={page <= 1}
+                        onClick={() => setPage((current) => current - 1)}
+                        className="hub-page-button bg-white text-emerald-950"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        disabled={page >= pagination.totalPages}
+                        onClick={() => setPage((current) => current + 1)}
+                        className="hub-page-button bg-emerald-950 text-white"
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </section>
@@ -246,42 +406,49 @@ export default function HubPage() {
 
 function HubCheckCard({
   check,
-  index,
+  traceNumber,
+  bookmarked,
+  onToggleBookmark,
 }: {
   check: CheckSummary;
-  index: number;
+  traceNumber: number;
+  bookmarked: boolean;
+  onToggleBookmark: () => void;
 }) {
   const score = Math.max(0, Math.min(100, check.traceraScore.overall));
-  const surfaces = ["bg-white", "bg-[#dff7ed]", "bg-[#f1ebfb]", "bg-[#f9ead3]"];
-  const scoreColor =
-    score >= 70 ? "#34d399" : score >= 45 ? "#f5c451" : "#fb7185";
+  const scoreTone = score >= 70 ? "strong" : score >= 45 ? "mixed" : "weak";
+
   return (
-    <Link
-      href={`/hub/${check.id}`}
-      className={`hub-check-card landing-view-reveal group flex min-h-72 flex-col rounded-[1.75rem] border border-emerald-950/10 p-5 shadow-[0_22px_55px_-45px_rgba(16,34,31,.62)] ${surfaces[index % surfaces.length]}`}
-    >
+    <article className="hub-check-card group flex min-h-[16.75rem] flex-col rounded-[1.5rem] border border-emerald-950/10 bg-white p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[9px] font-black tracking-[.16em] text-emerald-700">
-            TRACE {String(index + 1).padStart(2, "0")}
-          </p>
-          <p className="mt-1 text-[10px] font-bold text-emerald-950/38">
+        <div className="min-w-0">
+          <span className={`hub-trace-label hub-trace-label-${scoreTone}`}>
+            TRACE {String(traceNumber).padStart(2, "0")}
+          </span>
+          <p
+            className="mt-3 truncate text-xs font-bold text-emerald-950/48"
+            title={check.sourceDomain ?? "Direct submission"}
+          >
             {check.sourceDomain ?? "Direct submission"}
           </p>
         </div>
         <div
           className="hub-score-ring"
-          style={{
-            background: `conic-gradient(${scoreColor} 0 ${score}%, rgba(16,34,31,.08) ${score}% 100%)`,
-          }}
-          aria-label={`Score ${check.traceraScore.overall} out of 100`}
+          data-tone={scoreTone}
+          style={{ "--score": `${score}%` } as React.CSSProperties}
+          aria-label={`Signal score ${check.traceraScore.overall} out of 100`}
         >
           <span>{check.traceraScore.overall}</span>
         </div>
       </div>
-      <h3 className="mt-7 line-clamp-4 text-lg font-black leading-6 tracking-[-.025em] text-emerald-950 transition group-hover:text-emerald-700">
+
+      <Link
+        href={`/hub/${check.id}`}
+        className="mt-5 line-clamp-3 text-lg font-black leading-[1.28] tracking-[-.035em] text-emerald-950 outline-offset-4 transition group-hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-emerald-600 sm:text-xl"
+      >
         {check.rawInput}
-      </h3>
+      </Link>
+
       <div className="mt-auto pt-7">
         <div className="flex flex-wrap gap-1.5">
           <StatusPill
@@ -302,10 +469,11 @@ function HubCheckCard({
             />
           )}
         </div>
-        <div className="mt-4 flex items-center justify-between border-t border-emerald-950/8 pt-4">
+
+        <div className="mt-4 flex items-center gap-3 border-t border-emerald-950/8 pt-4">
           <time
             dateTime={check.createdAt}
-            className="text-[10px] font-bold text-emerald-950/42"
+            className="mr-auto text-[11px] font-bold text-emerald-950/46"
           >
             {new Date(check.createdAt).toLocaleDateString(undefined, {
               month: "short",
@@ -313,12 +481,56 @@ function HubCheckCard({
               year: "numeric",
             })}
           </time>
-          <span className="grid size-8 place-items-center rounded-full bg-emerald-950 text-sm text-[#9cf0d1] transition group-hover:translate-x-1">
+          <button
+            type="button"
+            onClick={onToggleBookmark}
+            aria-pressed={bookmarked}
+            aria-label={bookmarked ? "Remove bookmark" : "Bookmark trace"}
+            className={`hub-bookmark-button ${bookmarked ? "hub-bookmark-button-active" : ""}`}
+          >
+            <span aria-hidden="true">{bookmarked ? "◆" : "◇"}</span>
+          </button>
+          <Link
+            href={`/hub/${check.id}`}
+            aria-label="Open trace"
+            className="grid size-9 shrink-0 place-items-center rounded-full bg-[#074b3d] text-sm text-white shadow-[0_7px_18px_-10px_rgba(7,75,61,.9)] transition group-hover:translate-x-1 group-hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+          >
             →
-          </span>
+          </Link>
         </div>
       </div>
-    </Link>
+    </article>
+  );
+}
+
+function FilterGroup({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: [string, string][];
+}) {
+  return (
+    <fieldset>
+      <legend>{label}</legend>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map(([optionValue, optionLabel]) => (
+          <button
+            key={optionValue}
+            type="button"
+            onClick={() => onChange(optionValue)}
+            aria-pressed={value === optionValue}
+            className={`hub-filter-chip ${value === optionValue ? "hub-filter-chip-active" : ""}`}
+          >
+            {optionLabel}
+          </button>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
@@ -353,6 +565,8 @@ function MediaDietCard() {
     averageSignal: number | null;
   } | null>(null);
   const [enabled, setEnabled] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     apiFetch(`${apiUrl}/reports/media-diet`)
       .then(async (response) => (response.ok ? response.json() : null))
@@ -364,122 +578,92 @@ function MediaDietCard() {
       })
       .catch(() => undefined);
   }, [apiFetch]);
+
   async function toggle() {
     const next = !enabled;
     setEnabled(next);
-    const response = await apiFetch(
-      `${apiUrl}/reports/media-diet/preferences`,
-      {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ enabled: next, frequency: "monthly" }),
-      },
-    );
-    if (!response.ok) setEnabled(!next);
+    setSaving(true);
+    try {
+      const response = await apiFetch(
+        `${apiUrl}/reports/media-diet/preferences`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ enabled: next, frequency: "monthly" }),
+        },
+      );
+      if (!response.ok) setEnabled(!next);
+    } catch {
+      setEnabled(!next);
+    } finally {
+      setSaving(false);
+    }
   }
-  if (!report) return null;
+
   return (
-    <section className="noise relative mt-5 overflow-hidden rounded-[1.75rem] bg-[#0e3028] p-5 text-white shadow-[0_24px_60px_-42px_rgba(6,78,59,.75)] sm:p-6">
-      <div className="relative z-10 grid gap-5 md:grid-cols-[1fr_auto_auto_auto] md:items-center">
-        <div>
-          <p className="text-[9px] font-black tracking-[.17em] text-[#9cf0d1]">
-            YOUR MEDIA DIET · {report.periodDays} DAYS
-          </p>
-          <h2 className="mt-2 text-xl font-black tracking-[-.035em]">
-            See the pattern behind your checks.
-          </h2>
-        </div>
-        <DietMetric value={String(report.totalChecks)} label="Checks" />
-        <DietMetric
-          value={`${report.averageSourceReputation ?? "—"}`}
-          label="Source quality"
-        />
-        <DietMetric
-          value={`${report.averageSignal ?? "—"}`}
-          label="Avg. signal"
-        />
+    <section className="hub-stat-card hub-diet-card">
+      <div className="hub-stat-icon hub-stat-icon-violet" aria-hidden="true">
+        ▦
       </div>
-      <div className="relative z-10 mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-        <p className="text-xs text-white/48">
-          A monthly snapshot of the evidence you inspect.
+      <div className="min-w-0">
+        <p className="text-sm font-black text-emerald-950/74">
+          Your diet · {report?.periodDays ?? 30} days
         </p>
+        <p className="mt-2 text-sm text-emerald-950/44">Evidence snapshot</p>
         <button
+          type="button"
           onClick={() => void toggle()}
-          className="rounded-xl bg-[#9cf0d1] px-4 py-2.5 text-xs font-black text-emerald-950 transition hover:-translate-y-0.5"
+          disabled={saving}
+          className="mt-5 text-left text-sm font-black text-[#073d33] transition hover:text-emerald-700 disabled:opacity-50"
         >
-          {enabled ? "Monthly report on ✓" : "Email my monthly report"}
+          {enabled ? "Monthly report on ✓" : "Email my monthly report →"}
         </button>
       </div>
     </section>
   );
 }
 
-function DietMetric({ value, label }: { value: string; label: string }) {
+function Stat({
+  value,
+  label,
+  eyebrow,
+  icon,
+}: {
+  value: string;
+  label: string;
+  eyebrow: string;
+  icon: "archive" | "signal" | "review";
+}) {
+  const symbols = { archive: "▣", signal: "≋", review: "●" };
   return (
-    <div className="rounded-xl bg-white/[.07] px-4 py-3">
-      <strong className="block text-xl font-black tracking-[-.05em] text-[#9cf0d1]">
-        {value}
-      </strong>
-      <span className="mt-1 block text-[8px] font-black uppercase tracking-[.11em] text-white/38">
-        {label}
-      </span>
-    </div>
+    <section className="hub-stat-card">
+      <div className={`hub-stat-icon hub-stat-icon-${icon}`} aria-hidden="true">
+        {symbols[icon]}
+      </div>
+      <div>
+        <p className="text-sm font-black text-emerald-950/74">{eyebrow}</p>
+        <p className="mt-2 text-sm text-emerald-950/44">{label}</p>
+        <p className="mt-4 text-4xl font-black tracking-[-.07em] text-[#082e27]">
+          {value}
+        </p>
+      </div>
+    </section>
   );
 }
 
-function Loading() {
+function Loading({ compact = false }: { compact?: boolean }) {
   return (
     <div
-      className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+      className={`${compact ? "mt-5" : "mt-8"} grid gap-4 md:grid-cols-2 xl:grid-cols-3`}
       role="status"
     >
       {[0, 1, 2].map((item) => (
         <div
           key={item}
-          className="h-72 animate-pulse rounded-[1.75rem] border border-emerald-950/8 bg-white/70"
+          className="h-[16.75rem] animate-pulse rounded-[1.5rem] border border-emerald-950/8 bg-white/70"
         />
       ))}
       <span className="sr-only">Loading traces…</span>
-    </div>
-  );
-}
-function Stat({
-  value,
-  label,
-  eyebrow,
-  tone,
-}: {
-  value: string;
-  label: string;
-  eyebrow: string;
-  tone: "mint" | "dark" | "amber";
-}) {
-  const tones = {
-    mint: "border-emerald-800/10 bg-[#dff7ed] text-emerald-950",
-    dark: "border-transparent bg-[#0e3028] text-white",
-    amber: "border-amber-900/10 bg-[#fae8ce] text-emerald-950",
-  };
-  return (
-    <div
-      className={`flex items-center justify-between gap-5 rounded-[1.5rem] border p-5 ${tones[tone]}`}
-    >
-      <div>
-        <p
-          className={`text-[8px] font-black uppercase tracking-[.15em] ${tone === "dark" ? "text-[#9cf0d1]" : "text-emerald-700"}`}
-        >
-          {eyebrow}
-        </p>
-        <p
-          className={`mt-2 text-[10px] font-bold uppercase tracking-[.08em] ${tone === "dark" ? "text-white/45" : "text-emerald-950/45"}`}
-        >
-          {label}
-        </p>
-      </div>
-      <p
-        className={`text-3xl font-black tracking-[-.07em] ${tone === "dark" ? "text-[#9cf0d1]" : ""}`}
-      >
-        {value}
-      </p>
     </div>
   );
 }
