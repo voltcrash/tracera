@@ -13,6 +13,8 @@ type EvidenceFetch = (
   init?: RequestInit,
 ) => Promise<Response | undefined>;
 
+type BudgetedEvidenceFetch = EvidenceFetch & { remaining: () => number };
+
 interface RetrieveSourcesOptions {
   provider: AiProvider;
   factCheckApiKey?: string;
@@ -23,6 +25,8 @@ interface RetrieveSourcesOptions {
   webSearchEndpoint?: string;
   webSearchApiKey?: string;
   claimEmbedding?: number[];
+  storyContext?: string;
+  submittedSource?: EvidenceSource;
   /** Primarily exposed for stricter runtimes and deterministic tests. */
   externalRequestLimit?: number;
 }
@@ -54,57 +58,97 @@ export async function retrieveSources(
   const evidenceFetch = limitedFetch(
     options.externalRequestLimit ?? DEFAULT_EXTERNAL_REQUEST_LIMIT,
   );
-  const [corpus, factChecks, newsApi, gdelt, googleNews, webSearch] =
-    await Promise.all([
-      safelyRetrieve("corpus", () =>
-        retrieveCorpusSources(
-          claim,
-          options.provider,
-          options.claimEmbedding,
-          options.corpusSimilarityThreshold ?? 0.78,
-          options.corpusLimit ?? 5,
-        ),
+  const corpusPromise = safelyRetrieve("corpus", () =>
+    retrieveCorpusSources(
+      claim,
+      options.provider,
+      options.claimEmbedding,
+      options.corpusSimilarityThreshold ?? 0.78,
+      options.corpusLimit ?? 5,
+    ),
+  );
+
+  // Guarantee the resilient, no-key news index a request before optional or
+  // rate-limited providers can consume the shared Worker budget.
+  const primaryGoogleNews = await safelyRetrieve("Google News RSS", () =>
+    retrieveGoogleNewsSources(
+      claim,
+      claim.claimText,
+      evidenceFetch,
+      options.storyContext,
+    ),
+  );
+  const contextualQuery = buildContextualQuery(claim, options.storyContext);
+  const contextualGoogleNews =
+    primaryGoogleNews.length < 2 &&
+    contextualQuery !== claim.claimText &&
+    evidenceFetch.remaining() > 0
+      ? await safelyRetrieve("contextual Google News RSS", () =>
+          retrieveGoogleNewsSources(
+            claim,
+            contextualQuery,
+            evidenceFetch,
+            options.storyContext,
+          ),
+        )
+      : [];
+
+  const [corpus, factChecks, newsApi, webSearch] = await Promise.all([
+    corpusPromise,
+    safelyRetrieve("Google Fact Check", () =>
+      retrieveGoogleFactCheckSources(
+        claim,
+        options.factCheckApiKey,
+        options.factCheckLimit ?? 5,
+        evidenceFetch,
+        options.storyContext,
       ),
-      safelyRetrieve("Google Fact Check", () =>
-        retrieveGoogleFactCheckSources(
-          claim,
-          options.factCheckApiKey,
-          options.factCheckLimit ?? 5,
-          evidenceFetch,
-        ),
+    ),
+    safelyRetrieve("NewsAPI", () =>
+      retrieveNewsApiSources(
+        claim,
+        options.newsApiKey,
+        evidenceFetch,
+        options.storyContext,
       ),
-      safelyRetrieve("NewsAPI", () =>
-        retrieveNewsApiSources(claim, options.newsApiKey, evidenceFetch),
+    ),
+    safelyRetrieve("web search", () =>
+      retrieveWebSearchSources(
+        claim,
+        options.webSearchEndpoint,
+        options.webSearchApiKey,
+        evidenceFetch,
+        options.storyContext,
       ),
-      safelyRetrieve("GDELT", () => retrieveGdeltSources(claim, evidenceFetch)),
-      // Google News RSS is a no-key fallback for breaking stories. It gives
-      // the pipeline a broad set of independent publisher candidates when
-      // GDELT is rate limited and optional search providers are not configured.
-      safelyRetrieve("Google News RSS", () =>
-        retrieveGoogleNewsSources(claim, evidenceFetch),
-      ),
-      safelyRetrieve("web search", () =>
-        retrieveWebSearchSources(
-          claim,
-          options.webSearchEndpoint,
-          options.webSearchApiKey,
-          evidenceFetch,
-        ),
-      ),
-    ]);
+    ),
+  ]);
+
+  const initialCandidates = [
+    ...primaryGoogleNews,
+    ...contextualGoogleNews,
+    ...factChecks,
+    ...newsApi,
+    ...webSearch,
+  ];
+  const gdelt =
+    initialCandidates.length < 2 && evidenceFetch.remaining() > 0
+      ? await safelyRetrieve("GDELT", () =>
+          retrieveGdeltSources(claim, evidenceFetch, options.storyContext),
+        )
+      : [];
   // Treat retrieval APIs as candidate generators. Nothing reaches the model
   // until it has passed a deterministic subject-relevance gate.
   const deduplicated = deduplicateSources([
+    ...(options.submittedSource ? [options.submittedSource] : []),
     ...corpus,
     ...factChecks,
     ...newsApi,
     ...gdelt,
-    ...googleNews,
+    ...primaryGoogleNews,
+    ...contextualGoogleNews,
     ...webSearch,
   ]);
-  const trust = await getDomainTrustScores(
-    deduplicated.map((source) => source.sourceDomain ?? ""),
-  );
+  const trust = await safelyGetDomainTrustScores(deduplicated);
   const ranked = rankAndLimitSources(
     claim,
     deduplicated.map((source) => ({
@@ -113,6 +157,7 @@ export async function retrieveSources(
         ? (trust.get(source.sourceDomain) ?? defaultCredibility(source.type))
         : defaultCredibility(source.type),
     })),
+    options.storyContext,
   );
   return enrichEvidenceSnippets(ranked, evidenceFetch);
 }
@@ -128,7 +173,12 @@ async function enrichEvidenceSnippets(
 ) {
   return Promise.all(
     sources.map(async (source) => {
-      if (!source.url || source.type === "corpus") return source;
+      if (
+        !source.url ||
+        source.type === "corpus" ||
+        source.type === "submitted_source"
+      )
+        return source;
       const metadata = await retrieveArticleMetadata(source.url, evidenceFetch);
       return {
         ...source,
@@ -183,6 +233,7 @@ async function retrieveGoogleFactCheckSources(
   apiKey: string | undefined,
   pageSize: number,
   evidenceFetch: EvidenceFetch,
+  storyContext?: string,
 ): Promise<EvidenceSource[]> {
   if (!apiKey) {
     return [];
@@ -225,13 +276,14 @@ async function retrieveGoogleFactCheckSources(
         ),
       })),
     )
-    .filter((source) => passesRelevanceGate(claim, source));
+    .filter((source) => passesRelevanceGate(claim, source, storyContext));
 }
 
 async function retrieveNewsApiSources(
   claim: ExtractedClaim,
   apiKey?: string,
   evidenceFetch: EvidenceFetch = limitedFetch(DEFAULT_EXTERNAL_REQUEST_LIMIT),
+  storyContext?: string,
 ): Promise<EvidenceSource[]> {
   if (!apiKey) return [];
   const url = new URL("https://newsapi.org/v2/everything");
@@ -268,12 +320,13 @@ async function retrieveNewsApiSources(
         `${article.title} ${article.description ?? ""}`,
       ),
     }))
-    .filter((source) => passesRelevanceGate(claim, source));
+    .filter((source) => passesRelevanceGate(claim, source, storyContext));
 }
 
 async function retrieveGdeltSources(
   claim: ExtractedClaim,
   evidenceFetch: EvidenceFetch,
+  storyContext?: string,
 ): Promise<EvidenceSource[]> {
   const url = new URL("https://api.gdeltproject.org/api/v2/doc/doc");
   url.searchParams.set(
@@ -306,7 +359,9 @@ async function retrieveGdeltSources(
       publishedAt: normalizeGdeltDate(article.seendate),
     };
   });
-  return sources.filter((source) => passesRelevanceGate(claim, source));
+  return sources.filter((source) =>
+    passesRelevanceGate(claim, source, storyContext),
+  );
 }
 
 async function requestGdelt(url: URL, evidenceFetch: EvidenceFetch) {
@@ -529,10 +584,12 @@ function normalizeGdeltDate(value?: string) {
  */
 async function retrieveGoogleNewsSources(
   claim: ExtractedClaim,
+  query: string,
   evidenceFetch: EvidenceFetch,
+  storyContext?: string,
 ): Promise<EvidenceSource[]> {
   const url = new URL("https://news.google.com/rss/search");
-  url.searchParams.set("q", claim.claimText.slice(0, 500));
+  url.searchParams.set("q", query.slice(0, 700));
   url.searchParams.set("hl", "en-US");
   url.searchParams.set("gl", "US");
   url.searchParams.set("ceid", "US:en");
@@ -563,7 +620,7 @@ async function retrieveGoogleNewsSources(
         snippet: stripMarkup(xmlValue(item, "description")).slice(0, 1_200),
         publishedAt: normalizeFeedDate(xmlValue(item, "pubDate")),
       };
-      return passesRelevanceGate(claim, source) ? [source] : [];
+      return passesRelevanceGate(claim, source, storyContext) ? [source] : [];
     })
     .slice(0, 12);
 }
@@ -571,8 +628,63 @@ async function retrieveGoogleNewsSources(
 function sourceRelevance(claimTerms: Set<string>, text: string) {
   if (claimTerms.size === 0) return 0;
   const itemTerms = significantTerms(text);
-  const overlap = [...claimTerms].filter((term) => itemTerms.has(term)).length;
-  return overlap < 2 ? 0 : overlap / Math.min(claimTerms.size, 8);
+  const overlap = termOverlap(claimTerms, itemTerms);
+  return overlap < 2 ? 0 : Math.min(overlap / Math.min(claimTerms.size, 8), 1);
+}
+
+function termOverlap(left: Set<string>, right: Set<string>) {
+  return [...left].filter((term) => right.has(term)).length;
+}
+
+function buildContextualQuery(claim: ExtractedClaim, storyContext?: string) {
+  const additions = [claim.context, storyContext?.slice(0, 420)]
+    .map((value) => value?.replace(/\s+/g, " ").trim())
+    .filter((value): value is string => Boolean(value))
+    .filter(
+      (value) => !claim.claimText.toLowerCase().includes(value.toLowerCase()),
+    );
+  return [claim.claimText, ...additions].join(" ").slice(0, 700);
+}
+
+function retrievalContext(claim: ExtractedClaim, storyContext?: string) {
+  return [claim.claimText, claim.context, storyContext?.slice(0, 1_000)]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function normalizeTerm(value: string) {
+  const numberWords: Record<string, string> = {
+    one: "1",
+    two: "2",
+    three: "3",
+    four: "4",
+    five: "5",
+    six: "6",
+    seven: "7",
+    eight: "8",
+    nine: "9",
+    ten: "10",
+    eleven: "11",
+    twelve: "12",
+    thirteen: "13",
+    fourteen: "14",
+    fifteen: "15",
+    sixteen: "16",
+    seventeen: "17",
+    eighteen: "18",
+    nineteen: "19",
+    twenty: "20",
+  };
+  const number = numberWords[value];
+  if (number) return number;
+  const spelling = value
+    .replace(/^hospitalis/, "hospitaliz")
+    .replace(/^organisation/, "organization");
+  return spelling.length > 4 &&
+    spelling.endsWith("s") &&
+    !spelling.endsWith("ss")
+    ? spelling.slice(0, -1)
+    : spelling;
 }
 
 function significantTerms(text: string) {
@@ -594,6 +706,7 @@ function significantTerms(text: string) {
     "government",
     "have",
     "into",
+    "incident",
     "issue",
     "issues",
     "minister",
@@ -632,7 +745,9 @@ function significantTerms(text: string) {
       .toLowerCase()
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .split(/\s+/)
-      .filter((word) => word.length >= 3 && !stopWords.has(word)),
+      .filter((word) => word.length >= 2 && !stopWords.has(word))
+      .map(normalizeTerm)
+      .filter((word) => word.length >= 2),
   );
 }
 
@@ -641,22 +756,31 @@ function significantTerms(text: string) {
  * news vocabulary. This hard boundary is applied to every source type,
  * including generic web search and publisher RSS feeds.
  */
-function passesRelevanceGate(claim: ExtractedClaim, source: EvidenceSource) {
+function passesRelevanceGate(
+  claim: ExtractedClaim,
+  source: EvidenceSource,
+  storyContext?: string,
+) {
   if (!source.title.trim() || (source.type !== "corpus" && !source.url))
     return false;
   const sourceText = `${source.title} ${source.claimText ?? ""} ${source.snippet ?? ""}`;
-  const relevance = sourceRelevance(
-    significantTerms(claim.claimText),
+  const claimTerms = significantTerms(claim.claimText);
+  const sourceTerms = significantTerms(sourceText);
+  const directRelevance = sourceRelevance(claimTerms, sourceText);
+  const contextualRelevance = sourceRelevance(
+    significantTerms(retrievalContext(claim, storyContext)),
     sourceText,
   );
+  if (directRelevance === 0 && termOverlap(claimTerms, sourceTerms) === 0)
+    return false;
+  const relevance = Math.max(directRelevance, contextualRelevance * 0.85);
   source.similarity = relevance;
 
   const anchors = anchorTerms(claim.claimText);
-  const sourceTerms = significantTerms(sourceText);
   if (anchors.length > 0 && !anchors.some((anchor) => sourceTerms.has(anchor)))
     return false;
 
-  return relevance >= 0.28;
+  return relevance >= 0.24;
 }
 
 function anchorTerms(text: string) {
@@ -673,21 +797,26 @@ function anchorTerms(text: string) {
             !["The", "A", "An", "And", "But"].includes(word)
           );
         })
-        .map((word) => word.toLowerCase())
+        .map((word) => normalizeTerm(word.toLowerCase()))
         .filter((word) => word.length >= 2),
     ),
   ];
 }
 
-function rankAndLimitSources(claim: ExtractedClaim, sources: EvidenceSource[]) {
+function rankAndLimitSources(
+  claim: ExtractedClaim,
+  sources: EvidenceSource[],
+  storyContext?: string,
+) {
   return sources
-    .filter((source) => passesRelevanceGate(claim, source))
+    .filter((source) => passesRelevanceGate(claim, source, storyContext))
     .sort((left, right) => sourceRank(right) - sourceRank(left))
     .slice(0, MAX_EVIDENCE_SOURCES);
 }
 
 function sourceRank(source: EvidenceSource) {
   const sourcePriority: Record<EvidenceSource["type"], number> = {
+    submitted_source: -0.1,
     google_fact_check: 0.25,
     corpus: 0.2,
     newsapi: 0.1,
@@ -751,6 +880,7 @@ async function retrieveWebSearchSources(
   endpoint?: string,
   apiKey?: string,
   evidenceFetch: EvidenceFetch = limitedFetch(DEFAULT_EXTERNAL_REQUEST_LIMIT),
+  storyContext?: string,
 ): Promise<EvidenceSource[]> {
   if (!endpoint || !apiKey) return [];
   const url = new URL(endpoint);
@@ -784,7 +914,7 @@ async function retrieveWebSearchSources(
         `${item.title} ${item.snippet ?? ""}`,
       ),
     }))
-    .filter((source) => passesRelevanceGate(claim, source));
+    .filter((source) => passesRelevanceGate(claim, source, storyContext));
 }
 
 function domain(value?: string) {
@@ -798,16 +928,38 @@ function domain(value?: string) {
   }
 }
 function defaultCredibility(type: EvidenceSource["type"]) {
-  return type === "google_fact_check" ? 0.85 : type === "corpus" ? 0.75 : 0.5;
+  return type === "google_fact_check"
+    ? 0.85
+    : type === "corpus"
+      ? 0.75
+      : type === "submitted_source"
+        ? 0.45
+        : 0.5;
 }
 
-function limitedFetch(limit: number): EvidenceFetch {
+async function safelyGetDomainTrustScores(sources: EvidenceSource[]) {
+  try {
+    return await getDomainTrustScores(
+      sources.map((source) => source.sourceDomain ?? ""),
+    );
+  } catch (error) {
+    console.warn(
+      "Tracera domain trust lookup failed; using source-class defaults.",
+      error,
+    );
+    return new Map<string, number>();
+  }
+}
+
+function limitedFetch(limit: number): BudgetedEvidenceFetch {
   let remaining = Number.isInteger(limit) && limit > 0 ? limit : 0;
-  return async (input, init) => {
+  const budgetedFetch: BudgetedEvidenceFetch = async (input, init) => {
     if (remaining <= 0) return undefined;
     remaining -= 1;
     return fetch(input, init);
   };
+  budgetedFetch.remaining = () => remaining;
+  return budgetedFetch;
 }
 async function safelyRetrieve(
   label: string,

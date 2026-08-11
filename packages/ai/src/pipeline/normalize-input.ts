@@ -8,7 +8,6 @@ import { extractExifMetadata } from "./image-metadata.js";
 const ARTICLE_FETCH_TIMEOUT_MS = 15_000;
 const MAX_ARTICLE_BYTES = 2_000_000;
 const MAX_REDIRECTS = 5;
-const READER_FALLBACK_STATUSES = new Set([401, 403, 429]);
 const MIN_READER_ARTICLE_CHARACTERS = 160;
 const MIN_READER_ARTICLE_WORDS = 20;
 
@@ -65,7 +64,7 @@ export async function normalizeInput(
 async function normalizeUrl(value: string): Promise<NormalizedInput> {
   const requestedUrl = new URL(value);
   const response = await fetchPublicDocument(requestedUrl);
-  if (!response.ok && READER_FALLBACK_STATUSES.has(response.status)) {
+  if (!response.ok) {
     const readerResponse = await fetchReaderFallback(requestedUrl);
     let readerArticle: ReturnType<typeof parseReaderDocument> | undefined;
     if (readerResponse?.ok) {
@@ -75,10 +74,14 @@ async function normalizeUrl(value: string): Promise<NormalizedInput> {
           MAX_ARTICLE_BYTES,
         );
         readerArticle = parseReaderDocument(markdown);
-        if (isReadableArticleText(readerArticle.text)) {
+        if (
+          !isReaderErrorDocument(readerArticle) &&
+          isReadableArticleText(readerArticle.text)
+        ) {
           return {
             inputType: "link",
             rawInput: value,
+            title: readerArticle.title,
             text: readerArticle.text.slice(0, 50_000),
             sourceUrl: requestedUrl.href,
             sourceDomain: sourceDomain(requestedUrl.href),
@@ -100,6 +103,7 @@ async function normalizeUrl(value: string): Promise<NormalizedInput> {
       return {
         inputType: "link",
         rawInput: value,
+        title: headline,
         text: `Headline: ${headline}`,
         sourceUrl: requestedUrl.href,
         sourceDomain: sourceDomain(requestedUrl.href),
@@ -130,6 +134,10 @@ async function normalizeUrl(value: string): Promise<NormalizedInput> {
   return {
     inputType: "link",
     rawInput: value,
+    title:
+      metaContent(html, "og:title") ??
+      (decode(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "") ||
+        undefined),
     text: text.slice(0, 50_000),
     sourceUrl: finalUrl,
     sourceDomain: sourceDomain(finalUrl),
@@ -165,9 +173,21 @@ export function parseReaderDocument(markdown: string) {
   ).trim();
   return {
     text,
+    title: readerField(markdown, "Title"),
     publishedAt: readerField(markdown, "Published Time"),
     author: readerField(markdown, "Author"),
+    warning: readerField(markdown, "Warning"),
   };
+}
+
+export function isReaderErrorDocument(
+  article: ReturnType<typeof parseReaderDocument>,
+) {
+  return (
+    /^(?:page\s+)?not found|^error\b|^access denied$/i.test(
+      article.title?.trim() ?? "",
+    ) || /returned error (?:4\d\d|5\d\d)/i.test(article.warning ?? "")
+  );
 }
 
 export function isReadableArticleText(text: string) {

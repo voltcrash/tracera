@@ -26,10 +26,7 @@ export function aggregateScore(
   const evidenceQuality = average(claims.map((claim) => claim.evidenceQuality));
   const sourceReputation = average(
     claims
-      .flatMap((claim) => [
-        ...claim.supportingSources,
-        ...claim.contradictingSources,
-      ])
+      .flatMap((claim) => claim.consideredSources)
       .map((source) => source.credibility ?? 0.5),
   );
   const framingManipulation =

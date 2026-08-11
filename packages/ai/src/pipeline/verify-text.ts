@@ -20,7 +20,10 @@ export async function verifyText(
   const claimVerdicts: ClaimVerdict[] = [];
 
   for (const claim of extractedClaims) {
-    const sources = await retrieveSources(claim, options);
+    const sources = await retrieveSources(claim, {
+      ...options,
+      storyContext: options.storyContext ?? text,
+    });
     claimVerdicts.push(await scoreClaim(options.provider, claim, sources));
   }
 

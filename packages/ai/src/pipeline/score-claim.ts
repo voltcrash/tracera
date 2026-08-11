@@ -94,6 +94,7 @@ export function buildVerdictPrompt(claim: ExtractedClaim, evidence: unknown) {
     `Its type is ${claim.claimType} and its checkability is ${claim.checkability}.\n\n` +
     `Retrieved evidence:\n${JSON.stringify(evidence)}\n\n` +
     "Use only the evidence listed above. Return unverified when evidence is missing or inadequate. " +
+    "A submitted_source records what the analyzed item says; it is not independent corroboration and cannot support a claim by itself. " +
     "Provide 1–4 concise evidence-based justification steps, each tied to a source ID where possible. " +
     "If credible sources conflict, return mixed or misleading as appropriate and include IDs on both sides; never average conflicts away. " +
     "Only use source IDs included in the retrieved evidence."

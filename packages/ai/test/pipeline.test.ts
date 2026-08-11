@@ -14,6 +14,7 @@ import {
 import { extractExifMetadata } from "../src/pipeline/image-metadata.js";
 import {
   articleTitleFromUrl,
+  isReaderErrorDocument,
   isReadableArticleText,
   parseReaderDocument,
 } from "../src/pipeline/normalize-input.js";
@@ -62,6 +63,21 @@ test("reader fallback rejects image captions and recovers a headline from an art
     articleTitleFromUrl(new URL("https://example.com/article/11895474")),
     undefined,
   );
+});
+
+test("reader error shells are rejected before headline fallback", () => {
+  const article = parseReaderDocument(
+    `Title: Page Not Found
+URL Source: https://example.com/air-india-pilot-confirmatory-test-positive-133155633.cms
+Warning: Target URL returned error 404: Not Found
+
+Markdown Content:
+This is a long navigation shell that must not be treated as article text. `.repeat(
+      8,
+    ),
+  );
+  assert.equal(isReadableArticleText(article.text), true);
+  assert.equal(isReaderErrorDocument(article), true);
 });
 
 test("claim extraction discards model claims that introduce unsupported details", async () => {
@@ -156,6 +172,64 @@ test("evidence retrieval respects the Worker subrequest budget", async () => {
 
     assert.deepEqual(sources, []);
     assert.equal(requests, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
+});
+
+test("Google News retrieval keeps contextual short claims on the story subject", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const requestedHosts: string[] = [];
+  console.warn = () => undefined;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requestedHosts.push(url.hostname);
+    if (url.hostname === "news.google.com") {
+      return new Response(`<?xml version="1.0"?><rss><channel><item>
+        <title>17 people hospitalized after Air India Phuket-Delhi flight incident</title>
+        <link>https://news.google.com/rss/articles/relevant?oc=5</link>
+        <pubDate>Tue, 11 Aug 2026 12:33:28 GMT</pubDate>
+        <description>Independent reporting says 17 people were hospitalized.</description>
+        <source url="https://reliable.example">Reliable News</source>
+      </item></channel></rss>`);
+    }
+    return new Response(
+      '<html><head><meta name="description" content="Seventeen people were hospitalized after the Air India flight incident."></head></html>',
+      { headers: { "content-type": "text/html" } },
+    );
+  };
+  const provider: AiProvider = {
+    async generate() {
+      throw new Error("Text generation is not used during retrieval.");
+    },
+    async generateFromImage() {
+      throw new Error("Image generation is not used during retrieval.");
+    },
+    async embed() {
+      return Array.from({ length: 1024 }, () => 0);
+    },
+  };
+  const contextualClaim = {
+    ...claim,
+    claimText: "Seventeen people were hospitalised following the incident.",
+    context: "The incident involved an Air India Phuket-Delhi flight.",
+  };
+
+  try {
+    const sources = await retrieveSources(contextualClaim, {
+      provider,
+      claimEmbedding: Array.from({ length: 1024 }, () => 0),
+      corpusLimit: 0,
+      storyContext:
+        "Air India Phuket-Delhi flight lost altitude and passengers were taken to hospital.",
+      externalRequestLimit: 3,
+    });
+    assert.equal(requestedHosts[0], "news.google.com");
+    assert.equal(sources.length, 1);
+    assert.equal(sources[0]?.publisher, "Reliable News");
+    assert.ok((sources[0]?.similarity ?? 0) >= 0.24);
   } finally {
     globalThis.fetch = originalFetch;
     console.warn = originalWarn;

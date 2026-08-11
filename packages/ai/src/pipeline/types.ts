@@ -16,6 +16,7 @@ export interface ExtractedClaim {
 }
 
 export type EvidenceSourceType =
+  | "submitted_source"
   | "corpus"
   | "google_fact_check"
   | "newsapi"
@@ -50,6 +51,7 @@ export interface NormalizedInput {
   inputType: "text" | "link" | "image";
   text: string;
   rawInput: string;
+  title?: string;
   sourceUrl?: string;
   sourceDomain?: string;
   publishedAt?: string;
@@ -142,6 +144,10 @@ export interface VerifyTextOptions {
   newsApiKey?: string;
   webSearchEndpoint?: string;
   webSearchApiKey?: string;
+  /** The surrounding story text used to keep short atomic claims on-topic. */
+  storyContext?: string;
+  /** The item being analyzed. It is context, not independent corroboration. */
+  submittedSource?: EvidenceSource;
   /** Reuse a claim vector when the caller already generated it for persistence. */
   claimEmbedding?: number[];
 }

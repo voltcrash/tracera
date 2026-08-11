@@ -42,6 +42,7 @@ import {
   type ClaimVerdict,
   type EvidenceSource,
   type FramingAnalysis,
+  type NormalizedInput,
   type TraceraScore,
 } from "@repo/ai";
 import { Redis } from "@upstash/redis";
@@ -681,7 +682,7 @@ async function runAnalysis(
     // the Cron-driven durable Upstash queue.
     const auditLog: Array<{ stage: string; prompt: string }> = [];
     const result = await executeAnalysis(
-      () => analyzeText(normalized.text, provider, auditLog, emit),
+      () => analyzeText(normalized, provider, auditLog, emit),
       requestSignal,
     );
     const submittedSource: EvidenceSource[] =
@@ -961,7 +962,7 @@ async function requireSignedInUser(
 }
 
 async function analyzeText(
-  text: string,
+  input: NormalizedInput,
   provider: AiProvider,
   auditLog: Array<{ stage: string; prompt: string }>,
   emit: ProgressEmitter = () => undefined,
@@ -990,8 +991,8 @@ async function analyzeText(
     message: "Separating factual claims from framing and opinion.",
   });
   const [extractedClaims, framing] = await Promise.all([
-    extractClaims(provider, text, audit),
-    analyzeFraming(provider, text, audit),
+    extractClaims(provider, input.text, audit),
+    analyzeFraming(provider, input.text, audit),
   ]);
   if (extractedClaims.length === 0) {
     throw new Error(
@@ -1022,6 +1023,20 @@ async function analyzeText(
       webSearchEndpoint: process.env.WEB_SEARCH_ENDPOINT,
       webSearchApiKey: process.env.WEB_SEARCH_API_KEY,
       claimEmbedding,
+      storyContext: input.text,
+      submittedSource: input.sourceUrl
+        ? {
+            id: `submitted-source:${claim.id}`,
+            type: "submitted_source",
+            title: input.title ?? input.sourceDomain ?? "Submitted source",
+            url: input.sourceUrl,
+            canonicalUrl: input.sourceUrl,
+            sourceDomain: input.sourceDomain,
+            snippet: input.text.slice(0, 3_000),
+            publishedAt: input.publishedAt,
+            publisherPublishedAt: input.publishedAt,
+          }
+        : undefined,
     });
     auditLog.push({
       stage: "retrieved_sources",
