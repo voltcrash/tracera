@@ -77,11 +77,35 @@ export async function extractClaims(
       }),
   });
 
-  return result.claims
+  const claims = result.claims
     .filter((claim) => claim.claimType === "factual_assertion")
     .filter((claim) => claim.checkability !== "not_checkable")
     .filter((claim) => isGroundedInInput(claim.claimText, text))
     .slice(0, 3);
+  if (claims.length > 0) return claims;
+
+  // A publisher URL can remain searchable even when its origin blocks both
+  // direct fetches and reader services. normalizeInput preserves its slug as a
+  // verbatim headline; do not let a stochastic empty model response prevent
+  // evidence retrieval for that explicit assertion.
+  const recoveredHeadline = text.match(/^Headline:\s*(.+)$/is)?.[1]?.trim();
+  if (
+    recoveredHeadline &&
+    recoveredHeadline.length <= 500 &&
+    (recoveredHeadline.match(/[\p{L}\p{N}]+/gu)?.length ?? 0) >= 5
+  ) {
+    return [
+      {
+        id: "recovered-headline",
+        claimText: recoveredHeadline,
+        claimType: "factual_assertion",
+        checkability: "checkable",
+        context:
+          "Verbatim headline recovered from the submitted publisher URL.",
+      },
+    ];
+  }
+  return [];
 }
 
 export function buildClaimExtractionPrompt(text: string) {

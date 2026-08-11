@@ -121,6 +121,30 @@ test("claim extraction discards model claims that introduce unsupported details"
   );
 });
 
+test("a recovered publisher headline remains checkable when the model returns no claims", async () => {
+  const provider: AiProvider = {
+    async generate() {
+      return { claims: [] } as never;
+    },
+    async generateFromImage() {
+      throw new Error("Image generation is not used in claim extraction.");
+    },
+    async embed() {
+      return [];
+    },
+  };
+  const claims = await extractClaims(
+    provider,
+    "Headline: Phuket delhi ai flight captains confirmatory test also positive sources",
+  );
+  assert.equal(claims.length, 1);
+  assert.equal(claims[0]?.id, "recovered-headline");
+  assert.equal(
+    claims[0]?.claimText,
+    "Phuket delhi ai flight captains confirmatory test also positive sources",
+  );
+});
+
 test("an empty evidence set remains explicitly unverified", async () => {
   const provider: AiProvider = {
     async generate() {
