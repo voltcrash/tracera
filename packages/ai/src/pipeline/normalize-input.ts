@@ -8,6 +8,7 @@ import { extractExifMetadata } from "./image-metadata.js";
 const ARTICLE_FETCH_TIMEOUT_MS = 15_000;
 const MAX_ARTICLE_BYTES = 2_000_000;
 const MAX_REDIRECTS = 5;
+const READER_FALLBACK_STATUSES = new Set([401, 403, 429]);
 
 export type RawAnalysisInput = {
   text?: string;
@@ -60,9 +61,32 @@ export async function normalizeInput(
 }
 
 async function normalizeUrl(value: string): Promise<NormalizedInput> {
-  const response = await fetchPublicDocument(new URL(value));
-  if (!response.ok)
+  const requestedUrl = new URL(value);
+  const response = await fetchPublicDocument(requestedUrl);
+  if (!response.ok && READER_FALLBACK_STATUSES.has(response.status)) {
+    const readerResponse = await fetchReaderFallback(requestedUrl);
+    if (readerResponse?.ok) {
+      const markdown = await readTextWithLimit(
+        readerResponse,
+        MAX_ARTICLE_BYTES,
+      );
+      const article = parseReaderDocument(markdown);
+      if (article.text.length >= 40) {
+        return {
+          inputType: "link",
+          rawInput: value,
+          text: article.text.slice(0, 50_000),
+          sourceUrl: requestedUrl.href,
+          sourceDomain: sourceDomain(requestedUrl.href),
+          publishedAt: article.publishedAt,
+          author: article.author,
+        };
+      }
+    }
+  }
+  if (!response.ok) {
     throw new Error(`Could not retrieve link (HTTP ${response.status}).`);
+  }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
   if (
@@ -90,6 +114,41 @@ async function normalizeUrl(value: string): Promise<NormalizedInput> {
       metaContent(html, "datepublished"),
     author: metaContent(html, "author"),
   };
+}
+
+async function fetchReaderFallback(sourceUrl: URL) {
+  try {
+    // The source URL has already passed the public-host SSRF check above. The
+    // reader receives only that public URL and no Tracera credentials or data.
+    const target = new URL(sourceUrl.href);
+    target.hash = "";
+    return await fetchPublicDocument(
+      new URL(`https://r.jina.ai/${target.href}`),
+    );
+  } catch (error) {
+    console.warn("Article reader fallback failed", error);
+    return undefined;
+  }
+}
+
+export function parseReaderDocument(markdown: string) {
+  const contentMarker = "Markdown Content:";
+  const markerIndex = markdown.indexOf(contentMarker);
+  const text = (
+    markerIndex >= 0
+      ? markdown.slice(markerIndex + contentMarker.length)
+      : markdown
+  ).trim();
+  return {
+    text,
+    publishedAt: readerField(markdown, "Published Time"),
+    author: readerField(markdown, "Author"),
+  };
+}
+
+function readerField(markdown: string, name: string) {
+  const match = markdown.match(new RegExp(`^${name}:\\s*(.+)$`, "im"));
+  return match?.[1]?.trim() || undefined;
 }
 
 /**

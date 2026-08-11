@@ -12,6 +12,7 @@ import {
   type ClaimVerdict,
 } from "../src/index.js";
 import { extractExifMetadata } from "../src/pipeline/image-metadata.js";
+import { parseReaderDocument } from "../src/pipeline/normalize-input.js";
 
 const claim = {
   id: "claim-1",
@@ -20,6 +21,25 @@ const claim = {
   checkability: "checkable" as const,
   context: "A short test claim.",
 };
+
+test("reader fallback preserves article text and provenance metadata", () => {
+  const article = parseReaderDocument(`Title: Example report
+URL Source: https://news.example/report
+Published Time: 2026-08-10T14:47:38+05:30
+Author: Example Reporter
+
+Markdown Content:
+# Example report
+
+Officials published enough readable article text for a fact-check.`);
+
+  assert.equal(
+    article.text,
+    "# Example report\n\nOfficials published enough readable article text for a fact-check.",
+  );
+  assert.equal(article.publishedAt, "2026-08-10T14:47:38+05:30");
+  assert.equal(article.author, "Example Reporter");
+});
 
 test("claim extraction discards model claims that introduce unsupported details", async () => {
   const provider: AiProvider = {
