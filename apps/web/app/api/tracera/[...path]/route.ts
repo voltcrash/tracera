@@ -1,3 +1,4 @@
+import { getSessionCookie } from "better-auth/cookies";
 import { webRuntimeEnv } from "../../../lib/server-runtime";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,17 @@ async function proxy(request: Request) {
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.delete("content-length");
+
+  // The auth endpoints and browser session live on the web origin, while this
+  // route forwards requests to the API origin. Promote the signed Better Auth
+  // cookie to the bearer format supported by the API so authentication does
+  // not depend on cross-origin cookie forwarding by the deployment runtime.
+  if (!headers.has("authorization")) {
+    const sessionToken = getSessionCookie(request.headers, {
+      cookiePrefix: "tracera",
+    });
+    if (sessionToken) headers.set("authorization", `Bearer ${sessionToken}`);
+  }
 
   if (request.method === "OPTIONS") {
     return withBrowserCors(new Response(null, { status: 204 }), request);
