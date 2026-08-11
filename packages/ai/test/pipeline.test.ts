@@ -63,6 +63,14 @@ test("reader fallback rejects image captions and recovers a headline from an art
     articleTitleFromUrl(new URL("https://example.com/article/11895474")),
     undefined,
   );
+  assert.equal(
+    articleTitleFromUrl(
+      new URL(
+        "https://timesofindia.indiatimes.com/india/phuket-delhi-ai-flight-captains-confirmatory-test-also-positive-sources/articleshow/133155633.cms",
+      ),
+    ),
+    "Phuket delhi ai flight captains confirmatory test also positive sources",
+  );
 });
 
 test("reader error shells are rejected before headline fallback", () => {

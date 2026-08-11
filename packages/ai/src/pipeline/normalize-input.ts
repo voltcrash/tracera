@@ -198,24 +198,24 @@ export function isReadableArticleText(text: string) {
 }
 
 export function articleTitleFromUrl(url: URL) {
-  const encodedSlug = url.pathname.split("/").filter(Boolean).at(-1);
-  if (!encodedSlug) return undefined;
-
-  let slug: string;
-  try {
-    slug = decodeURIComponent(encodedSlug);
-  } catch {
-    return undefined;
+  for (const encodedSlug of url.pathname.split("/").filter(Boolean).reverse()) {
+    let slug: string;
+    try {
+      slug = decodeURIComponent(encodedSlug);
+    } catch {
+      continue;
+    }
+    const title = slug
+      .replace(/\.(?:html?|shtml?|cms)$/i, "")
+      .replace(/-?\d{5,}$/i, "")
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const words = title.match(/[\p{L}\p{N}]+/gu) ?? [];
+    if (title.length < 30 || words.length < 5) continue;
+    return title[0]!.toLocaleUpperCase() + title.slice(1);
   }
-  const title = slug
-    .replace(/\.(?:html?|shtml?)$/i, "")
-    .replace(/-\d{5,}$/i, "")
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const words = title.match(/[\p{L}\p{N}]+/gu) ?? [];
-  if (title.length < 30 || words.length < 5) return undefined;
-  return title[0]!.toLocaleUpperCase() + title.slice(1);
+  return undefined;
 }
 
 function readerField(markdown: string, name: string) {
