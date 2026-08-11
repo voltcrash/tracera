@@ -9,6 +9,8 @@ const ARTICLE_FETCH_TIMEOUT_MS = 15_000;
 const MAX_ARTICLE_BYTES = 2_000_000;
 const MAX_REDIRECTS = 5;
 const READER_FALLBACK_STATUSES = new Set([401, 403, 429]);
+const MIN_READER_ARTICLE_CHARACTERS = 160;
+const MIN_READER_ARTICLE_WORDS = 20;
 
 export type RawAnalysisInput = {
   text?: string;
@@ -65,23 +67,45 @@ async function normalizeUrl(value: string): Promise<NormalizedInput> {
   const response = await fetchPublicDocument(requestedUrl);
   if (!response.ok && READER_FALLBACK_STATUSES.has(response.status)) {
     const readerResponse = await fetchReaderFallback(requestedUrl);
+    let readerArticle: ReturnType<typeof parseReaderDocument> | undefined;
     if (readerResponse?.ok) {
-      const markdown = await readTextWithLimit(
-        readerResponse,
-        MAX_ARTICLE_BYTES,
-      );
-      const article = parseReaderDocument(markdown);
-      if (article.text.length >= 40) {
-        return {
-          inputType: "link",
-          rawInput: value,
-          text: article.text.slice(0, 50_000),
-          sourceUrl: requestedUrl.href,
-          sourceDomain: sourceDomain(requestedUrl.href),
-          publishedAt: article.publishedAt,
-          author: article.author,
-        };
+      try {
+        const markdown = await readTextWithLimit(
+          readerResponse,
+          MAX_ARTICLE_BYTES,
+        );
+        readerArticle = parseReaderDocument(markdown);
+        if (isReadableArticleText(readerArticle.text)) {
+          return {
+            inputType: "link",
+            rawInput: value,
+            text: readerArticle.text.slice(0, 50_000),
+            sourceUrl: requestedUrl.href,
+            sourceDomain: sourceDomain(requestedUrl.href),
+            publishedAt: readerArticle.publishedAt,
+            author: readerArticle.author,
+          };
+        }
+      } catch (error) {
+        console.warn("Could not read article reader response", error);
       }
+    }
+
+    // Some anti-bot pages cause readers to fail or return only the lead image's
+    // alt text. The article slug still contains a useful, publisher-authored
+    // headline, which is enough to start claim and evidence retrieval without
+    // pretending that the image caption is the article body.
+    const headline = articleTitleFromUrl(requestedUrl);
+    if (headline) {
+      return {
+        inputType: "link",
+        rawInput: value,
+        text: `Headline: ${headline}`,
+        sourceUrl: requestedUrl.href,
+        sourceDomain: sourceDomain(requestedUrl.href),
+        publishedAt: readerArticle?.publishedAt,
+        author: readerArticle?.author,
+      };
     }
   }
   if (!response.ok) {
@@ -144,6 +168,34 @@ export function parseReaderDocument(markdown: string) {
     publishedAt: readerField(markdown, "Published Time"),
     author: readerField(markdown, "Author"),
   };
+}
+
+export function isReadableArticleText(text: string) {
+  return (
+    text.length >= MIN_READER_ARTICLE_CHARACTERS &&
+    text.trim().split(/\s+/).length >= MIN_READER_ARTICLE_WORDS
+  );
+}
+
+export function articleTitleFromUrl(url: URL) {
+  const encodedSlug = url.pathname.split("/").filter(Boolean).at(-1);
+  if (!encodedSlug) return undefined;
+
+  let slug: string;
+  try {
+    slug = decodeURIComponent(encodedSlug);
+  } catch {
+    return undefined;
+  }
+  const title = slug
+    .replace(/\.(?:html?|shtml?)$/i, "")
+    .replace(/-\d{5,}$/i, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = title.match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (title.length < 30 || words.length < 5) return undefined;
+  return title[0]!.toLocaleUpperCase() + title.slice(1);
 }
 
 function readerField(markdown: string, name: string) {

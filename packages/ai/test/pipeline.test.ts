@@ -12,7 +12,11 @@ import {
   type ClaimVerdict,
 } from "../src/index.js";
 import { extractExifMetadata } from "../src/pipeline/image-metadata.js";
-import { parseReaderDocument } from "../src/pipeline/normalize-input.js";
+import {
+  articleTitleFromUrl,
+  isReadableArticleText,
+  parseReaderDocument,
+} from "../src/pipeline/normalize-input.js";
 
 const claim = {
   id: "claim-1",
@@ -39,6 +43,25 @@ Officials published enough readable article text for a fact-check.`);
   );
   assert.equal(article.publishedAt, "2026-08-10T14:47:38+05:30");
   assert.equal(article.author, "Example Reporter");
+});
+
+test("reader fallback rejects image captions and recovers a headline from an article URL", () => {
+  assert.equal(
+    isReadableArticleText("A man sitting inside an airplane cabin."),
+    false,
+  );
+  assert.equal(
+    articleTitleFromUrl(
+      new URL(
+        "https://www.ndtv.com/india-news/air-india-pilot-who-flew-turbulence-hit-flight-fails-2nd-dope-test-sources-11895474",
+      ),
+    ),
+    "Air india pilot who flew turbulence hit flight fails 2nd dope test sources",
+  );
+  assert.equal(
+    articleTitleFromUrl(new URL("https://example.com/article/11895474")),
+    undefined,
+  );
 });
 
 test("claim extraction discards model claims that introduce unsupported details", async () => {
