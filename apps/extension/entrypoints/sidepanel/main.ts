@@ -1,8 +1,4 @@
-import type {
-  AnalysisResponse,
-  ClaimResult,
-  PageSnapshot,
-} from "../../shared/contracts";
+import type { AnalysisResponse, ClaimResult, PageSnapshot } from "../../shared/contracts";
 import { apiUrl, authUrl, siteUrl } from "../../shared/config";
 import "./style.css";
 
@@ -25,9 +21,7 @@ chrome.cookies.onChanged.addListener(({ cookie }) => {
 
 async function initialize() {
   renderLoading("Restoring your Tracera session.");
-  reactiveEnabled =
-    (await chrome.storage.local.get("reactiveEnabled")).reactiveEnabled ===
-    true;
+  reactiveEnabled = (await chrome.storage.local.get("reactiveEnabled")).reactiveEnabled === true;
   const token = await getAuthToken();
   signedIn = Boolean(token);
   if (!token) {
@@ -109,8 +103,7 @@ async function startAnalysis(forceReanalysis = false) {
       active: true,
       lastFocusedWindow: true,
     });
-    if (!tab?.id)
-      throw new Error("No active browser tab is available to analyze.");
+    if (!tab?.id) throw new Error("No active browser tab is available to analyze.");
 
     const extracted = (await chrome.runtime.sendMessage({
       type: "tracera:extract-page",
@@ -122,9 +115,7 @@ async function startAnalysis(forceReanalysis = false) {
 
     const token = await getAuthToken();
     if (!token) {
-      renderAuthUnavailable(
-        "Your account session could not be restored. Please try again.",
-      );
+      renderAuthUnavailable("Your account session could not be restored. Please try again.");
       return;
     }
     const headers = new Headers({ "Content-Type": "application/json" });
@@ -140,14 +131,10 @@ async function startAnalysis(forceReanalysis = false) {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(
-        readError(payload) ?? "Tracera could not analyze this page.",
-      );
+      throw new Error(readError(payload) ?? "Tracera could not analyze this page.");
     }
     if (!isAnalysisResponse(payload)) {
-      throw new Error(
-        "Tracera received an incomplete analysis. Please try again.",
-      );
+      throw new Error("Tracera received an incomplete analysis. Please try again.");
     }
 
     await chrome.runtime.sendMessage({
@@ -157,11 +144,7 @@ async function startAnalysis(forceReanalysis = false) {
     });
     renderResult(payload, extracted.snapshot);
   } catch (error) {
-    renderError(
-      error instanceof Error
-        ? error.message
-        : "Tracera could not analyze this page.",
-    );
+    renderError(error instanceof Error ? error.message : "Tracera could not analyze this page.");
   }
 }
 
@@ -222,35 +205,31 @@ function renderResult(result: AnalysisResponse, page: PageSnapshot) {
     </section>
     ${renderGroundZero(result)}
     <section class="claims"><div class="section-heading"><p class="eyebrow">CLAIM BREAKDOWN</p><span>${result.claims.length} checked</span></div>${result.claims.map(renderClaim).join("")}</section>`;
-  document
-    .querySelector<HTMLButtonElement>("#reactive")
-    ?.addEventListener("click", async () => {
-      reactiveEnabled = !reactiveEnabled;
-      await chrome.storage.local.set({ reactiveEnabled });
-      if (!reactiveEnabled) {
-        const [tab] = await chrome.tabs.query({
-          active: true,
-          lastFocusedWindow: true,
+  document.querySelector<HTMLButtonElement>("#reactive")?.addEventListener("click", async () => {
+    reactiveEnabled = !reactiveEnabled;
+    await chrome.storage.local.set({ reactiveEnabled });
+    if (!reactiveEnabled) {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        lastFocusedWindow: true,
+      });
+      if (tab?.id) {
+        await chrome.runtime.sendMessage({
+          type: "tracera:highlight-claims",
+          tabId: tab.id,
+          claims: [],
         });
-        if (tab?.id) {
-          await chrome.runtime.sendMessage({
-            type: "tracera:highlight-claims",
-            tabId: tab.id,
-            claims: [],
-          });
-          await chrome.action.setBadgeText({ tabId: tab.id, text: "" });
-        }
+        await chrome.action.setBadgeText({ tabId: tab.id, text: "" });
       }
-      renderResult(result, page);
-    });
+    }
+    renderResult(result, page);
+  });
   document
     .querySelector<HTMLButtonElement>("#recheck")
     ?.addEventListener("click", () => void startAnalysis(true));
   document
     .querySelector<HTMLButtonElement>("#account")
-    ?.addEventListener("click", () =>
-      signedIn ? void signOut() : void openAccountPage("login"),
-    );
+    ?.addEventListener("click", () => (signedIn ? void signOut() : void openAccountPage("login")));
 }
 
 function renderGroundZero(result: AnalysisResponse) {
@@ -291,9 +270,7 @@ function dimension(label: string, value: number) {
 function isAnalysisResponse(value: unknown): value is AnalysisResponse {
   if (!value || typeof value !== "object") return false;
   const data = value as Partial<AnalysisResponse>;
-  return (
-    Array.isArray(data.claims) && typeof data.traceraScore?.overall === "number"
-  );
+  return Array.isArray(data.claims) && typeof data.traceraScore?.overall === "number";
 }
 
 function readError(value: unknown) {
@@ -316,19 +293,15 @@ function externalUrl(value: string | undefined) {
   if (!value) return undefined;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:"
-      ? url.href
-      : undefined;
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
   } catch {
     return undefined;
   }
 }
 
 function scoreSummary(score: number) {
-  if (score >= 80)
-    return "The checked claims are well supported by the available evidence.";
-  if (score >= 60)
-    return "The story has support, but some evidence or context remains incomplete.";
+  if (score >= 80) return "The checked claims are well supported by the available evidence.";
+  if (score >= 60) return "The story has support, but some evidence or context remains incomplete.";
   return "Treat this story carefully: the available evidence has significant gaps or conflicts.";
 }
 

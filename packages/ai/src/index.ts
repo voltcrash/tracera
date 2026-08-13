@@ -7,14 +7,8 @@ export {
   StructuredOutputError,
   StructuredOutputProvider,
 } from "./provider.js";
-export {
-  GeminiProvider,
-  type GeminiProviderOptions,
-} from "./providers/gemini.js";
-export {
-  AnthropicProvider,
-  type AnthropicProviderOptions,
-} from "./providers/anthropic.js";
+export { GeminiProvider, type GeminiProviderOptions } from "./providers/gemini.js";
+export { AnthropicProvider, type AnthropicProviderOptions } from "./providers/anthropic.js";
 export {
   OpenAiCompatibleProvider,
   type OpenAiCompatibleProviderOptions,

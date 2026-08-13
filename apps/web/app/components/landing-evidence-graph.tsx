@@ -23,8 +23,7 @@ const signals = [
     id: "language",
     label: "Language",
     score: 44,
-    detail:
-      "The headline uses a stronger conclusion than the evidence supports.",
+    detail: "The headline uses a stronger conclusion than the evidence supports.",
     color: "#fda4af",
     points: "68,142 172,148 282,122 392,160",
   },
@@ -32,16 +31,13 @@ const signals = [
 
 export function LandingEvidenceGraph() {
   const [activeId, setActiveId] = useState(signals[0]!.id);
-  const active =
-    signals.find((signal) => signal.id === activeId) ?? signals[0]!;
+  const active = signals.find((signal) => signal.id === activeId) ?? signals[0]!;
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const interval = window.setInterval(() => {
       setActiveId((current) => {
-        const currentIndex = signals.findIndex(
-          (signal) => signal.id === current,
-        );
+        const currentIndex = signals.findIndex((signal) => signal.id === current);
         return signals[(currentIndex + 1) % signals.length]!.id;
       });
     }, 4200);
@@ -56,9 +52,7 @@ export function LandingEvidenceGraph() {
       <div className="evidence-glow" aria-hidden="true" />
       <div className="relative z-10 flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] font-black tracking-[.2em] text-[#9cf0d1]">
-            EVIDENCE MAP
-          </p>
+          <p className="text-[10px] font-black tracking-[.2em] text-[#9cf0d1]">EVIDENCE MAP</p>
           <h2 className="mt-3 text-2xl font-black leading-tight tracking-[-.045em]">
             One story.
             <br />
@@ -126,14 +120,7 @@ export function LandingEvidenceGraph() {
             { x: 392, label: "Verdict" },
           ].map(({ x, label }) => (
             <g key={label}>
-              <line
-                x1={x}
-                x2={x}
-                y1="26"
-                y2="184"
-                stroke="white"
-                strokeOpacity=".1"
-              />
+              <line x1={x} x2={x} y1="26" y2="184" stroke="white" strokeOpacity=".1" />
               <text
                 x={x}
                 y="201"
@@ -174,18 +161,13 @@ export function LandingEvidenceGraph() {
             aria-pressed={signal.id === active.id}
             className={`inline-flex items-center gap-2 text-xs font-bold transition ${signal.id === active.id ? "text-white" : "text-white/45 hover:text-white/75"}`}
           >
-            <span
-              className="size-2 rounded-full"
-              style={{ backgroundColor: signal.color }}
-            />
+            <span className="size-2 rounded-full" style={{ backgroundColor: signal.color }} />
             {signal.label}
           </button>
         ))}
       </div>
       <div className="relative z-10 mt-5 flex items-end justify-between gap-4 border-t border-white/10 pt-4">
-        <p className="max-w-[17rem] text-xs leading-5 text-white/65">
-          {active.detail}
-        </p>
+        <p className="max-w-[17rem] text-xs leading-5 text-white/65">{active.detail}</p>
         <p className="shrink-0 text-right">
           <span
             className="block text-2xl font-black tracking-[-.07em]"
@@ -193,9 +175,7 @@ export function LandingEvidenceGraph() {
           >
             {active.score}
           </span>
-          <span className="text-[10px] font-bold tracking-[.12em] text-white/45">
-            SIGNAL
-          </span>
+          <span className="text-[10px] font-bold tracking-[.12em] text-white/45">SIGNAL</span>
         </p>
       </div>
     </section>

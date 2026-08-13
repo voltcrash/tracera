@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vite-plus/test";
 import {
   aggregateScore,
   analyzeFraming,
@@ -47,10 +47,7 @@ Officials published enough readable article text for a fact-check.`);
 });
 
 test("reader fallback rejects image captions and recovers a headline from an article URL", () => {
-  assert.equal(
-    isReadableArticleText("A man sitting inside an airplane cabin."),
-    false,
-  );
+  assert.equal(isReadableArticleText("A man sitting inside an airplane cabin."), false);
   assert.equal(
     articleTitleFromUrl(
       new URL(
@@ -59,10 +56,7 @@ test("reader fallback rejects image captions and recovers a headline from an art
     ),
     "Air india pilot who flew turbulence hit flight fails 2nd dope test sources",
   );
-  assert.equal(
-    articleTitleFromUrl(new URL("https://example.com/article/11895474")),
-    undefined,
-  );
+  assert.equal(articleTitleFromUrl(new URL("https://example.com/article/11895474")), undefined);
   assert.equal(
     articleTitleFromUrl(
       new URL(
@@ -80,9 +74,7 @@ URL Source: https://example.com/air-india-pilot-confirmatory-test-positive-13315
 Warning: Target URL returned error 404: Not Found
 
 Markdown Content:
-This is a long navigation shell that must not be treated as article text. `.repeat(
-      8,
-    ),
+This is a long navigation shell that must not be treated as article text. `.repeat(8),
   );
   assert.equal(isReadableArticleText(article.text), true);
   assert.equal(isReaderErrorDocument(article), true);
@@ -97,8 +89,7 @@ test("claim extraction discards model claims that introduce unsupported details"
           {
             ...claim,
             id: "invented",
-            claimText:
-              "A public agency announced a policy on 2 February with $1 million funding.",
+            claimText: "A public agency announced a policy on 2 February with $1 million funding.",
           },
         ],
       } as never;
@@ -111,10 +102,7 @@ test("claim extraction discards model claims that introduce unsupported details"
     },
   };
 
-  const claims = await extractClaims(
-    provider,
-    "A public agency announced a policy on 1 January.",
-  );
+  const claims = await extractClaims(provider, "A public agency announced a policy on 1 January.");
   assert.deepEqual(
     claims.map((item) => item.id),
     ["claim-1"],
@@ -276,8 +264,7 @@ test("Bing News provides publisher evidence when Google News is unavailable", as
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
     requestedHosts.push(url.hostname);
-    if (url.hostname === "news.google.com")
-      return new Response("<rss><channel /></rss>");
+    if (url.hostname === "news.google.com") return new Response("<rss><channel /></rss>");
     if (url.hostname === "www.bing.com") {
       return new Response(`<?xml version="1.0"?><rss><channel><item>
         <title>Air India captain confirmatory drug test positive</title>
@@ -406,10 +393,7 @@ test("image normalization sends the actual image through the multimodal provider
     },
   };
 
-  const normalized = await normalizeInput(
-    { image, imageMimeType: "image/png" },
-    provider,
-  );
+  const normalized = await normalizeInput({ image, imageMimeType: "image/png" }, provider);
   assert.equal(receivedImage, image);
   assert.equal(normalized.text, "Visible headline");
   assert.equal(normalized.imageMetadata?.ocrProvider, "model_fallback");
@@ -437,14 +421,9 @@ test("JPEG EXIF metadata is extracted without trusting malformed binary data", (
     payload,
     Buffer.from([0xff, 0xd9]),
   ]);
-  const metadata = extractExifMetadata(
-    `data:image/jpeg;base64,${jpeg.toString("base64")}`,
-  );
+  const metadata = extractExifMetadata(`data:image/jpeg;base64,${jpeg.toString("base64")}`);
   assert.deepEqual(metadata, { "Camera make": "Canon", Orientation: "6" });
-  assert.equal(
-    extractExifMetadata("data:image/jpeg;base64,bm90LWEtanBlZw=="),
-    undefined,
-  );
+  assert.equal(extractExifMetadata("data:image/jpeg;base64,bm90LWEtanBlZw=="), undefined);
 });
 
 test("Ground Zero distinguishes a canonical repost and an explicit citation", () => {
@@ -523,19 +502,14 @@ test("Ground Zero lowers confidence for index dates and citation chronology conf
       {
         url: "https://one.example/story",
         firstSeenAt: "2026-01-02T00:00:00Z",
-        archivedUrl:
-          "https://web.archive.org/web/20260102000000/https://one.example/story",
+        archivedUrl: "https://web.archive.org/web/20260102000000/https://one.example/story",
       },
     ],
   );
 
   assert.equal(result.confidence, "low");
   assert.ok(
-    result.relationships.some(
-      (relationship) => relationship.relation === "chronology_conflict",
-    ),
+    result.relationships.some((relationship) => relationship.relation === "chronology_conflict"),
   );
-  assert.ok(
-    result.signals.some((signal) => signal.includes("web archive capture")),
-  );
+  assert.ok(result.signals.some((signal) => signal.includes("web archive capture")));
 });

@@ -47,9 +47,7 @@ export default function AuthCompletePage() {
         <p className="mt-7 text-[10px] font-black tracking-[.22em] text-emerald-700">
           YOU&apos;RE ALL SET
         </p>
-        <h1 className="mt-3 text-3xl font-black tracking-[-.055em]">
-          Opening Tracera
-        </h1>
+        <h1 className="mt-3 text-3xl font-black tracking-[-.055em]">Opening Tracera</h1>
         <p className="mt-3 text-sm leading-6 text-emerald-950/55">
           Securing your session and preparing your workspace.
         </p>

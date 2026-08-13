@@ -24,10 +24,7 @@ export type AuthRuntimeEnv = {
 export function createAuth(env: AuthRuntimeEnv) {
   const secret = required(env.BETTER_AUTH_SECRET, "BETTER_AUTH_SECRET");
   const googleClientId = required(env.GOOGLE_CLIENT_ID, "GOOGLE_CLIENT_ID");
-  const googleClientSecret = required(
-    env.GOOGLE_CLIENT_SECRET,
-    "GOOGLE_CLIENT_SECRET",
-  );
+  const googleClientSecret = required(env.GOOGLE_CLIENT_SECRET, "GOOGLE_CLIENT_SECRET");
 
   return betterAuth({
     appName: "Tracera",
@@ -63,9 +60,7 @@ export function createAuth(env: AuthRuntimeEnv) {
       TRACERA_EXTENSION_ORIGIN,
       "tracera://",
       "tracera://*",
-      ...(process.env.NODE_ENV === "development"
-        ? ["http://localhost:3000", "exp://**"]
-        : []),
+      ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000", "exp://**"] : []),
     ],
     onAPIError: {
       errorURL: "/auth/error",
@@ -85,12 +80,8 @@ export function createAuth(env: AuthRuntimeEnv) {
         ? [
             dash({
               apiKey: env.BETTER_AUTH_API_KEY,
-              ...(env.BETTER_AUTH_API_URL
-                ? { apiUrl: env.BETTER_AUTH_API_URL }
-                : {}),
-              ...(env.BETTER_AUTH_KV_URL
-                ? { kvUrl: env.BETTER_AUTH_KV_URL }
-                : {}),
+              ...(env.BETTER_AUTH_API_URL ? { apiUrl: env.BETTER_AUTH_API_URL } : {}),
+              ...(env.BETTER_AUTH_KV_URL ? { kvUrl: env.BETTER_AUTH_KV_URL } : {}),
             }),
           ]
         : []),

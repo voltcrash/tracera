@@ -56,10 +56,7 @@ export default async function LandingPage() {
               className="h-7 w-auto sm:h-8"
             />
           </Link>
-          <nav
-            className="hidden items-center gap-1 md:flex"
-            aria-label="Primary navigation"
-          >
+          <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
             <a href="#features" className="landing-nav-link">
               Features
             </a>
@@ -80,10 +77,7 @@ export default async function LandingPage() {
             >
               Log in
             </Link>
-            <Link
-              href="/home"
-              className="landing-button-primary px-4 py-2.5 text-xs sm:text-sm"
-            >
+            <Link href="/home" className="landing-button-primary px-4 py-2.5 text-xs sm:text-sm">
               Start a trace <span aria-hidden="true">↗</span>
             </Link>
           </div>
@@ -101,21 +95,14 @@ export default async function LandingPage() {
               </span>
             </h1>
             <p className="mt-8 max-w-xl text-lg leading-8 text-emerald-950/65 sm:text-xl sm:leading-9">
-              Tracera pulls news apart into checkable claims, follows each one
-              back to its sources, and shows you exactly where confidence comes
-              from.
+              Tracera pulls news apart into checkable claims, follows each one back to its sources,
+              and shows you exactly where confidence comes from.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link
-                href="/home"
-                className="landing-button-primary px-6 py-4 text-sm"
-              >
+              <Link href="/home" className="landing-button-primary px-6 py-4 text-sm">
                 Check a story <span aria-hidden="true">→</span>
               </Link>
-              <Link
-                href="/hub"
-                className="landing-button-secondary px-6 py-4 text-sm"
-              >
+              <Link href="/hub" className="landing-button-secondary px-6 py-4 text-sm">
                 Explore live traces
               </Link>
             </div>
@@ -127,20 +114,12 @@ export default async function LandingPage() {
           </div>
 
           <div className="landing-reveal landing-reveal-delay relative">
-            <div
-              className="landing-float-tag landing-float-tag-top"
-              aria-hidden="true"
-            >
-              <span className="size-2 rounded-full bg-emerald-500" /> 4 sources
-              agree
+            <div className="landing-float-tag landing-float-tag-top" aria-hidden="true">
+              <span className="size-2 rounded-full bg-emerald-500" /> 4 sources agree
             </div>
             <LandingEvidenceGraph />
-            <div
-              className="landing-float-tag landing-float-tag-bottom"
-              aria-hidden="true"
-            >
-              <span className="font-black text-amber-600">△</span> Context gap
-              found
+            <div className="landing-float-tag landing-float-tag-bottom" aria-hidden="true">
+              <span className="font-black text-amber-600">△</span> Context gap found
             </div>
           </div>
         </section>
@@ -149,26 +128,10 @@ export default async function LandingPage() {
           aria-label="What Tracera analyzes"
           className="landing-signal-strip mb-24 grid overflow-hidden rounded-3xl border border-emerald-950/10 bg-white/70 shadow-[0_20px_55px_-45px_rgba(16,34,31,.6)] sm:grid-cols-2 lg:mb-32 lg:grid-cols-4"
         >
-          <SignalStat
-            number="01"
-            label="Break apart"
-            detail="Atomic, checkable claims"
-          />
-          <SignalStat
-            number="02"
-            label="Follow back"
-            detail="Origins and source trails"
-          />
-          <SignalStat
-            number="03"
-            label="Cross-check"
-            detail="Support and contradiction"
-          />
-          <SignalStat
-            number="04"
-            label="Keep watching"
-            detail="Rechecks and alerts"
-          />
+          <SignalStat number="01" label="Break apart" detail="Atomic, checkable claims" />
+          <SignalStat number="02" label="Follow back" detail="Origins and source trails" />
+          <SignalStat number="03" label="Cross-check" detail="Support and contradiction" />
+          <SignalStat number="04" label="Keep watching" detail="Rechecks and alerts" />
         </section>
 
         <section id="features" className="scroll-mt-24 py-10 sm:py-16">
@@ -190,31 +153,19 @@ export default async function LandingPage() {
               </div>
               <div className="mt-9 grid gap-5 sm:grid-cols-[.75fr_1.25fr] sm:items-end">
                 <div className="space-y-3">
-                  <FormatRow
-                    icon="Aa"
-                    label="Paste text"
-                    status="Ready"
-                    active
-                  />
+                  <FormatRow icon="Aa" label="Paste text" status="Ready" active />
                   <FormatRow icon="↗" label="Drop a link" status="Detected" />
-                  <FormatRow
-                    icon="◫"
-                    label="Add an image"
-                    status="OCR + metadata"
-                  />
+                  <FormatRow icon="◫" label="Add an image" status="OCR + metadata" />
                 </div>
                 <div className="relative overflow-hidden rounded-2xl bg-[#f1f5f0] p-5">
-                  <div
-                    className="mb-4 flex items-center gap-1.5"
-                    aria-hidden="true"
-                  >
+                  <div className="mb-4 flex items-center gap-1.5" aria-hidden="true">
                     <span className="size-2 rounded-full bg-rose-300" />
                     <span className="size-2 rounded-full bg-amber-300" />
                     <span className="size-2 rounded-full bg-emerald-300" />
                   </div>
                   <p className="text-sm font-semibold leading-6 text-emerald-950/65">
-                    “New research shows the policy cut household energy costs by
-                    40% in its first year...”
+                    “New research shows the policy cut household energy costs by 40% in its first
+                    year...”
                   </p>
                   <div className="mt-5 flex items-center justify-between gap-3 border-t border-emerald-950/8 pt-4">
                     <span className="text-[10px] font-black tracking-[.12em] text-emerald-700">
@@ -250,8 +201,8 @@ export default async function LandingPage() {
                 </div>
               </div>
               <p className="mt-7 border-t border-white/10 pt-5 text-sm leading-6 text-white/58">
-                Strong sources can&apos;t hide weak evidence. Each signal stays
-                separate and readable.
+                Strong sources can&apos;t hide weak evidence. Each signal stays separate and
+                readable.
               </p>
             </article>
 
@@ -262,8 +213,8 @@ export default async function LandingPage() {
                 title="No more all-or-nothing fact checks."
               />
               <p className="mt-4 text-sm leading-6 text-emerald-950/58">
-                Tracera separates fact from framing, then gives every checkable
-                claim its own verdict.
+                Tracera separates fact from framing, then gives every checkable claim its own
+                verdict.
               </p>
               <div className="mt-7 space-y-3">
                 <Claim
@@ -276,11 +227,7 @@ export default async function LandingPage() {
                   verdict="Needs context"
                   tone="amber"
                 />
-                <Claim
-                  label="Savings begin immediately"
-                  verdict="Inconclusive"
-                  tone="slate"
-                />
+                <Claim label="Savings begin immediately" verdict="Inconclusive" tone="slate" />
               </div>
             </article>
 
@@ -292,26 +239,14 @@ export default async function LandingPage() {
                   title="Follow the story back to where it started."
                 />
                 <div className="source-trail" aria-label="Example source trail">
-                  <SourceNode
-                    date="Today · 09:42"
-                    source="News repost"
-                    state="late"
-                  />
-                  <SourceNode
-                    date="Yesterday · 18:10"
-                    source="Local report"
-                    state="middle"
-                  />
-                  <SourceNode
-                    date="May 14 · 08:00"
-                    source="Primary record"
-                    state="origin"
-                  />
+                  <SourceNode date="Today · 09:42" source="News repost" state="late" />
+                  <SourceNode date="Yesterday · 18:10" source="Local report" state="middle" />
+                  <SourceNode date="May 14 · 08:00" source="Primary record" state="origin" />
                 </div>
               </div>
               <p className="mt-7 max-w-2xl text-sm leading-6 text-emerald-950/62">
-                Rewrites and citations are useful—but the earliest known report,
-                dataset, or public record is where context often changes.
+                Rewrites and citations are useful—but the earliest known report, dataset, or public
+                record is where context often changes.
               </p>
             </article>
 
@@ -383,8 +318,8 @@ export default async function LandingPage() {
                 A clear answer without skipping the hard parts.
               </h2>
               <p className="mt-6 max-w-md text-base leading-7 text-emerald-950/60">
-                Tracera does the source work in stages, then keeps the full path
-                open for you to inspect.
+                Tracera does the source work in stages, then keeps the full path open for you to
+                inspect.
               </p>
               <Link
                 href="/home"
@@ -433,9 +368,8 @@ export default async function LandingPage() {
                 The story moved. Your understanding should too.
               </h2>
               <p className="mt-6 max-w-lg text-base leading-7 text-white/62 sm:text-lg sm:leading-8">
-                News rarely ends at publish. Tracera recognizes reappearances,
-                preserves past checks, and re-evaluates a story when evidence
-                changes.
+                News rarely ends at publish. Tracera recognizes reappearances, preserves past
+                checks, and re-evaluates a story when evidence changes.
               </p>
               <div className="mt-9 grid gap-3 sm:grid-cols-2">
                 <DarkFeature
@@ -468,9 +402,7 @@ export default async function LandingPage() {
                     <p className="text-[10px] font-black tracking-[.18em] text-[#9cf0d1]">
                       TRACE #0284
                     </p>
-                    <p className="mt-2 font-bold text-white/88">
-                      Household energy policy impact
-                    </p>
+                    <p className="mt-2 font-bold text-white/88">Household energy policy impact</p>
                   </div>
                   <span className="inline-flex items-center gap-2 rounded-full bg-[#9cf0d1]/12 px-3 py-1.5 text-[10px] font-black text-[#9cf0d1]">
                     <span className="landing-status-dot" /> FOLLOWING
@@ -511,12 +443,8 @@ export default async function LandingPage() {
                       </p>
                     </div>
                     <div className="mt-8">
-                      <p className="text-xs font-bold text-white/55">
-                        Since first trace
-                      </p>
-                      <p className="mt-1 text-xl font-black text-[#9cf0d1]">
-                        +14 points
-                      </p>
+                      <p className="text-xs font-bold text-white/55">Since first trace</p>
+                      <p className="mt-1 text-xl font-black text-[#9cf0d1]">+14 points</p>
                     </div>
                   </div>
                 </div>
@@ -552,10 +480,7 @@ export default async function LandingPage() {
                 />
                 <span className="feature-pill">KNOWLEDGE LAYER</span>
               </div>
-              <div
-                className="corpus-map mt-10"
-                aria-label="Related claims knowledge map"
-              >
+              <div className="corpus-map mt-10" aria-label="Related claims knowledge map">
                 <CorpusNode
                   className="corpus-node-main"
                   title="Current claim"
@@ -594,9 +519,8 @@ export default async function LandingPage() {
                 title="A public record of how stories evolve."
               />
               <p className="mt-5 text-sm leading-6 text-emerald-950/62">
-                Search previous checks, filter high-confidence results, revisit
-                source trails, and follow a trace from its first verdict to its
-                latest evidence.
+                Search previous checks, filter high-confidence results, revisit source trails, and
+                follow a trace from its first verdict to its latest evidence.
               </p>
               <div className="mt-8 rounded-2xl bg-white/75 p-4 shadow-sm">
                 <div className="flex items-center gap-2 rounded-xl border border-emerald-950/10 bg-white px-4 py-3 text-sm text-emerald-950/40">
@@ -608,16 +532,8 @@ export default async function LandingPage() {
                     title="Public health funding report"
                     status="High confidence"
                   />
-                  <HubRow
-                    score="74"
-                    title="Regional energy policy claim"
-                    status="Updated today"
-                  />
-                  <HubRow
-                    score="61"
-                    title="Viral climate infographic"
-                    status="Review due"
-                  />
+                  <HubRow score="74" title="Regional energy policy claim" status="Updated today" />
+                  <HubRow score="61" title="Viral climate infographic" status="Review due" />
                 </div>
               </div>
               <Link
@@ -634,22 +550,16 @@ export default async function LandingPage() {
           <div className="cta-ring cta-ring-one" aria-hidden="true" />
           <div className="cta-ring cta-ring-two" aria-hidden="true" />
           <div className="relative z-10 mx-auto max-w-3xl">
-            <p className="landing-kicker">
-              Your next story deserves a source trail
-            </p>
+            <p className="landing-kicker">Your next story deserves a source trail</p>
             <h2 className="mt-5 text-4xl font-black leading-[.92] tracking-[-.07em] sm:text-6xl">
               See what holds up.
               <br />
               See what&apos;s missing.
             </h2>
             <p className="mx-auto mt-6 max-w-xl text-base leading-7 text-emerald-950/62">
-              Paste a headline, article, claim, link, or image. Tracera will
-              take it from there.
+              Paste a headline, article, claim, link, or image. Tracera will take it from there.
             </p>
-            <Link
-              href="/home"
-              className="landing-button-primary mt-9 px-7 py-4 text-sm"
-            >
+            <Link href="/home" className="landing-button-primary mt-9 px-7 py-4 text-sm">
               Start your first trace <span aria-hidden="true">→</span>
             </Link>
           </div>
@@ -688,15 +598,7 @@ export default async function LandingPage() {
   );
 }
 
-function SectionIntro({
-  eyebrow,
-  title,
-  copy,
-}: {
-  eyebrow: string;
-  title: string;
-  copy: string;
-}) {
+function SectionIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1.2fr_.8fr] lg:items-end">
       <div>
@@ -705,27 +607,15 @@ function SectionIntro({
           {title}
         </h2>
       </div>
-      <p className="max-w-xl text-base leading-7 text-emerald-950/60 lg:justify-self-end">
-        {copy}
-      </p>
+      <p className="max-w-xl text-base leading-7 text-emerald-950/60 lg:justify-self-end">{copy}</p>
     </div>
   );
 }
 
-function SignalStat({
-  number,
-  label,
-  detail,
-}: {
-  number: string;
-  label: string;
-  detail: string;
-}) {
+function SignalStat({ number, label, detail }: { number: string; label: string; detail: string }) {
   return (
     <div className="signal-stat p-5 sm:p-6">
-      <p className="text-[10px] font-black tracking-[.16em] text-emerald-700">
-        {number}
-      </p>
+      <p className="text-[10px] font-black tracking-[.16em] text-emerald-700">{number}</p>
       <p className="mt-2 text-sm font-black">{label}</p>
       <p className="mt-1 text-xs font-medium text-emerald-950/48">{detail}</p>
     </div>
@@ -789,15 +679,7 @@ function FormatRow({
   );
 }
 
-function MiniScore({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color: string;
-}) {
+function MiniScore({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-bold">
@@ -805,10 +687,7 @@ function MiniScore({
         <span className="text-white/80">{value}</span>
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-white/10">
-        <div
-          className={`h-full rounded-full ${color}`}
-          style={{ width: `${value}%` }}
-        />
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
       </div>
     </div>
   );
@@ -834,13 +713,9 @@ function Claim({
         <span className="grid size-6 shrink-0 place-items-center rounded-full bg-emerald-950/[.055] text-[10px] font-black text-emerald-800">
           ✓
         </span>
-        <p className="text-xs font-bold leading-5 text-emerald-950/72">
-          {label}
-        </p>
+        <p className="text-xs font-bold leading-5 text-emerald-950/72">{label}</p>
       </div>
-      <span
-        className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black ${styles[tone]}`}
-      >
+      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black ${styles[tone]}`}>
         {verdict}
       </span>
     </div>
@@ -860,12 +735,8 @@ function SourceNode({
     <div className={`source-node source-node-${state}`}>
       <span className="source-dot" />
       <div>
-        <p className="text-[9px] font-black tracking-[.1em] text-emerald-900/45">
-          {date}
-        </p>
-        <p className="mt-0.5 text-xs font-black text-emerald-950/78">
-          {source}
-        </p>
+        <p className="text-[9px] font-black tracking-[.1em] text-emerald-900/45">{date}</p>
+        <p className="mt-0.5 text-xs font-black text-emerald-950/78">{source}</p>
       </div>
       {state === "origin" && (
         <span className="ml-auto rounded-full bg-emerald-950 px-2 py-1 text-[8px] font-black tracking-[.08em] text-[#9cf0d1]">
@@ -895,17 +766,12 @@ function EvidenceColumn({
   return (
     <div className={`rounded-2xl border p-4 ${styles[tone]}`}>
       <div className="flex items-end justify-between">
-        <span className="text-[10px] font-black tracking-[.1em]">
-          {label.toUpperCase()}
-        </span>
+        <span className="text-[10px] font-black tracking-[.1em]">{label.toUpperCase()}</span>
         <strong className="text-2xl tracking-[-.06em]">{count}</strong>
       </div>
       <div className="mt-5 space-y-2">
         {sources.map((source) => (
-          <p
-            key={source}
-            className="rounded-lg bg-white/65 px-3 py-2 text-[10px] font-bold"
-          >
+          <p key={source} className="rounded-lg bg-white/65 px-3 py-2 text-[10px] font-bold">
             {source}
           </p>
         ))}
@@ -939,23 +805,13 @@ function ProcessStep({
             {label}
           </span>
         </div>
-        <p className="mt-4 max-w-xl text-sm leading-7 text-emerald-950/58">
-          {copy}
-        </p>
+        <p className="mt-4 max-w-xl text-sm leading-7 text-emerald-950/58">{copy}</p>
       </div>
     </li>
   );
 }
 
-function DarkFeature({
-  icon,
-  title,
-  copy,
-}: {
-  icon: string;
-  title: string;
-  copy: string;
-}) {
+function DarkFeature({ icon, title, copy }: { icon: string; title: string; copy: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[.055] p-4">
       <span className="grid size-8 place-items-center rounded-lg bg-[#9cf0d1]/12 text-[#9cf0d1]">
@@ -984,25 +840,19 @@ function TraceEvent({
 }) {
   return (
     <div className="trace-event">
-      <span
-        className={`trace-event-dot ${active ? "trace-event-dot-active" : ""}`}
-      />
+      <span className={`trace-event-dot ${active ? "trace-event-dot-active" : ""}`} />
       <div className="flex-1">
         <p
           className={`text-[9px] font-black tracking-[.12em] ${active ? "text-[#9cf0d1]" : "text-white/38"}`}
         >
           {date.toUpperCase()}
         </p>
-        <p className="mt-1 text-xs font-black text-white/82 sm:text-sm">
-          {title}
-        </p>
+        <p className="mt-1 text-xs font-black text-white/82 sm:text-sm">{title}</p>
         <p className="mt-1 text-[10px] font-semibold text-white/42">{detail}</p>
       </div>
       <div className="text-right">
         <strong className="block text-lg tracking-[-.04em]">{score}</strong>
-        <span
-          className={`text-[9px] font-black ${active ? "text-[#9cf0d1]" : "text-white/35"}`}
-        >
+        <span className={`text-[9px] font-black ${active ? "text-[#9cf0d1]" : "text-white/35"}`}>
           {change}
         </span>
       </div>
@@ -1033,23 +883,13 @@ function CorpusNode({
 function CorpusMetric({ value, label }: { value: string; label: string }) {
   return (
     <div>
-      <p className="text-lg font-black tracking-[-.035em] text-emerald-800">
-        {value}
-      </p>
+      <p className="text-lg font-black tracking-[-.035em] text-emerald-800">{value}</p>
       <p className="mt-1 text-[10px] font-bold text-emerald-950/45">{label}</p>
     </div>
   );
 }
 
-function HubRow({
-  score,
-  title,
-  status,
-}: {
-  score: string;
-  title: string;
-  status: string;
-}) {
+function HubRow({ score, title, status }: { score: string; title: string; status: string }) {
   return (
     <div className="flex items-center gap-3">
       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-950 text-sm font-black text-[#9cf0d1]">
@@ -1057,9 +897,7 @@ function HubRow({
       </span>
       <span className="min-w-0">
         <strong className="block truncate text-xs">{title}</strong>
-        <small className="text-[10px] font-bold text-emerald-950/42">
-          {status}
-        </small>
+        <small className="text-[10px] font-bold text-emerald-950/42">{status}</small>
       </span>
     </div>
   );

@@ -87,14 +87,10 @@ export function AnalysisResult({
 function ClaimCard({ item, index }: { item: ClaimResult; index: number }) {
   const confidence = Math.round(item.confidence * 100);
   const evidenceQuality =
-    typeof item.evidenceQuality === "number"
-      ? Math.round(item.evidenceQuality * 100)
-      : null;
+    typeof item.evidenceQuality === "number" ? Math.round(item.evidenceQuality * 100) : null;
   const supporting = uniqueSources(item.supportingSources ?? []);
   const conflicting = uniqueSources(item.contradictingSources ?? []);
-  const classifiedIds = new Set(
-    [...supporting, ...conflicting].map((source) => source.id),
-  );
+  const classifiedIds = new Set([...supporting, ...conflicting].map((source) => source.id));
   const considered = uniqueSources(item.consideredSources ?? []).filter(
     (source) => !classifiedIds.has(source.id),
   );
@@ -186,8 +182,7 @@ function ClaimCard({ item, index }: { item: ClaimResult; index: number }) {
               Evidence sources
             </p>
             <p className="text-[9px] font-bold text-emerald-950/38">
-              {uniqueSources(groups.flatMap((group) => group.sources)).length}{" "}
-              reviewed
+              {uniqueSources(groups.flatMap((group) => group.sources)).length} reviewed
             </p>
           </div>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
@@ -218,9 +213,7 @@ function Metric({
         <span className="text-[9px] font-black uppercase tracking-[.1em] text-emerald-950/38">
           {label}
         </span>
-        <strong className="truncate text-[11px] capitalize text-emerald-950/75">
-          {value}
-        </strong>
+        <strong className="truncate text-[11px] capitalize text-emerald-950/75">{value}</strong>
       </div>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-emerald-950/6">
         <span
@@ -271,21 +264,16 @@ function SourceGroup({
 function SourceLink({ source }: { source: EvidenceSource }) {
   const content = (
     <>
-      <strong className="block line-clamp-2 text-[10px] leading-4">
-        {source.title}
-      </strong>
+      <strong className="block line-clamp-2 text-[10px] leading-4">{source.title}</strong>
       {(source.publisher || source.publishedAt) && (
         <small className="mt-1 block truncate text-[9px] font-semibold opacity-55">
           {source.publisher ?? "Source"}
-          {source.publishedAt
-            ? ` · ${new Date(source.publishedAt).toLocaleDateString()}`
-            : ""}
+          {source.publishedAt ? ` · ${new Date(source.publishedAt).toLocaleDateString()}` : ""}
         </small>
       )}
     </>
   );
-  const className =
-    "block rounded-xl bg-white/70 px-3 py-2.5 transition hover:bg-white";
+  const className = "block rounded-xl bg-white/70 px-3 py-2.5 transition hover:bg-white";
   return source.url ? (
     <a href={source.url} target="_blank" rel="noreferrer" className={className}>
       {content}
@@ -295,13 +283,7 @@ function SourceLink({ source }: { source: EvidenceSource }) {
   );
 }
 
-export function ScoreCard({
-  score,
-  sticky = true,
-}: {
-  score: TraceraScore;
-  sticky?: boolean;
-}) {
+export function ScoreCard({ score, sticky = true }: { score: TraceraScore; sticky?: boolean }) {
   const rows = [
     ["Factual accuracy", score.factualAccuracy],
     ["Source corroboration", score.sourceCorroboration],
@@ -320,9 +302,7 @@ export function ScoreCard({
           <p className="text-[9px] font-black tracking-[.18em] text-[#9cf0d1]">
             TRANSPARENT BY DESIGN
           </p>
-          <h2 className="mt-2 text-xl font-black tracking-[-.04em]">
-            Tracera Score
-          </h2>
+          <h2 className="mt-2 text-xl font-black tracking-[-.04em]">Tracera Score</h2>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/8 px-2.5 py-1 text-[9px] font-black text-white/60">
           <span className="size-1.5 rounded-full bg-[#9cf0d1]" /> LIVE SIGNALS
@@ -364,12 +344,8 @@ export function ScoreCard({
 
       <div className="relative z-10 mt-7 flex items-center justify-between gap-4 border-t border-white/10 pt-5">
         <div>
-          <p className="text-[9px] font-black tracking-[.13em] text-white/38">
-            EVIDENCE RECENCY
-          </p>
-          <p className="mt-1 text-xs font-bold capitalize text-white/75">
-            {score.recency.flag}
-          </p>
+          <p className="text-[9px] font-black tracking-[.13em] text-white/38">EVIDENCE RECENCY</p>
+          <p className="mt-1 text-xs font-bold capitalize text-white/75">{score.recency.flag}</p>
         </div>
         <span className="rounded-full bg-[#9cf0d1]/12 px-3 py-1.5 text-[9px] font-black uppercase tracking-[.1em] text-[#9cf0d1]">
           {score.overall >= 70
@@ -402,9 +378,7 @@ function Verdict({ verdict }: { verdict: string }) {
     <span
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[9px] font-black uppercase tracking-[.1em] ${styles[verdict] ?? styles.unverified}`}
     >
-      <span
-        className={`size-1.5 rounded-full ${dots[verdict] ?? dots.unverified}`}
-      />
+      <span className={`size-1.5 rounded-full ${dots[verdict] ?? dots.unverified}`} />
       {verdict}
     </span>
   );
@@ -412,7 +386,6 @@ function Verdict({ verdict }: { verdict: string }) {
 
 function uniqueSources(sources: EvidenceSource[]) {
   return sources.filter(
-    (source, index) =>
-      sources.findIndex((candidate) => candidate.id === source.id) === index,
+    (source, index) => sources.findIndex((candidate) => candidate.id === source.id) === index,
   );
 }

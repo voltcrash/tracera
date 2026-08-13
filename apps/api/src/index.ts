@@ -46,12 +46,7 @@ import {
   type TraceraScore,
 } from "@repo/ai";
 import { Redis } from "@upstash/redis";
-import {
-  authenticatedUser,
-  isValidEmail,
-  normalizeEmail,
-  type AuthBindings,
-} from "./auth.js";
+import { authenticatedUser, isValidEmail, normalizeEmail, type AuthBindings } from "./auth.js";
 import { runDecaySweep } from "./decay.js";
 import { allowedCorsOrigin } from "./cors-origin.js";
 import { reanalysisPolicy } from "./reanalysis-policy.js";
@@ -74,10 +69,7 @@ export type Bindings = AuthBindings & {
 export const app = new Hono<{ Bindings: Bindings }>();
 let upstash: Redis | undefined;
 let upstashConfig: string | undefined;
-const currentUserByRequest = new WeakMap<
-  Request,
-  ReturnType<typeof authenticatedUser>
->();
+const currentUserByRequest = new WeakMap<Request, ReturnType<typeof authenticatedUser>>();
 
 app.use("*", async (context, next) => {
   if (
@@ -102,19 +94,13 @@ app.use("/*", async (context, next) =>
     },
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-API-Key"],
-    exposeHeaders: [
-      "RateLimit-Limit",
-      "RateLimit-Remaining",
-      "RateLimit-Reset",
-      "Retry-After",
-    ],
+    exposeHeaders: ["RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset", "Retry-After"],
     credentials: true,
   })(context, next),
 );
 function upstashRedis(env: Bindings) {
   const url = env.UPSTASH_REDIS_REST_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-  const token =
-    env.UPSTASH_REDIS_REST_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+  const token = env.UPSTASH_REDIS_REST_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return undefined;
 
   const config = `${url}:${token}`;
@@ -149,8 +135,7 @@ async function publicApiQuota(
   }
 
   const minuteLimit = configuredPositiveInteger(
-    context.env.PUBLIC_API_RATE_LIMIT_PER_MINUTE ??
-      process.env.PUBLIC_API_RATE_LIMIT_PER_MINUTE,
+    context.env.PUBLIC_API_RATE_LIMIT_PER_MINUTE ?? process.env.PUBLIC_API_RATE_LIMIT_PER_MINUTE,
     30,
     10_000,
   );
@@ -162,15 +147,9 @@ async function publicApiQuota(
   return consumePublicApiQuota(redis, keyId, { minuteLimit, dailyLimit });
 }
 
-function configuredPositiveInteger(
-  value: string | undefined,
-  fallback: number,
-  maximum: number,
-) {
+function configuredPositiveInteger(value: string | undefined, fallback: number, maximum: number) {
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 && parsed <= maximum
-    ? parsed
-    : fallback;
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= maximum ? parsed : fallback;
 }
 
 async function checkRedis(env: Bindings) {
@@ -209,10 +188,7 @@ app.use("/v1/*", async (context, next) => {
       503,
     );
   }
-  const access = await authenticatePublicApiKey(
-    context.req.header("x-api-key"),
-    configuredKeys,
-  );
+  const access = await authenticatePublicApiKey(context.req.header("x-api-key"), configuredKeys);
   if (!access.authenticated || !access.keyId) {
     return context.json(
       {
@@ -262,12 +238,10 @@ app.get("/v1/checks", async (context) => {
   const result = await listChecks(page, pageSize, query);
   return context.json({
     apiVersion: PUBLIC_API_VERSION,
-    data: result.checks.map(
-      ({ visibility: _visibility, rawInput, ...check }) => ({
-        ...check,
-        summary: rawInput,
-      }),
-    ),
+    data: result.checks.map(({ visibility: _visibility, rawInput, ...check }) => ({
+      ...check,
+      summary: rawInput,
+    })),
     pagination: {
       page,
       pageSize,
@@ -291,9 +265,7 @@ app.post("/v1/checks", async (context) => {
       413,
     );
   }
-  const parsed = parsePublicAnalysisInput(
-    await context.req.json().catch(() => null),
-  );
+  const parsed = parsePublicAnalysisInput(await context.req.json().catch(() => null));
   if (!parsed.success) {
     return context.json(
       {
@@ -306,25 +278,19 @@ app.post("/v1/checks", async (context) => {
   const result = await runAnalysis(context, parsed.data);
   if (result.status >= 400) {
     const message =
-      typeof result.payload.error === "string"
-        ? result.payload.error
-        : "Analysis failed.";
+      typeof result.payload.error === "string" ? result.payload.error : "Analysis failed.";
     return context.json(
       {
         apiVersion: PUBLIC_API_VERSION,
         error: {
-          code:
-            result.status === 422 ? "no_checkable_claims" : "analysis_failed",
+          code: result.status === 422 ? "no_checkable_claims" : "analysis_failed",
           message,
         },
       },
       result.status,
     );
   }
-  return context.json(
-    { apiVersion: PUBLIC_API_VERSION, ...result.payload },
-    result.status,
-  );
+  return context.json({ apiVersion: PUBLIC_API_VERSION, ...result.payload }, result.status);
 });
 
 app.get("/v1/checks/:id", async (context) => {
@@ -350,9 +316,7 @@ app.get("/v1/checks/:id", async (context) => {
       );
 });
 
-function publicCheck(
-  check: NonNullable<Awaited<ReturnType<typeof getCheckById>>>,
-) {
+function publicCheck(check: NonNullable<Awaited<ReturnType<typeof getCheckById>>>) {
   return {
     id: check.id,
     input: {
@@ -375,9 +339,7 @@ function publicCheck(
 
 app.get("/auth/me", async (context) => {
   const user = await currentUser(context);
-  return user
-    ? context.json({ user })
-    : context.json({ error: "Not authenticated." }, 401);
+  return user ? context.json({ user }) : context.json({ error: "Not authenticated." }, 401);
 });
 app.get("/reports/media-diet", async (context) => {
   const user = await currentUser(context);
@@ -398,8 +360,7 @@ app.put("/reports/media-diet/preferences", async (context) => {
 app.post("/internal/reports/media-diet/deliver", async (context) => {
   if (
     !process.env.INTERNAL_WORKER_TOKEN ||
-    context.req.header("x-tracera-worker-token") !==
-      process.env.INTERNAL_WORKER_TOKEN
+    context.req.header("x-tracera-worker-token") !== process.env.INTERNAL_WORKER_TOKEN
   )
     return context.json({ error: "Unauthorized" }, 401);
   const recipients = await optedInMediaDietRecipients();
@@ -413,10 +374,7 @@ app.post("/internal/reports/media-diet/deliver", async (context) => {
     });
   await Promise.all(
     recipients.map(async (recipient) => {
-      const report = await mediaDietReport(
-        recipient.id,
-        recipient.frequency === "weekly" ? 7 : 30,
-      );
+      const report = await mediaDietReport(recipient.id, recipient.frequency === "weekly" ? 7 : 30);
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -430,10 +388,7 @@ app.post("/internal/reports/media-diet/deliver", async (context) => {
           text: `In the last ${report.periodDays} days, you checked ${report.totalChecks} items. Average source reputation: ${report.averageSourceReputation ?? "not enough data"}/100. Average signal: ${report.averageSignal ?? "not enough data"}/100.`,
         }),
       });
-      if (!response.ok)
-        throw new Error(
-          `Media-diet delivery failed with HTTP ${response.status}.`,
-        );
+      if (!response.ok) throw new Error(`Media-diet delivery failed with HTTP ${response.status}.`);
     }),
   );
   return context.json({ delivered: recipients.length });
@@ -441,10 +396,7 @@ app.post("/internal/reports/media-diet/deliver", async (context) => {
 
 app.get("/health", async (context) => {
   try {
-    const [database, cache] = await Promise.all([
-      checkDatabase(),
-      checkRedis(context.env),
-    ]);
+    const [database, cache] = await Promise.all([checkDatabase(), checkRedis(context.env)]);
 
     return context.json({ status: "ok", services: { database, cache } });
   } catch (error) {
@@ -464,15 +416,12 @@ app.get("/internal/decay/observability", async (context) => {
     return context.json({ error: "Unauthorized" }, 401);
   }
   return context.json({
-    events: await getDecayObservability(
-      positiveInteger(context.req.query("limit"), 100, 500),
-    ),
+    events: await getDecayObservability(positiveInteger(context.req.query("limit"), 100, 500)),
   });
 });
 
 app.get("/internal/domains/:domain/trust-history", async (context) => {
-  if (!authorizedDomainTrustAdmin(context))
-    return context.json({ error: "Unauthorized." }, 401);
+  if (!authorizedDomainTrustAdmin(context)) return context.json({ error: "Unauthorized." }, 401);
   return context.json({
     events: await getDomainTrustHistory(
       context.req.param("domain"),
@@ -482,16 +431,12 @@ app.get("/internal/domains/:domain/trust-history", async (context) => {
 });
 
 app.post("/internal/domains/:domain/trust-review", async (context) => {
-  if (!authorizedDomainTrustAdmin(context))
-    return context.json({ error: "Unauthorized." }, 401);
+  if (!authorizedDomainTrustAdmin(context)) return context.json({ error: "Unauthorized." }, 401);
   const body = await context.req.json().catch(() => null);
   const score = typeof body?.score === "number" ? body.score : Number.NaN;
   const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
   if (!Number.isFinite(score) || score < 0 || score > 1 || reason.length < 10)
-    return context.json(
-      { error: "Provide a score from 0 to 1 and a review reason." },
-      400,
-    );
+    return context.json({ error: "Provide a score from 0 to 1 and a review reason." }, 400);
   const user = await currentUser(context);
   return context.json({
     review: await applyEditorialDomainTrustReview({
@@ -514,10 +459,7 @@ type ProgressEmitter = (progress: AnalysisProgress) => void;
 app.post("/analyze", async (context) => {
   const body = await context.req.json().catch(() => null);
   if (!(await canRunAnalysis(context, body))) {
-    return context.json(
-      { error: "Sign in or create an account to start a fact-check." },
-      401,
-    );
+    return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
   }
   const result = await runAnalysis(context, body);
   return context.json(result.payload, result.status);
@@ -526,10 +468,7 @@ app.post("/analyze", async (context) => {
 app.post("/analyze/stream", async (context) => {
   const body = await context.req.json().catch(() => null);
   if (!(await canRunAnalysis(context, body))) {
-    return context.json(
-      { error: "Sign in or create an account to start a fact-check." },
-      401,
-    );
+    return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
   }
   const encoder = new TextEncoder();
   let cancelled = false;
@@ -537,9 +476,7 @@ app.post("/analyze/stream", async (context) => {
     start(controller) {
       const emit = (event: string, data: unknown) => {
         if (cancelled) return;
-        controller.enqueue(
-          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
-        );
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
       emit("progress", {
         stage: "accepted",
@@ -587,16 +524,9 @@ async function runAnalysis(
     const recheckOf = authorizedRecheckId(context, body);
     const requestSignal = context.req.raw.signal;
     const user = await currentUser(context);
-    const parentCheck = recheckOf
-      ? await getCheckById(recheckOf, undefined, true)
-      : null;
-    if (recheckOf && !parentCheck)
-      throw new Error("Recheck target was not found.");
-    const visibility = requestedVisibility(
-      body,
-      user?.id,
-      parentCheck?.visibility,
-    );
+    const parentCheck = recheckOf ? await getCheckById(recheckOf, undefined, true) : null;
+    if (recheckOf && !parentCheck) throw new Error("Recheck target was not found.");
+    const visibility = requestedVisibility(body, user?.id, parentCheck?.visibility);
     const aiConfiguration = configuredAiConfiguration();
     const provider = createAiProvider(aiConfiguration);
     const normalized = await normalizeWithStoredFallback(body, provider);
@@ -606,9 +536,7 @@ async function runAnalysis(
     });
     const inputEmbedding = await provider.embed(normalized.text);
     const forceReanalysis = Boolean(
-      body &&
-      typeof body === "object" &&
-      (body as { forceReanalysis?: unknown }).forceReanalysis,
+      body && typeof body === "object" && (body as { forceReanalysis?: unknown }).forceReanalysis,
     );
     const initialPolicy = reanalysisPolicy({
       inputType: normalized.inputType,
@@ -628,19 +556,10 @@ async function runAnalysis(
               normalized.rawInput,
               inputEmbedding,
               cacheHours,
-              environmentNumber(
-                "IMAGE_DEDUP_SIMILARITY_THRESHOLD",
-                0.98,
-                0.9,
-                1,
-              ),
+              environmentNumber("IMAGE_DEDUP_SIMILARITY_THRESHOLD", 0.98, 0.9, 1),
               user?.id,
             )
-          : await findReusableExactCheck(
-              normalized.rawInput,
-              cacheHours,
-              user?.id,
-            );
+          : await findReusableExactCheck(normalized.rawInput, cacheHours, user?.id);
 
     // A previous version stored empty analyses when a URL was sent as text.
     // Never serve an incomplete cache entry. Image checks may validly finish
@@ -716,11 +635,7 @@ async function runAnalysis(
       stage: "origin",
       message: "Tracing the earliest known publication.",
     });
-    const groundZero = traceGroundZero(
-      groundZeroSources,
-      groundZeroHistory,
-      archiveHistory,
-    );
+    const groundZero = traceGroundZero(groundZeroSources, groundZeroHistory, archiveHistory);
     const relatedStory = recheckOf
       ? null
       : await findRelatedStoryCheck(
@@ -765,10 +680,8 @@ async function runAnalysis(
           stage: "provider_configuration",
           provider: aiConfiguration.provider,
           model: aiConfiguration.model,
-          embeddingProvider:
-            aiConfiguration.embedding?.provider ?? aiConfiguration.provider,
-          embeddingModel:
-            aiConfiguration.embedding?.model ?? aiConfiguration.embeddingModel,
+          embeddingProvider: aiConfiguration.embedding?.provider ?? aiConfiguration.provider,
+          embeddingModel: aiConfiguration.embedding?.model ?? aiConfiguration.embeddingModel,
         },
         ...auditLog,
       ],
@@ -786,13 +699,10 @@ async function runAnalysis(
       checkId: stored.id,
       signals: domainOutcomeSignals(result.claims),
       apply: environmentBoolean(
-        context.env.DOMAIN_TRUST_AUTO_REFINE ??
-          process.env.DOMAIN_TRUST_AUTO_REFINE,
+        context.env.DOMAIN_TRUST_AUTO_REFINE ?? process.env.DOMAIN_TRUST_AUTO_REFINE,
         false,
       ),
-    }).catch((error) =>
-      console.warn("Could not record domain outcome signals", error),
-    );
+    }).catch((error) => console.warn("Could not record domain outcome signals", error));
 
     emit({
       stage: "persisted",
@@ -809,11 +719,7 @@ async function runAnalysis(
         groundZero,
         inputMetadata: normalized.imageMetadata,
         reuse: {
-          state: forceReanalysis
-            ? "reanalyzed"
-            : recheckOf
-              ? "scheduled_recheck"
-              : "fresh",
+          state: forceReanalysis ? "reanalyzed" : recheckOf ? "scheduled_recheck" : "fresh",
           relatedContextClaims: relatedContextCount(result.claims),
           policyBand: completedPolicy.band,
           nextReviewAt: stored.nextReviewAt,
@@ -826,9 +732,7 @@ async function runAnalysis(
     const message = error instanceof Error ? error.message : "Analysis failed.";
     return {
       payload: { error: message },
-      status: message.startsWith("No checkable claims could be extracted")
-        ? 422
-        : 503,
+      status: message.startsWith("No checkable claims could be extracted") ? 422 : 503,
     };
   }
 }
@@ -840,38 +744,30 @@ app.get("/checks/:id/timeline", async (context) => {
   const id = context.req.param("id");
   if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
   const user = await currentUser(context);
-  if (!(await getCheckById(id, user?.id)))
-    return context.json({ error: "Check not found." }, 404);
+  if (!(await getCheckById(id, user?.id))) return context.json({ error: "Check not found." }, 404);
   return context.json({ timeline: await getTraceTimeline(id, user?.id) });
 });
 app.get("/checks/:id/appearances", async (context) => {
   const id = context.req.param("id");
   if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
   const user = await currentUser(context);
-  if (!(await getCheckById(id, user?.id)))
-    return context.json({ error: "Check not found." }, 404);
+  if (!(await getCheckById(id, user?.id))) return context.json({ error: "Check not found." }, 404);
   return context.json({ appearances: await getTraceAppearances(id, user?.id) });
 });
 app.post("/checks/:id/alerts", async (context) => {
   const id = context.req.param("id");
   const body = await context.req.json().catch(() => null);
   const user = await currentUser(context);
-  const email =
-    user?.email ?? (typeof body?.email === "string" ? body.email.trim() : "");
+  const email = user?.email ?? (typeof body?.email === "string" ? body.email.trim() : "");
   if (!isUuid(id) || !isValidEmail(email))
-    return context.json(
-      { error: "A valid check and email are required." },
-      400,
-    );
-  if (!(await getCheckById(id, user?.id)))
-    return context.json({ error: "Check not found." }, 404);
+    return context.json({ error: "A valid check and email are required." }, 400);
+  if (!(await getCheckById(id, user?.id))) return context.json({ error: "Check not found." }, 404);
   return context.json({ subscription: await subscribeToCheck(id, email) }, 201);
 });
 app.get("/checks/:id/alerts", async (context) => {
   const user = await currentUser(context);
   const id = context.req.param("id");
-  if (!user || !isUuid(id))
-    return context.json({ error: "Not authenticated." }, 401);
+  if (!user || !isUuid(id)) return context.json({ error: "Not authenticated." }, 401);
   return context.json({
     subscription: await alertSubscriptionForCheck(id, user.email),
   });
@@ -880,18 +776,13 @@ app.delete("/checks/:id/alerts", async (context) => {
   const id = context.req.param("id");
   const body = await context.req.json().catch(() => null);
   const user = await currentUser(context);
-  const requestedEmail =
-    typeof body?.email === "string" ? body.email.trim() : "";
+  const requestedEmail = typeof body?.email === "string" ? body.email.trim() : "";
   const email = user?.email ?? requestedEmail;
   if (!isUuid(id) || !isValidEmail(email))
-    return context.json(
-      { error: "A valid check and email are required." },
-      400,
-    );
+    return context.json({ error: "A valid check and email are required." }, 400);
   if (user && requestedEmail && normalizeEmail(requestedEmail) !== user.email)
     return context.json({ error: "You can only manage your own alerts." }, 403);
-  if (!(await getCheckById(id, user?.id)))
-    return context.json({ error: "Check not found." }, 404);
+  if (!(await getCheckById(id, user?.id))) return context.json({ error: "Check not found." }, 404);
   await unsubscribeFromCheck(id, email);
   return context.body(null, 204);
 });
@@ -916,8 +807,7 @@ app.get("/checks", async (context) => {
     console.error("Could not list checks", error);
     return context.json(
       {
-        error:
-          error instanceof Error ? error.message : "Could not list checks.",
+        error: error instanceof Error ? error.message : "Could not list checks.",
       },
       503,
     );
@@ -940,8 +830,7 @@ app.get("/checks/:id", async (context) => {
     console.error("Could not retrieve check", error);
     return context.json(
       {
-        error:
-          error instanceof Error ? error.message : "Could not retrieve check.",
+        error: error instanceof Error ? error.message : "Could not retrieve check.",
       },
       503,
     );
@@ -953,10 +842,7 @@ async function requireSignedInUser(
   next: () => Promise<void>,
 ) {
   if (!(await currentUser(context))) {
-    return context.json(
-      { error: "Sign in or create an account to open the News Hub." },
-      401,
-    );
+    return context.json({ error: "Sign in or create an account to open the News Hub." }, 401);
   }
   await next();
 }
@@ -973,8 +859,7 @@ async function analyzeText(
   framing: FramingAnalysis;
 }> {
   const audit = {
-    onPrompt: (record: { stage: string; prompt: string }) =>
-      auditLog.push(record),
+    onPrompt: (record: { stage: string; prompt: string }) => auditLog.push(record),
     onStructuredOutputAttempt: (record: {
       stage: string;
       attempt: number;
@@ -1013,12 +898,7 @@ async function analyzeText(
     const sources = await retrieveSources(claim, {
       provider,
       factCheckApiKey: process.env.GOOGLE_FACT_CHECK_API_KEY,
-      corpusSimilarityThreshold: environmentNumber(
-        "CORPUS_SIMILARITY_THRESHOLD",
-        0.78,
-        0,
-        1,
-      ),
+      corpusSimilarityThreshold: environmentNumber("CORPUS_SIMILARITY_THRESHOLD", 0.78, 0, 1),
       newsApiKey: process.env.NEWS_API_KEY,
       webSearchEndpoint: process.env.WEB_SEARCH_ENDPOINT,
       webSearchApiKey: process.env.WEB_SEARCH_API_KEY,
@@ -1068,9 +948,7 @@ async function analyzeText(
 function relatedContextCount(claims: ClaimVerdict[]) {
   return claims.reduce(
     (count, claim) =>
-      count +
-      claim.consideredSources.filter((source) => source.type === "corpus")
-        .length,
+      count + claim.consideredSources.filter((source) => source.type === "corpus").length,
     0,
   );
 }
@@ -1078,19 +956,12 @@ function relatedContextCount(claims: ClaimVerdict[]) {
 function domainOutcomeSignals(claims: ClaimVerdict[]) {
   return claims.flatMap((claim) => {
     if (claim.confidence < 0.7 || claim.evidenceQuality < 0.65) return [];
-    if (claim.verdict !== "supported" && claim.verdict !== "contradicted")
-      return [];
-    const weight = Number(
-      (claim.confidence * claim.evidenceQuality).toFixed(4),
-    );
+    if (claim.verdict !== "supported" && claim.verdict !== "contradicted") return [];
+    const weight = Number((claim.confidence * claim.evidenceQuality).toFixed(4));
     const positive =
-      claim.verdict === "supported"
-        ? claim.supportingSources
-        : claim.contradictingSources;
+      claim.verdict === "supported" ? claim.supportingSources : claim.contradictingSources;
     const negative =
-      claim.verdict === "supported"
-        ? claim.contradictingSources
-        : claim.supportingSources;
+      claim.verdict === "supported" ? claim.contradictingSources : claim.supportingSources;
     const seen = new Set<string>();
     return [
       ...positive.map((source) => ({ source, direction: "positive" as const })),
@@ -1121,8 +992,7 @@ function hasRetrievedEvidence(claims: unknown[]) {
       supportingSources?: unknown[];
       contradictingSources?: unknown[];
     };
-    const claimText =
-      typeof value.claim?.claimText === "string" ? value.claim.claimText : "";
+    const claimText = typeof value.claim?.claimText === "string" ? value.claim.claimText : "";
     return [
       ...(value.consideredSources ?? []),
       ...(value.supportingSources ?? []),
@@ -1147,12 +1017,11 @@ function cachedSourceIsRelevant(claimText: string, source: unknown) {
   const claimTerms = cacheTerms(claimText);
   const sourceTerms = new Set(cacheTerms(sourceText));
   const overlap = claimTerms.filter((term) => sourceTerms.has(term)).length;
-  const anchors = (
-    claimText.match(/\b(?:[A-Z]{2,}|[A-Z][a-z]{2,})\b/g) ?? []
-  ).map((term) => term.toLowerCase());
+  const anchors = (claimText.match(/\b(?:[A-Z]{2,}|[A-Z][a-z]{2,})\b/g) ?? []).map((term) =>
+    term.toLowerCase(),
+  );
   return (
-    overlap >= 2 &&
-    (anchors.length === 0 || anchors.some((anchor) => sourceTerms.has(anchor)))
+    overlap >= 2 && (anchors.length === 0 || anchors.some((anchor) => sourceTerms.has(anchor)))
   );
 }
 
@@ -1213,11 +1082,7 @@ function configuredAiConfiguration(): AiProviderConfig {
     ? aiProviderName(process.env.AI_EMBEDDING_PROVIDER)
     : undefined;
   const embeddingModel = optionalEnvironment("AI_EMBEDDING_MODEL");
-  const embeddingDimensions = positiveInteger(
-    process.env.AI_EMBEDDING_DIMENSIONS,
-    1024,
-    10_000,
-  );
+  const embeddingDimensions = positiveInteger(process.env.AI_EMBEDDING_DIMENSIONS, 1024, 10_000);
 
   return {
     provider,
@@ -1267,21 +1132,13 @@ function aiProviderName(value: string | undefined): AiProviderName {
   return provider as AiProviderName;
 }
 
-function executeAnalysis<T>(
-  run: () => Promise<T>,
-  signal: AbortSignal,
-): Promise<T> {
+function executeAnalysis<T>(run: () => Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted)
-    return Promise.reject(
-      signal.reason ?? new Error("Analysis request was cancelled."),
-    );
+    return Promise.reject(signal.reason ?? new Error("Analysis request was cancelled."));
   return run();
 }
 
-async function normalizeWithStoredFallback(
-  body: unknown,
-  provider: AiProvider,
-) {
+async function normalizeWithStoredFallback(body: unknown, provider: AiProvider) {
   const input =
     body && typeof body === "object"
       ? (body as {
@@ -1298,8 +1155,7 @@ async function normalizeWithStoredFallback(
     const candidate =
       input.url ??
       input.sourceUrl ??
-      (typeof input.text === "string" &&
-      /^https?:\/\/\S+$/.test(input.text.trim())
+      (typeof input.text === "string" && /^https?:\/\/\S+$/.test(input.text.trim())
         ? input.text.trim()
         : undefined);
     if (!candidate) throw error;
@@ -1307,8 +1163,7 @@ async function normalizeWithStoredFallback(
     const claimText = (prior?.claims ?? [])
       .flatMap((item) => {
         if (!item || typeof item !== "object") return [];
-        const text = (item as { claim?: { claimText?: unknown } }).claim
-          ?.claimText;
+        const text = (item as { claim?: { claimText?: unknown } }).claim?.claimText;
         return typeof text === "string" && text.trim() ? [text.trim()] : [];
       })
       .join("\n");
@@ -1325,10 +1180,7 @@ async function normalizeWithStoredFallback(
 }
 
 /** Scheduled rechecks are the only callers allowed to bypass input deduplication. */
-function authorizedRecheckId(
-  context: Context<{ Bindings: Bindings }>,
-  body: unknown,
-) {
+function authorizedRecheckId(context: Context<{ Bindings: Bindings }>, body: unknown) {
   const recheckOf =
     body &&
     typeof body === "object" &&
@@ -1337,8 +1189,7 @@ function authorizedRecheckId(
       : undefined;
   if (!recheckOf) return null;
 
-  const token =
-    context.env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
+  const token = context.env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
   if (!token || context.req.header("x-tracera-worker-token") !== token) {
     throw new Error("Unauthorized recheck request.");
   }
@@ -1346,10 +1197,7 @@ function authorizedRecheckId(
   return recheckOf;
 }
 
-async function canRunAnalysis(
-  context: Context<{ Bindings: Bindings }>,
-  body: unknown,
-) {
+async function canRunAnalysis(context: Context<{ Bindings: Bindings }>, body: unknown) {
   if (await currentUser(context)) return true;
 
   const recheckOf =
@@ -1360,11 +1208,9 @@ async function canRunAnalysis(
       : undefined;
   if (!recheckOf) return false;
 
-  const configuredToken =
-    context.env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
+  const configuredToken = context.env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
   return Boolean(
-    configuredToken &&
-    context.req.header("x-tracera-worker-token") === configuredToken,
+    configuredToken && context.req.header("x-tracera-worker-token") === configuredToken,
   );
 }
 
@@ -1375,9 +1221,7 @@ function requestedVisibility(
 ): "public" | "private" {
   if (inherited) return inherited;
   const requested =
-    body &&
-    typeof body === "object" &&
-    (body as { visibility?: unknown }).visibility === "private"
+    body && typeof body === "object" && (body as { visibility?: unknown }).visibility === "private"
       ? "private"
       : "public";
   if (requested === "private" && !userId) {
@@ -1386,16 +1230,9 @@ function requestedVisibility(
   return requested;
 }
 
-function environmentNumber(
-  name: string,
-  fallback: number,
-  minimum: number,
-  maximum = Infinity,
-) {
+function environmentNumber(name: string, fallback: number, minimum: number, maximum = Infinity) {
   const value = Number(process.env[name]);
-  return Number.isFinite(value) && value >= minimum && value <= maximum
-    ? value
-    : fallback;
+  return Number.isFinite(value) && value >= minimum && value <= maximum ? value : fallback;
 }
 
 function environmentBoolean(rawValue: string | undefined, fallback: boolean) {
@@ -1405,30 +1242,17 @@ function environmentBoolean(rawValue: string | undefined, fallback: boolean) {
 }
 
 function authorizedDomainTrustAdmin(context: Context<{ Bindings: Bindings }>) {
-  const configured =
-    context.env.DOMAIN_TRUST_ADMIN_TOKEN ??
-    process.env.DOMAIN_TRUST_ADMIN_TOKEN;
-  return Boolean(
-    configured &&
-    context.req.header("x-tracera-domain-admin-token") === configured,
-  );
+  const configured = context.env.DOMAIN_TRUST_ADMIN_TOKEN ?? process.env.DOMAIN_TRUST_ADMIN_TOKEN;
+  return Boolean(configured && context.req.header("x-tracera-domain-admin-token") === configured);
 }
 
-function positiveInteger(
-  value: string | undefined,
-  fallback: number,
-  maximum: number,
-) {
+function positiveInteger(value: string | undefined, fallback: number, maximum: number) {
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 1 && parsed <= maximum
-    ? parsed
-    : fallback;
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= maximum ? parsed : fallback;
 }
 
 function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value,
-  );
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function currentUser(context: Context<{ Bindings: Bindings }>) {
@@ -1436,18 +1260,12 @@ function currentUser(context: Context<{ Bindings: Bindings }>) {
   const cached = currentUserByRequest.get(request);
   if (cached) return cached;
   const user = authenticatedUser(request, {
-    BETTER_AUTH_SECRET:
-      context.env.BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
-    BETTER_AUTH_API_KEY:
-      context.env.BETTER_AUTH_API_KEY ?? process.env.BETTER_AUTH_API_KEY,
-    BETTER_AUTH_API_URL:
-      context.env.BETTER_AUTH_API_URL ?? process.env.BETTER_AUTH_API_URL,
-    BETTER_AUTH_KV_URL:
-      context.env.BETTER_AUTH_KV_URL ?? process.env.BETTER_AUTH_KV_URL,
-    GOOGLE_CLIENT_ID:
-      context.env.GOOGLE_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET:
-      context.env.GOOGLE_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
+    BETTER_AUTH_SECRET: context.env.BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
+    BETTER_AUTH_API_KEY: context.env.BETTER_AUTH_API_KEY ?? process.env.BETTER_AUTH_API_KEY,
+    BETTER_AUTH_API_URL: context.env.BETTER_AUTH_API_URL ?? process.env.BETTER_AUTH_API_URL,
+    BETTER_AUTH_KV_URL: context.env.BETTER_AUTH_KV_URL ?? process.env.BETTER_AUTH_KV_URL,
+    GOOGLE_CLIENT_ID: context.env.GOOGLE_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: context.env.GOOGLE_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
   });
   currentUserByRequest.set(request, user);
   return user;

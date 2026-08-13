@@ -21,8 +21,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const session = authClient.useSession();
   const apiFetch = useCallback(
-    (input: string, init: RequestInit = {}) =>
-      fetch(input, { ...init, credentials: "include" }),
+    (input: string, init: RequestInit = {}) => fetch(input, { ...init, credentials: "include" }),
     [],
   );
   const user = useMemo<AuthUser | null>(() => {

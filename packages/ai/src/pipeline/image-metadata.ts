@@ -1,9 +1,7 @@
 const EXIF_HEADER = [0x45, 0x78, 0x69, 0x66, 0, 0];
 
 /** Extracts a conservative set of non-binary EXIF fields from JPEG data URIs. */
-export function extractExifMetadata(
-  image: string,
-): Record<string, string> | undefined {
+export function extractExifMetadata(image: string): Record<string, string> | undefined {
   const match = image.match(/^data:image\/jpeg;base64,(.+)$/s);
   if (!match) return undefined;
   try {
@@ -70,14 +68,7 @@ function readIfd(
     }
     const label = EXIF_TAGS.get(tag);
     if (!label) continue;
-    const value = readExifValue(
-      view,
-      tiffOffset,
-      entry,
-      type,
-      itemCount,
-      littleEndian,
-    );
+    const value = readExifValue(view, tiffOffset, entry, type, itemCount, littleEndian);
     if (value) metadata[label] = value;
   }
   return exifIfd;
@@ -92,10 +83,7 @@ function readExifValue(
   littleEndian: boolean,
 ) {
   if (type === 2 && count > 0 && count <= 512) {
-    const start =
-      count <= 4
-        ? entry + 8
-        : tiffOffset + view.getUint32(entry + 8, littleEndian);
+    const start = count <= 4 ? entry + 8 : tiffOffset + view.getUint32(entry + 8, littleEndian);
     if (start < 0 || start + count > view.byteLength) return undefined;
     return new TextDecoder()
       .decode(new Uint8Array(view.buffer, view.byteOffset + start, count))

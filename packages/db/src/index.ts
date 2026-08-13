@@ -119,10 +119,7 @@ export async function getMediaDietPreference(userId: string) {
   const result = await pool.query<{
     enabled: boolean;
     frequency: "weekly" | "monthly";
-  }>(
-    "SELECT enabled, frequency FROM media_diet_preferences WHERE user_id = $1",
-    [userId],
-  );
+  }>("SELECT enabled, frequency FROM media_diet_preferences WHERE user_id = $1", [userId]);
   return result.rows[0] ?? { enabled: false, frequency: "monthly" as const };
 }
 export async function mediaDietReport(userId: string, days = 30) {
@@ -143,9 +140,7 @@ export async function mediaDietReport(userId: string, days = 30) {
     averageSourceReputation: row?.average_reputation
       ? Math.round(Number(row.average_reputation))
       : null,
-    averageSignal: row?.average_signal
-      ? Math.round(Number(row.average_signal))
-      : null,
+    averageSignal: row?.average_signal ? Math.round(Number(row.average_signal)) : null,
   };
 }
 export async function optedInMediaDietRecipients() {
@@ -198,9 +193,7 @@ export async function findRelatedClaimsByEmbedding(
   limit: number,
 ): Promise<RelatedClaim[]> {
   if (similarityThreshold < 0 || similarityThreshold > 1) {
-    throw new Error(
-      "Related-claim similarity threshold must be between 0 and 1.",
-    );
+    throw new Error("Related-claim similarity threshold must be between 0 and 1.");
   }
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
     throw new Error("Related-claim limit must be an integer between 1 and 50.");
@@ -239,8 +232,7 @@ export async function findRelatedClaimsByEmbedding(
     verdict: row.verdict,
     reasoning: row.reasoning,
     confidence: row.confidence === null ? null : Number(row.confidence),
-    evidenceQuality:
-      row.evidence_quality === null ? null : Number(row.evidence_quality),
+    evidenceQuality: row.evidence_quality === null ? null : Number(row.evidence_quality),
     sourceDomain: row.source_domain,
     createdAt: row.created_at,
     similarity: Number(row.similarity),
@@ -323,11 +315,7 @@ export async function findReusableImageCheck(
   );
   const row = result.rows[0];
   const similarity = Number(row?.similarity);
-  if (
-    !row ||
-    !isReusableImageMatch(row.exact_match, similarity, similarityThreshold)
-  )
-    return null;
+  if (!row || !isReusableImageMatch(row.exact_match, similarity, similarityThreshold)) return null;
   return {
     id: row.id,
     rawInput: row.raw_input,
@@ -344,10 +332,7 @@ export function isReusableImageMatch(
   similarity: number,
   similarityThreshold: number,
 ) {
-  return (
-    exactMatch ||
-    (Number.isFinite(similarity) && similarity >= similarityThreshold)
-  );
+  return exactMatch || (Number.isFinite(similarity) && similarity >= similarityThreshold);
 }
 
 /** Finds a semantically related recent trace to extend as a story lineage. */
@@ -367,13 +352,7 @@ export async function findRelatedStoryCheck(
         AND ($4 = 'public' OR owner_user_id = $5)
       ORDER BY embedding <=> $1::vector, created_at DESC
       LIMIT 1`,
-    [
-      toVector(embedding),
-      maxAgeHours,
-      similarityThreshold,
-      visibility,
-      ownerUserId ?? null,
-    ],
+    [toVector(embedding), maxAgeHours, similarityThreshold, visibility, ownerUserId ?? null],
   );
   const row = result.rows[0];
   return row ? { id: row.id, similarity: Number(row.similarity) } : null;
@@ -389,12 +368,7 @@ export async function recordTraceAppearance(input: {
     `INSERT INTO trace_appearances
        (check_id, source_url, source_domain, occurrence_type)
      VALUES ($1, $2, $3, $4)`,
-    [
-      input.checkId,
-      input.sourceUrl ?? null,
-      input.sourceDomain ?? null,
-      input.occurrenceType,
-    ],
+    [input.checkId, input.sourceUrl ?? null, input.sourceDomain ?? null, input.occurrenceType],
   );
 }
 
@@ -418,11 +392,7 @@ export async function persistCheck(input: {
   nextReviewHours?: number;
 }): Promise<{ id: string; createdAt: string; nextReviewAt: string }> {
   const nextReviewHours = input.nextReviewHours ?? 24;
-  if (
-    !Number.isInteger(nextReviewHours) ||
-    nextReviewHours < 1 ||
-    nextReviewHours > 24 * 365
-  ) {
+  if (!Number.isInteger(nextReviewHours) || nextReviewHours < 1 || nextReviewHours > 24 * 365) {
     throw new Error("Next-review hours must be an integer between 1 and 8760.");
   }
   const client = await pool.connect();
@@ -603,10 +573,7 @@ export async function unsubscribeFromCheck(checkId: string, email: string) {
   return result.rows[0] ?? null;
 }
 
-export async function alertSubscriptionForCheck(
-  checkId: string,
-  email: string,
-) {
+export async function alertSubscriptionForCheck(checkId: string, email: string) {
   const result = await pool.query<{ id: string; active: string }>(
     `WITH RECURSIVE ancestors AS (
        SELECT id, supersedes_check_id FROM checks WHERE id = $1
@@ -685,11 +652,7 @@ export async function recordDecayEvent(input: {
   await pool.query(
     `INSERT INTO decay_events (check_id, event_type, detail)
      VALUES ($1, $2, $3::jsonb)`,
-    [
-      input.checkId ?? null,
-      input.eventType,
-      JSON.stringify(input.detail ?? {}),
-    ],
+    [input.checkId ?? null, input.eventType, JSON.stringify(input.detail ?? {})],
   );
 }
 
@@ -716,12 +679,7 @@ export async function getDecayObservability(limit = 100) {
   }));
 }
 
-export async function listChecks(
-  page: number,
-  pageSize: number,
-  query = "",
-  ownerUserId?: string,
-) {
+export async function listChecks(page: number, pageSize: number, query = "", ownerUserId?: string) {
   const offset = (page - 1) * pageSize;
   const search = query.trim();
   const [items, total] = await Promise.all([
@@ -803,9 +761,7 @@ export async function listChecks(
   return {
     checks: items.rows.map((row) => ({
       id: row.id,
-      rawInput: snippet(
-        displayInput(row.input_type, row.raw_input, row.primary_claim),
-      ),
+      rawInput: snippet(displayInput(row.input_type, row.raw_input, row.primary_claim)),
       traceraScore: row.tracera_score,
       createdAt: row.created_at,
       sourceDomain: row.source_domain,
@@ -814,8 +770,7 @@ export async function listChecks(
       visibility: row.visibility,
       appearanceCount: Number(row.appearance_count),
       reanalysisState:
-        row.next_review_at &&
-        new Date(row.next_review_at).getTime() <= Date.now()
+        row.next_review_at && new Date(row.next_review_at).getTime() <= Date.now()
           ? "review_due"
           : "scheduled",
     })),
@@ -824,11 +779,7 @@ export async function listChecks(
 }
 
 /** Returns a complete stored check, including the original input and structured analysis. */
-export async function getCheckById(
-  id: string,
-  ownerUserId?: string,
-  allowPrivate = false,
-) {
+export async function getCheckById(id: string, ownerUserId?: string, allowPrivate = false) {
   const result = await pool.query<{
     id: string;
     input_type: string;
@@ -867,11 +818,7 @@ export async function getCheckById(
         id: row.id,
         inputType: row.input_type,
         rawInput: row.raw_input,
-        displayInput: displayInput(
-          row.input_type,
-          row.raw_input,
-          row.primary_claim,
-        ),
+        displayInput: displayInput(row.input_type, row.raw_input, row.primary_claim),
         traceraScore: row.tracera_score,
         analysis: row.analysis,
         createdAt: row.created_at,
@@ -896,26 +843,18 @@ export async function findLatestCheckByRawInput(rawInput: string) {
   return result.rows[0]?.analysis ?? null;
 }
 
-function displayInput(
-  inputType: string,
-  rawInput: string,
-  primaryClaim: string | null,
-) {
+function displayInput(inputType: string, rawInput: string, primaryClaim: string | null) {
   if (inputType !== "image") return rawInput;
   return primaryClaim?.trim() || "Image-based trace";
 }
 
 function snippet(input: string) {
   const normalized = input.replace(/\s+/g, " ").trim();
-  return normalized.length <= 280
-    ? normalized
-    : `${normalized.slice(0, 277)}...`;
+  return normalized.length <= 280 ? normalized : `${normalized.slice(0, 277)}...`;
 }
 
 export async function checkDatabase() {
-  const result = await pool.query<{ connected: number }>(
-    "SELECT 1 AS connected",
-  );
+  const result = await pool.query<{ connected: number }>("SELECT 1 AS connected");
 
   return result.rows[0]?.connected === 1 ? "connected" : "unavailable";
 }
@@ -927,9 +866,7 @@ export async function getDomainTrustScores(domains: string[]) {
     "SELECT domain, trust_score FROM domains WHERE domain = ANY($1::text[])",
     [unique],
   );
-  return new Map(
-    result.rows.map((row) => [row.domain, Number(row.trust_score)]),
-  );
+  return new Map(result.rows.map((row) => [row.domain, Number(row.trust_score)]));
 }
 
 export interface DomainOutcomeSignal {
@@ -986,13 +923,10 @@ export async function recordDomainOutcomeSignals(input: {
       const netWeight = signals.reduce(
         (total, signal) =>
           total +
-          (signal.direction === "positive" ? 1 : -1) *
-            Math.max(0, Math.min(1, signal.weight)),
+          (signal.direction === "positive" ? 1 : -1) * Math.max(0, Math.min(1, signal.weight)),
         0,
       );
-      const proposed = clampTrust(
-        previous + Math.max(-0.01, Math.min(0.01, netWeight * 0.004)),
-      );
+      const proposed = clampTrust(previous + Math.max(-0.01, Math.min(0.01, netWeight * 0.004)));
       const shouldApply = input.apply && priorSignals + signals.length >= 5;
       if (shouldApply) {
         await client.query(

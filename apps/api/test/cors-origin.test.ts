@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vite-plus/test";
 import { allowedCorsOrigin } from "../src/cors-origin.js";
 
 test("allows the configured web origin", () => {
   assert.equal(
-    allowedCorsOrigin(
-      "https://tracera.voltcrash.com",
-      "https://tracera.voltcrash.com",
-    ),
+    allowedCorsOrigin("https://tracera.voltcrash.com", "https://tracera.voltcrash.com"),
     "https://tracera.voltcrash.com",
   );
 });
@@ -39,9 +36,6 @@ test("rejects lookalike and unrelated origins", () => {
     "https://localhost.attacker.example:3000",
     "https://attacker.example",
   ]) {
-    assert.equal(
-      allowedCorsOrigin(origin, "https://tracera.voltcrash.com"),
-      undefined,
-    );
+    assert.equal(allowedCorsOrigin(origin, "https://tracera.voltcrash.com"), undefined);
   }
 });

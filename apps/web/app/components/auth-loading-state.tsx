@@ -18,12 +18,14 @@ export function AuthLoadingState() {
     >
       <span className="size-7 animate-spin rounded-full border-2 border-emerald-950/15 border-t-emerald-800" />
       <p className="mt-5 text-sm font-bold text-emerald-950">
-        {isTakingLonger ? "Authentication is taking longer than expected" : "Loading secure sign-in…"}
+        {isTakingLonger
+          ? "Authentication is taking longer than expected"
+          : "Loading secure sign-in…"}
       </p>
       {isTakingLonger && (
         <p className="mt-2 max-w-xs text-xs leading-5 text-emerald-950/55">
-          Reload this page. If it still does not open, check that your browser
-          is not blocking requests from this site.
+          Reload this page. If it still does not open, check that your browser is not blocking
+          requests from this site.
         </p>
       )}
     </div>

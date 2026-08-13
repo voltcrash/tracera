@@ -1,9 +1,4 @@
-export type ReanalysisBand =
-  | "breaking"
-  | "developing"
-  | "recent"
-  | "established"
-  | "unknown";
+export type ReanalysisBand = "breaking" | "developing" | "recent" | "established" | "unknown";
 
 export interface ReanalysisPolicyInput {
   inputType: "text" | "link" | "image";
@@ -25,24 +20,15 @@ export interface ReanalysisPolicy {
  * freshness is the primary signal. Weak evidence and an inconclusive overall
  * score shorten the next review without changing the exact-submission window.
  */
-export function reanalysisPolicy(
-  input: ReanalysisPolicyInput,
-): ReanalysisPolicy {
+export function reanalysisPolicy(input: ReanalysisPolicyInput): ReanalysisPolicy {
   const band = freshnessBand(input.publishedAt, input.now ?? new Date());
   const base = policyForBand(band, input.inputType);
-  const thinEvidence =
-    typeof input.evidenceQuality === "number" && input.evidenceQuality < 0.45;
+  const thinEvidence = typeof input.evidenceQuality === "number" && input.evidenceQuality < 0.45;
   const uncertainScore =
-    typeof input.overallScore === "number" &&
-    input.overallScore >= 35 &&
-    input.overallScore <= 65;
+    typeof input.overallScore === "number" && input.overallScore >= 35 && input.overallScore <= 65;
   const nextReviewHours = Math.max(
     3,
-    Math.round(
-      base.nextReviewHours *
-        (thinEvidence ? 0.5 : 1) *
-        (uncertainScore ? 0.5 : 1),
-    ),
+    Math.round(base.nextReviewHours * (thinEvidence ? 0.5 : 1) * (uncertainScore ? 0.5 : 1)),
   );
   const accelerators = [
     thinEvidence ? "thin evidence" : null,
@@ -54,17 +40,12 @@ export function reanalysisPolicy(
     dedupHours: base.dedupHours,
     nextReviewHours,
     reason: `${base.reason}${
-      accelerators.length
-        ? ` Next review accelerated by ${accelerators.join(" and ")}.`
-        : ""
+      accelerators.length ? ` Next review accelerated by ${accelerators.join(" and ")}.` : ""
     }`,
   };
 }
 
-function freshnessBand(
-  publishedAt: string | undefined,
-  now: Date,
-): ReanalysisBand {
+function freshnessBand(publishedAt: string | undefined, now: Date): ReanalysisBand {
   if (!publishedAt) return "unknown";
   const timestamp = Date.parse(publishedAt);
   if (!Number.isFinite(timestamp)) return "unknown";
@@ -75,10 +56,7 @@ function freshnessBand(
   return "established";
 }
 
-function policyForBand(
-  band: ReanalysisBand,
-  inputType: ReanalysisPolicyInput["inputType"],
-) {
+function policyForBand(band: ReanalysisBand, inputType: ReanalysisPolicyInput["inputType"]) {
   if (band === "breaking") {
     return {
       dedupHours: 2,
@@ -111,8 +89,7 @@ function policyForBand(
     ? {
         dedupHours: 6,
         nextReviewHours: 12,
-        reason:
-          "Images without a publication date use a cautious review cadence.",
+        reason: "Images without a publication date use a cautious review cadence.",
       }
     : {
         dedupHours: 12,

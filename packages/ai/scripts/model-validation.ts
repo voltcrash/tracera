@@ -23,13 +23,7 @@ const caseSchema = z.object({
   label: z.enum(["true", "false", "misleading"]),
   articleUrl: z.string().url(),
   articleText: z.string().min(30),
-  expectedVerdict: z.enum([
-    "supported",
-    "contradicted",
-    "misleading",
-    "mixed",
-    "unverified",
-  ]),
+  expectedVerdict: z.enum(["supported", "contradicted", "misleading", "mixed", "unverified"]),
   expectedTerms: z.array(z.string()).min(2),
   evidence: z.array(evidenceSchema).min(1),
 });
@@ -37,12 +31,9 @@ const datasetSchema = z.array(caseSchema).min(5).max(10);
 type EvaluationCase = z.infer<typeof caseSchema>;
 
 const datasetPath = resolve(
-  process.argv[2] ??
-    new URL("../evaluation/model-validation.json", import.meta.url).pathname,
+  process.argv[2] ?? new URL("../evaluation/model-validation.json", import.meta.url).pathname,
 );
-const dataset = datasetSchema.parse(
-  JSON.parse(await readFile(datasetPath, "utf8")),
-);
+const dataset = datasetSchema.parse(JSON.parse(await readFile(datasetPath, "utf8")));
 const provider = createAiProvider(providerConfiguration());
 const results = [];
 
@@ -58,11 +49,9 @@ async function evaluateCase(evaluation: EvaluationCase) {
   const attempts: Array<StructuredOutputAttempt & { stage: string }> = [];
   const prompts: Array<{ stage: string; prompt: string }> = [];
   const audit = {
-    onPrompt: (record: { stage: string; prompt: string }) =>
-      prompts.push(record),
-    onStructuredOutputAttempt: (
-      record: StructuredOutputAttempt & { stage: string },
-    ) => attempts.push(record),
+    onPrompt: (record: { stage: string; prompt: string }) => prompts.push(record),
+    onStructuredOutputAttempt: (record: StructuredOutputAttempt & { stage: string }) =>
+      attempts.push(record),
   };
 
   const startedAt = performance.now();
@@ -88,10 +77,7 @@ async function evaluateCase(evaluation: EvaluationCase) {
   const usedSources = verdict
     ? [...verdict.supportingSources, ...verdict.contradictingSources]
     : [];
-  const promptCharacters = prompts.reduce(
-    (total, record) => total + record.prompt.length,
-    0,
-  );
+  const promptCharacters = prompts.reduce((total, record) => total + record.prompt.length, 0);
   const outputCharacters = JSON.stringify({ claims, verdict }).length;
 
   return {
@@ -131,17 +117,12 @@ function buildReport(results: Awaited<ReturnType<typeof evaluateCase>>[]) {
   const verdictRate = passRate(results, "verdictPass");
   const evidenceUseRate = passRate(results, "evidenceUsePass");
   const firstAttemptSchemaRate =
-    results.filter((result) => result.structuredOutput.firstAttemptPass)
-      .length / results.length;
+    results.filter((result) => result.structuredOutput.firstAttemptPass).length / results.length;
   const latencyValues = results
     .map((result) => result.latencyMs.total)
     .sort((left, right) => left - right);
-  const inputTokens = sum(
-    results.map((result) => result.estimatedTokens.input),
-  );
-  const outputTokens = sum(
-    results.map((result) => result.estimatedTokens.output),
-  );
+  const inputTokens = sum(results.map((result) => result.estimatedTokens.input));
+  const outputTokens = sum(results.map((result) => result.estimatedTokens.output));
   const estimatedCostUsd = estimateCost(inputTokens, outputTokens);
   const thresholds = {
     extractionRate: environmentNumber("EVAL_MIN_EXTRACTION_RATE", 0.8),
@@ -195,48 +176,33 @@ function buildReport(results: Awaited<ReturnType<typeof evaluateCase>>[]) {
 function selectClaim(claims: ExtractedClaim[], expectedTerms: string[]) {
   return [...claims].sort(
     (left, right) =>
-      termCoverage(right.claimText, expectedTerms) -
-      termCoverage(left.claimText, expectedTerms),
+      termCoverage(right.claimText, expectedTerms) - termCoverage(left.claimText, expectedTerms),
   )[0];
 }
 
 function termCoverage(text: string, terms: string[]) {
   const normalized = text.toLocaleLowerCase();
   return (
-    terms.filter((term) => normalized.includes(term.toLocaleLowerCase()))
-      .length / terms.length
+    terms.filter((term) => normalized.includes(term.toLocaleLowerCase())).length / terms.length
   );
 }
 
 function isPlausiblyAtomic(claim: ExtractedClaim) {
-  const conjunctions =
-    claim.claimText.match(/\b(and|but|while|whereas)\b/gi)?.length ?? 0;
-  return (
-    claim.claimText.length <= 240 &&
-    !claim.claimText.includes(";") &&
-    conjunctions <= 1
-  );
+  const conjunctions = claim.claimText.match(/\b(and|but|while|whereas)\b/gi)?.length ?? 0;
+  return claim.claimText.length <= 240 && !claim.claimText.includes(";") && conjunctions <= 1;
 }
 
-function stagesPassedFirstAttempt(
-  attempts: Array<StructuredOutputAttempt & { stage: string }>,
-) {
+function stagesPassedFirstAttempt(attempts: Array<StructuredOutputAttempt & { stage: string }>) {
   const stages = new Set(attempts.map((attempt) => attempt.stage));
   return [...stages].every((stage) =>
-    attempts.some(
-      (attempt) =>
-        attempt.stage === stage && attempt.attempt === 1 && attempt.valid,
-    ),
+    attempts.some((attempt) => attempt.stage === stage && attempt.attempt === 1 && attempt.valid),
   );
 }
 
-function passRate<
-  T extends
-    | "extractionPass"
-    | "atomicityPass"
-    | "verdictPass"
-    | "evidenceUsePass",
->(values: Array<Record<T, boolean>>, key: T) {
+function passRate<T extends "extractionPass" | "atomicityPass" | "verdictPass" | "evidenceUsePass">(
+  values: Array<Record<T, boolean>>,
+  key: T,
+) {
   return values.filter((value) => value[key]).length / values.length;
 }
 
@@ -252,9 +218,7 @@ function estimateCost(inputTokens: number, outputTokens: number) {
   const inputRate = Number(process.env.EVAL_INPUT_USD_PER_MILLION_TOKENS);
   const outputRate = Number(process.env.EVAL_OUTPUT_USD_PER_MILLION_TOKENS);
   if (!Number.isFinite(inputRate) || !Number.isFinite(outputRate)) return null;
-  return round(
-    (inputTokens * inputRate + outputTokens * outputRate) / 1_000_000,
-  );
+  return round((inputTokens * inputRate + outputTokens * outputRate) / 1_000_000);
 }
 
 function round(value: number) {
@@ -300,15 +264,7 @@ function providerConfiguration(): AiProviderConfig {
 }
 
 function providerName(value: string): AiProviderName {
-  if (
-    [
-      "anthropic",
-      "gemini",
-      "openai",
-      "openrouter",
-      "openai-compatible",
-    ].includes(value)
-  ) {
+  if (["anthropic", "gemini", "openai", "openrouter", "openai-compatible"].includes(value)) {
     return value as AiProviderName;
   }
   throw new Error(`Unsupported AI_PROVIDER: ${value}`);

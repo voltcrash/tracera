@@ -3,17 +3,10 @@
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  AnalysisResult,
-  type ClaimResult,
-  type TraceraScore,
-} from "../components/analysis-result";
+import { AnalysisResult, type ClaimResult, type TraceraScore } from "../components/analysis-result";
 import { AppHeader } from "../components/app-header";
 import { useAuth } from "../components/auth-provider";
-import {
-  GroundZeroCard,
-  type GroundZeroTrace,
-} from "../components/ground-zero-card";
+import { GroundZeroCard, type GroundZeroTrace } from "../components/ground-zero-card";
 import { apiUrl } from "../lib/api";
 
 const example =
@@ -54,10 +47,7 @@ export default function Home() {
   const [privateTrace, setPrivateTrace] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
-  async function analyze(
-    event?: FormEvent<HTMLFormElement>,
-    forceReanalysis = false,
-  ) {
+  async function analyze(event?: FormEvent<HTMLFormElement>, forceReanalysis = false) {
     event?.preventDefault();
     if (!text.trim() && !image) return;
     if (!user) {
@@ -89,9 +79,7 @@ export default function Home() {
       setResult(await readAnalysisStream(response, setProgress));
     } catch (requestError) {
       setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Unable to analyze this text.",
+        requestError instanceof Error ? requestError.message : "Unable to analyze this text.",
       );
     } finally {
       setLoading(false);
@@ -111,9 +99,7 @@ export default function Home() {
       Array.from(event.clipboardData.items)
         .find((item) => item.kind === "file" && item.type.startsWith("image/"))
         ?.getAsFile() ??
-      Array.from(event.clipboardData.files).find((item) =>
-        item.type.startsWith("image/"),
-      );
+      Array.from(event.clipboardData.files).find((item) => item.type.startsWith("image/"));
     if (!file) return;
 
     event.preventDefault();
@@ -137,11 +123,7 @@ export default function Home() {
         name: file.name || fallbackName,
       });
     } catch (readError) {
-      setError(
-        readError instanceof Error
-          ? readError.message
-          : "The image could not be read.",
-      );
+      setError(readError instanceof Error ? readError.message : "The image could not be read.");
     }
   }
 
@@ -161,8 +143,8 @@ export default function Home() {
               Trace a story to its source.
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-emerald-950/58">
-              Paste what you&apos;ve seen. Tracera will separate the claims,
-              retrieve the evidence, and show exactly how the verdict was built.
+              Paste what you&apos;ve seen. Tracera will separate the claims, retrieve the evidence,
+              and show exactly how the verdict was built.
             </p>
           </div>
 
@@ -315,10 +297,7 @@ export default function Home() {
               </div>
               <ReuseNotice reuse={result.reuse} cached={result.cached} />
             </div>
-            <AnalysisResult
-              claims={result.claims}
-              score={result.traceraScore}
-            />
+            <AnalysisResult claims={result.claims} score={result.traceraScore} />
             {result.reuse?.state === "reused_exact" && (
               <button
                 type="button"
@@ -330,9 +309,7 @@ export default function Home() {
               </button>
             )}
             {result.groundZero && <GroundZeroCard trace={result.groundZero} />}
-            {result.inputMetadata && (
-              <ImageProvenance metadata={result.inputMetadata} />
-            )}
+            {result.inputMetadata && <ImageProvenance metadata={result.inputMetadata} />}
           </section>
         )}
       </div>
@@ -380,9 +357,7 @@ function TraceProgress({ progress }: { progress: string }) {
           <p className="text-[9px] font-black tracking-[.18em] text-[#9cf0d1]">
             LIVE EVIDENCE TRACE
           </p>
-          <h2 className="mt-2 text-xl font-black tracking-[-.035em]">
-            {progress}
-          </h2>
+          <h2 className="mt-2 text-xl font-black tracking-[-.035em]">{progress}</h2>
         </div>
         <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1.5 text-[9px] font-black text-white/58">
           <Spinner /> ANALYZING
@@ -390,13 +365,9 @@ function TraceProgress({ progress }: { progress: string }) {
       </div>
       <ol className="relative z-10 mt-7 grid gap-2 sm:grid-cols-5">
         {traceStages.map((stage, index) => {
-          const state =
-            index < current ? "done" : index === current ? "active" : "waiting";
+          const state = index < current ? "done" : index === current ? "active" : "waiting";
           return (
-            <li
-              key={stage.label}
-              className={`trace-progress-step trace-progress-step-${state}`}
-            >
+            <li key={stage.label} className={`trace-progress-step trace-progress-step-${state}`}>
               <span className="trace-progress-number">
                 {state === "done" ? "✓" : String(index + 1).padStart(2, "0")}
               </span>
@@ -422,10 +393,8 @@ function traceProgressIndex(progress: string) {
   const message = progress.toLowerCase();
   if (message.includes("saved") || message.includes("completed")) return 4;
   if (message.includes("earliest") || message.includes("publication")) return 3;
-  if (message.includes("evidence") || message.includes("scored claim"))
-    return 2;
-  if (message.includes("separating") || message.includes("factual claims"))
-    return 1;
+  if (message.includes("evidence") || message.includes("scored claim")) return 2;
+  if (message.includes("separating") || message.includes("factual claims")) return 1;
   return 0;
 }
 
@@ -455,9 +424,7 @@ async function readAnalysisStream(
       if (event === "progress" && typeof data.message === "string") {
         onProgress(data.message);
       } else if (event === "error") {
-        throw new Error(
-          typeof data.error === "string" ? data.error : "Analysis failed.",
-        );
+        throw new Error(typeof data.error === "string" ? data.error : "Analysis failed.");
       } else if (event === "complete") {
         completed = data as AnalysisResponse;
       }
@@ -481,24 +448,16 @@ function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
             The file leaves clues too.
           </h2>
           <p className="mt-3 text-sm leading-6 text-violet-950/55">
-            Visible text and embedded metadata were inspected alongside the
-            claims.
+            Visible text and embedded metadata were inspected alongside the claims.
           </p>
         </div>
         <div className="rounded-2xl border border-violet-950/8 bg-white/65 p-4">
           <div className="grid gap-2 sm:grid-cols-2">
             <ProvenanceMetric
               label="OCR"
-              value={
-                metadata.ocrProvider === "configured"
-                  ? "Provider verified"
-                  : "Model fallback"
-              }
+              value={metadata.ocrProvider === "configured" ? "Provider verified" : "Model fallback"}
             />
-            <ProvenanceMetric
-              label="File type"
-              value={metadata.mimeType ?? "Unknown"}
-            />
+            <ProvenanceMetric label="File type" value={metadata.mimeType ?? "Unknown"} />
             {exif.slice(0, 4).map(([key, value]) => (
               <ProvenanceMetric key={key} label={key} value={value} />
             ))}
@@ -527,26 +486,15 @@ function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
 function ProvenanceMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-white/80 px-3 py-2.5">
-      <p className="text-[8px] font-black uppercase tracking-[.12em] text-violet-950/35">
-        {label}
-      </p>
-      <p
-        className="mt-1 truncate text-[10px] font-black text-violet-950/72"
-        title={value}
-      >
+      <p className="text-[8px] font-black uppercase tracking-[.12em] text-violet-950/35">{label}</p>
+      <p className="mt-1 truncate text-[10px] font-black text-violet-950/72" title={value}>
         {value}
       </p>
     </div>
   );
 }
 
-function ReuseNotice({
-  reuse,
-  cached,
-}: {
-  reuse?: ReuseState;
-  cached: boolean;
-}) {
+function ReuseNotice({ reuse, cached }: { reuse?: ReuseState; cached: boolean }) {
   if (reuse?.state === "reused_exact" && reuse.expiresAt) {
     return (
       <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-[9px] font-black text-emerald-800">
@@ -593,7 +541,10 @@ function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("The image could not be read."));
-    reader.onload = () => resolve(String(reader.result));
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("The image could not be read."));
+    };
     reader.readAsDataURL(file);
   });
 }

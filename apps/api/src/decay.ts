@@ -54,12 +54,7 @@ export async function runDecaySweep(env: Bindings) {
 
     const jobsToProcess = Math.min(await redis.llen(DECAY_QUEUE), 25);
     for (let index = 0; index < jobsToProcess; index += 1) {
-      const job = await redis.lmove<DecayJob>(
-        DECAY_QUEUE,
-        DECAY_PROCESSING,
-        "right",
-        "left",
-      );
+      const job = await redis.lmove<DecayJob>(DECAY_QUEUE, DECAY_PROCESSING, "right", "left");
       if (!job) break;
       try {
         const check = await getDecayCheckById(job.checkId);
@@ -101,19 +96,13 @@ export async function runDecaySweep(env: Bindings) {
 
 function decayRedis(env: Bindings) {
   const url = env.UPSTASH_REDIS_REST_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-  const token =
-    env.UPSTASH_REDIS_REST_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+  const token = env.UPSTASH_REDIS_REST_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
   return url && token ? new Redis({ url, token }) : null;
 }
 
 async function recoverInterruptedJobs(redis: Redis) {
   while (await redis.llen(DECAY_PROCESSING)) {
-    const recovered = await redis.lmove(
-      DECAY_PROCESSING,
-      DECAY_QUEUE,
-      "right",
-      "left",
-    );
+    const recovered = await redis.lmove(DECAY_PROCESSING, DECAY_QUEUE, "right", "left");
     if (!recovered) break;
   }
 }
@@ -153,13 +142,7 @@ async function recheck(check: DueCheck, env: Bindings) {
       Math.abs(currentScore - previousScore) >= alertScoreDelta(env),
     );
     if (changed && recheck.check?.id) {
-      await notifyTraceSubscribers(
-        check.id,
-        recheck.check.id,
-        previousScore!,
-        currentScore!,
-        env,
-      );
+      await notifyTraceSubscribers(check.id, recheck.check.id, previousScore!, currentScore!, env);
       await recordDecayEvent({
         checkId: check.id,
         eventType: "changed",
@@ -168,9 +151,7 @@ async function recheck(check: DueCheck, env: Bindings) {
     }
     // The newly persisted child owns the next adaptive review. Retire this
     // version so one trace does not accumulate multiple active schedules.
-    await pool.query("UPDATE checks SET next_review_at = NULL WHERE id=$1", [
-      check.id,
-    ]);
+    await pool.query("UPDATE checks SET next_review_at = NULL WHERE id=$1", [check.id]);
     await recordDecayEvent({
       checkId: check.id,
       eventType: "completed",
@@ -193,16 +174,12 @@ async function recheck(check: DueCheck, env: Bindings) {
 }
 
 function requiredApiUrl(env: Bindings) {
-  return (env.INTERNAL_API_URL ?? "https://api.tracera.voltcrash.com").replace(
-    /\/$/,
-    "",
-  );
+  return (env.INTERNAL_API_URL ?? "https://api.tracera.voltcrash.com").replace(/\/$/, "");
 }
 
 function requiredWorkerToken(env: Bindings) {
   const value = env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
-  if (!value)
-    throw new Error("INTERNAL_WORKER_TOKEN is required for decay checks.");
+  if (!value) throw new Error("INTERNAL_WORKER_TOKEN is required for decay checks.");
   return value;
 }
 
@@ -213,9 +190,7 @@ function scoreFromStoredAnalysis(analysis: unknown) {
 }
 
 function alertScoreDelta(env: Bindings) {
-  const configured = Number(
-    env.ALERT_SCORE_DELTA ?? process.env.ALERT_SCORE_DELTA ?? 5,
-  );
+  const configured = Number(env.ALERT_SCORE_DELTA ?? process.env.ALERT_SCORE_DELTA ?? 5);
   return Number.isFinite(configured) && configured >= 0 ? configured : 5;
 }
 
@@ -239,9 +214,7 @@ async function notifyTraceSubscribers(
   }
   const change = Math.round(currentScore - previousScore);
   const webUrl =
-    env.PUBLIC_WEB_URL ??
-    process.env.PUBLIC_WEB_URL ??
-    "https://tracera.voltcrash.com";
+    env.PUBLIC_WEB_URL ?? process.env.PUBLIC_WEB_URL ?? "https://tracera.voltcrash.com";
   const link = `${webUrl.replace(/\/$/, "")}/hub/${newCheckId}`;
   await Promise.all(
     recipients.map(async (to) => {
@@ -258,8 +231,7 @@ async function notifyTraceSubscribers(
           text: `New evidence changed this trace from ${previousScore}/100 to ${currentScore}/100. Review the updated evidence: ${link}`,
         }),
       });
-      if (!response.ok)
-        throw new Error(`Alert delivery failed with HTTP ${response.status}.`);
+      if (!response.ok) throw new Error(`Alert delivery failed with HTTP ${response.status}.`);
     }),
   );
   await markAlertSubscriptionsNotified(originalCheckId, newCheckId, recipients);

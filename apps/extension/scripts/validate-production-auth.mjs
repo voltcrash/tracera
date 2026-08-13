@@ -3,12 +3,7 @@ import { resolve } from "node:path";
 
 // Vite/WXT gives mode-specific files precedence over the generic .env file.
 const values = {};
-for (const filename of [
-  ".env",
-  ".env.local",
-  ".env.production",
-  ".env.production.local",
-]) {
+for (const filename of [".env", ".env.local", ".env.production", ".env.production.local"]) {
   const file = resolve(process.cwd(), filename);
   if (!existsSync(file)) continue;
   for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {

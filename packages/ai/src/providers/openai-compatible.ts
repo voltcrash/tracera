@@ -54,14 +54,11 @@ export class OpenAiCompatibleProvider extends StructuredOutputProvider {
     const response = await this.request<EmbeddingResponse>("embeddings", {
       model: this.embeddingModel,
       input: text,
-      ...(this.embeddingDimensions
-        ? { dimensions: this.embeddingDimensions }
-        : {}),
+      ...(this.embeddingDimensions ? { dimensions: this.embeddingDimensions } : {}),
     });
     const embedding = response.data?.[0]?.embedding;
 
-    if (!embedding)
-      throw new Error(`${this.providerName} returned no embedding vector.`);
+    if (!embedding) throw new Error(`${this.providerName} returned no embedding vector.`);
     return embedding;
   }
 
@@ -70,25 +67,19 @@ export class OpenAiCompatibleProvider extends StructuredOutputProvider {
     schema: JsonSchema,
     options?: GenerateOptions,
   ): Promise<string> {
-    const response = await this.request<ChatCompletionResponse>(
-      "chat/completions",
-      {
-        model: options?.model ?? this.model,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0,
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: "structured_response", strict: true, schema },
-        },
+    const response = await this.request<ChatCompletionResponse>("chat/completions", {
+      model: options?.model ?? this.model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0,
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "structured_response", strict: true, schema },
       },
-    );
+    });
     const content = response.choices?.[0]?.message?.content;
-    const text = Array.isArray(content)
-      ? content.map((part) => part.text ?? "").join("")
-      : content;
+    const text = Array.isArray(content) ? content.map((part) => part.text ?? "").join("") : content;
 
-    if (!text)
-      throw new Error(`${this.providerName} returned no generated content.`);
+    if (!text) throw new Error(`${this.providerName} returned no generated content.`);
     return text;
   }
 
@@ -98,44 +89,33 @@ export class OpenAiCompatibleProvider extends StructuredOutputProvider {
     schema: JsonSchema,
     options?: GenerateOptions,
   ): Promise<string> {
-    const response = await this.request<ChatCompletionResponse>(
-      "chat/completions",
-      {
-        model: options?.model ?? this.model,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              {
-                type: "image_url",
-                image_url: { url: image.data, detail: "high" },
-              },
-            ],
-          },
-        ],
-        temperature: 0,
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: "structured_response", strict: true, schema },
+    const response = await this.request<ChatCompletionResponse>("chat/completions", {
+      model: options?.model ?? this.model,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            {
+              type: "image_url",
+              image_url: { url: image.data, detail: "high" },
+            },
+          ],
         },
+      ],
+      temperature: 0,
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "structured_response", strict: true, schema },
       },
-    );
+    });
     const content = response.choices?.[0]?.message?.content;
-    const text = Array.isArray(content)
-      ? content.map((part) => part.text ?? "").join("")
-      : content;
-    if (!text)
-      throw new Error(
-        `${this.providerName} returned no generated image analysis.`,
-      );
+    const text = Array.isArray(content) ? content.map((part) => part.text ?? "").join("") : content;
+    if (!text) throw new Error(`${this.providerName} returned no generated image analysis.`);
     return text;
   }
 
-  private async request<TResponse>(
-    path: string,
-    body: unknown,
-  ): Promise<TResponse> {
+  private async request<TResponse>(path: string, body: unknown): Promise<TResponse> {
     const response = await fetch(`${this.baseUrl}/${path}`, {
       method: "POST",
       headers: {

@@ -13,9 +13,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://tracera.voltcrash.com",
-  ),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://tracera.voltcrash.com"),
   title: "Tracera — Don’t just read the story. Trace it.",
   description:
     "Break news into checkable claims, trace each one to its sources, and see how the evidence changes over time.",

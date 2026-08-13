@@ -11,9 +11,7 @@ export default defineBackground(() => {
   const enableActionClick = () =>
     chrome.sidePanel
       .setPanelBehavior({ openPanelOnActionClick: true })
-      .catch((error) =>
-        console.error("Unable to enable Tracera side panel", error),
-      );
+      .catch((error) => console.error("Unable to enable Tracera side panel", error));
 
   void enableActionClick();
   chrome.runtime.onInstalled.addListener(enableActionClick);
@@ -23,23 +21,18 @@ export default defineBackground(() => {
     if (change.status !== "complete" || !isPublicPage(tab.url)) return;
     scheduleReactiveAnalysis(tabId);
   });
-  chrome.tabs.onActivated.addListener(({ tabId }) =>
-    scheduleReactiveAnalysis(tabId),
-  );
+  chrome.tabs.onActivated.addListener(({ tabId }) => scheduleReactiveAnalysis(tabId));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local" || changes.reactiveEnabled?.newValue !== true) return;
-    void chrome.tabs
-      .query({ active: true, lastFocusedWindow: true })
-      .then(([tab]) => {
-        if (tab?.id) scheduleReactiveAnalysis(tab.id, 0);
-      });
+    void chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
+      if (tab?.id) scheduleReactiveAnalysis(tab.id, 0);
+    });
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type !== "tracera:extract-page") return;
 
-    const tabId =
-      typeof message.tabId === "number" ? message.tabId : sender.tab?.id;
+    const tabId = typeof message.tabId === "number" ? message.tabId : sender.tab?.id;
     if (!tabId) {
       sendResponse({ error: "No browser tab is available to analyze." });
       return;
@@ -55,8 +48,7 @@ export default defineBackground(() => {
   });
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type !== "tracera:highlight-claims") return;
-    const tabId =
-      typeof message.tabId === "number" ? message.tabId : sender.tab?.id;
+    const tabId = typeof message.tabId === "number" ? message.tabId : sender.tab?.id;
     if (!tabId) return sendResponse({ error: "No browser tab is available." });
     void chrome.tabs
       .sendMessage(tabId, message)
@@ -144,9 +136,7 @@ async function analyzeTabReactively(tabId: number) {
 async function pageFingerprint(snapshot: PageSnapshot) {
   const data = new TextEncoder().encode(`${snapshot.url}\n${snapshot.text}`);
   const digest = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 async function setBadge(tabId: number, text: string, color: string) {
@@ -161,10 +151,7 @@ function isPublicPage(url: string | undefined): url is string {
 }
 
 async function authToken(): Promise<string | null> {
-  for (const name of [
-    "__Secure-tracera.session_token",
-    "tracera.session_token",
-  ]) {
+  for (const name of ["__Secure-tracera.session_token", "tracera.session_token"]) {
     const cookie = await chrome.cookies.get({
       url: "https://tracera.voltcrash.com",
       name,
@@ -174,9 +161,7 @@ async function authToken(): Promise<string | null> {
   return null;
 }
 
-async function extractPage(
-  tabId: number,
-): Promise<{ snapshot?: PageSnapshot; error?: string }> {
+async function extractPage(tabId: number): Promise<{ snapshot?: PageSnapshot; error?: string }> {
   try {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
@@ -208,9 +193,7 @@ function readCurrentPage(): PageSnapshot | null {
     document.querySelector('[role="main"]') ??
     document.body;
   const title =
-    document
-      .querySelector("meta[property='og:title']")
-      ?.getAttribute("content") || document.title;
+    document.querySelector("meta[property='og:title']")?.getAttribute("content") || document.title;
   const text = `${title}\n\n${root.innerText}`
     .replace(/\s{2,}/g, " ")
     .trim()

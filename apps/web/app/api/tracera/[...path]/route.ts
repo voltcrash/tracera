@@ -58,14 +58,8 @@ function withBrowserCors(response: Response, request: Request) {
   const origin = request.headers.get("origin");
   if (origin?.startsWith("chrome-extension://")) {
     response.headers.set("access-control-allow-origin", origin);
-    response.headers.set(
-      "access-control-allow-methods",
-      "GET, POST, PUT, DELETE, OPTIONS",
-    );
-    response.headers.set(
-      "access-control-allow-headers",
-      "Content-Type, Authorization",
-    );
+    response.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
+    response.headers.set("access-control-allow-headers", "Content-Type, Authorization");
     response.headers.set("vary", "Origin");
   }
   return response;

@@ -4,12 +4,7 @@ import { OpenAiCompatibleProvider } from "./providers/openai-compatible.js";
 import { CompositeAiProvider } from "./composite-provider.js";
 import type { AiProvider } from "./provider.js";
 
-export type AiProviderName =
-  | "anthropic"
-  | "gemini"
-  | "openai"
-  | "openrouter"
-  | "openai-compatible";
+export type AiProviderName = "anthropic" | "gemini" | "openai" | "openrouter" | "openai-compatible";
 
 export interface ModelProviderConfig {
   provider: AiProviderName;

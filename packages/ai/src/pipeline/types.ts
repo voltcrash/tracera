@@ -1,11 +1,6 @@
 export type ClaimType = "factual_assertion" | "opinion" | "framing";
 export type Checkability = "checkable" | "needs_context" | "not_checkable";
-export type Verdict =
-  | "supported"
-  | "contradicted"
-  | "misleading"
-  | "mixed"
-  | "unverified";
+export type Verdict = "supported" | "contradicted" | "misleading" | "mixed" | "unverified";
 
 export interface ExtractedClaim {
   id: string;

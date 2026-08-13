@@ -1,8 +1,4 @@
-import {
-  createAiProvider,
-  type AiProviderConfig,
-  type AiProviderName,
-} from "../src/index.js";
+import { createAiProvider, type AiProviderConfig, type AiProviderName } from "../src/index.js";
 import { z } from "zod";
 
 const schema = z.object({

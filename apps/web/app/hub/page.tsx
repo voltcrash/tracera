@@ -63,9 +63,7 @@ export default function HubPage() {
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(
-        window.localStorage.getItem("tracera-hub-bookmarks") ?? "[]",
-      );
+      const saved = JSON.parse(window.localStorage.getItem("tracera-hub-bookmarks") ?? "[]");
       if (Array.isArray(saved)) setBookmarked(new Set(saved));
       const savedView = window.localStorage.getItem("tracera-hub-view");
       if (savedView === "grid" || savedView === "list") {
@@ -82,24 +80,18 @@ export default function HubPage() {
     const handle = setTimeout(() => {
       setLoading(true);
       setError(null);
-      apiFetch(
-        `${apiUrl}/checks?page=${page}&pageSize=20&q=${encodeURIComponent(query)}`,
-        { signal: controller.signal },
-      )
+      apiFetch(`${apiUrl}/checks?page=${page}&pageSize=20&q=${encodeURIComponent(query)}`, {
+        signal: controller.signal,
+      })
         .then(async (response) => {
           const data = await response.json();
-          if (!response.ok)
-            throw new Error(data.error ?? "Unable to load checks.");
+          if (!response.ok) throw new Error(data.error ?? "Unable to load checks.");
           setChecks(data.checks);
           setPagination(data.pagination);
         })
         .catch((requestError) => {
           if (controller.signal.aborted) return;
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : "Unable to load checks.",
-          );
+          setError(requestError instanceof Error ? requestError.message : "Unable to load checks.");
         })
         .finally(() => {
           if (!controller.signal.aborted) setLoading(false);
@@ -129,10 +121,8 @@ export default function HubPage() {
     });
 
     return filtered.sort((a, b) => {
-      if (sortOrder === "highest")
-        return b.traceraScore.overall - a.traceraScore.overall;
-      if (sortOrder === "lowest")
-        return a.traceraScore.overall - b.traceraScore.overall;
+      if (sortOrder === "highest") return b.traceraScore.overall - a.traceraScore.overall;
+      if (sortOrder === "lowest") return a.traceraScore.overall - b.traceraScore.overall;
       const aTime = new Date(a.createdAt).getTime();
       const bTime = new Date(b.createdAt).getTime();
       return sortOrder === "oldest" ? aTime - bTime : bTime - aTime;
@@ -140,14 +130,9 @@ export default function HubPage() {
   }, [checks, filter, privacy, sortOrder, status]);
 
   const average = checks.length
-    ? Math.round(
-        checks.reduce((sum, item) => sum + item.traceraScore.overall, 0) /
-          checks.length,
-      )
+    ? Math.round(checks.reduce((sum, item) => sum + item.traceraScore.overall, 0) / checks.length)
     : 0;
-  const reviewCount = checks.filter(
-    (item) => item.traceraScore.overall < 70,
-  ).length;
+  const reviewCount = checks.filter((item) => item.traceraScore.overall < 70).length;
   const hasSecondaryFilters = privacy !== "all" || status !== "all";
 
   function toggleBookmark(id: string) {
@@ -156,10 +141,7 @@ export default function HubPage() {
       if (next.has(id)) next.delete(id);
       else next.add(id);
       try {
-        window.localStorage.setItem(
-          "tracera-hub-bookmarks",
-          JSON.stringify([...next]),
-        );
+        window.localStorage.setItem("tracera-hub-bookmarks", JSON.stringify([...next]));
       } catch {
         // Keep bookmarks usable for this visit if browser storage is disabled.
       }
@@ -196,9 +178,8 @@ export default function HubPage() {
                     <span className="block text-[#49cf9d]">stay attached.</span>
                   </h1>
                   <p className="mt-6 max-w-xl text-sm leading-6 text-white/68 sm:text-base sm:leading-7">
-                    Every check is a living evidence trail—not a one-off
-                    verdict. Search the archive, reopen the sources, and return
-                    when the story changes.
+                    Every check is a living evidence trail—not a one-off verdict. Search the
+                    archive, reopen the sources, and return when the story changes.
                   </p>
                   <Link
                     href="/home"
@@ -251,9 +232,7 @@ export default function HubPage() {
                 <span>Sort by:</span>
                 <select
                   value={sortOrder}
-                  onChange={(event) =>
-                    setSortOrder(event.target.value as SortOrder)
-                  }
+                  onChange={(event) => setSortOrder(event.target.value as SortOrder)}
                   aria-label="Sort checks"
                 >
                   {sortOptions.map((option) => (
@@ -264,11 +243,7 @@ export default function HubPage() {
                 </select>
               </label>
 
-              <div
-                className="hub-view-toggle"
-                role="group"
-                aria-label="Choose trace library view"
-              >
+              <div className="hub-view-toggle" role="group" aria-label="Choose trace library view">
                 {(["grid", "list"] as const).map((mode) => (
                   <button
                     key={mode}
@@ -279,10 +254,7 @@ export default function HubPage() {
                     title={`${mode === "grid" ? "Grid" : "List"} view`}
                     className={`hub-view-button ${viewMode === mode ? "hub-view-button-active" : ""}`}
                   >
-                    <span
-                      className={`hub-view-icon hub-view-icon-${mode}`}
-                      aria-hidden="true"
-                    />
+                    <span className={`hub-view-icon hub-view-icon-${mode}`} aria-hidden="true" />
                   </button>
                 ))}
               </div>
@@ -503,10 +475,7 @@ function HubCheckCard({
           >
             <span>{check.traceraScore.overall}</span>
           </div>
-          <BookmarkButton
-            bookmarked={bookmarked}
-            onToggleBookmark={onToggleBookmark}
-          />
+          <BookmarkButton bookmarked={bookmarked} onToggleBookmark={onToggleBookmark} />
           <OpenTraceButton id={check.id} />
         </div>
       </article>
@@ -551,10 +520,7 @@ function HubCheckCard({
 
         <div className="mt-4 flex items-center gap-3 border-t border-emerald-950/8 pt-4">
           <CheckDate check={check} className="mr-auto" />
-          <BookmarkButton
-            bookmarked={bookmarked}
-            onToggleBookmark={onToggleBookmark}
-          />
+          <BookmarkButton bookmarked={bookmarked} onToggleBookmark={onToggleBookmark} />
           <OpenTraceButton id={check.id} />
         </div>
       </div>
@@ -567,13 +533,9 @@ function CheckStatusPills({ check }: { check: CheckSummary }) {
     <>
       <StatusPill
         tone={check.reanalysisState === "review_due" ? "amber" : "emerald"}
-        label={
-          check.reanalysisState === "review_due" ? "Review due" : "Monitoring"
-        }
+        label={check.reanalysisState === "review_due" ? "Review due" : "Monitoring"}
       />
-      {check.visibility === "private" && (
-        <StatusPill tone="slate" label="Private" />
-      )}
+      {check.visibility === "private" && <StatusPill tone="slate" label="Private" />}
       {check.appearanceCount > 1 && (
         <StatusPill tone="violet" label={`Seen ${check.appearanceCount}×`} />
       )}
@@ -581,13 +543,7 @@ function CheckStatusPills({ check }: { check: CheckSummary }) {
   );
 }
 
-function CheckDate({
-  check,
-  className = "",
-}: {
-  check: CheckSummary;
-  className?: string;
-}) {
+function CheckDate({ check, className = "" }: { check: CheckSummary; className?: string }) {
   return (
     <time
       dateTime={check.createdAt}
@@ -715,14 +671,11 @@ function MediaDietCard() {
     setEnabled(next);
     setSaving(true);
     try {
-      const response = await apiFetch(
-        `${apiUrl}/reports/media-diet/preferences`,
-        {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ enabled: next, frequency: "monthly" }),
-        },
-      );
+      const response = await apiFetch(`${apiUrl}/reports/media-diet/preferences`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: next, frequency: "monthly" }),
+      });
       if (!response.ok) setEnabled(!next);
     } catch {
       setEnabled(!next);
@@ -774,9 +727,7 @@ function Stat({
       <div>
         <p className="text-sm font-black text-emerald-950/74">{eyebrow}</p>
         <p className="mt-2 text-sm text-emerald-950/44">{label}</p>
-        <p className="mt-4 text-4xl font-black tracking-[-.07em] text-[#082e27]">
-          {value}
-        </p>
+        <p className="mt-4 text-4xl font-black tracking-[-.07em] text-[#082e27]">{value}</p>
       </div>
     </section>
   );

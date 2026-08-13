@@ -1,14 +1,13 @@
 {
   "name": "@repo/ai",
   "version": "0.1.0",
-  "type": "module",
   "private": true,
+  "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "tsx --test test/*.test.ts",
     "test:live": "tsx scripts/live-test.ts",
     "test:pipeline": "tsx scripts/pipeline-live-test.ts",
     "validate:model": "tsx scripts/model-validation.ts"

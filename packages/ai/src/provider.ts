@@ -126,9 +126,7 @@ export abstract class StructuredOutputProvider implements AiProvider {
   private parseOutput<TSchema extends z.ZodType>(
     raw: string,
     schema: TSchema,
-  ):
-    | { success: true; data: z.output<TSchema> }
-    | { success: false; reason: string } {
+  ): { success: true; data: z.output<TSchema> } | { success: false; reason: string } {
     try {
       const json = JSON.parse(stripMarkdownCodeFence(raw));
       const parsed = schema.safeParse(json);
@@ -141,10 +139,7 @@ export abstract class StructuredOutputProvider implements AiProvider {
     } catch (error) {
       return {
         success: false,
-        reason:
-          error instanceof Error
-            ? error.message
-            : "Response was not valid JSON.",
+        reason: error instanceof Error ? error.message : "Response was not valid JSON.",
       };
     }
   }

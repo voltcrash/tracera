@@ -5,9 +5,7 @@ import type { ExtractedClaim } from "./types.js";
 
 export interface PromptAuditOptions {
   onPrompt?: (record: { stage: string; prompt: string }) => void;
-  onStructuredOutputAttempt?: (
-    record: StructuredOutputAttempt & { stage: string },
-  ) => void;
+  onStructuredOutputAttempt?: (record: StructuredOutputAttempt & { stage: string }) => void;
 }
 
 const extractedClaimSchema = z.object({
@@ -100,8 +98,7 @@ export async function extractClaims(
         claimText: recoveredHeadline,
         claimType: "factual_assertion",
         checkability: "checkable",
-        context:
-          "Verbatim headline recovered from the submitted publisher URL.",
+        context: "Verbatim headline recovered from the submitted publisher URL.",
       },
     ];
   }
@@ -124,13 +121,9 @@ function isGroundedInInput(claimText: string, input: string) {
   const inputTerms = new Set(meaningfulTerms(input));
   if (claimTerms.length === 0) return false;
 
-  const coverage =
-    claimTerms.filter((term) => inputTerms.has(term)).length /
-    claimTerms.length;
+  const coverage = claimTerms.filter((term) => inputTerms.has(term)).length / claimTerms.length;
   const claimNumbers = claimText.match(/\b\d+(?:[.,]\d+)?\b/g) ?? [];
-  return (
-    coverage >= 0.6 && claimNumbers.every((value) => input.includes(value))
-  );
+  return coverage >= 0.6 && claimNumbers.every((value) => input.includes(value));
 }
 
 function meaningfulTerms(text: string) {

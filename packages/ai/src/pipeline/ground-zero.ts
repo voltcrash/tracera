@@ -13,14 +13,10 @@ export function traceGroundZero(
   const timestampedSources = sources
     .filter(
       (source) =>
-        source.url &&
-        sourceTimestamp(source) &&
-        isPlausibleTimestamp(sourceTimestamp(source)!),
+        source.url && sourceTimestamp(source) && isPlausibleTimestamp(sourceTimestamp(source)!),
     )
     .sort(
-      (left, right) =>
-        Date.parse(sourceTimestamp(left)!) -
-        Date.parse(sourceTimestamp(right)!),
+      (left, right) => Date.parse(sourceTimestamp(left)!) - Date.parse(sourceTimestamp(right)!),
     );
   const candidates = deduplicateCandidates(timestampedSources);
   const earliestSource = candidates[0] ?? null;
@@ -30,11 +26,8 @@ export function traceGroundZero(
       earliestSource: null,
       candidates: [],
       confidence: "low",
-      signals: [
-        "No retrieved source exposed a reliable publication timestamp.",
-      ],
-      explanation:
-        "No timestamped publisher source was found in retrieved evidence.",
+      signals: ["No retrieved source exposed a reliable publication timestamp."],
+      explanation: "No timestamped publisher source was found in retrieved evidence.",
       relationships: [],
       corpusHistory,
       archiveHistory,
@@ -74,14 +67,11 @@ export function traceGroundZero(
       continue;
     }
     for (const citedUrl of source.citedUrls ?? []) {
-      const target = candidates.find((candidate) =>
-        sameUrl(citedUrl, canonical(candidate)),
-      );
+      const target = candidates.find((candidate) => sameUrl(citedUrl, canonical(candidate)));
       if (!target || target.id === source.id) continue;
       const targetUrl = canonical(target);
       const relation =
-        Date.parse(sourceTimestamp(target)!) <=
-        Date.parse(sourceTimestamp(source)!)
+        Date.parse(sourceTimestamp(target)!) <= Date.parse(sourceTimestamp(source)!)
           ? "cites_earlier_source"
           : "chronology_conflict";
       relationships.push({ sourceId: source.id, relation, targetUrl });
@@ -101,20 +91,15 @@ export function traceGroundZero(
       targetUrl: item.url,
     });
   }
-  const reposts = relationships.filter(
-    (item) => item.relation === "repost",
-  ).length;
+  const reposts = relationships.filter((item) => item.relation === "repost").length;
   const citations = relationships.filter(
     (item) =>
-      item.relation === "cites_earlier_source" &&
-      sameUrl(item.targetUrl ?? "", earliestUrl),
+      item.relation === "cites_earlier_source" && sameUrl(item.targetUrl ?? "", earliestUrl),
   ).length;
   const chronologyConflicts = relationships.filter(
     (item) => item.relation === "chronology_conflict",
   ).length;
-  const earliestArchive = archiveHistory.find((item) =>
-    sameUrl(item.url, earliestUrl),
-  );
+  const earliestArchive = archiveHistory.find((item) => sameUrl(item.url, earliestUrl));
   const signals = [
     `Earliest ${earliestSource.publisherPublishedAt ? "publisher-declared" : "retrieval-index"} timestamp: ${new Date(earliestDate).toISOString()}.`,
     `${independentDomains} independent source domain${independentDomains === 1 ? "" : "s"} found.`,
@@ -141,9 +126,7 @@ export function traceGroundZero(
       `${simultaneousSources} independent source${simultaneousSources === 1 ? " was" : "s were"} published within five minutes, so exact ordering may be unreliable.`,
     );
   if (earliestArchive)
-    signals.push(
-      `The earliest known web archive capture is ${earliestArchive.firstSeenAt}.`,
-    );
+    signals.push(`The earliest known web archive capture is ${earliestArchive.firstSeenAt}.`);
   if (chronologyConflicts)
     signals.push(
       `${chronologyConflicts} citation${chronologyConflicts === 1 ? " has" : "s have"} a timestamp conflict and cannot establish origin order.`,
@@ -176,14 +159,10 @@ export function traceGroundZero(
 }
 
 /** Looks up an earliest known archive capture without treating it as a publish date. */
-export async function retrieveArchiveHistory(
-  sources: EvidenceSource[],
-): Promise<ArchiveHistory> {
+export async function retrieveArchiveHistory(sources: EvidenceSource[]): Promise<ArchiveHistory> {
   const urls = [
     ...new Set(
-      sources
-        .map((source) => canonical(source))
-        .filter((url): url is string => Boolean(url)),
+      sources.map((source) => canonical(source)).filter((url): url is string => Boolean(url)),
     ),
     // Archive lookups happen after the full analysis and database retrieval.
     // Two candidates are sufficient to strengthen chronology without exhausting
@@ -219,9 +198,7 @@ export async function retrieveArchiveHistory(
       }
     }),
   );
-  return results.filter((item): item is ArchiveHistory[number] =>
-    Boolean(item),
-  );
+  return results.filter((item): item is ArchiveHistory[number] => Boolean(item));
 }
 
 function deduplicateCandidates(sources: EvidenceSource[]) {
@@ -266,6 +243,8 @@ function sameUrl(left: string, right: string | undefined) {
     const normalize = (value: string) => {
       const url = new URL(value);
       url.hash = "";
+      // Snapshot the keys because matching entries are deleted during iteration.
+      // oxlint-disable-next-line unicorn/no-useless-spread
       for (const key of [...url.searchParams.keys()]) {
         if (/^(utm_|fbclid|gclid)/i.test(key)) url.searchParams.delete(key);
       }

@@ -5,6 +5,4 @@ export default nextConfig;
 
 // Makes `next dev` expose the Cloudflare-compatible bindings expected by
 // OpenNext while production builds continue to use the standard Next config.
-import("@opennextjs/cloudflare").then((module) =>
-  module.initOpenNextCloudflareForDev(),
-);
+void import("@opennextjs/cloudflare").then((module) => module.initOpenNextCloudflareForDev());

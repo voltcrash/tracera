@@ -134,8 +134,7 @@ function TraceraApp() {
         checks?: HubCheck[];
         error?: string;
       };
-      if (!response.ok)
-        throw new Error(payload.error ?? "Could not load the News Hub.");
+      if (!response.ok) throw new Error(payload.error ?? "Could not load the News Hub.");
       setHubChecks(payload.checks ?? []);
     } catch (loadError) {
       setError(messageFrom(loadError));
@@ -166,8 +165,7 @@ function TraceraApp() {
         cached: true,
         check: { id: payload.check.id, createdAt: payload.check.createdAt },
         claims: payload.check.analysis.claims,
-        traceraScore:
-          payload.check.analysis.score ?? payload.check.traceraScore,
+        traceraScore: payload.check.analysis.score ?? payload.check.traceraScore,
         timeline: timelineResponse.ok ? (timelinePayload.timeline ?? []) : [],
       });
     } catch (detailError) {
@@ -187,9 +185,7 @@ function TraceraApp() {
 
   function promptForAccount(feature: "fact-check" | "News Hub") {
     Alert.alert(
-      feature === "fact-check"
-        ? "Sign in to start a fact-check"
-        : "Sign in to open the News Hub",
+      feature === "fact-check" ? "Sign in to start a fact-check" : "Sign in to open the News Hub",
       "Log in or create an account to continue with Tracera.",
       [
         { text: "Not now", style: "cancel" },
@@ -202,10 +198,7 @@ function TraceraApp() {
   async function chooseImage() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(
-        "Photo access needed",
-        "Allow access to select a news image to check.",
-      );
+      Alert.alert("Photo access needed", "Allow access to select a news image to check.");
       return;
     }
 
@@ -218,9 +211,7 @@ function TraceraApp() {
     if (result.canceled) return;
     const asset = result.assets[0];
     if (!asset?.base64) {
-      setError(
-        "That image could not be prepared for analysis. Please try another image.",
-      );
+      setError("That image could not be prepared for analysis. Please try another image.");
       return;
     }
     setImage({
@@ -258,8 +249,7 @@ function TraceraApp() {
         body: JSON.stringify(body),
       });
       const payload = (await response.json()) as Analysis & { error?: string };
-      if (!response.ok)
-        throw new Error(payload.error ?? "Unable to analyze this item.");
+      if (!response.ok) throw new Error(payload.error ?? "Unable to analyze this item.");
       setAnalysis(payload);
       setImage(null);
     } catch (traceError) {
@@ -308,22 +298,16 @@ function TraceraApp() {
           </View>
           <View style={styles.headerActions}>
             <Pressable
-              onPress={() =>
-                authUser ? setTab("hub") : promptForAccount("News Hub")
-              }
+              onPress={() => (authUser ? setTab("hub") : promptForAccount("News Hub"))}
               hitSlop={8}
             >
               <Text style={styles.hubLink}>News Hub</Text>
             </Pressable>
             <Pressable
-              onPress={
-                authUser ? () => void signOut() : () => setAuthMode("login")
-              }
+              onPress={authUser ? () => void signOut() : () => setAuthMode("login")}
               hitSlop={8}
             >
-              <Text style={styles.authLink}>
-                {authUser ? "Log out" : "Log in"}
-              </Text>
+              <Text style={styles.authLink}>{authUser ? "Log out" : "Log in"}</Text>
             </Pressable>
           </View>
         </View>
@@ -389,25 +373,15 @@ function TraceScreen({
   onTrace: () => void;
 }) {
   if (analysis)
-    return (
-      <ResultScreen
-        analysis={analysis}
-        alertEmail={alertEmail}
-        onNewTrace={onReset}
-      />
-    );
+    return <ResultScreen analysis={analysis} alertEmail={alertEmail} onNewTrace={onReset} />;
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.traceScroll}
-      keyboardShouldPersistTaps="handled"
-    >
+    <ScrollView contentContainerStyle={styles.traceScroll} keyboardShouldPersistTaps="handled">
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>START A TRACE</Text>
         <Text style={styles.heroTitle}>What would you like to check?</Text>
         <Text style={styles.heroCopy}>
-          Paste a claim, headline, article, or link. We’ll trace it back to the
-          evidence.
+          Paste a claim, headline, article, or link. We’ll trace it back to the evidence.
         </Text>
       </View>
 
@@ -434,11 +408,7 @@ function TraceScreen({
           />
         )}
         <View style={styles.composerFooter}>
-          <Pressable
-            disabled={isTracing}
-            onPress={onChooseImage}
-            style={styles.photoButton}
-          >
+          <Pressable disabled={isTracing} onPress={onChooseImage} style={styles.photoButton}>
             <Text style={styles.photoButtonText}>＋ Image</Text>
           </Pressable>
           <Pressable
@@ -447,8 +417,7 @@ function TraceScreen({
             onPress={onTrace}
             style={({ pressed }) => [
               styles.traceButton,
-              ((!input.trim() && !image) || isTracing) &&
-                styles.traceButtonDisabled,
+              ((!input.trim() && !image) || isTracing) && styles.traceButtonDisabled,
               pressed && styles.pressed,
             ]}
           >
@@ -513,26 +482,16 @@ function ResultScreen({
         </Text>
         <View style={styles.scoreDivider} />
         <ScoreRow label="Factual accuracy" value={score.factualAccuracy} />
-        <ScoreRow
-          label="Source corroboration"
-          value={score.sourceCorroboration}
-        />
-        <ScoreRow
-          label="Framing & language"
-          value={score.framingManipulation}
-        />
+        <ScoreRow label="Source corroboration" value={score.sourceCorroboration} />
+        <ScoreRow label="Framing & language" value={score.framingManipulation} />
         <ScoreRow label="Evidence quality" value={score.evidenceQuality} />
         <View style={styles.recencyPill}>
-          <Text style={styles.recencyText}>
-            Evidence recency: {score.recency.flag}
-          </Text>
+          <Text style={styles.recencyText}>Evidence recency: {score.recency.flag}</Text>
         </View>
       </View>
 
       <View style={styles.claimHeader}>
-        <Text style={styles.eyebrow}>
-          CLAIM MAP · {analysis.claims.length} SIGNALS
-        </Text>
+        <Text style={styles.eyebrow}>CLAIM MAP · {analysis.claims.length} SIGNALS</Text>
         <Text style={styles.claimHeading}>Story, separated from spin.</Text>
       </View>
       {analysis.claims.map((claim, index) => (
@@ -544,9 +503,7 @@ function ResultScreen({
           <Text style={styles.sourcesEyebrow}>
             GROUND ZERO · {analysis.groundZero.confidence} confidence
           </Text>
-          <Text style={styles.groundZeroTitle}>
-            {analysis.groundZero.earliestSource.title}
-          </Text>
+          <Text style={styles.groundZeroTitle}>{analysis.groundZero.earliestSource.title}</Text>
           {analysis.groundZero.signals.slice(0, 2).map((signal) => (
             <Text key={signal} style={styles.groundZeroText}>
               • {signal}
@@ -566,10 +523,7 @@ function ResultScreen({
           ]
         }
       />
-      <MobileAlertSubscription
-        checkId={analysis.check.id}
-        defaultEmail={alertEmail}
-      />
+      <MobileAlertSubscription checkId={analysis.check.id} defaultEmail={alertEmail} />
 
       <Pressable onPress={onNewTrace} style={styles.newTraceButton}>
         <Text style={styles.newTraceText}>Start another trace</Text>
@@ -600,18 +554,14 @@ function ClaimCard({ claim, index }: { claim: ClaimResult; index: number }) {
       <View style={styles.claimTopline}>
         <Text style={styles.claimNumber}>CLAIM {index + 1}</Text>
         <View style={[styles.verdict, verdictStyle(claim.verdict)]}>
-          <Text style={[styles.verdictText, verdictTextStyle(claim.verdict)]}>
-            {claim.verdict}
-          </Text>
+          <Text style={[styles.verdictText, verdictTextStyle(claim.verdict)]}>{claim.verdict}</Text>
         </View>
       </View>
       <Text style={styles.claimText}>{claim.claim.claimText}</Text>
       <View style={styles.chipRow}>
         <InfoChip label={`${Math.round(claim.confidence * 100)}% confidence`} />
         {typeof claim.evidenceQuality === "number" ? (
-          <InfoChip
-            label={`${Math.round(claim.evidenceQuality * 100)}% evidence`}
-          />
+          <InfoChip label={`${Math.round(claim.evidenceQuality * 100)}% evidence`} />
         ) : null}
       </View>
       {claim.reasoning.slice(0, 3).map((reason, reasonIndex) => (
@@ -653,9 +603,7 @@ function MobileTimeline({ entries }: { entries: TimelineEntry[] }) {
       {entries.map((entry, index) => {
         const previous = entries[index - 1];
         const delta = previous
-          ? Math.round(
-              entry.tracera_score.overall - previous.tracera_score.overall,
-            )
+          ? Math.round(entry.tracera_score.overall - previous.tracera_score.overall)
           : null;
         return (
           <View key={entry.id} style={styles.timelineRow}>
@@ -664,9 +612,7 @@ function MobileTimeline({ entries }: { entries: TimelineEntry[] }) {
               <Text style={styles.timelineLabel}>
                 {index === 0 ? "First checked" : "Evidence rechecked"}
               </Text>
-              <Text style={styles.timelineDate}>
-                {formatDate(entry.created_at)}
-              </Text>
+              <Text style={styles.timelineDate}>{formatDate(entry.created_at)}</Text>
               <Text style={styles.timelineScore}>
                 Score {entry.tracera_score.overall}/100
                 {delta === null
@@ -695,14 +641,11 @@ function MobileAlertSubscription({
   async function subscribe() {
     if (!email.trim()) return;
     try {
-      const response = await mobileFetch(
-        `${API_URL}/checks/${checkId}/alerts`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim() }),
-        },
-      );
+      const response = await mobileFetch(`${API_URL}/checks/${checkId}/alerts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
       const payload = (await response.json()) as { error?: string };
       setStatus(
         response.ok
@@ -728,10 +671,7 @@ function MobileAlertSubscription({
         style={styles.mobileAlertInput}
         value={email}
       />
-      <Pressable
-        onPress={() => void subscribe()}
-        style={styles.mobileAlertButton}
-      >
+      <Pressable onPress={() => void subscribe()} style={styles.mobileAlertButton}>
         <Text style={styles.mobileAlertButtonText}>Notify me</Text>
       </Pressable>
       {status ? <Text style={styles.mobileAlertStatus}>{status}</Text> : null}
@@ -800,9 +740,7 @@ function HubScreen({
       {!isLoading && !error && checks.length === 0 ? (
         <View style={styles.emptyHub}>
           <Text style={styles.emptyHubTitle}>No checks yet</Text>
-          <Text style={styles.emptyHubCopy}>
-            The first completed trace will appear here.
-          </Text>
+          <Text style={styles.emptyHubCopy}>The first completed trace will appear here.</Text>
         </View>
       ) : null}
       {checks.map((check) => (
@@ -830,9 +768,7 @@ function HubCard({ check, onPress }: { check: HubCheck; onPress: () => void }) {
       <Text numberOfLines={3} style={styles.hubInput}>
         {check.rawInput}
       </Text>
-      <Text style={styles.hubEvidence}>
-        Evidence: {check.traceraScore.recency.flag}
-      </Text>
+      <Text style={styles.hubEvidence}>Evidence: {check.traceraScore.recency.flag}</Text>
       <Text style={styles.hubOpen}>Open full analysis →</Text>
     </Pressable>
   );
@@ -880,10 +816,7 @@ function AuthScreen({
       behavior={Platform.select({ ios: "padding", default: undefined })}
       style={styles.authScreen}
     >
-      <ScrollView
-        contentContainerStyle={styles.authScroll}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.authScroll} keyboardShouldPersistTaps="handled">
         <Pressable onPress={onBack} style={styles.authBack}>
           <Text style={styles.backText}>← Back to Tracera</Text>
         </Pressable>
@@ -893,12 +826,9 @@ function AuthScreen({
           style={styles.authLogo}
         />
         <Text style={styles.eyebrow}>YOUR TRACERA ACCOUNT</Text>
-        <Text style={styles.authTitle}>
-          {signingUp ? "Create your account" : "Welcome back"}
-        </Text>
+        <Text style={styles.authTitle}>{signingUp ? "Create your account" : "Welcome back"}</Text>
         <Text style={styles.authCopy}>
-          Continue with your Google email. Tracera stores the session securely
-          on this device.
+          Continue with your Google email. Tracera stores the session securely on this device.
         </Text>
         {error ? <ErrorNotice message={error} /> : null}
         <Pressable
@@ -918,12 +848,8 @@ function AuthScreen({
           <Text style={styles.authSwitchText}>
             {signingUp ? "Already have an account?" : "New to Tracera?"}
           </Text>
-          <Pressable
-            onPress={() => onModeChange(signingUp ? "login" : "signup")}
-          >
-            <Text style={styles.authSwitchLink}>
-              {signingUp ? "Sign in" : "Create an account"}
-            </Text>
+          <Pressable onPress={() => onModeChange(signingUp ? "login" : "signup")}>
+            <Text style={styles.authSwitchLink}>{signingUp ? "Sign in" : "Create an account"}</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -936,21 +862,15 @@ function LoadingNotice() {
     <View style={styles.loadingNotice}>
       <ActivityIndicator color={COLORS.green} />
       <View style={styles.noticeCopy}>
-        <Text style={styles.noticeTitle}>
-          Tracing sources and checking claims
-        </Text>
-        <Text style={styles.noticeText}>
-          We’re separating evidence from assertion.
-        </Text>
+        <Text style={styles.noticeTitle}>Tracing sources and checking claims</Text>
+        <Text style={styles.noticeText}>We’re separating evidence from assertion.</Text>
       </View>
     </View>
   );
 }
 
 function ErrorNotice({ message }: { message: string }) {
-  const connectionHint = message
-    .toLowerCase()
-    .includes("network request failed")
+  const connectionHint = message.toLowerCase().includes("network request failed")
     ? ` Check your connection to the Tracera API (${API_URL}).`
     : "";
   return (
@@ -970,8 +890,7 @@ function isHttpUrl(value: string) {
 
 function uniqueSources(sources: EvidenceSource[]) {
   return sources.filter(
-    (source, index) =>
-      sources.findIndex((item) => item.id === source.id) === index,
+    (source, index) => sources.findIndex((item) => item.id === source.id) === index,
   );
 }
 
@@ -1011,9 +930,7 @@ function formatDate(value: string) {
 }
 
 function messageFrom(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "Something went wrong. Please try again.";
+  return error instanceof Error ? error.message : "Something went wrong. Please try again.";
 }
 
 const COLORS = {

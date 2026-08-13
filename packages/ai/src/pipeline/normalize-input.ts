@@ -44,14 +44,12 @@ export async function normalizeInput(
   }
 
   const text = input.text?.trim();
-  if (!text)
-    throw new Error("Provide non-empty text, a URL, or an image URL/data URI.");
+  if (!text) throw new Error("Provide non-empty text, a URL, or an image URL/data URI.");
 
   // The UI has separate modes, but pasted links should still be analyzed as links.
   // Otherwise a URL reaches the LLM as if it were article text and produces no claims.
   if (isHttpUrl(text)) return normalizeUrl(text);
-  const sourceUrl =
-    input.sourceUrl && isHttpUrl(input.sourceUrl) ? input.sourceUrl : undefined;
+  const sourceUrl = input.sourceUrl && isHttpUrl(input.sourceUrl) ? input.sourceUrl : undefined;
   return {
     inputType: "text",
     rawInput: sourceUrl ?? text,
@@ -69,15 +67,9 @@ async function normalizeUrl(value: string): Promise<NormalizedInput> {
     let readerArticle: ReturnType<typeof parseReaderDocument> | undefined;
     if (readerResponse?.ok) {
       try {
-        const markdown = await readTextWithLimit(
-          readerResponse,
-          MAX_ARTICLE_BYTES,
-        );
+        const markdown = await readTextWithLimit(readerResponse, MAX_ARTICLE_BYTES);
         readerArticle = parseReaderDocument(markdown);
-        if (
-          !isReaderErrorDocument(readerArticle) &&
-          isReadableArticleText(readerArticle.text)
-        ) {
+        if (!isReaderErrorDocument(readerArticle) && isReadableArticleText(readerArticle.text)) {
           return {
             inputType: "link",
             rawInput: value,
@@ -127,8 +119,7 @@ async function normalizeUrl(value: string): Promise<NormalizedInput> {
 
   const html = await readTextWithLimit(response, MAX_ARTICLE_BYTES);
   const text = extractReadableText(html);
-  if (text.length < 40)
-    throw new Error("The link did not contain enough readable article text.");
+  if (text.length < 40) throw new Error("The link did not contain enough readable article text.");
 
   const finalUrl = response.url;
   return {
@@ -136,14 +127,11 @@ async function normalizeUrl(value: string): Promise<NormalizedInput> {
     rawInput: value,
     title:
       metaContent(html, "og:title") ??
-      (decode(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "") ||
-        undefined),
+      (decode(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "") || undefined),
     text: text.slice(0, 50_000),
     sourceUrl: finalUrl,
     sourceDomain: sourceDomain(finalUrl),
-    publishedAt:
-      metaContent(html, "article:published_time") ??
-      metaContent(html, "datepublished"),
+    publishedAt: metaContent(html, "article:published_time") ?? metaContent(html, "datepublished"),
     author: metaContent(html, "author"),
   };
 }
@@ -154,9 +142,7 @@ async function fetchReaderFallback(sourceUrl: URL) {
     // reader receives only that public URL and no Tracera credentials or data.
     const target = new URL(sourceUrl.href);
     target.hash = "";
-    return await fetchPublicDocument(
-      new URL(`https://r.jina.ai/${target.href}`),
-    );
+    return await fetchPublicDocument(new URL(`https://r.jina.ai/${target.href}`));
   } catch (error) {
     console.warn("Article reader fallback failed", error);
     return undefined;
@@ -167,9 +153,7 @@ export function parseReaderDocument(markdown: string) {
   const contentMarker = "Markdown Content:";
   const markerIndex = markdown.indexOf(contentMarker);
   const text = (
-    markerIndex >= 0
-      ? markdown.slice(markerIndex + contentMarker.length)
-      : markdown
+    markerIndex >= 0 ? markdown.slice(markerIndex + contentMarker.length) : markdown
   ).trim();
   return {
     text,
@@ -180,13 +164,10 @@ export function parseReaderDocument(markdown: string) {
   };
 }
 
-export function isReaderErrorDocument(
-  article: ReturnType<typeof parseReaderDocument>,
-) {
+export function isReaderErrorDocument(article: ReturnType<typeof parseReaderDocument>) {
   return (
-    /^(?:page\s+)?not found|^error\b|^access denied$/i.test(
-      article.title?.trim() ?? "",
-    ) || /returned error (?:4\d\d|5\d\d)/i.test(article.warning ?? "")
+    /^(?:page\s+)?not found|^error\b|^access denied$/i.test(article.title?.trim() ?? "") ||
+    /returned error (?:4\d\d|5\d\d)/i.test(article.warning ?? "")
   );
 }
 
@@ -240,16 +221,14 @@ async function fetchPublicDocument(initialUrl: URL): Promise<Response> {
 
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
     const location = response.headers.get("location");
-    if (!location)
-      throw new Error("The link redirected without a destination.");
+    if (!location) throw new Error("The link redirected without a destination.");
     currentUrl = new URL(location, currentUrl);
   }
   throw new Error("The link redirected too many times.");
 }
 
 async function assertPublicHttpUrl(url: URL) {
-  if (!/^https?:$/.test(url.protocol))
-    throw new Error("Only HTTP(S) links are supported.");
+  if (!/^https?:$/.test(url.protocol)) throw new Error("Only HTTP(S) links are supported.");
   if (url.username || url.password)
     throw new Error("Links with embedded credentials are not supported.");
 
@@ -258,13 +237,8 @@ async function assertPublicHttpUrl(url: URL) {
     throw new Error("Links to local network hosts are not supported.");
   }
 
-  const addresses = isIP(hostname)
-    ? [hostname]
-    : await resolveHostAddresses(hostname);
-  if (
-    !addresses.length ||
-    addresses.some((address) => isPrivateAddress(address))
-  ) {
+  const addresses = isIP(hostname) ? [hostname] : await resolveHostAddresses(hostname);
+  if (!addresses.length || addresses.some((address) => isPrivateAddress(address))) {
     throw new Error("Links to private network hosts are not supported.");
   }
 }
@@ -273,10 +247,7 @@ async function resolveHostAddresses(hostname: string) {
   // `dns.lookup` is not implemented by the Workers Node compatibility layer.
   // Resolve both address families explicitly so the SSRF guard behaves the
   // same in local Node development and in the deployed Worker.
-  const results = await Promise.allSettled([
-    resolve4(hostname),
-    resolve6(hostname),
-  ]);
+  const results = await Promise.allSettled([resolve4(hostname), resolve6(hostname)]);
   const addresses = results.flatMap((result) =>
     result.status === "fulfilled" ? result.value : [],
   );
@@ -351,10 +322,7 @@ function extractReadableText(html: string) {
   return decode(
     body
       .replace(/<!--[\s\S]*?-->/g, " ")
-      .replace(
-        /<(script|style|nav|footer|aside|form)[^>]*>[\s\S]*?<\/\1>/gi,
-        " ",
-      )
+      .replace(/<(script|style|nav|footer|aside|form)[^>]*>[\s\S]*?<\/\1>/gi, " ")
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ")
       .trim(),
@@ -364,28 +332,20 @@ function extractReadableText(html: string) {
 function metaContent(html: string, name: string) {
   const tags = html.match(/<meta\b[^>]*>/gi) ?? [];
   for (const tag of tags) {
-    const key = tag
-      .match(/(?:name|property)=["']([^"']+)["']/i)?.[1]
-      ?.toLowerCase();
+    const key = tag.match(/(?:name|property)=["']([^"']+)["']/i)?.[1]?.toLowerCase();
     if (key !== name.toLowerCase()) continue;
     return tag.match(/content=["']([^"']+)["']/i)?.[1];
   }
   return undefined;
 }
 
-async function extractImageText(
-  image: string,
-  mimeType: string | undefined,
-  provider: AiProvider,
-) {
+async function extractImageText(image: string, mimeType: string | undefined, provider: AiProvider) {
   if (process.env.OCR_ENDPOINT) {
     const response = await fetch(process.env.OCR_ENDPOINT, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(process.env.OCR_API_KEY
-          ? { authorization: `Bearer ${process.env.OCR_API_KEY}` }
-          : {}),
+        ...(process.env.OCR_API_KEY ? { authorization: `Bearer ${process.env.OCR_API_KEY}` } : {}),
       },
       body: JSON.stringify({ image, mimeType }),
     });
@@ -421,9 +381,7 @@ async function findReverseImageSearch(image: string, mimeType?: string) {
     });
     if (!response.ok) return undefined;
     const payload = (await response.json()) as { searchUrl?: unknown };
-    return typeof payload.searchUrl === "string"
-      ? payload.searchUrl
-      : undefined;
+    return typeof payload.searchUrl === "string" ? payload.searchUrl : undefined;
   } catch {
     return undefined;
   }

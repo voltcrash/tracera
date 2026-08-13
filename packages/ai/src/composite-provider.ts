@@ -22,12 +22,7 @@ export class CompositeAiProvider implements AiProvider {
     schema: TSchema,
     options?: GenerateOptions,
   ): Promise<z.output<TSchema>> {
-    return this.generationProvider.generateFromImage(
-      prompt,
-      image,
-      schema,
-      options,
-    );
+    return this.generationProvider.generateFromImage(prompt, image, schema, options);
   }
 
   embed(text: string): Promise<number[]> {

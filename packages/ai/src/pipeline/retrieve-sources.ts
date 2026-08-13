@@ -71,12 +71,7 @@ export async function retrieveSources(
   // Guarantee the resilient, no-key news index a request before optional or
   // rate-limited providers can consume the shared Worker budget.
   const primaryGoogleNews = await safelyRetrieve("Google News RSS", () =>
-    retrieveGoogleNewsSources(
-      claim,
-      claim.claimText,
-      evidenceFetch,
-      options.storyContext,
-    ),
+    retrieveGoogleNewsSources(claim, claim.claimText, evidenceFetch, options.storyContext),
   );
   const contextualQuery = buildContextualQuery(claim, options.storyContext);
   const contextualGoogleNews =
@@ -84,24 +79,13 @@ export async function retrieveSources(
     contextualQuery !== claim.claimText &&
     evidenceFetch.remaining() > 0
       ? await safelyRetrieve("contextual Google News RSS", () =>
-          retrieveGoogleNewsSources(
-            claim,
-            contextualQuery,
-            evidenceFetch,
-            options.storyContext,
-          ),
+          retrieveGoogleNewsSources(claim, contextualQuery, evidenceFetch, options.storyContext),
         )
       : [];
   const bingNews =
-    primaryGoogleNews.length + contextualGoogleNews.length < 2 &&
-    evidenceFetch.remaining() > 0
+    primaryGoogleNews.length + contextualGoogleNews.length < 2 && evidenceFetch.remaining() > 0
       ? await safelyRetrieve("Bing News RSS", () =>
-          retrieveBingNewsSources(
-            claim,
-            contextualQuery,
-            evidenceFetch,
-            options.storyContext,
-          ),
+          retrieveBingNewsSources(claim, contextualQuery, evidenceFetch, options.storyContext),
         )
       : [];
 
@@ -117,12 +101,7 @@ export async function retrieveSources(
       ),
     ),
     safelyRetrieve("NewsAPI", () =>
-      retrieveNewsApiSources(
-        claim,
-        options.newsApiKey,
-        evidenceFetch,
-        options.storyContext,
-      ),
+      retrieveNewsApiSources(claim, options.newsApiKey, evidenceFetch, options.storyContext),
     ),
     safelyRetrieve("web search", () =>
       retrieveWebSearchSources(
@@ -181,17 +160,10 @@ export async function retrieveSources(
  * evidence by themselves. For publisher URLs, refresh the snippet from the
  * document's description/lead text before it reaches verdict generation.
  */
-async function enrichEvidenceSnippets(
-  sources: EvidenceSource[],
-  evidenceFetch: EvidenceFetch,
-) {
+async function enrichEvidenceSnippets(sources: EvidenceSource[], evidenceFetch: EvidenceFetch) {
   return Promise.all(
     sources.map(async (source) => {
-      if (
-        !source.url ||
-        source.type === "corpus" ||
-        source.type === "submitted_source"
-      )
+      if (!source.url || source.type === "corpus" || source.type === "submitted_source")
         return source;
       const metadata = await retrieveArticleMetadata(source.url, evidenceFetch);
       return {
@@ -215,20 +187,13 @@ async function retrieveCorpusSources(
   threshold: number,
   limit: number,
 ): Promise<EvidenceSource[]> {
-  const embedding =
-    suppliedEmbedding ?? (await provider.embed(claim.claimText));
+  const embedding = suppliedEmbedding ?? (await provider.embed(claim.claimText));
 
   if (embedding.length !== 1024) {
-    throw new Error(
-      `Corpus embeddings must have 1024 dimensions; received ${embedding.length}.`,
-    );
+    throw new Error(`Corpus embeddings must have 1024 dimensions; received ${embedding.length}.`);
   }
 
-  const matches = await findRelatedClaimsByEmbedding(
-    embedding,
-    threshold,
-    limit,
-  );
+  const matches = await findRelatedClaimsByEmbedding(embedding, threshold, limit);
   return matches.map((row) => ({
     id: `corpus:${row.id}`,
     type: "corpus",
@@ -253,9 +218,7 @@ async function retrieveGoogleFactCheckSources(
     return [];
   }
 
-  const url = new URL(
-    "https://factchecktools.googleapis.com/v1alpha1/claims:search",
-  );
+  const url = new URL("https://factchecktools.googleapis.com/v1alpha1/claims:search");
   url.searchParams.set("query", claim.claimText);
   url.searchParams.set("pageSize", String(pageSize));
   url.searchParams.set("key", apiKey);
@@ -266,8 +229,7 @@ async function retrieveGoogleFactCheckSources(
 
   if (!response.ok || payload.error) {
     throw new Error(
-      payload.error?.message ??
-        `Google Fact Check request failed with HTTP ${response.status}.`,
+      payload.error?.message ?? `Google Fact Check request failed with HTTP ${response.status}.`,
     );
   }
 
@@ -284,10 +246,7 @@ async function retrieveGoogleFactCheckSources(
         claimText: factClaim.text,
         rating: review.textualRating,
         publishedAt: review.reviewDate,
-        similarity: sourceRelevance(
-          claimTerms,
-          `${factClaim.text ?? ""} ${review.title ?? ""}`,
-        ),
+        similarity: sourceRelevance(claimTerms, `${factClaim.text ?? ""} ${review.title ?? ""}`),
       })),
     )
     .filter((source) => passesRelevanceGate(claim, source, storyContext));
@@ -329,10 +288,7 @@ async function retrieveNewsApiSources(
       sourceDomain: domain(article.url),
       snippet: article.description,
       publishedAt: article.publishedAt,
-      similarity: sourceRelevance(
-        claimTerms,
-        `${article.title} ${article.description ?? ""}`,
-      ),
+      similarity: sourceRelevance(claimTerms, `${article.title} ${article.description ?? ""}`),
     }))
     .filter((source) => passesRelevanceGate(claim, source, storyContext));
 }
@@ -343,10 +299,7 @@ async function retrieveGdeltSources(
   storyContext?: string,
 ): Promise<EvidenceSource[]> {
   const url = new URL("https://api.gdeltproject.org/api/v2/doc/doc");
-  url.searchParams.set(
-    "query",
-    `${buildNewsQuery(claim.claimText)} sourcelang:english`,
-  );
+  url.searchParams.set("query", `${buildNewsQuery(claim.claimText)} sourcelang:english`);
   url.searchParams.set("mode", "artlist");
   url.searchParams.set("format", "json");
   url.searchParams.set("maxrecords", "8");
@@ -373,16 +326,12 @@ async function retrieveGdeltSources(
       publishedAt: normalizeGdeltDate(article.seendate),
     };
   });
-  return sources.filter((source) =>
-    passesRelevanceGate(claim, source, storyContext),
-  );
+  return sources.filter((source) => passesRelevanceGate(claim, source, storyContext));
 }
 
 async function requestGdelt(url: URL, evidenceFetch: EvidenceFetch) {
   if (Date.now() < gdeltUnavailableUntil) {
-    throw new Error(
-      "GDELT is temporarily unavailable after a recent connection failure.",
-    );
+    throw new Error("GDELT is temporarily unavailable after a recent connection failure.");
   }
   let resolveRequest!: (response: Response | undefined) => void;
   let rejectRequest!: (error: unknown) => void;
@@ -410,8 +359,7 @@ async function requestGdelt(url: URL, evidenceFetch: EvidenceFetch) {
           return;
         }
       }
-      if (!response.ok)
-        throw new Error(`GDELT request failed with HTTP ${response.status}.`);
+      if (!response.ok) throw new Error(`GDELT request failed with HTTP ${response.status}.`);
       gdeltUnavailableUntil = 0;
       resolveRequest(response);
     } catch (error) {
@@ -441,9 +389,7 @@ function delay(milliseconds: number) {
  * entity, then fall back to a few distinctive words. */
 function buildNewsQuery(claimText: string) {
   const entityPhrases =
-    claimText.match(
-      /\b(?:[A-Z][\p{L}\d]*(?:\s+(?:of|the|and|[A-Z][\p{L}\d]*)){1,5})\b/gu,
-    ) ?? [];
+    claimText.match(/\b(?:[A-Z][\p{L}\d]*(?:\s+(?:of|the|and|[A-Z][\p{L}\d]*)){1,5})\b/gu) ?? [];
   const entity = entityPhrases
     .map((phrase) => phrase.replace(/^(?:The|An|A)\s+/, "").trim())
     .filter((phrase) => phrase.split(/\s+/).length >= 2)
@@ -513,8 +459,7 @@ async function retrieveArticleMetadata(
     if (!response) return {};
     if (!response.ok) return {};
     const html = (await response.text()).slice(0, 250_000);
-    const description =
-      metaContent(html, "description") ?? metaContent(html, "og:description");
+    const description = metaContent(html, "description") ?? metaContent(html, "og:description");
     const canonicalUrl =
       html
         .match(/<link\b[^>]*rel=["']canonical["'][^>]*>/i)?.[0]
@@ -528,8 +473,7 @@ async function retrieveArticleMetadata(
         html.match(/<time\b[^>]*datetime=["']([^"']+)["']/i)?.[1],
     );
     const citedUrls = extractCitationUrls(html, url);
-    if (description)
-      return { snippet: description, canonicalUrl, publishedAt, citedUrls };
+    if (description) return { snippet: description, canonicalUrl, publishedAt, citedUrls };
     const article =
       html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1] ??
       html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1];
@@ -556,8 +500,7 @@ function extractCitationUrls(html: string, baseUrl: string) {
   const urls = matches.flatMap((tag) => {
     const marker =
       `${tag} ${tag.match(/(?:class|rel|data-testid)=["']([^"']+)["']/i)?.[1] ?? ""}`.toLowerCase();
-    if (!/(citation|source|references?|original-report)/.test(marker))
-      return [];
+    if (!/(citation|source|references?|original-report)/.test(marker)) return [];
     const href = tag.match(/href=["']([^"']+)["']/i)?.[1];
     if (!href) return [];
     try {
@@ -585,9 +528,7 @@ function metaContent(html: string, key: string) {
 
 function normalizeGdeltDate(value?: string) {
   const match = value?.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
-  return match
-    ? `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z`
-    : value;
+  return match ? `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z` : value;
 }
 
 /**
@@ -704,16 +645,12 @@ function buildContextualQuery(claim: ExtractedClaim, storyContext?: string) {
   const additions = [claim.context, storyContext?.slice(0, 420)]
     .map((value) => value?.replace(/\s+/g, " ").trim())
     .filter((value): value is string => Boolean(value))
-    .filter(
-      (value) => !claim.claimText.toLowerCase().includes(value.toLowerCase()),
-    );
+    .filter((value) => !claim.claimText.toLowerCase().includes(value.toLowerCase()));
   return [claim.claimText, ...additions].join(" ").slice(0, 700);
 }
 
 function retrievalContext(claim: ExtractedClaim, storyContext?: string) {
-  return [claim.claimText, claim.context, storyContext?.slice(0, 1_000)]
-    .filter(Boolean)
-    .join(" ");
+  return [claim.claimText, claim.context, storyContext?.slice(0, 1_000)].filter(Boolean).join(" ");
 }
 
 function normalizeTerm(value: string) {
@@ -744,9 +681,7 @@ function normalizeTerm(value: string) {
   const spelling = value
     .replace(/^hospitalis/, "hospitaliz")
     .replace(/^organisation/, "organization");
-  return spelling.length > 4 &&
-    spelling.endsWith("s") &&
-    !spelling.endsWith("ss")
+  return spelling.length > 4 && spelling.endsWith("s") && !spelling.endsWith("ss")
     ? spelling.slice(0, -1)
     : spelling;
 }
@@ -820,13 +755,8 @@ function significantTerms(text: string) {
  * news vocabulary. This hard boundary is applied to every source type,
  * including generic web search and publisher RSS feeds.
  */
-function passesRelevanceGate(
-  claim: ExtractedClaim,
-  source: EvidenceSource,
-  storyContext?: string,
-) {
-  if (!source.title.trim() || (source.type !== "corpus" && !source.url))
-    return false;
+function passesRelevanceGate(claim: ExtractedClaim, source: EvidenceSource, storyContext?: string) {
+  if (!source.title.trim() || (source.type !== "corpus" && !source.url)) return false;
   const sourceText = `${source.title} ${source.claimText ?? ""} ${source.snippet ?? ""}`;
   const claimTerms = significantTerms(claim.claimText);
   const sourceTerms = significantTerms(sourceText);
@@ -835,14 +765,12 @@ function passesRelevanceGate(
     significantTerms(retrievalContext(claim, storyContext)),
     sourceText,
   );
-  if (directRelevance === 0 && termOverlap(claimTerms, sourceTerms) === 0)
-    return false;
+  if (directRelevance === 0 && termOverlap(claimTerms, sourceTerms) === 0) return false;
   const relevance = Math.max(directRelevance, contextualRelevance * 0.85);
   source.similarity = relevance;
 
   const anchors = anchorTerms(claim.claimText);
-  if (anchors.length > 0 && !anchors.some((anchor) => sourceTerms.has(anchor)))
-    return false;
+  if (anchors.length > 0 && !anchors.some((anchor) => sourceTerms.has(anchor))) return false;
 
   return relevance >= 0.24;
 }
@@ -889,11 +817,7 @@ function sourceRank(source: EvidenceSource) {
     google_news_rss: 0.05,
     web_search: 0.04,
   };
-  return (
-    (source.similarity ?? 0) +
-    sourcePriority[source.type] +
-    (source.credibility ?? 0) * 0.1
-  );
+  return (source.similarity ?? 0) + sourcePriority[source.type] + (source.credibility ?? 0) * 0.1;
 }
 
 function xmlValue(item: string, tag: string) {
@@ -901,9 +825,7 @@ function xmlValue(item: string, tag: string) {
   const value = item.match(
     new RegExp(`<${escaped}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${escaped}>`, "i"),
   )?.[1];
-  return value
-    ? decodeXml(value.replace(/^<!\[CDATA\[|\]\]>$/g, "").trim())
-    : undefined;
+  return value ? decodeXml(value.replace(/^<!\[CDATA\[|\]\]>$/g, "").trim()) : undefined;
 }
 
 function stripMarkup(value?: string) {
@@ -917,10 +839,7 @@ function xmlTagAttribute(item: string, tag: string, attribute: string) {
   const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const escapedAttribute = attribute.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return item.match(
-    new RegExp(
-      `<${escapedTag}\\b[^>]*\\b${escapedAttribute}=["']([^"']+)["'][^>]*>`,
-      "i",
-    ),
+    new RegExp(`<${escapedTag}\\b[^>]*\\b${escapedAttribute}=["']([^"']+)["'][^>]*>`, "i"),
   )?.[1];
 }
 
@@ -973,10 +892,7 @@ async function retrieveWebSearchSources(
       sourceDomain: domain(item.url),
       snippet: item.snippet,
       publishedAt: item.publishedAt,
-      similarity: sourceRelevance(
-        claimTerms,
-        `${item.title} ${item.snippet ?? ""}`,
-      ),
+      similarity: sourceRelevance(claimTerms, `${item.title} ${item.snippet ?? ""}`),
     }))
     .filter((source) => passesRelevanceGate(claim, source, storyContext));
 }
@@ -984,9 +900,10 @@ async function retrieveWebSearchSources(
 function domain(value?: string) {
   if (!value) return undefined;
   try {
-    return new URL(
-      value.includes("://") ? value : `https://${value}`,
-    ).hostname.replace(/^www\./, "");
+    return new URL(value.includes("://") ? value : `https://${value}`).hostname.replace(
+      /^www\./,
+      "",
+    );
   } catch {
     return undefined;
   }
@@ -1003,14 +920,9 @@ function defaultCredibility(type: EvidenceSource["type"]) {
 
 async function safelyGetDomainTrustScores(sources: EvidenceSource[]) {
   try {
-    return await getDomainTrustScores(
-      sources.map((source) => source.sourceDomain ?? ""),
-    );
+    return await getDomainTrustScores(sources.map((source) => source.sourceDomain ?? ""));
   } catch (error) {
-    console.warn(
-      "Tracera domain trust lookup failed; using source-class defaults.",
-      error,
-    );
+    console.warn("Tracera domain trust lookup failed; using source-class defaults.", error);
     return new Map<string, number>();
   }
 }
@@ -1025,17 +937,11 @@ function limitedFetch(limit: number): BudgetedEvidenceFetch {
   budgetedFetch.remaining = () => remaining;
   return budgetedFetch;
 }
-async function safelyRetrieve(
-  label: string,
-  retrieve: () => Promise<EvidenceSource[]>,
-) {
+async function safelyRetrieve(label: string, retrieve: () => Promise<EvidenceSource[]>) {
   try {
     return await retrieve();
   } catch (error) {
-    console.warn(
-      `Tracera ${label} retrieval failed; continuing without it.`,
-      error,
-    );
+    console.warn(`Tracera ${label} retrieval failed; continuing without it.`, error);
     return [];
   }
 }

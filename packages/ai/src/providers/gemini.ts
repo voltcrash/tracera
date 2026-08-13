@@ -106,34 +106,26 @@ export class GeminiProvider extends StructuredOutputProvider {
     const content = response.candidates?.[0]?.content?.parts
       ?.map((part) => part.text ?? "")
       .join("");
-    if (!content)
-      throw new Error("Gemini returned no generated image analysis.");
+    if (!content) throw new Error("Gemini returned no generated image analysis.");
     return content;
   }
 
-  private async request<TResponse>(
-    path: string,
-    body: unknown,
-  ): Promise<TResponse> {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${path}`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-goog-api-key": this.apiKey,
-        },
-        body: JSON.stringify(body),
+  private async request<TResponse>(path: string, body: unknown): Promise<TResponse> {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-goog-api-key": this.apiKey,
       },
-    );
+      body: JSON.stringify(body),
+    });
     const payload = (await response.json()) as TResponse & {
       error?: { message?: string };
     };
 
     if (!response.ok || payload.error) {
       throw new Error(
-        payload.error?.message ??
-          `Gemini request failed with HTTP ${response.status}.`,
+        payload.error?.message ?? `Gemini request failed with HTTP ${response.status}.`,
       );
     }
 
@@ -151,10 +143,7 @@ function geminiImagePart(image: ImageInput) {
     };
   }
   const match = image.data.match(/^data:([^;,]+);base64,(.+)$/s);
-  if (!match)
-    throw new Error(
-      "Gemini image input must be a public URL or base64 data URI.",
-    );
+  if (!match) throw new Error("Gemini image input must be a public URL or base64 data URI.");
   return {
     inlineData: { mimeType: image.mimeType ?? match[1], data: match[2] },
   };

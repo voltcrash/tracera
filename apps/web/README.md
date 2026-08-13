@@ -6,7 +6,7 @@ The Next.js client for Tracera. API requests always use the deployed
 From the repository root:
 
 ```sh
-pnpm --filter web dev
+vp run web#dev
 ```
 
-Deploy the web Worker with `pnpm deploy:web`.
+Deploy the web Worker with `vp run deploy:web`.

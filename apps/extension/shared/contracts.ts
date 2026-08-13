@@ -4,12 +4,7 @@ export interface PageSnapshot {
   url: string;
 }
 
-export type Verdict =
-  | "supported"
-  | "contradicted"
-  | "misleading"
-  | "mixed"
-  | "unverified";
+export type Verdict = "supported" | "contradicted" | "misleading" | "mixed" | "unverified";
 
 export interface EvidenceSource {
   title: string;

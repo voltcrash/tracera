@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vite-plus/test";
 import { createAuth } from "@repo/auth";
 
 test("dashboard validation uses the hosted API when URL overrides are unset", async () => {
@@ -9,8 +9,7 @@ test("dashboard validation uses the hosted API when URL overrides are unset", as
   let requestedUrl: string | undefined;
 
   globalThis.fetch = async (input) => {
-    requestedUrl =
-      input instanceof Request ? input.url : new URL(input.toString()).href;
+    requestedUrl = input instanceof Request ? input.url : new URL(input.toString()).href;
     return Response.json({ keys: [] });
   };
   console.error = () => undefined;
@@ -24,16 +23,12 @@ test("dashboard validation uses the hosted API when URL overrides are unset", as
       GOOGLE_CLIENT_SECRET: "test-client-secret",
     });
     const response = await auth.handler(
-      new Request(
-        "https://tracera.voltcrash.com/api/auth/dash/validate",
-        { headers: { authorization: "Bearer invalid-dashboard-token" } },
-      ),
+      new Request("https://tracera.voltcrash.com/api/auth/dash/validate", {
+        headers: { authorization: "Bearer invalid-dashboard-token" },
+      }),
     );
 
-    assert.equal(
-      requestedUrl,
-      "https://dash.better-auth.com/api/auth/jwks",
-    );
+    assert.equal(requestedUrl, "https://dash.better-auth.com/api/auth/jwks");
     assert.equal(response.status, 401);
   } finally {
     globalThis.fetch = originalFetch;

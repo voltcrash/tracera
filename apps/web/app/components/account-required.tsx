@@ -10,8 +10,7 @@ export function AccountRequired({ feature }: { feature: string }) {
         Sign in to open {feature}.
       </h1>
       <p className="mt-3 leading-7 text-emerald-950/60">
-        Log in or create an account to revisit checks and follow their evidence
-        trails.
+        Log in or create an account to revisit checks and follow their evidence trails.
       </p>
       <div className="mt-7 flex justify-center gap-3">
         <Link

@@ -19,7 +19,7 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 
 ## Stack
 
-- **Monorepo:** Turborepo, pnpm, TypeScript
+- **Toolchain and monorepo:** Vite+ (`vp`), pnpm, TypeScript
 - **Web:** Next.js
 - **Mobile:** React Native, Expo
 - **Browser extension:** WXT, Manifest V3
@@ -28,6 +28,28 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 - **Cache and durable work queue:** Upstash Redis REST
 - **Authentication:** Better Auth with Google OAuth, Drizzle, and Neon Postgres
 - **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible APIs
+
+## Development
+
+Install dependencies and run the static checks and tests with Vite+:
+
+```sh
+vp install
+vp check
+vp test --run
+```
+
+The applications use framework CLIs (Next.js, Wrangler, Expo, and WXT), so their workspace commands run through Vite Task rather than Vite's built-in app commands:
+
+```sh
+vp run dev          # API and web development servers
+vp run dev:mobile   # Expo development server
+vp run build        # Build every workspace application
+vp run deploy:api
+vp run deploy:web
+```
+
+`vp dev` and `vp build` always invoke Vite's built-in commands. Use `vp run dev` and `vp run build` in this repository so the correct framework command is selected for each application.
 
 ## Current deployment architecture
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vite-plus/test";
 import {
   authenticatePublicApiKey,
   consumePublicApiQuota,
@@ -8,30 +8,20 @@ import {
 } from "../src/public-api.js";
 
 test("public input accepts exactly one supported input", () => {
-  assert.deepEqual(
-    parsePublicAnalysisInput({ text: "  A checkable claim.  " }),
-    {
-      success: true,
-      data: { text: "A checkable claim." },
-    },
-  );
+  assert.deepEqual(parsePublicAnalysisInput({ text: "  A checkable claim.  " }), {
+    success: true,
+    data: { text: "A checkable claim." },
+  });
   assert.equal(
-    parsePublicAnalysisInput({ text: "claim", url: "https://example.com" })
-      .success,
+    parsePublicAnalysisInput({ text: "claim", url: "https://example.com" }).success,
     false,
   );
   assert.equal(parsePublicAnalysisInput({}).success, false);
-  assert.equal(
-    parsePublicAnalysisInput({ text: "claim", forceReanalysis: true }).success,
-    false,
-  );
+  assert.equal(parsePublicAnalysisInput({ text: "claim", forceReanalysis: true }).success, false);
 });
 
 test("public input rejects unsafe schemes and invalid image metadata", () => {
-  assert.equal(
-    parsePublicAnalysisInput({ url: "file:///etc/passwd" }).success,
-    false,
-  );
+  assert.equal(parsePublicAnalysisInput({ url: "file:///etc/passwd" }).success, false);
   assert.equal(
     parsePublicAnalysisInput({
       image: "data:image/png;base64,AAAA",
@@ -42,19 +32,13 @@ test("public input rejects unsafe schemes and invalid image metadata", () => {
 });
 
 test("public API keys support rotation without exposing the key identifier", async () => {
-  const access = await authenticatePublicApiKey(
-    "new-secret",
-    "old-secret,new-secret",
-  );
+  const access = await authenticatePublicApiKey("new-secret", "old-secret,new-secret");
   assert.equal(access.authenticated, true);
   assert.equal(access.keyId?.length, 16);
   assert.equal(access.keyId?.includes("new-secret"), false);
-  assert.deepEqual(
-    await authenticatePublicApiKey("wrong", "old-secret,new-secret"),
-    {
-      authenticated: false,
-    },
-  );
+  assert.deepEqual(await authenticatePublicApiKey("wrong", "old-secret,new-secret"), {
+    authenticated: false,
+  });
 });
 
 test("OpenAPI describes every public operation", () => {
@@ -77,10 +61,7 @@ test("shared quotas enforce minute and daily fixed windows", async () => {
     },
   };
   const options = { minuteLimit: 2, dailyLimit: 3, nowSeconds: 100_000 };
-  assert.equal(
-    (await consumePublicApiQuota(store, "key", options)).allowed,
-    true,
-  );
+  assert.equal((await consumePublicApiQuota(store, "key", options)).allowed, true);
   const second = await consumePublicApiQuota(store, "key", options);
   assert.deepEqual(second, {
     allowed: true,
@@ -92,10 +73,7 @@ test("shared quotas enforce minute and daily fixed windows", async () => {
   assert.equal(third.allowed, false);
   assert.match(third.allowed ? "" : third.message, /per-minute/);
   const nextMinute = { ...options, nowSeconds: options.nowSeconds + 60 };
-  assert.equal(
-    (await consumePublicApiQuota(store, "key", nextMinute)).allowed,
-    true,
-  );
+  assert.equal((await consumePublicApiQuota(store, "key", nextMinute)).allowed, true);
   const dailyExceeded = await consumePublicApiQuota(store, "key", nextMinute);
   assert.equal(dailyExceeded.allowed, false);
   assert.match(dailyExceeded.allowed ? "" : dailyExceeded.message, /daily/);

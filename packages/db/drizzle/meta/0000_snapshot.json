@@ -134,12 +134,8 @@
           "name": "claims_check_id_checks_id_fk",
           "tableFrom": "claims",
           "tableTo": "checks",
-          "columnsFrom": [
-            "check_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["check_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

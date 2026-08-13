@@ -3,7 +3,7 @@
 Run this before approving a generation model for production:
 
 ```sh
-AI_PROVIDER=... AI_API_KEY=... AI_MODEL=... pnpm --filter @repo/ai validate:model
+AI_PROVIDER=... AI_API_KEY=... AI_MODEL=... vp run @repo/ai#validate:model
 ```
 
 The checked-in dataset contains six mixed true, false, and misleading claims

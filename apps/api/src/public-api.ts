@@ -108,8 +108,7 @@ export function parsePublicAnalysisInput(value: unknown): PublicInputResult {
       return invalid("URL requests may only contain the url field.");
     }
     const url = (body.url as string).trim();
-    if (url.length > 2_048)
-      return invalid("URL must not exceed 2,048 characters.");
+    if (url.length > 2_048) return invalid("URL must not exceed 2,048 characters.");
     try {
       const parsed = new URL(url);
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -131,8 +130,7 @@ export function parsePublicAnalysisInput(value: unknown): PublicInputResult {
   if (!image.startsWith("data:image/") && !isPublicImageUrl(image)) {
     return invalid("Image must be an image data URI or an HTTP(S) URL.");
   }
-  const imageMimeType =
-    typeof body.imageMimeType === "string" ? body.imageMimeType.trim() : "";
+  const imageMimeType = typeof body.imageMimeType === "string" ? body.imageMimeType.trim() : "";
   if (imageMimeType && !/^image\/[a-z0-9.+-]+$/i.test(imageMimeType)) {
     return invalid("imageMimeType must be a valid image media type.");
   }
@@ -157,9 +155,7 @@ export async function authenticatePublicApiKey(
 
   const providedHash = await sha256(provided);
   const allowedHashes = await Promise.all(allowed.map(sha256));
-  const authenticated = allowedHashes.some((hash) =>
-    constantTimeEqual(hash, providedHash),
-  );
+  const authenticated = allowedHashes.some((hash) => constantTimeEqual(hash, providedHash));
   return authenticated
     ? { authenticated: true, keyId: providedHash.slice(0, 16) }
     : { authenticated: false };
@@ -404,14 +400,7 @@ export const publicOpenApiDocument = {
           apiVersion: { const: PUBLIC_API_VERSION },
           data: {
             type: "object",
-            required: [
-              "id",
-              "input",
-              "claims",
-              "traceraScore",
-              "createdAt",
-              "nextReviewAt",
-            ],
+            required: ["id", "input", "claims", "traceraScore", "createdAt", "nextReviewAt"],
             properties: {
               id: { type: "string", format: "uuid" },
               input: { type: "object", additionalProperties: true },
@@ -458,9 +447,7 @@ function isPublicImageUrl(value: string) {
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function constantTimeEqual(left: string, right: string) {
@@ -472,11 +459,7 @@ function constantTimeEqual(left: string, right: string) {
   return difference === 0;
 }
 
-async function incrementQuota(
-  store: PublicQuotaStore,
-  key: string,
-  ttlSeconds: number,
-) {
+async function incrementQuota(store: PublicQuotaStore, key: string, ttlSeconds: number) {
   const count = await store.incr(key);
   if (count === 1) await store.expire(key, ttlSeconds);
   return count;

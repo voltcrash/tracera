@@ -14,9 +14,7 @@ function applyHighlights(claims: ClaimResult[]) {
   document.querySelectorAll("mark[data-tracera-claim]").forEach((mark) => {
     mark.replaceWith(document.createTextNode(mark.textContent ?? ""));
   });
-  document
-    .querySelectorAll(".tracera-claim-popover")
-    .forEach((node) => node.remove());
+  document.querySelectorAll(".tracera-claim-popover").forEach((node) => node.remove());
 
   for (const claim of claims) {
     const phrase = claim.claim.claimText.trim();
@@ -42,32 +40,21 @@ function applyHighlights(claims: ClaimResult[]) {
 }
 
 function findTextNode(phrase: string) {
-  const walker = document.createTreeWalker(
-    document.body,
-    NodeFilter.SHOW_TEXT,
-    {
-      acceptNode(node) {
-        const parent = node.parentElement;
-        if (
-          !parent ||
-          /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/i.test(parent.tagName)
-        )
-          return NodeFilter.FILTER_REJECT;
-        return (node.nodeValue ?? "")
-          .toLowerCase()
-          .includes(phrase.toLowerCase())
-          ? NodeFilter.FILTER_ACCEPT
-          : NodeFilter.FILTER_SKIP;
-      },
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/i.test(parent.tagName))
+        return NodeFilter.FILTER_REJECT;
+      return (node.nodeValue ?? "").toLowerCase().includes(phrase.toLowerCase())
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_SKIP;
     },
-  );
+  });
   return walker.nextNode() as Text | null;
 }
 
 function showPopover(anchor: HTMLElement, claim: ClaimResult) {
-  document
-    .querySelectorAll(".tracera-claim-popover")
-    .forEach((node) => node.remove());
+  document.querySelectorAll(".tracera-claim-popover").forEach((node) => node.remove());
   const popover = document.createElement("aside");
   popover.className = "tracera-claim-popover";
   popover.style.cssText =

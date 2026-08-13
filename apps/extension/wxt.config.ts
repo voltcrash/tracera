@@ -12,9 +12,7 @@ export default defineConfig({
       name: "Tracera",
       description: "Trace the evidence behind the article you are reading.",
       permissions: ["activeTab", "cookies", "scripting", "storage"],
-      key:
-        import.meta.env.WXT_EXTENSION_PUBLIC_KEY ||
-        productionExtensionPublicKey,
+      key: import.meta.env.WXT_EXTENSION_PUBLIC_KEY || productionExtensionPublicKey,
       // Reading an article from the side panel needs an explicit page host grant.
       // `activeTab` alone is not reliably retained after Chrome opens a side panel.
       // Tracera analyzes public news pages, so support both public web schemes.

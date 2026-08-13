@@ -51,9 +51,7 @@ export function GroundZeroCard({ trace }: { trace: GroundZeroTrace }) {
                   <p className="text-[9px] font-black uppercase tracking-[.12em] text-[#37685e]">
                     Signal {String(index + 1).padStart(2, "0")}
                   </p>
-                  <p className="mt-1 text-xs font-bold leading-5 text-[#23483f]">
-                    {signal}
-                  </p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-[#23483f]">{signal}</p>
                 </div>
               </div>
             ))}
@@ -77,8 +75,7 @@ export function GroundZeroCard({ trace }: { trace: GroundZeroTrace }) {
                       rel="noreferrer"
                       target="_blank"
                     >
-                      {trace.earliestSource.title}{" "}
-                      <span aria-hidden="true">↗</span>
+                      {trace.earliestSource.title} <span aria-hidden="true">↗</span>
                       {trace.earliestSource.publisher && (
                         <small className="mt-1 block text-[10px] font-semibold text-[#42675e]">
                           {trace.earliestSource.publisher}

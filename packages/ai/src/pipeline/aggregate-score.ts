@@ -1,14 +1,6 @@
-import type {
-  ClaimVerdict,
-  FramingAnalysis,
-  ScoreDimension,
-  TraceraScore,
-} from "./types.js";
+import type { ClaimVerdict, FramingAnalysis, ScoreDimension, TraceraScore } from "./types.js";
 
-export function aggregateScore(
-  claims: ClaimVerdict[],
-  framing?: FramingAnalysis,
-): TraceraScore {
+export function aggregateScore(claims: ClaimVerdict[], framing?: FramingAnalysis): TraceraScore {
   const factualAccuracy = weightedAverage(
     claims,
     (claim) => verdictValue(claim.verdict),
@@ -16,28 +8,19 @@ export function aggregateScore(
   );
   const sourceCorroboration = average(
     claims.map((claim) =>
-      Math.min(
-        (claim.supportingSources.length + claim.contradictingSources.length) /
-          3,
-        1,
-      ),
+      Math.min((claim.supportingSources.length + claim.contradictingSources.length) / 3, 1),
     ),
   );
   const evidenceQuality = average(claims.map((claim) => claim.evidenceQuality));
   const sourceReputation = average(
-    claims
-      .flatMap((claim) => claim.consideredSources)
-      .map((source) => source.credibility ?? 0.5),
+    claims.flatMap((claim) => claim.consideredSources).map((source) => source.credibility ?? 0.5),
   );
   const framingManipulation =
     framing?.integrityScore ??
     average(claims.map((claim) => legacyFramingScore(claim.claim.claimText)));
   const newestEvidenceAt =
     claims
-      .flatMap((claim) => [
-        ...claim.supportingSources,
-        ...claim.contradictingSources,
-      ])
+      .flatMap((claim) => [...claim.supportingSources, ...claim.contradictingSources])
       .map((source) => source.publishedAt)
       .filter((date): date is string => Boolean(date))
       .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null;
@@ -70,18 +53,13 @@ function verdictValue(verdict: ClaimVerdict["verdict"]) {
   }[verdict];
 }
 
-function checkabilityWeight(
-  checkability: ClaimVerdict["claim"]["checkability"],
-) {
-  return { checkable: 1, needs_context: 0.65, not_checkable: 0.2 }[
-    checkability
-  ];
+function checkabilityWeight(checkability: ClaimVerdict["claim"]["checkability"]) {
+  return { checkable: 1, needs_context: 0.65, not_checkable: 0.2 }[checkability];
 }
 
 /** Compatibility fallback for analyses stored before article-level framing. */
 function legacyFramingScore(text: string) {
-  const loadedLanguage =
-    /\b(shocking|disaster|scandal|traitor|evil|miracle|destroys?|exposed)\b/gi;
+  const loadedLanguage = /\b(shocking|disaster|scandal|traitor|evil|miracle|destroys?|exposed)\b/gi;
   const matches = text.match(loadedLanguage)?.length ?? 0;
   return Math.max(0, 1 - matches * 0.15);
 }
@@ -101,10 +79,7 @@ function weightedAverage<T>(
 ) {
   const totalWeight = items.reduce((sum, item) => sum + getWeight(item), 0);
   if (totalWeight === 0) return 0;
-  return (
-    items.reduce((sum, item) => sum + getValue(item) * getWeight(item), 0) /
-    totalWeight
-  );
+  return items.reduce((sum, item) => sum + getValue(item) * getWeight(item), 0) / totalWeight;
 }
 
 function average(values: number[]) {

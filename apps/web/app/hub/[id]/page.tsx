@@ -11,10 +11,7 @@ import {
 import { AppHeader } from "../../components/app-header";
 import { AccountRequired } from "../../components/account-required";
 import { useAuth } from "../../components/auth-provider";
-import {
-  GroundZeroCard,
-  type GroundZeroTrace,
-} from "../../components/ground-zero-card";
+import { GroundZeroCard, type GroundZeroTrace } from "../../components/ground-zero-card";
 import { apiUrl } from "../../lib/api";
 
 type Check = {
@@ -45,11 +42,7 @@ type AppearanceEntry = {
   observed_at: string;
 };
 
-export default function CheckDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function CheckDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [check, setCheck] = useState<Check | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [appearances, setAppearances] = useState<AppearanceEntry[]>([]);
@@ -58,40 +51,32 @@ export default function CheckDetailPage({
 
   useEffect(() => {
     if (isAuthLoading || !user) return;
-    params.then(({ id }) =>
+    void params.then(({ id }) =>
       Promise.all([
         apiFetch(`${apiUrl}/checks/${id}`),
         apiFetch(`${apiUrl}/checks/${id}/timeline`),
         apiFetch(`${apiUrl}/checks/${id}/appearances`),
       ])
-        .then(
-          async ([checkResponse, timelineResponse, appearancesResponse]) => {
-            const [checkData, timelineData, appearancesData] =
-              await Promise.all([
-                checkResponse.json(),
-                timelineResponse.json(),
-                appearancesResponse.json(),
-              ]);
-            if (!checkResponse.ok) {
-              throw new Error(checkData.error ?? "Unable to load this check.");
-            }
-            setCheck(checkData.check);
-            if (timelineResponse.ok && Array.isArray(timelineData.timeline)) {
-              setTimeline(timelineData.timeline);
-            }
-            if (
-              appearancesResponse.ok &&
-              Array.isArray(appearancesData.appearances)
-            ) {
-              setAppearances(appearancesData.appearances);
-            }
-          },
-        )
+        .then(async ([checkResponse, timelineResponse, appearancesResponse]) => {
+          const [checkData, timelineData, appearancesData] = await Promise.all([
+            checkResponse.json(),
+            timelineResponse.json(),
+            appearancesResponse.json(),
+          ]);
+          if (!checkResponse.ok) {
+            throw new Error(checkData.error ?? "Unable to load this check.");
+          }
+          setCheck(checkData.check);
+          if (timelineResponse.ok && Array.isArray(timelineData.timeline)) {
+            setTimeline(timelineData.timeline);
+          }
+          if (appearancesResponse.ok && Array.isArray(appearancesData.appearances)) {
+            setAppearances(appearancesData.appearances);
+          }
+        })
         .catch((requestError) =>
           setError(
-            requestError instanceof Error
-              ? requestError.message
-              : "Unable to load this check.",
+            requestError instanceof Error ? requestError.message : "Unable to load this check.",
           ),
         ),
     );
@@ -102,16 +87,11 @@ export default function CheckDetailPage({
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <AppHeader active="hub" />
         {isAuthLoading && (
-          <p
-            className="mt-10 text-sm font-medium text-emerald-950/55"
-            role="status"
-          >
+          <p className="mt-10 text-sm font-medium text-emerald-950/55" role="status">
             Restoring your account…
           </p>
         )}
-        {!isAuthLoading && !user && (
-          <AccountRequired feature="this News Hub trace" />
-        )}
+        {!isAuthLoading && !user && <AccountRequired feature="this News Hub trace" />}
         {!isAuthLoading && user && (
           <>
             {error && (
@@ -123,15 +103,10 @@ export default function CheckDetailPage({
               </p>
             )}
             {!check && !error && (
-              <div
-                className="mt-10 grid gap-4 md:grid-cols-[1fr_23rem]"
-                role="status"
-              >
+              <div className="mt-10 grid gap-4 md:grid-cols-[1fr_23rem]" role="status">
                 <div className="h-72 animate-pulse rounded-[2rem] border border-emerald-950/8 bg-white/70" />
                 <div className="h-72 animate-pulse rounded-[2rem] bg-emerald-950/12" />
-                <span className="sr-only">
-                  Reassembling the evidence trail…
-                </span>
+                <span className="sr-only">Reassembling the evidence trail…</span>
               </div>
             )}
             {check && (
@@ -150,8 +125,7 @@ export default function CheckDetailPage({
                           EVIDENCE ARCHIVE · FULL TRACE
                         </p>
                         <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1.5 text-[9px] font-black text-emerald-800">
-                          <span className="size-1.5 rounded-full bg-emerald-500" />{" "}
-                          STORED CHECK
+                          <span className="size-1.5 rounded-full bg-emerald-500" /> STORED CHECK
                         </span>
                       </div>
                       <h1 className="mt-5 text-4xl font-black leading-[.95] tracking-[-.065em] sm:text-5xl">
@@ -164,17 +138,15 @@ export default function CheckDetailPage({
                     <div className="mt-8 grid gap-2 border-t border-emerald-950/8 pt-5 sm:grid-cols-3">
                       <TraceMeta
                         label="Atomic claims"
-                        value={String(check.analysis.claims.length).padStart(
-                          2,
-                          "0",
-                        )}
+                        value={String(check.analysis.claims.length).padStart(2, "0")}
                       />
                       <TraceMeta
                         label="Checked"
-                        value={new Date(check.createdAt).toLocaleDateString(
-                          undefined,
-                          { month: "short", day: "numeric", year: "numeric" },
-                        )}
+                        value={new Date(check.createdAt).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
                       />
                       <TraceMeta
                         label="Source"
@@ -183,19 +155,14 @@ export default function CheckDetailPage({
                       />
                     </div>
                   </section>
-                  <ScoreCard
-                    score={check.analysis.score ?? check.traceraScore}
-                    sticky={false}
-                  />
+                  <ScoreCard score={check.analysis.score ?? check.traceraScore} sticky={false} />
                 </div>
                 <AnalysisResult
                   claims={check.analysis.claims}
                   score={check.analysis.score ?? check.traceraScore}
                   showScore={false}
                 />
-                {check.groundZero && (
-                  <GroundZeroCard trace={check.groundZero} />
-                )}
+                {check.groundZero && <GroundZeroCard trace={check.groundZero} />}
                 <div className="mt-5 grid gap-5 lg:grid-cols-[1.08fr_.92fr] lg:items-start">
                   <TraceTimeline entries={timeline} appearances={appearances} />
                   <AlertSubscription checkId={check.id} />
@@ -209,15 +176,7 @@ export default function CheckDetailPage({
   );
 }
 
-function TraceMeta({
-  label,
-  value,
-  href,
-}: {
-  label: string;
-  value: string;
-  href?: string | null;
-}) {
+function TraceMeta({ label, value, href }: { label: string; value: string; href?: string | null }) {
   return (
     <div className="rounded-xl bg-[#f3f7f3] px-3 py-2.5">
       <p className="text-[8px] font-black uppercase tracking-[.13em] text-emerald-950/35">
@@ -234,10 +193,7 @@ function TraceMeta({
           {value} ↗
         </a>
       ) : (
-        <p
-          className="mt-1 truncate text-[10px] font-black text-emerald-950/72"
-          title={value}
-        >
+        <p className="mt-1 truncate text-[10px] font-black text-emerald-950/72" title={value}>
           {value}
         </p>
       )}
@@ -272,11 +228,7 @@ function AlertSubscription({ checkId }: { checkId: string }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email }),
     });
-    setStatus(
-      response.ok
-        ? "Alert paused for this trace."
-        : "Could not pause your alert.",
-    );
+    setStatus(response.ok ? "Alert paused for this trace." : "Could not pause your alert.");
     if (response.ok) setSubscribed(false);
   }
   return (
@@ -327,11 +279,7 @@ function AlertSubscription({ checkId }: { checkId: string }) {
               Unsubscribe
             </button>
           )}
-          {status && (
-            <p className="text-xs font-semibold text-emerald-950/58">
-              {status}
-            </p>
-          )}
+          {status && <p className="text-xs font-semibold text-emerald-950/58">{status}</p>}
         </div>
       </div>
     </form>
@@ -358,23 +306,18 @@ function TraceTimeline({
           </h2>
         </div>
         <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-[.08em] text-emerald-800">
-          {entries.length} {entries.length === 1 ? "version" : "versions"} ·{" "}
-          {appearances.length} appearances
+          {entries.length} {entries.length === 1 ? "version" : "versions"} · {appearances.length}{" "}
+          appearances
         </span>
       </div>
       <ol className="trace-detail-timeline mt-7 space-y-3 pl-5">
         {entries.map((entry, index) => {
           const previous = entries[index - 1];
           const change = previous
-            ? Math.round(
-                entry.tracera_score.overall - previous.tracera_score.overall,
-              )
+            ? Math.round(entry.tracera_score.overall - previous.tracera_score.overall)
             : null;
           return (
-            <li
-              key={entry.id}
-              className="relative rounded-2xl bg-[#f3f7f3] p-4"
-            >
+            <li key={entry.id} className="relative rounded-2xl bg-[#f3f7f3] p-4">
               <span className="absolute -left-[1.62rem] top-5 size-3 rounded-full border-[3px] border-white bg-emerald-500 shadow-sm" />
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -406,9 +349,7 @@ function TraceTimeline({
                             : "text-rose-700"
                       }`}
                     >
-                      {change === 0
-                        ? " · unchanged"
-                        : `${change > 0 ? "+" : ""}${change} PTS`}
+                      {change === 0 ? " · unchanged" : `${change > 0 ? "+" : ""}${change} PTS`}
                     </span>
                   )}
                 </div>
@@ -422,9 +363,7 @@ function TraceTimeline({
           );
         })}
       </ol>
-      {appearances.some(
-        (item) => item.occurrence_type === "exact_resubmission",
-      ) && (
+      {appearances.some((item) => item.occurrence_type === "exact_resubmission") && (
         <div className="mt-6 border-t border-emerald-950/8 pt-5">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
             Repeat sightings

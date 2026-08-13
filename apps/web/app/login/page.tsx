@@ -11,20 +11,17 @@ export default function LoginPage() {
           tracera<span className="text-[#9cf0d1]">.</span>
         </Link>
         <div>
-          <p className="text-xs font-black tracking-[.18em] text-[#9cf0d1]">
-            EVIDENCE, NOT ECHOES
-          </p>
+          <p className="text-xs font-black tracking-[.18em] text-[#9cf0d1]">EVIDENCE, NOT ECHOES</p>
           <h1 className="mt-5 max-w-md text-5xl font-extrabold leading-[1.05] tracking-[-.04em]">
             Less noise. Better judgment.
           </h1>
           <p className="mt-6 max-w-md text-lg leading-8 text-white/70">
-            Save analyses, follow how a story changes, and build a clearer
-            picture of the information you encounter.
+            Save analyses, follow how a story changes, and build a clearer picture of the
+            information you encounter.
           </p>
         </div>
         <p className="text-sm text-white/50">
-          Your session stays on Tracera. Continue to Google only when you are
-          ready to sign in.
+          Your session stays on Tracera. Continue to Google only when you are ready to sign in.
         </p>
       </section>
       <section className="flex items-center justify-center p-6 sm:p-10">

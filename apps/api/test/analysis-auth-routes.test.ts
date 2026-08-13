@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vite-plus/test";
 import { app, type Bindings } from "../src/index.js";
 
 const env = {
@@ -28,10 +28,7 @@ for (const path of ["/analyze", "/analyze/stream"]) {
   });
 }
 
-for (const path of [
-  "/checks",
-  "/checks/00000000-0000-4000-8000-000000000000",
-]) {
+for (const path of ["/checks", "/checks/00000000-0000-4000-8000-000000000000"]) {
   test(`${path} requires a signed-in user`, async () => {
     const response = await app.request(path, {}, env);
 

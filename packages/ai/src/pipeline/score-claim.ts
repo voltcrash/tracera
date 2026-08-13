@@ -4,13 +4,7 @@ import type { ClaimVerdict, EvidenceSource, ExtractedClaim } from "./types.js";
 import type { PromptAuditOptions } from "./extract-claims.js";
 
 const verdictSchema = z.object({
-  verdict: z.enum([
-    "supported",
-    "contradicted",
-    "misleading",
-    "mixed",
-    "unverified",
-  ]),
+  verdict: z.enum(["supported", "contradicted", "misleading", "mixed", "unverified"]),
   confidence: z.number().min(0).max(1),
   reasoning: z.array(z.string().min(1)).min(1).max(4),
   supportingSourceIds: z.array(z.string()),
@@ -82,8 +76,7 @@ export async function scoreClaim(
     consideredSources: sources,
     supportingSources,
     contradictingSources,
-    sourceConflict:
-      supportingSources.length > 0 && contradictingSources.length > 0,
+    sourceConflict: supportingSources.length > 0 && contradictingSources.length > 0,
     evidenceQuality: estimateEvidenceQuality(sources),
   };
 }
@@ -113,24 +106,14 @@ function estimateEvidenceQuality(sources: EvidenceSource[]) {
     .map((date) => Date.parse(date))
     .filter(Number.isFinite)
     .sort((left, right) => right - left)[0];
-  const ageDays = newest
-    ? (Date.now() - newest) / 86_400_000
-    : Number.POSITIVE_INFINITY;
-  const recency =
-    ageDays <= 30 ? 1 : ageDays <= 365 ? 0.7 : ageDays <= 1825 ? 0.4 : 0.2;
+  const ageDays = newest ? (Date.now() - newest) / 86_400_000 : Number.POSITIVE_INFINITY;
+  const recency = ageDays <= 30 ? 1 : ageDays <= 365 ? 0.7 : ageDays <= 1825 ? 0.4 : 0.2;
 
   const credibility =
-    sources.reduce((sum, source) => sum + (source.credibility ?? 0.5), 0) /
-    sources.length;
+    sources.reduce((sum, source) => sum + (source.credibility ?? 0.5), 0) / sources.length;
   const relevance =
-    sources.reduce((sum, source) => sum + (source.similarity ?? 0.7), 0) /
-    sources.length;
+    sources.reduce((sum, source) => sum + (source.similarity ?? 0.7), 0) / sources.length;
   return Number(
-    (
-      0.25 * corroboration +
-      0.2 * recency +
-      0.2 * credibility +
-      0.35 * relevance
-    ).toFixed(4),
+    (0.25 * corroboration + 0.2 * recency + 0.2 * credibility + 0.35 * relevance).toFixed(4),
   );
 }

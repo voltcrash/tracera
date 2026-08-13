@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vite-plus/test";
 import { app, type Bindings } from "../src/index.js";
 
 const databaseEnv = {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vite-plus/test";
 import { z } from "zod";
 import {
   AnthropicProvider,
@@ -86,9 +86,7 @@ test("Gemini image generation uses inlineData for uploaded images", async () => 
     async (_input, init) => {
       requestBody = JSON.parse(String(init?.body));
       return jsonResponse({
-        candidates: [
-          { content: { parts: [{ text: '{"text":"Gemini OCR"}' }] } },
-        ],
+        candidates: [{ content: { parts: [{ text: '{"text":"Gemini OCR"}' }] } }],
       });
     },
     async () => {
@@ -171,11 +169,7 @@ class QueueProvider extends StructuredOutputProvider {
     return [];
   }
 
-  protected async generateRaw(
-    _prompt: string,
-    _schema: JsonSchema,
-    _options?: GenerateOptions,
-  ) {
+  protected async generateRaw(_prompt: string, _schema: JsonSchema, _options?: GenerateOptions) {
     return this.textResponses.shift() ?? "";
   }
 

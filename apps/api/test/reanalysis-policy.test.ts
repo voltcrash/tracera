@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vite-plus/test";
 import { reanalysisPolicy } from "../src/reanalysis-policy.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
