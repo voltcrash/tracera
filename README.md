@@ -15,6 +15,7 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 - **Evidence-quality confidence:** Show how strong, recent, and complete the available evidence is separately from the claim verdict.
 - **Tracera Score:** Summarize source reputation, factual skew, manipulative language, recency, and cross-source corroboration in a transparent rating.
 - **Trace timelines:** Track previous checks, reappearances, and score changes as a story develops.
+- **Personal history:** Give each account a private record of every story it has checked, including traces served from a recent identical check.
 - **Verified claims corpus:** Reuse prior analysis for deduplication and related context while periodically re-checking claims as evidence changes.
 
 ## Stack

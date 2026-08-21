@@ -16,10 +16,12 @@ import {
   getDomainTrustHistory,
   getTraceAppearances,
   getTraceTimeline,
+  listAnalysisHistory,
   listChecks,
   mediaDietReport,
   optedInMediaDietRecipients,
   persistCheck,
+  recordAnalysisRun,
   recordTraceAppearance,
   recordDomainOutcomeSignals,
   subscribeToCheck,
@@ -576,6 +578,9 @@ async function runAnalysis(
         sourceDomain: normalized.sourceDomain,
         occurrenceType: "exact_resubmission",
       });
+      // A reused trace keeps its original owner, so the submitter's history is
+      // the only record that they ran this check.
+      if (user) await recordAnalysisRun(user.id, cached.id);
       emit({
         stage: "reused",
         message: "A recent identical trace was reused.",
@@ -686,6 +691,7 @@ async function runAnalysis(
         ...auditLog,
       ],
       ownerUserId: parentCheck?.ownerUserId ?? user?.id,
+      analyzedByUserId: user?.id,
       visibility,
       supersedesCheckId: recheckOf ?? relatedStory?.id,
       lineageReason: recheckOf
@@ -737,8 +743,9 @@ async function runAnalysis(
   }
 }
 
-app.use("/checks", requireSignedInUser);
-app.use("/checks/*", requireSignedInUser);
+app.use("/checks", requireSignedInUser("the News Hub"));
+app.use("/checks/*", requireSignedInUser("the News Hub"));
+app.use("/history", requireSignedInUser("your history"));
 
 app.get("/checks/:id/timeline", async (context) => {
   const id = context.req.param("id");
@@ -814,6 +821,38 @@ app.get("/checks", async (context) => {
   }
 });
 
+/** A personal, user-scoped record of every trace this account has analyzed.
+ * Unlike the News Hub it never returns another account's traces. */
+app.get("/history", async (context) => {
+  const page = positiveInteger(context.req.query("page"), 1, 10_000);
+  const pageSize = positiveInteger(context.req.query("pageSize"), 20, 100);
+  const query = (context.req.query("q") ?? "").slice(0, 200);
+
+  try {
+    const user = await currentUser(context);
+    if (!user) return context.json({ error: "Not authenticated." }, 401);
+    const result = await listAnalysisHistory(user.id, page, pageSize, query);
+    return context.json({
+      checks: result.checks,
+      summary: result.summary,
+      pagination: {
+        page,
+        pageSize,
+        total: result.total,
+        totalPages: Math.ceil(result.total / pageSize),
+      },
+    });
+  } catch (error) {
+    console.error("Could not list analysis history", error);
+    return context.json(
+      {
+        error: error instanceof Error ? error.message : "Could not list your history.",
+      },
+      503,
+    );
+  }
+});
+
 app.get("/checks/:id", async (context) => {
   const id = context.req.param("id");
   if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
@@ -837,14 +876,14 @@ app.get("/checks/:id", async (context) => {
   }
 });
 
-async function requireSignedInUser(
-  context: Context<{ Bindings: Bindings }>,
-  next: () => Promise<void>,
-) {
-  if (!(await currentUser(context))) {
-    return context.json({ error: "Sign in or create an account to open the News Hub." }, 401);
-  }
-  await next();
+/** Gate a route on a session, naming the screen the caller was trying to open. */
+function requireSignedInUser(feature: string) {
+  return async (context: Context<{ Bindings: Bindings }>, next: () => Promise<void>) => {
+    if (!(await currentUser(context))) {
+      return context.json({ error: `Sign in or create an account to open ${feature}.` }, 401);
+    }
+    await next();
+  };
 }
 
 async function analyzeText(

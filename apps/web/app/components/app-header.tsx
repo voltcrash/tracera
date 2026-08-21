@@ -5,7 +5,15 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./auth-provider";
 
-export function AppHeader({ active }: { active?: "home" | "hub" }) {
+type AppScreen = "home" | "hub" | "history";
+
+const navigation: { href: string; label: string; screen: AppScreen }[] = [
+  { href: "/home", label: "Analyze", screen: "home" },
+  { href: "/hub", label: "News Hub", screen: "hub" },
+  { href: "/history", label: "History", screen: "history" },
+];
+
+export function AppHeader({ active }: { active?: AppScreen }) {
   const { user, isLoading, signOut } = useAuth();
   const router = useRouter();
 
@@ -32,23 +40,19 @@ export function AppHeader({ active }: { active?: "home" | "hub" }) {
         />
       </Link>
       <nav
-        className="col-span-2 col-start-1 row-start-2 grid grid-cols-2 rounded-xl bg-emerald-950/5 p-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:flex sm:items-center sm:gap-1 sm:rounded-full sm:bg-transparent sm:p-0"
+        className="col-span-2 col-start-1 row-start-2 grid grid-cols-3 rounded-xl bg-emerald-950/5 p-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:flex sm:items-center sm:gap-1 sm:rounded-full sm:bg-transparent sm:p-0"
         aria-label="Primary navigation"
       >
-        <Link
-          href="/home"
-          aria-current={active === "home" ? "page" : undefined}
-          className={`flex min-h-10 items-center justify-center whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${active === "home" ? "bg-emerald-950 text-white shadow-sm" : "text-emerald-950/65 hover:bg-emerald-950/7 hover:text-emerald-950"}`}
-        >
-          Analyze
-        </Link>
-        <Link
-          href="/hub"
-          aria-current={active === "hub" ? "page" : undefined}
-          className={`flex min-h-10 items-center justify-center whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${active === "hub" ? "bg-emerald-950 text-white shadow-sm" : "text-emerald-950/65 hover:bg-emerald-950/7 hover:text-emerald-950"}`}
-        >
-          News Hub
-        </Link>
+        {navigation.map((item) => (
+          <Link
+            key={item.screen}
+            href={item.href}
+            aria-current={active === item.screen ? "page" : undefined}
+            className={`flex min-h-10 items-center justify-center whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold transition sm:px-4 ${active === item.screen ? "bg-emerald-950 text-white shadow-sm" : "text-emerald-950/65 hover:bg-emerald-950/7 hover:text-emerald-950"}`}
+          >
+            {item.label}
+          </Link>
+        ))}
       </nav>
       <div className="col-start-2 row-start-1 flex items-center justify-end sm:col-start-3">
         {isLoading ? (

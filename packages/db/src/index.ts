@@ -386,6 +386,9 @@ export async function persistCheck(input: {
   groundZero?: unknown;
   prompts?: unknown[];
   ownerUserId?: string;
+  /** The signed-in account that submitted this run. A scheduled recheck
+   * inherits an owner but has no submitter, so it never enters a history. */
+  analyzedByUserId?: string;
   visibility?: "public" | "private";
   supersedesCheckId?: string;
   lineageReason?: "first_check" | "related_story" | "scheduled_recheck";
@@ -458,6 +461,13 @@ export async function persistCheck(input: {
         input.lineageReason ?? "first_check",
       ],
     );
+
+    if (input.analyzedByUserId) {
+      await client.query(`INSERT INTO analysis_history (user_id, check_id) VALUES ($1, $2)`, [
+        input.analyzedByUserId,
+        storedCheck.id,
+      ]);
+    }
 
     await client.query("COMMIT");
     return {
@@ -679,103 +689,206 @@ export async function getDecayObservability(limit = 100) {
   }));
 }
 
+interface CheckSummaryRow {
+  id: string;
+  input_type: string;
+  raw_input: string;
+  primary_claim: string | null;
+  tracera_score: unknown;
+  created_at: string;
+  source_domain: string | null;
+  source_url: string | null;
+  published_at: string | null;
+  next_review_at: string | null;
+  visibility: "public" | "private";
+  appearance_count: string;
+}
+
+/** The listing projection shared by the News Hub and a personal history. */
+const CHECK_SUMMARY_COLUMNS = `item.id, item.input_type, item.raw_input,
+       COALESCE(
+         item.analysis #>> '{claims,0,claim,claimText}',
+         (SELECT claim.claim_text FROM claims claim
+           WHERE claim.check_id = item.id
+           ORDER BY claim.created_at, claim.id
+           LIMIT 1)
+       ) AS primary_claim,
+       item.tracera_score, item.created_at,
+       item.source_domain, item.source_url, item.published_at,
+       item.next_review_at, item.visibility,
+       (WITH RECURSIVE ancestors AS (
+          SELECT id, supersedes_check_id FROM checks WHERE id = item.id
+          UNION ALL
+          SELECT parent.id, parent.supersedes_check_id FROM checks parent
+            JOIN ancestors child ON child.supersedes_check_id = parent.id
+        ), root AS (
+          SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
+        ), descendants AS (
+          SELECT id FROM root
+          UNION ALL
+          SELECT child.id FROM checks child
+            JOIN descendants parent ON child.supersedes_check_id = parent.id
+        )
+        SELECT COUNT(*)::text FROM trace_appearances
+         WHERE check_id IN (SELECT id FROM descendants)) AS appearance_count`;
+
+/** Full-text predicate over a check and its claims. Always bound to $1. */
+const CHECK_SEARCH_PREDICATE = `(
+    $1 = ''
+    OR item.search_document @@ websearch_to_tsquery('english', $1)
+    OR EXISTS (
+      SELECT 1 FROM claims claim
+       WHERE claim.check_id = item.id
+         AND claim.search_document @@ websearch_to_tsquery('english', $1)
+    )
+  )`;
+
+const CHECK_SEARCH_RANK = `CASE WHEN $1 = '' THEN 0
+        ELSE ts_rank(item.search_document, websearch_to_tsquery('english', $1))
+   END DESC`;
+
+function toCheckSummary(row: CheckSummaryRow) {
+  return {
+    id: row.id,
+    rawInput: snippet(displayInput(row.input_type, row.raw_input, row.primary_claim)),
+    traceraScore: row.tracera_score,
+    createdAt: row.created_at,
+    sourceDomain: row.source_domain,
+    sourceUrl: row.source_url,
+    publishedAt: row.published_at,
+    visibility: row.visibility,
+    appearanceCount: Number(row.appearance_count),
+    reanalysisState:
+      row.next_review_at && new Date(row.next_review_at).getTime() <= Date.now()
+        ? "review_due"
+        : "scheduled",
+  };
+}
+
 export async function listChecks(page: number, pageSize: number, query = "", ownerUserId?: string) {
   const offset = (page - 1) * pageSize;
   const search = query.trim();
   const [items, total] = await Promise.all([
-    pool.query<{
-      id: string;
-      input_type: string;
-      raw_input: string;
-      primary_claim: string | null;
-      tracera_score: unknown;
-      created_at: string;
-      source_domain: string | null;
-      source_url: string | null;
-      published_at: string | null;
-      next_review_at: string | null;
-      visibility: "public" | "private";
-      appearance_count: string;
-    }>(
-      `SELECT item.id, item.input_type, item.raw_input,
-              COALESCE(
-                item.analysis #>> '{claims,0,claim,claimText}',
-                (SELECT claim.claim_text FROM claims claim
-                  WHERE claim.check_id = item.id
-                  ORDER BY claim.created_at, claim.id
-                  LIMIT 1)
-              ) AS primary_claim,
-              item.tracera_score, item.created_at,
-              item.source_domain, item.source_url, item.published_at,
-              item.next_review_at, item.visibility,
-              (WITH RECURSIVE ancestors AS (
-                 SELECT id, supersedes_check_id FROM checks WHERE id = item.id
-                 UNION ALL
-                 SELECT parent.id, parent.supersedes_check_id FROM checks parent
-                   JOIN ancestors child ON child.supersedes_check_id = parent.id
-               ), root AS (
-                 SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
-               ), descendants AS (
-                 SELECT id FROM root
-                 UNION ALL
-                 SELECT child.id FROM checks child
-                   JOIN descendants parent ON child.supersedes_check_id = parent.id
-               )
-               SELECT COUNT(*)::text FROM trace_appearances
-                WHERE check_id IN (SELECT id FROM descendants)) AS appearance_count
+    pool.query<CheckSummaryRow>(
+      `SELECT ${CHECK_SUMMARY_COLUMNS}
        FROM checks item
-       WHERE (
-           $1 = ''
-           OR item.search_document @@ websearch_to_tsquery('english', $1)
-           OR EXISTS (
-             SELECT 1 FROM claims claim
-              WHERE claim.check_id = item.id
-                AND claim.search_document @@ websearch_to_tsquery('english', $1)
-           )
-         )
+       WHERE ${CHECK_SEARCH_PREDICATE}
          AND (item.visibility = 'public' OR item.owner_user_id = $4)
-       ORDER BY
-         CASE WHEN $1 = '' THEN 0
-              ELSE ts_rank(item.search_document, websearch_to_tsquery('english', $1))
-          END DESC,
+       ORDER BY ${CHECK_SEARCH_RANK},
          item.created_at DESC
        LIMIT $2 OFFSET $3`,
       [search, pageSize, offset, ownerUserId ?? null],
     ),
     pool.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM checks item
-        WHERE (
-          $1 = ''
-          OR item.search_document @@ websearch_to_tsquery('english', $1)
-          OR EXISTS (
-            SELECT 1 FROM claims claim
-             WHERE claim.check_id = item.id
-               AND claim.search_document @@ websearch_to_tsquery('english', $1)
-          )
-        )
-        AND (item.visibility = 'public' OR item.owner_user_id = $2)`,
+        WHERE ${CHECK_SEARCH_PREDICATE}
+          AND (item.visibility = 'public' OR item.owner_user_id = $2)`,
       [search, ownerUserId ?? null],
     ),
   ]);
 
   return {
-    checks: items.rows.map((row) => ({
-      id: row.id,
-      rawInput: snippet(displayInput(row.input_type, row.raw_input, row.primary_claim)),
-      traceraScore: row.tracera_score,
-      createdAt: row.created_at,
-      sourceDomain: row.source_domain,
-      sourceUrl: row.source_url,
-      publishedAt: row.published_at,
-      visibility: row.visibility,
-      appearanceCount: Number(row.appearance_count),
-      reanalysisState:
-        row.next_review_at && new Date(row.next_review_at).getTime() <= Date.now()
-          ? "review_due"
-          : "scheduled",
-    })),
+    checks: items.rows.map(toCheckSummary),
     total: Number(total.rows[0]?.count ?? 0),
   };
+}
+
+/**
+ * Lists only the traces a single account has analyzed, newest run first, and is
+ * never filtered by visibility: everything here was already analyzed by, and
+ * shown to, this user. Repeat runs collapse into one entry that carries the
+ * latest run time and how many times the user has checked it.
+ */
+export async function listAnalysisHistory(
+  userId: string,
+  page: number,
+  pageSize: number,
+  query = "",
+) {
+  const offset = (page - 1) * pageSize;
+  const search = query.trim();
+  const runsForUser = `SELECT check_id, MAX(analyzed_at) AS analyzed_at, COUNT(*)::text AS run_count
+       FROM analysis_history
+      WHERE user_id = $4
+      GROUP BY check_id`;
+  const [items, total, summary] = await Promise.all([
+    pool.query<CheckSummaryRow & { analyzed_at: string; run_count: string }>(
+      `SELECT ${CHECK_SUMMARY_COLUMNS},
+              history.analyzed_at, history.run_count
+       FROM checks item
+       JOIN (${runsForUser}) history ON history.check_id = item.id
+       WHERE ${CHECK_SEARCH_PREDICATE}
+       ORDER BY ${CHECK_SEARCH_RANK},
+         history.analyzed_at DESC
+       LIMIT $2 OFFSET $3`,
+      [search, pageSize, offset, userId],
+    ),
+    pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM checks item
+        WHERE ${CHECK_SEARCH_PREDICATE}
+          AND EXISTS (
+            SELECT 1 FROM analysis_history history
+             WHERE history.user_id = $2 AND history.check_id = item.id
+          )`,
+      [search, userId],
+    ),
+    analysisHistorySummary(userId),
+  ]);
+
+  return {
+    checks: items.rows.map((row) => ({
+      ...toCheckSummary(row),
+      analyzedAt: row.analyzed_at,
+      runCount: Number(row.run_count),
+    })),
+    total: Number(total.rows[0]?.count ?? 0),
+    summary,
+  };
+}
+
+/** Totals across an account's whole history, so the screen never reports
+ * statistics that only describe the page currently in view. */
+async function analysisHistorySummary(userId: string) {
+  const result = await pool.query<{
+    total: string;
+    average_signal: string | null;
+    private_traces: string;
+    review_due: string;
+    last_analyzed_at: string | null;
+  }>(
+    `SELECT COUNT(*)::text AS total,
+            AVG((item.tracera_score->>'overall')::numeric)::text AS average_signal,
+            COUNT(*) FILTER (WHERE item.visibility = 'private')::text AS private_traces,
+            COUNT(*) FILTER (
+              WHERE item.next_review_at IS NOT NULL AND item.next_review_at <= NOW()
+            )::text AS review_due,
+            MAX(history.analyzed_at) AS last_analyzed_at
+       FROM checks item
+       JOIN (
+         SELECT check_id, MAX(analyzed_at) AS analyzed_at
+           FROM analysis_history
+          WHERE user_id = $1
+          GROUP BY check_id
+       ) history ON history.check_id = item.id`,
+    [userId],
+  );
+  const row = result.rows[0];
+  return {
+    totalTraces: Number(row?.total ?? 0),
+    averageSignal: row?.average_signal ? Math.round(Number(row.average_signal)) : null,
+    privateTraces: Number(row?.private_traces ?? 0),
+    reviewDue: Number(row?.review_due ?? 0),
+    lastAnalyzedAt: row?.last_analyzed_at ?? null,
+  };
+}
+
+/** Adds a run to an account's history. Reused traces are recorded here too, so
+ * a check that was served from cache still appears in the submitter's history. */
+export async function recordAnalysisRun(userId: string, checkId: string) {
+  await pool.query(`INSERT INTO analysis_history (user_id, check_id) VALUES ($1, $2)`, [
+    userId,
+    checkId,
+  ]);
 }
 
 /** Returns a complete stored check, including the original input and structured analysis. */
