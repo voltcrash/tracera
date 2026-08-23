@@ -1,14 +1,27 @@
 # Rules
 
-- after each change - you must commit and push using the conventional commits format, no matter what
-- don't put yourself as the co-contributor at all
-- don't use any other package manager except pnpm - it will also be only accessed through Vite+
-- don't use npx, only pnpm dlx
-- never use pnpm directly - every thing uses Vite+, read the Vite+ instructions below
-- never rollback to outdated versions just because some errors were encountered
-- without permission you must never use old versions
-- always use the latest version of everything
-- node.js will use latest LTS version only
+Do not modify these rules or the Vite+ instructions unless explicitly asked to do so.
+
+- After each completed logical change, commit and push the changes.
+- Commit messages must follow the Conventional Commits format.
+- Commit messages must be single-line only; do not include descriptions or bodies.
+- Never add yourself as a co-author, co-contributor, or contributor in commits or repository metadata.
+
+- pnpm is the only package manager permitted for this project.
+- Do not use npm, yarn, Bun, or any other package manager.
+- Package-management operations must go through Vite+ (`vp`) unless explicitly stated otherwise.
+- Do not invoke `pnpm` directly for normal package-management operations.
+- Do not use `npx`; use `pnpm dlx` for one-off CLI execution when necessary.
+- `pnpm dlx` is the only permitted exception to the rule against invoking `pnpm` directly.
+- Never manually edit the lockfile; dependency changes must be performed through Vite+.
+
+- Always use the latest stable version of dependencies, tools, and frameworks unless explicitly instructed otherwise.
+- Never downgrade, pin to an older version, or roll back a dependency to work around an error without explicit permission.
+- Resolve compatibility issues while remaining on current versions whenever possible.
+- Use only the latest Node.js LTS release.
+
+- Do not bypass Vite+ checks, disable linting/type checking, or remove tests to make validation pass.
+- Before committing, run all applicable validation checks described in the Review Checklist and resolve any failures caused by your changes.
 
 <!--VITE PLUS START-->
 
