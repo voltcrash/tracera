@@ -9,6 +9,13 @@ export type PublicInputResult =
   | { success: true; data: PublicAnalysisInput }
   | { success: false; error: string };
 
+export type FirstPartyAnalysisInput = PublicAnalysisInput & {
+  forceReanalysis?: boolean;
+  visibility?: "public" | "private";
+  sourceUrl?: string;
+  recheckOf?: string;
+};
+
 export interface PublicQuotaStore {
   incr(key: string): Promise<number>;
   expire(key: string, seconds: number): Promise<unknown>;
@@ -36,14 +43,16 @@ export async function consumePublicApiQuota(
     minuteLimit: number;
     dailyLimit: number;
     nowSeconds?: number;
+    keyPrefix?: string;
   },
 ): Promise<PublicQuotaResult> {
   const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1_000);
+  const keyPrefix = options.keyPrefix ?? "tracera:public-api";
   const minuteWindow = Math.floor(nowSeconds / 60);
   const minuteReset = (minuteWindow + 1) * 60;
   const minuteCount = await incrementQuota(
     store,
-    `tracera:public-api:${keyId}:minute:${minuteWindow}`,
+    `${keyPrefix}:${keyId}:minute:${minuteWindow}`,
     120,
   );
   if (minuteCount > options.minuteLimit) {
@@ -60,7 +69,7 @@ export async function consumePublicApiQuota(
   const dayReset = (dayWindow + 1) * 86_400;
   const dailyCount = await incrementQuota(
     store,
-    `tracera:public-api:${keyId}:day:${dayWindow}`,
+    `${keyPrefix}:${keyId}:day:${dayWindow}`,
     2 * 86_400,
   );
   if (dailyCount > options.dailyLimit) {
@@ -139,6 +148,72 @@ export function parsePublicAnalysisInput(value: unknown): PublicInputResult {
     data: {
       image,
       ...(imageMimeType ? { imageMimeType } : {}),
+    },
+  };
+}
+
+export function parseFirstPartyAnalysisInput(
+  value: unknown,
+): { success: true; data: FirstPartyAnalysisInput } | { success: false; error: string } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return invalid("The request body must be a JSON object.");
+  }
+  const body = value as Record<string, unknown>;
+  const allowed = [
+    "text",
+    "url",
+    "image",
+    "imageMimeType",
+    "forceReanalysis",
+    "visibility",
+    "sourceUrl",
+    "recheckOf",
+  ];
+  if (hasUnknownKeys(body, allowed)) return invalid("The request contains unsupported fields.");
+
+  const core = Object.fromEntries(
+    ["text", "url", "image", "imageMimeType"]
+      .filter((key) => body[key] !== undefined)
+      .map((key) => [key, body[key]]),
+  );
+  const parsed = parsePublicAnalysisInput(core);
+  if (!parsed.success) return parsed;
+  if (body.forceReanalysis !== undefined && typeof body.forceReanalysis !== "boolean") {
+    return invalid("forceReanalysis must be a boolean.");
+  }
+  if (
+    body.visibility !== undefined &&
+    body.visibility !== "public" &&
+    body.visibility !== "private"
+  ) {
+    return invalid('visibility must be either "public" or "private".');
+  }
+  if (body.recheckOf !== undefined && typeof body.recheckOf !== "string") {
+    return invalid("recheckOf must be a string.");
+  }
+
+  let sourceUrl: string | undefined;
+  if (body.sourceUrl !== undefined) {
+    if (typeof body.sourceUrl !== "string" || body.sourceUrl.length > 2_048) {
+      return invalid("sourceUrl must be an HTTP(S) URL no longer than 2,048 characters.");
+    }
+    try {
+      const parsedUrl = new URL(body.sourceUrl);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") throw new Error();
+      sourceUrl = parsedUrl.href;
+    } catch {
+      return invalid("sourceUrl must be a valid absolute HTTP(S) URL.");
+    }
+  }
+
+  return {
+    success: true,
+    data: {
+      ...parsed.data,
+      ...(body.forceReanalysis === true ? { forceReanalysis: true } : {}),
+      ...(body.visibility ? { visibility: body.visibility as "public" | "private" } : {}),
+      ...(sourceUrl ? { sourceUrl } : {}),
+      ...(typeof body.recheckOf === "string" ? { recheckOf: body.recheckOf } : {}),
     },
   };
 }

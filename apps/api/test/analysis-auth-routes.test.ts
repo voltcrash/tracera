@@ -26,6 +26,24 @@ for (const path of ["/analyze", "/analyze/stream"]) {
       error: "Sign in or create an account to start a fact-check.",
     });
   });
+
+  test(`${path} rejects oversized bodies before parsing`, async () => {
+    const response = await app.request(
+      path,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "content-length": "7100001",
+        },
+        body: JSON.stringify({ text: "A claim to check." }),
+      },
+      env,
+    );
+
+    assert.equal(response.status, 413);
+    assert.deepEqual(await response.json(), { error: "Request body is too large." });
+  });
 }
 
 for (const path of ["/checks", "/checks/00000000-0000-4000-8000-000000000000"]) {

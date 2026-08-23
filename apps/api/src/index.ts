@@ -55,6 +55,7 @@ import { reanalysisPolicy } from "./reanalysis-policy.js";
 import {
   authenticatePublicApiKey,
   consumePublicApiQuota,
+  parseFirstPartyAnalysisInput,
   parsePublicAnalysisInput,
   PUBLIC_API_VERSION,
   publicOpenApiDocument,
@@ -458,20 +459,36 @@ type AnalysisProgress = {
 };
 type ProgressEmitter = (progress: AnalysisProgress) => void;
 
+const MAX_ANALYSIS_BODY_BYTES = 7_100_000;
+
 app.post("/analyze", async (context) => {
-  const body = await context.req.json().catch(() => null);
+  if (requestBodyIsTooLarge(context)) {
+    return context.json({ error: "Request body is too large." }, 413);
+  }
+  const parsed = parseFirstPartyAnalysisInput(await context.req.json().catch(() => null));
+  if (!parsed.success) return context.json({ error: parsed.error }, 400);
+  const body = parsed.data;
   if (!(await canRunAnalysis(context, body))) {
     return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
   }
+  const quotaResponse = await enforceFirstPartyAnalysisQuota(context, body);
+  if (quotaResponse) return quotaResponse;
   const result = await runAnalysis(context, body);
   return context.json(result.payload, result.status);
 });
 
 app.post("/analyze/stream", async (context) => {
-  const body = await context.req.json().catch(() => null);
+  if (requestBodyIsTooLarge(context)) {
+    return context.json({ error: "Request body is too large." }, 413);
+  }
+  const parsed = parseFirstPartyAnalysisInput(await context.req.json().catch(() => null));
+  if (!parsed.success) return context.json({ error: parsed.error }, 400);
+  const body = parsed.data;
   if (!(await canRunAnalysis(context, body))) {
     return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
   }
+  const quotaResponse = await enforceFirstPartyAnalysisQuota(context, body);
+  if (quotaResponse) return quotaResponse;
   const encoder = new TextEncoder();
   let cancelled = false;
   const stream = new ReadableStream<Uint8Array>({
@@ -1175,6 +1192,65 @@ function executeAnalysis<T>(run: () => Promise<T>, signal: AbortSignal): Promise
   if (signal.aborted)
     return Promise.reject(signal.reason ?? new Error("Analysis request was cancelled."));
   return run();
+}
+
+function requestBodyIsTooLarge(context: Context<{ Bindings: Bindings }>) {
+  const contentLength = Number(context.req.header("content-length"));
+  return Number.isFinite(contentLength) && contentLength > MAX_ANALYSIS_BODY_BYTES;
+}
+
+async function enforceFirstPartyAnalysisQuota(
+  context: Context<{ Bindings: Bindings }>,
+  body: unknown,
+) {
+  // Scheduled internal rechecks are already bounded by the decay queue and do
+  // not belong to an end-user quota.
+  if (authorizedInternalRecheck(context, body)) return null;
+  const user = await currentUser(context);
+  if (!user) return null;
+  const redis = upstashRedis(context.env);
+  if (!redis) {
+    return context.json({ error: "Analysis quotas are temporarily unavailable." }, 503);
+  }
+
+  const quota = await consumePublicApiQuota(redis, user.id, {
+    minuteLimit: configuredPositiveInteger(
+      context.env.ANALYSIS_RATE_LIMIT_PER_MINUTE ?? process.env.ANALYSIS_RATE_LIMIT_PER_MINUTE,
+      5,
+      1_000,
+    ),
+    dailyLimit: configuredPositiveInteger(
+      context.env.ANALYSIS_DAILY_QUOTA ?? process.env.ANALYSIS_DAILY_QUOTA,
+      100,
+      100_000,
+    ),
+    keyPrefix: "tracera:first-party-analysis",
+  }).catch((error): PublicAccessQuotaResult => {
+    console.warn("First-party analysis quota check failed", error);
+    return {
+      allowed: false,
+      status: 503,
+      code: "quota_unavailable",
+      message: "Analysis quotas are temporarily unavailable.",
+    };
+  });
+  if (!quota.allowed) {
+    if ("retryAfter" in quota) context.header("Retry-After", String(quota.retryAfter));
+    return context.json({ error: quota.message }, quota.status);
+  }
+  context.header("RateLimit-Limit", String(quota.limit));
+  context.header("RateLimit-Remaining", String(quota.remaining));
+  context.header("RateLimit-Reset", String(quota.resetAt));
+  return null;
+}
+
+function authorizedInternalRecheck(context: Context<{ Bindings: Bindings }>, body: unknown) {
+  const recheckOf =
+    body &&
+    typeof body === "object" &&
+    typeof (body as { recheckOf?: unknown }).recheckOf === "string";
+  const token = context.env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
+  return Boolean(recheckOf && token && context.req.header("x-tracera-worker-token") === token);
 }
 
 async function normalizeWithStoredFallback(body: unknown, provider: AiProvider) {

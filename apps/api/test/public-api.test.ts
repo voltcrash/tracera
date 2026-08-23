@@ -3,6 +3,7 @@ import { test } from "vite-plus/test";
 import {
   authenticatePublicApiKey,
   consumePublicApiQuota,
+  parseFirstPartyAnalysisInput,
   parsePublicAnalysisInput,
   publicOpenApiDocument,
 } from "../src/public-api.js";
@@ -27,6 +28,31 @@ test("public input rejects unsafe schemes and invalid image metadata", () => {
       image: "data:image/png;base64,AAAA",
       imageMimeType: "text/html",
     }).success,
+    false,
+  );
+});
+
+test("first-party input shares public size checks and permits supported metadata", () => {
+  assert.deepEqual(
+    parseFirstPartyAnalysisInput({
+      text: "  A checkable claim.  ",
+      sourceUrl: "https://example.com/story",
+      forceReanalysis: true,
+      visibility: "private",
+    }),
+    {
+      success: true,
+      data: {
+        text: "A checkable claim.",
+        sourceUrl: "https://example.com/story",
+        forceReanalysis: true,
+        visibility: "private",
+      },
+    },
+  );
+  assert.equal(parseFirstPartyAnalysisInput({ text: "x".repeat(50_001) }).success, false);
+  assert.equal(
+    parseFirstPartyAnalysisInput({ url: "https://example.com", extra: true }).success,
     false,
   );
 });
@@ -78,4 +104,23 @@ test("shared quotas enforce minute and daily fixed windows", async () => {
   assert.equal(dailyExceeded.allowed, false);
   assert.match(dailyExceeded.allowed ? "" : dailyExceeded.message, /daily/);
   assert.equal(expirations.length, 3);
+});
+
+test("shared quotas support isolated first-party key namespaces", async () => {
+  const keys: string[] = [];
+  const store = {
+    async incr(key: string) {
+      keys.push(key);
+      return 1;
+    },
+    async expire() {},
+  };
+  await consumePublicApiQuota(store, "user-id", {
+    minuteLimit: 5,
+    dailyLimit: 100,
+    nowSeconds: 100_000,
+    keyPrefix: "tracera:first-party-analysis",
+  });
+  assert.equal(keys.length, 2);
+  assert.ok(keys.every((key) => key.startsWith("tracera:first-party-analysis:user-id:")));
 });
