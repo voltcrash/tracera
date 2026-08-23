@@ -47,9 +47,12 @@ test("structured output retries invalid text and image responses once", async ()
 
 test("OpenAI-compatible image generation sends a real image content part", async () => {
   let requestBody: unknown;
+  let requestSignal: AbortSignal | null | undefined;
+  const controller = new AbortController();
   await withMockFetch(
     async (_input, init) => {
       requestBody = JSON.parse(String(init?.body));
+      requestSignal = init?.signal;
       return jsonResponse({
         choices: [{ message: { content: '{"text":"OpenAI OCR"}' } }],
       });
@@ -64,6 +67,7 @@ test("OpenAI-compatible image generation sends a real image content part", async
         "Transcribe",
         { data: "data:image/png;base64,aGVsbG8=", mimeType: "image/png" },
         textSchema,
+        { signal: controller.signal },
       );
       assert.equal(result.text, "OpenAI OCR");
     },
@@ -78,6 +82,27 @@ test("OpenAI-compatible image generation sends a real image content part", async
   ).messages[0]?.content;
   assert.equal(content?.[1]?.type, "image_url");
   assert.equal(content?.[1]?.image_url?.url, "data:image/png;base64,aGVsbG8=");
+  assert.equal(requestSignal, controller.signal);
+});
+
+test("provider embeddings forward cancellation to fetch", async () => {
+  let requestSignal: AbortSignal | null | undefined;
+  const controller = new AbortController();
+  await withMockFetch(
+    async (_input, init) => {
+      requestSignal = init?.signal;
+      return jsonResponse({ data: [{ embedding: [0, 1] }] });
+    },
+    async () => {
+      const provider = new OpenAiCompatibleProvider({
+        apiKey: "test",
+        baseUrl: "https://provider.example/v1",
+        embeddingModel: "embedding-model",
+      });
+      assert.deepEqual(await provider.embed("claim", { signal: controller.signal }), [0, 1]);
+    },
+  );
+  assert.equal(requestSignal, controller.signal);
 });
 
 test("Gemini image generation uses inlineData for uploaded images", async () => {

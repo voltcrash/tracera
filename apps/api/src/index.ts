@@ -491,6 +491,9 @@ app.post("/analyze/stream", async (context) => {
   if (quotaResponse) return quotaResponse;
   const encoder = new TextEncoder();
   let cancelled = false;
+  const analysisController = new AbortController();
+  const analysisSignal = AbortSignal.any([context.req.raw.signal, analysisController.signal]);
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const emit = (event: string, data: unknown) => {
@@ -501,20 +504,30 @@ app.post("/analyze/stream", async (context) => {
         stage: "accepted",
         message: "Trace accepted for analysis.",
       });
-      void runAnalysis(context, body, (progress) => emit("progress", progress))
+      heartbeat = setInterval(() => emit("heartbeat", { timestamp: Date.now() }), 15_000);
+      void runAnalysis(context, body, (progress) => emit("progress", progress), analysisSignal)
         .then((result) => {
           emit(result.status < 400 ? "complete" : "error", result.payload);
           if (!cancelled) controller.close();
         })
         .catch((error) => {
+          if (analysisSignal.aborted) {
+            cancelled = true;
+            return;
+          }
           emit("error", {
             error: error instanceof Error ? error.message : "Analysis failed.",
           });
           if (!cancelled) controller.close();
+        })
+        .finally(() => {
+          if (heartbeat) clearInterval(heartbeat);
         });
     },
     cancel() {
       cancelled = true;
+      analysisController.abort(new Error("Analysis stream was cancelled by the client."));
+      if (heartbeat) clearInterval(heartbeat);
     },
   });
   return new Response(stream, {
@@ -531,29 +544,30 @@ async function runAnalysis(
   context: Context<{ Bindings: Bindings }>,
   body: unknown,
   emit: ProgressEmitter = () => undefined,
+  signal: AbortSignal = context.req.raw.signal,
 ): Promise<{
   payload: Record<string, unknown>;
   status: 200 | 201 | 422 | 503;
 }> {
   try {
+    signal.throwIfAborted();
     emit({
       stage: "normalizing",
       message: "Reading and normalizing the submission.",
     });
     const recheckOf = authorizedRecheckId(context, body);
-    const requestSignal = context.req.raw.signal;
     const user = await currentUser(context);
     const parentCheck = recheckOf ? await getCheckById(recheckOf, undefined, true) : null;
     if (recheckOf && !parentCheck) throw new Error("Recheck target was not found.");
     const visibility = requestedVisibility(body, user?.id, parentCheck?.visibility);
     const aiConfiguration = configuredAiConfiguration();
     const provider = createAiProvider(aiConfiguration);
-    const normalized = await normalizeWithStoredFallback(body, provider);
+    const normalized = await normalizeWithStoredFallback(body, provider, signal);
     emit({
       stage: "embedding",
       message: "Checking for recent and related traces.",
     });
-    const inputEmbedding = await provider.embed(normalized.text);
+    const inputEmbedding = await provider.embed(normalized.text, { signal });
     const forceReanalysis = Boolean(
       body && typeof body === "object" && (body as { forceReanalysis?: unknown }).forceReanalysis,
     );
@@ -622,10 +636,8 @@ async function runAnalysis(
     // User-triggered checks stay synchronous; scheduled rechecks run through
     // the Cron-driven durable Upstash queue.
     const auditLog: Array<{ stage: string; prompt: string }> = [];
-    const result = await executeAnalysis(
-      () => analyzeText(normalized, provider, auditLog, emit),
-      requestSignal,
-    );
+    const result = await analyzeText(normalized, provider, auditLog, emit, signal);
+    signal.throwIfAborted();
     const submittedSource: EvidenceSource[] =
       normalized.sourceUrl && normalized.publishedAt
         ? [
@@ -652,7 +664,8 @@ async function runAnalysis(
       ].filter((url): url is string => Boolean(url)),
       user?.id,
     );
-    const archiveHistory = await retrieveArchiveHistory(groundZeroSources);
+    const archiveHistory = await retrieveArchiveHistory(groundZeroSources, signal);
+    signal.throwIfAborted();
     emit({
       stage: "origin",
       message: "Tracing the earliest known publication.",
@@ -751,6 +764,7 @@ async function runAnalysis(
       },
     };
   } catch (error) {
+    if (signal.aborted) throw signal.reason ?? error;
     console.error("Analysis failed", error);
     const message = error instanceof Error ? error.message : "Analysis failed.";
     return {
@@ -908,6 +922,7 @@ async function analyzeText(
   provider: AiProvider,
   auditLog: Array<{ stage: string; prompt: string }>,
   emit: ProgressEmitter = () => undefined,
+  signal?: AbortSignal,
 ): Promise<{
   claims: ClaimVerdict[];
   claimEmbeddings: number[][];
@@ -915,6 +930,7 @@ async function analyzeText(
   framing: FramingAnalysis;
 }> {
   const audit = {
+    signal,
     onPrompt: (record: { stage: string; prompt: string }) => auditLog.push(record),
     onStructuredOutputAttempt: (record: {
       stage: string;
@@ -944,15 +960,17 @@ async function analyzeText(
   const claimEmbeddings: number[][] = [];
 
   for (const [claimIndex, claim] of extractedClaims.entries()) {
+    signal?.throwIfAborted();
     emit({
       stage: "retrieval",
       message: `Finding evidence for claim ${claimIndex + 1} of ${extractedClaims.length}.`,
       claimIndex,
       claimCount: extractedClaims.length,
     });
-    const claimEmbedding = await provider.embed(claim.claimText);
+    const claimEmbedding = await provider.embed(claim.claimText, { signal });
     const sources = await retrieveSources(claim, {
       provider,
+      signal,
       factCheckApiKey: process.env.GOOGLE_FACT_CHECK_API_KEY,
       corpusSimilarityThreshold: environmentNumber("CORPUS_SIMILARITY_THRESHOLD", 0.78, 0, 1),
       newsApiKey: process.env.NEWS_API_KEY,
@@ -1188,12 +1206,6 @@ function aiProviderName(value: string | undefined): AiProviderName {
   return provider as AiProviderName;
 }
 
-function executeAnalysis<T>(run: () => Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted)
-    return Promise.reject(signal.reason ?? new Error("Analysis request was cancelled."));
-  return run();
-}
-
 function requestBodyIsTooLarge(context: Context<{ Bindings: Bindings }>) {
   const contentLength = Number(context.req.header("content-length"));
   return Number.isFinite(contentLength) && contentLength > MAX_ANALYSIS_BODY_BYTES;
@@ -1253,7 +1265,11 @@ function authorizedInternalRecheck(context: Context<{ Bindings: Bindings }>, bod
   return Boolean(recheckOf && token && context.req.header("x-tracera-worker-token") === token);
 }
 
-async function normalizeWithStoredFallback(body: unknown, provider: AiProvider) {
+async function normalizeWithStoredFallback(
+  body: unknown,
+  provider: AiProvider,
+  signal?: AbortSignal,
+) {
   const input =
     body && typeof body === "object"
       ? (body as {
@@ -1265,8 +1281,9 @@ async function normalizeWithStoredFallback(body: unknown, provider: AiProvider) 
         })
       : {};
   try {
-    return await normalizeInput(input, provider);
+    return await normalizeInput(input, provider, { signal });
   } catch (error) {
+    signal?.throwIfAborted();
     const candidate =
       input.url ??
       input.sourceUrl ??

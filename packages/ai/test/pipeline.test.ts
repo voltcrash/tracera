@@ -380,12 +380,15 @@ test("article-level framing analysis drives the framing dimension", async () => 
 test("image normalization sends the actual image through the multimodal provider", async () => {
   const image = "data:image/png;base64,aGVsbG8=";
   let receivedImage: string | undefined;
+  let receivedSignal: AbortSignal | undefined;
+  const controller = new AbortController();
   const provider: AiProvider = {
     async generate() {
       throw new Error("Text generation is not used for image OCR.");
     },
-    async generateFromImage(_prompt, input) {
+    async generateFromImage(_prompt, input, _schema, options) {
       receivedImage = input.data;
+      receivedSignal = options?.signal;
       return { text: "Visible headline" } as never;
     },
     async embed() {
@@ -393,10 +396,45 @@ test("image normalization sends the actual image through the multimodal provider
     },
   };
 
-  const normalized = await normalizeInput({ image, imageMimeType: "image/png" }, provider);
+  const normalized = await normalizeInput({ image, imageMimeType: "image/png" }, provider, {
+    signal: controller.signal,
+  });
   assert.equal(receivedImage, image);
+  assert.equal(receivedSignal, controller.signal);
   assert.equal(normalized.text, "Visible headline");
   assert.equal(normalized.imageMetadata?.ocrProvider, "model_fallback");
+});
+
+test("retrieval stops immediately when its caller aborts", async () => {
+  const controller = new AbortController();
+  controller.abort(new Error("client disconnected"));
+  let fetches = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    fetches += 1;
+    return new Response();
+  };
+  const provider: AiProvider = {
+    async generate() {
+      throw new Error("not used");
+    },
+    async generateFromImage() {
+      throw new Error("not used");
+    },
+    async embed() {
+      return [];
+    },
+  };
+
+  try {
+    await assert.rejects(
+      retrieveSources(claim, { provider, signal: controller.signal }),
+      /client disconnected/,
+    );
+    assert.equal(fetches, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("JPEG EXIF metadata is extracted without trusting malformed binary data", () => {

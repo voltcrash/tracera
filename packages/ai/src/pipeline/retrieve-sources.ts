@@ -17,6 +17,7 @@ type BudgetedEvidenceFetch = EvidenceFetch & { remaining: () => number };
 
 interface RetrieveSourcesOptions {
   provider: AiProvider;
+  signal?: AbortSignal;
   factCheckApiKey?: string;
   corpusSimilarityThreshold?: number;
   corpusLimit?: number;
@@ -55,8 +56,10 @@ export async function retrieveSources(
   claim: ExtractedClaim,
   options: RetrieveSourcesOptions,
 ): Promise<EvidenceSource[]> {
+  options.signal?.throwIfAborted();
   const evidenceFetch = limitedFetch(
     options.externalRequestLimit ?? DEFAULT_EXTERNAL_REQUEST_LIMIT,
+    options.signal,
   );
   const corpusPromise = safelyRetrieve("corpus", () =>
     retrieveCorpusSources(
@@ -65,6 +68,7 @@ export async function retrieveSources(
       options.claimEmbedding,
       options.corpusSimilarityThreshold ?? 0.78,
       options.corpusLimit ?? 5,
+      options.signal,
     ),
   );
 
@@ -73,6 +77,7 @@ export async function retrieveSources(
   const primaryGoogleNews = await safelyRetrieve("Google News RSS", () =>
     retrieveGoogleNewsSources(claim, claim.claimText, evidenceFetch, options.storyContext),
   );
+  options.signal?.throwIfAborted();
   const contextualQuery = buildContextualQuery(claim, options.storyContext);
   const contextualGoogleNews =
     primaryGoogleNews.length < 2 &&
@@ -88,6 +93,7 @@ export async function retrieveSources(
           retrieveBingNewsSources(claim, contextualQuery, evidenceFetch, options.storyContext),
         )
       : [];
+  options.signal?.throwIfAborted();
 
   const [corpus, factChecks, newsApi, webSearch] = await Promise.all([
     corpusPromise,
@@ -113,6 +119,7 @@ export async function retrieveSources(
       ),
     ),
   ]);
+  options.signal?.throwIfAborted();
 
   const initialCandidates = [
     ...primaryGoogleNews,
@@ -128,6 +135,7 @@ export async function retrieveSources(
           retrieveGdeltSources(claim, evidenceFetch, options.storyContext),
         )
       : [];
+  options.signal?.throwIfAborted();
   // Treat retrieval APIs as candidate generators. Nothing reaches the model
   // until it has passed a deterministic subject-relevance gate.
   const deduplicated = deduplicateSources([
@@ -142,6 +150,7 @@ export async function retrieveSources(
     ...webSearch,
   ]);
   const trust = await safelyGetDomainTrustScores(deduplicated);
+  options.signal?.throwIfAborted();
   const ranked = rankAndLimitSources(
     claim,
     deduplicated.map((source) => ({
@@ -152,7 +161,9 @@ export async function retrieveSources(
     })),
     options.storyContext,
   );
-  return enrichEvidenceSnippets(ranked, evidenceFetch);
+  const enriched = await enrichEvidenceSnippets(ranked, evidenceFetch);
+  options.signal?.throwIfAborted();
+  return enriched;
 }
 
 /**
@@ -186,8 +197,9 @@ async function retrieveCorpusSources(
   suppliedEmbedding: number[] | undefined,
   threshold: number,
   limit: number,
+  signal?: AbortSignal,
 ): Promise<EvidenceSource[]> {
-  const embedding = suppliedEmbedding ?? (await provider.embed(claim.claimText));
+  const embedding = suppliedEmbedding ?? (await provider.embed(claim.claimText, { signal }));
 
   if (embedding.length !== 1024) {
     throw new Error(`Corpus embeddings must have 1024 dimensions; received ${embedding.length}.`);
@@ -927,12 +939,17 @@ async function safelyGetDomainTrustScores(sources: EvidenceSource[]) {
   }
 }
 
-function limitedFetch(limit: number): BudgetedEvidenceFetch {
+function limitedFetch(limit: number, signal?: AbortSignal): BudgetedEvidenceFetch {
   let remaining = Number.isInteger(limit) && limit > 0 ? limit : 0;
   const budgetedFetch: BudgetedEvidenceFetch = async (input, init) => {
     if (remaining <= 0) return undefined;
     remaining -= 1;
-    return fetch(input, init);
+    const requestSignal = init?.signal
+      ? signal
+        ? AbortSignal.any([signal, init.signal])
+        : init.signal
+      : signal;
+    return fetch(input, { ...init, signal: requestSignal });
   };
   budgetedFetch.remaining = () => remaining;
   return budgetedFetch;

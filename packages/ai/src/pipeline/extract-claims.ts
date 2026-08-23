@@ -4,6 +4,7 @@ import type { StructuredOutputAttempt } from "../provider.js";
 import type { ExtractedClaim } from "./types.js";
 
 export interface PromptAuditOptions {
+  signal?: AbortSignal;
   onPrompt?: (record: { stage: string; prompt: string }) => void;
   onStructuredOutputAttempt?: (record: StructuredOutputAttempt & { stage: string }) => void;
 }
@@ -68,6 +69,7 @@ export async function extractClaims(
   const prompt = buildClaimExtractionPrompt(text);
   audit?.onPrompt?.({ stage: "claim_extraction", prompt });
   const result = await provider.generate(prompt, extractionSchema, {
+    signal: audit?.signal,
     onStructuredOutputAttempt: (attempt) =>
       audit?.onStructuredOutputAttempt?.({
         stage: "claim_extraction",

@@ -14,8 +14,8 @@ export async function verifyText(
   framing: import("./types.js").FramingAnalysis;
 }> {
   const [extractedClaims, framing] = await Promise.all([
-    extractClaims(options.provider, text),
-    analyzeFraming(options.provider, text),
+    extractClaims(options.provider, text, { signal: options.signal }),
+    analyzeFraming(options.provider, text, { signal: options.signal }),
   ]);
   const claimVerdicts: ClaimVerdict[] = [];
 
@@ -24,7 +24,9 @@ export async function verifyText(
       ...options,
       storyContext: options.storyContext ?? text,
     });
-    claimVerdicts.push(await scoreClaim(options.provider, claim, sources));
+    claimVerdicts.push(
+      await scoreClaim(options.provider, claim, sources, { signal: options.signal }),
+    );
   }
 
   return {

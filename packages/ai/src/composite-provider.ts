@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { AiProvider, GenerateOptions, ImageInput } from "./provider.js";
+import type { AiProvider, AiRequestOptions, GenerateOptions, ImageInput } from "./provider.js";
 
 /** Combines independent generation and embedding providers behind one interface. */
 export class CompositeAiProvider implements AiProvider {
@@ -25,7 +25,7 @@ export class CompositeAiProvider implements AiProvider {
     return this.generationProvider.generateFromImage(prompt, image, schema, options);
   }
 
-  embed(text: string): Promise<number[]> {
-    return this.embeddingProvider.embed(text);
+  embed(text: string, options?: AiRequestOptions): Promise<number[]> {
+    return this.embeddingProvider.embed(text, options);
   }
 }

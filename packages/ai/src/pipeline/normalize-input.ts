@@ -1,7 +1,7 @@
 import { resolve4, resolve6 } from "node:dns/promises";
 import { isIP } from "node:net";
 import { z } from "zod";
-import type { AiProvider } from "../provider.js";
+import type { AiProvider, AiRequestOptions } from "../provider.js";
 import type { NormalizedInput } from "./types.js";
 import { extractExifMetadata } from "./image-metadata.js";
 
@@ -23,12 +23,14 @@ export type RawAnalysisInput = {
 export async function normalizeInput(
   input: RawAnalysisInput,
   provider: AiProvider,
+  options: AiRequestOptions = {},
 ): Promise<NormalizedInput> {
-  if (input.url) return normalizeUrl(input.url);
+  options.signal?.throwIfAborted();
+  if (input.url) return normalizeUrl(input.url, options.signal);
   if (input.image) {
     const [text, reverseSearchUrl] = await Promise.all([
-      extractImageText(input.image, input.imageMimeType, provider),
-      findReverseImageSearch(input.image, input.imageMimeType),
+      extractImageText(input.image, input.imageMimeType, provider, options.signal),
+      findReverseImageSearch(input.image, input.imageMimeType, options.signal),
     ]);
     return {
       inputType: "image",
@@ -48,7 +50,7 @@ export async function normalizeInput(
 
   // The UI has separate modes, but pasted links should still be analyzed as links.
   // Otherwise a URL reaches the LLM as if it were article text and produces no claims.
-  if (isHttpUrl(text)) return normalizeUrl(text);
+  if (isHttpUrl(text)) return normalizeUrl(text, options.signal);
   const sourceUrl = input.sourceUrl && isHttpUrl(input.sourceUrl) ? input.sourceUrl : undefined;
   return {
     inputType: "text",
@@ -59,11 +61,11 @@ export async function normalizeInput(
   };
 }
 
-async function normalizeUrl(value: string): Promise<NormalizedInput> {
+async function normalizeUrl(value: string, signal?: AbortSignal): Promise<NormalizedInput> {
   const requestedUrl = new URL(value);
-  const response = await fetchPublicDocument(requestedUrl);
+  const response = await fetchPublicDocument(requestedUrl, signal);
   if (!response.ok) {
-    const readerResponse = await fetchReaderFallback(requestedUrl);
+    const readerResponse = await fetchReaderFallback(requestedUrl, signal);
     let readerArticle: ReturnType<typeof parseReaderDocument> | undefined;
     if (readerResponse?.ok) {
       try {
@@ -136,14 +138,15 @@ async function normalizeUrl(value: string): Promise<NormalizedInput> {
   };
 }
 
-async function fetchReaderFallback(sourceUrl: URL) {
+async function fetchReaderFallback(sourceUrl: URL, signal?: AbortSignal) {
   try {
     // The source URL has already passed the public-host SSRF check above. The
     // reader receives only that public URL and no Tracera credentials or data.
     const target = new URL(sourceUrl.href);
     target.hash = "";
-    return await fetchPublicDocument(new URL(`https://r.jina.ai/${target.href}`));
+    return await fetchPublicDocument(new URL(`https://r.jina.ai/${target.href}`), signal);
   } catch (error) {
+    signal?.throwIfAborted();
     console.warn("Article reader fallback failed", error);
     return undefined;
   }
@@ -209,14 +212,14 @@ function readerField(markdown: string, name: string) {
  * This blocks loopback, RFC1918, and cloud-link-local SSRF routes before they
  * can be fetched by the API Worker.
  */
-async function fetchPublicDocument(initialUrl: URL): Promise<Response> {
+async function fetchPublicDocument(initialUrl: URL, signal?: AbortSignal): Promise<Response> {
   let currentUrl = initialUrl;
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
     await assertPublicHttpUrl(currentUrl);
     const response = await fetch(currentUrl, {
       headers: { "user-agent": "Tracera/1.0 (+news verification)" },
       redirect: "manual",
-      signal: AbortSignal.timeout(ARTICLE_FETCH_TIMEOUT_MS),
+      signal: signalWithTimeout(signal, ARTICLE_FETCH_TIMEOUT_MS),
     });
 
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
@@ -339,7 +342,12 @@ function metaContent(html: string, name: string) {
   return undefined;
 }
 
-async function extractImageText(image: string, mimeType: string | undefined, provider: AiProvider) {
+async function extractImageText(
+  image: string,
+  mimeType: string | undefined,
+  provider: AiProvider,
+  signal?: AbortSignal,
+) {
   if (process.env.OCR_ENDPOINT) {
     const response = await fetch(process.env.OCR_ENDPOINT, {
       method: "POST",
@@ -348,6 +356,7 @@ async function extractImageText(image: string, mimeType: string | undefined, pro
         ...(process.env.OCR_API_KEY ? { authorization: `Bearer ${process.env.OCR_API_KEY}` } : {}),
       },
       body: JSON.stringify({ image, mimeType }),
+      signal,
     });
     const payload = (await response.json()) as { text?: string };
     if (payload.text?.trim()) return payload.text.trim();
@@ -356,11 +365,12 @@ async function extractImageText(image: string, mimeType: string | undefined, pro
     "Transcribe all visible text exactly. Preserve names, dates, numbers, captions, and source labels. Do not infer text that is not visible.",
     { data: image, mimeType },
     z.object({ text: z.string().min(1) }),
+    { signal },
   );
   return result.text;
 }
 
-async function findReverseImageSearch(image: string, mimeType?: string) {
+async function findReverseImageSearch(image: string, mimeType?: string, signal?: AbortSignal) {
   if (/^https?:\/\//i.test(image)) {
     return `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(image)}`;
   }
@@ -378,13 +388,20 @@ async function findReverseImageSearch(image: string, mimeType?: string) {
           : {}),
       },
       body: JSON.stringify({ image, mimeType }),
+      signal,
     });
     if (!response.ok) return undefined;
     const payload = (await response.json()) as { searchUrl?: unknown };
     return typeof payload.searchUrl === "string" ? payload.searchUrl : undefined;
   } catch {
+    signal?.throwIfAborted();
     return undefined;
   }
+}
+
+function signalWithTimeout(signal: AbortSignal | undefined, milliseconds: number) {
+  const timeout = AbortSignal.timeout(milliseconds);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
 function sourceDomain(value: string) {

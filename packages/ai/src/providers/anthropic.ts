@@ -1,4 +1,4 @@
-import type { GenerateOptions, ImageInput, JsonSchema } from "../provider.js";
+import type { AiRequestOptions, GenerateOptions, ImageInput, JsonSchema } from "../provider.js";
 import { StructuredOutputProvider } from "../provider.js";
 
 export interface AnthropicProviderOptions {
@@ -26,7 +26,7 @@ export class AnthropicProvider extends StructuredOutputProvider {
     this.baseUrl = (options.baseUrl ?? "https://api.anthropic.com/v1").replace(/\/$/, "");
   }
 
-  async embed(): Promise<number[]> {
+  async embed(_text: string, _options?: AiRequestOptions): Promise<number[]> {
     throw new Error(
       "Anthropic does not provide embeddings. Set AI_EMBEDDING_PROVIDER and its API key/model.",
     );
@@ -37,20 +37,24 @@ export class AnthropicProvider extends StructuredOutputProvider {
     schema: JsonSchema,
     options?: GenerateOptions,
   ): Promise<string> {
-    const response = await this.request<AnthropicMessageResponse>("messages", {
-      model: options?.model ?? this.model,
-      max_tokens: 4096,
-      temperature: 0,
-      messages: [{ role: "user", content: prompt }],
-      tools: [
-        {
-          name: "submit_structured_output",
-          description: "Return the requested result in the supplied JSON schema.",
-          input_schema: schema,
-        },
-      ],
-      tool_choice: { type: "tool", name: "submit_structured_output" },
-    });
+    const response = await this.request<AnthropicMessageResponse>(
+      "messages",
+      {
+        model: options?.model ?? this.model,
+        max_tokens: 4096,
+        temperature: 0,
+        messages: [{ role: "user", content: prompt }],
+        tools: [
+          {
+            name: "submit_structured_output",
+            description: "Return the requested result in the supplied JSON schema.",
+            input_schema: schema,
+          },
+        ],
+        tool_choice: { type: "tool", name: "submit_structured_output" },
+      },
+      options?.signal,
+    );
     const input = response.content?.find((block) => block.type === "tool_use")?.input;
 
     if (input === undefined) throw new Error("Anthropic returned no structured tool response.");
@@ -63,31 +67,39 @@ export class AnthropicProvider extends StructuredOutputProvider {
     schema: JsonSchema,
     options?: GenerateOptions,
   ): Promise<string> {
-    const response = await this.request<AnthropicMessageResponse>("messages", {
-      model: options?.model ?? this.model,
-      max_tokens: 4096,
-      temperature: 0,
-      messages: [
-        {
-          role: "user",
-          content: [anthropicImageBlock(image), { type: "text", text: prompt }],
-        },
-      ],
-      tools: [
-        {
-          name: "submit_structured_output",
-          description: "Return the requested result in the supplied JSON schema.",
-          input_schema: schema,
-        },
-      ],
-      tool_choice: { type: "tool", name: "submit_structured_output" },
-    });
+    const response = await this.request<AnthropicMessageResponse>(
+      "messages",
+      {
+        model: options?.model ?? this.model,
+        max_tokens: 4096,
+        temperature: 0,
+        messages: [
+          {
+            role: "user",
+            content: [anthropicImageBlock(image), { type: "text", text: prompt }],
+          },
+        ],
+        tools: [
+          {
+            name: "submit_structured_output",
+            description: "Return the requested result in the supplied JSON schema.",
+            input_schema: schema,
+          },
+        ],
+        tool_choice: { type: "tool", name: "submit_structured_output" },
+      },
+      options?.signal,
+    );
     const input = response.content?.find((block) => block.type === "tool_use")?.input;
     if (input === undefined) throw new Error("Anthropic returned no structured image analysis.");
     return JSON.stringify(input);
   }
 
-  private async request<TResponse>(path: string, body: unknown): Promise<TResponse> {
+  private async request<TResponse>(
+    path: string,
+    body: unknown,
+    signal?: AbortSignal,
+  ): Promise<TResponse> {
     const response = await fetch(`${this.baseUrl}/${path}`, {
       method: "POST",
       headers: {
@@ -96,6 +108,7 @@ export class AnthropicProvider extends StructuredOutputProvider {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify(body),
+      signal,
     });
     const payload = (await response.json()) as TResponse & {
       error?: { message?: string };

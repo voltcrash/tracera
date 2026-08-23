@@ -159,7 +159,11 @@ export function traceGroundZero(
 }
 
 /** Looks up an earliest known archive capture without treating it as a publish date. */
-export async function retrieveArchiveHistory(sources: EvidenceSource[]): Promise<ArchiveHistory> {
+export async function retrieveArchiveHistory(
+  sources: EvidenceSource[],
+  signal?: AbortSignal,
+): Promise<ArchiveHistory> {
+  signal?.throwIfAborted();
   const urls = [
     ...new Set(
       sources.map((source) => canonical(source)).filter((url): url is string => Boolean(url)),
@@ -181,7 +185,9 @@ export async function retrieveArchiveHistory(sources: EvidenceSource[]): Promise
         endpoint.searchParams.set("from", "1996");
         const response = await fetch(endpoint, {
           headers: { "user-agent": "Tracera/1.0 (+origin verification)" },
-          signal: AbortSignal.timeout(5_000),
+          signal: signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(5_000)])
+            : AbortSignal.timeout(5_000),
         });
         if (!response.ok) return undefined;
         const payload = (await response.json()) as string[][];
@@ -194,10 +200,12 @@ export async function retrieveArchiveHistory(sources: EvidenceSource[]): Promise
           archivedUrl: `https://web.archive.org/web/${timestamp}/${original}`,
         };
       } catch {
+        signal?.throwIfAborted();
         return undefined;
       }
     }),
   );
+  signal?.throwIfAborted();
   return results.filter((item): item is ArchiveHistory[number] => Boolean(item));
 }
 

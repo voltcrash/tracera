@@ -14,7 +14,6 @@ async function proxy(request: Request) {
   const upstreamUrl = `${upstreamBase}${requestUrl.pathname.slice(ROUTE_PREFIX.length) || "/"}${requestUrl.search}`;
   const headers = new Headers(request.headers);
   headers.delete("host");
-  headers.delete("content-length");
 
   // The auth endpoints and browser session live on the web origin, while this
   // route forwards requests to the API origin. Promote the signed Better Auth
@@ -34,12 +33,13 @@ async function proxy(request: Request) {
   const response = await fetch(upstreamUrl, {
     method: request.method,
     headers,
-    body:
-      request.method === "GET" || request.method === "HEAD"
-        ? undefined
-        : await request.arrayBuffer(),
+    body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+    // Node's fetch requires duplex mode for a streamed request body. The
+    // Cloudflare runtime accepts the same standard streaming request.
+    duplex: "half",
     redirect: "manual",
-  });
+    signal: request.signal,
+  } as RequestInit & { duplex: "half" });
   const responseHeaders = new Headers(response.headers);
   responseHeaders.delete("access-control-allow-origin");
   responseHeaders.delete("access-control-allow-credentials");

@@ -1,4 +1,4 @@
-import type { GenerateOptions, ImageInput, JsonSchema } from "../provider.js";
+import type { AiRequestOptions, GenerateOptions, ImageInput, JsonSchema } from "../provider.js";
 import { StructuredOutputProvider } from "../provider.js";
 
 export interface GeminiProviderOptions {
@@ -34,7 +34,7 @@ export class GeminiProvider extends StructuredOutputProvider {
     this.embeddingDimensions = options.embeddingDimensions;
   }
 
-  async embed(text: string): Promise<number[]> {
+  async embed(text: string, options?: AiRequestOptions): Promise<number[]> {
     const response = await this.request<GeminiEmbedResponse>(
       `models/${this.embeddingModel}:embedContent`,
       {
@@ -51,6 +51,7 @@ export class GeminiProvider extends StructuredOutputProvider {
             }
           : {}),
       },
+      options?.signal,
     );
     const embedding = response.embedding?.values;
 
@@ -75,6 +76,7 @@ export class GeminiProvider extends StructuredOutputProvider {
           responseJsonSchema: schema,
         },
       },
+      options?.signal,
     );
     const content = response.candidates?.[0]?.content?.parts
       ?.map((part) => part.text ?? "")
@@ -102,6 +104,7 @@ export class GeminiProvider extends StructuredOutputProvider {
           responseJsonSchema: schema,
         },
       },
+      options?.signal,
     );
     const content = response.candidates?.[0]?.content?.parts
       ?.map((part) => part.text ?? "")
@@ -110,7 +113,11 @@ export class GeminiProvider extends StructuredOutputProvider {
     return content;
   }
 
-  private async request<TResponse>(path: string, body: unknown): Promise<TResponse> {
+  private async request<TResponse>(
+    path: string,
+    body: unknown,
+    signal?: AbortSignal,
+  ): Promise<TResponse> {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${path}`, {
       method: "POST",
       headers: {
@@ -118,6 +125,7 @@ export class GeminiProvider extends StructuredOutputProvider {
         "x-goog-api-key": this.apiKey,
       },
       body: JSON.stringify(body),
+      signal,
     });
     const payload = (await response.json()) as TResponse & {
       error?: { message?: string };

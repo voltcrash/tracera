@@ -1,5 +1,6 @@
 export {
   type AiProvider,
+  type AiRequestOptions,
   type GenerateOptions,
   type ImageInput,
   type JsonSchema,

@@ -2,7 +2,12 @@ import { z } from "zod";
 
 export type JsonSchema = Record<string, unknown>;
 
-export interface GenerateOptions {
+export interface AiRequestOptions {
+  /** Cancels in-flight provider work when the caller no longer needs the result. */
+  signal?: AbortSignal;
+}
+
+export interface GenerateOptions extends AiRequestOptions {
   /** A provider-specific model override. */
   model?: string;
   /** Observability hook for structured-output validation and evaluation runs. */
@@ -37,7 +42,7 @@ export interface AiProvider {
     schema: TSchema,
     options?: GenerateOptions,
   ): Promise<z.output<TSchema>>;
-  embed(text: string): Promise<number[]>;
+  embed(text: string, options?: AiRequestOptions): Promise<number[]>;
 }
 
 export class StructuredOutputError extends Error {
@@ -108,7 +113,7 @@ export abstract class StructuredOutputProvider implements AiProvider {
     throw new StructuredOutputError(this.providerName, failures);
   }
 
-  abstract embed(text: string): Promise<number[]>;
+  abstract embed(text: string, options?: AiRequestOptions): Promise<number[]>;
 
   protected abstract generateRaw(
     prompt: string,

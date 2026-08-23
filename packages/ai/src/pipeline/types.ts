@@ -134,6 +134,7 @@ export interface TraceraScore {
 
 export interface VerifyTextOptions {
   provider: import("../provider.js").AiProvider;
+  signal?: AbortSignal;
   factCheckApiKey?: string;
   corpusSimilarityThreshold?: number;
   newsApiKey?: string;

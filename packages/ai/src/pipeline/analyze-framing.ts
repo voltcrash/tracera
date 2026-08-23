@@ -18,6 +18,7 @@ export async function analyzeFraming(
   const prompt = buildFramingPrompt(text);
   audit?.onPrompt?.({ stage: "framing_analysis", prompt });
   const result = await provider.generate(prompt, framingSchema, {
+    signal: audit?.signal,
     onStructuredOutputAttempt: (attempt) =>
       audit?.onStructuredOutputAttempt?.({
         stage: "framing_analysis",

@@ -54,6 +54,7 @@ export async function scoreClaim(
   const prompt = buildVerdictPrompt(claim, evidence);
   audit?.onPrompt?.({ stage: "verdict_generation", prompt });
   const generated = await provider.generate(prompt, verdictSchema, {
+    signal: audit?.signal,
     onStructuredOutputAttempt: (attempt) =>
       audit?.onStructuredOutputAttempt?.({
         stage: "verdict_generation",
