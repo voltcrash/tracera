@@ -1,37 +1,18 @@
 "use client";
 
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
+import type { AnalysisResponse, AnalysisReuse, ImageMetadata } from "@repo/contracts";
 import Image from "next/image";
 import Link from "next/link";
-import { AnalysisResult, type ClaimResult, type TraceraScore } from "../components/analysis-result";
+import { AnalysisResult } from "../components/analysis-result";
 import { AppHeader } from "../components/app-header";
 import { useAuth } from "../components/auth-provider";
-import { GroundZeroCard, type GroundZeroTrace } from "../components/ground-zero-card";
+import { GroundZeroCard } from "../components/ground-zero-card";
 import { apiUrl } from "../lib/api";
 
 const example =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
 const MAX_IMAGE_BYTES = 5_000_000;
-type ReuseState = {
-  state: "reused_exact" | "fresh" | "reanalyzed" | "scheduled_recheck";
-  expiresAt?: string;
-  relatedContextClaims?: number;
-};
-type ImageMetadata = {
-  mimeType?: string;
-  reverseSearchUrl?: string;
-  exif?: Record<string, string>;
-  ocrProvider?: "configured" | "model_fallback";
-};
-type AnalysisResponse = {
-  claims: ClaimResult[];
-  traceraScore: TraceraScore;
-  cached: boolean;
-  groundZero?: GroundZeroTrace;
-  reuse?: ReuseState;
-  inputMetadata?: ImageMetadata;
-};
-
 export default function Home() {
   const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
   const [text, setText] = useState("");
@@ -494,7 +475,7 @@ function ProvenanceMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReuseNotice({ reuse, cached }: { reuse?: ReuseState; cached: boolean }) {
+function ReuseNotice({ reuse, cached }: { reuse?: AnalysisReuse; cached: boolean }) {
   if (reuse?.state === "reused_exact" && reuse.expiresAt) {
     return (
       <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-[9px] font-black text-emerald-800">

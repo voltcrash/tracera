@@ -13,6 +13,7 @@
     "validate:model": "tsx scripts/model-validation.ts"
   },
   "dependencies": {
+    "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
     "zod": "^4.1.13"
   },

@@ -48,6 +48,7 @@ import {
   type TraceraScore,
 } from "@repo/ai";
 import { Redis } from "@upstash/redis";
+import type { AnalysisErrorResponse, AnalysisResponse } from "@repo/contracts";
 import { authenticatedUser, isValidEmail, normalizeEmail, type AuthBindings } from "./auth.js";
 import { AnalysisError, publicAnalysisError } from "./analysis-errors.js";
 import { runDecaySweep } from "./decay.js";
@@ -280,7 +281,7 @@ app.post("/v1/checks", async (context) => {
     );
   }
   const result = await runAnalysis(context, parsed.data);
-  if (result.status >= 400) {
+  if ("error" in result.payload) {
     const failure = publicAnalysisErrorFromPayload(result.payload);
     return context.json(
       {
@@ -547,10 +548,10 @@ async function runAnalysis(
   body: unknown,
   emit: ProgressEmitter = () => undefined,
   signal: AbortSignal = context.req.raw.signal,
-): Promise<{
-  payload: Record<string, unknown>;
-  status: 200 | 201 | 422 | 503;
-}> {
+): Promise<
+  | { payload: AnalysisResponse; status: 200 | 201 }
+  | { payload: AnalysisErrorResponse; status: 422 | 503 }
+> {
   try {
     signal.throwIfAborted();
     emit({
@@ -620,7 +621,7 @@ async function runAnalysis(
       });
       return {
         status: 200,
-        payload: {
+        payload: analysisResponse({
           cached: true,
           reuse: {
             state: "reused_exact",
@@ -629,9 +630,9 @@ async function runAnalysis(
             policy: `${initialPolicy.reason} Similar stories are analyzed again and only prior verified claims are used as context.`,
           },
           check: { id: cached.id, createdAt: cached.createdAt },
-          claims: cached.analysis.claims,
-          traceraScore: cached.analysis.score,
-        },
+          claims: cached.analysis.claims as ClaimVerdict[],
+          traceraScore: cached.analysis.score as TraceraScore,
+        }),
       };
     }
 
@@ -748,7 +749,7 @@ async function runAnalysis(
     });
     return {
       status: 201,
-      payload: {
+      payload: analysisResponse({
         cached: false,
         check: stored,
         claims: result.claims,
@@ -763,7 +764,7 @@ async function runAnalysis(
           nextReviewAt: stored.nextReviewAt,
           policy: completedPolicy.reason,
         },
-      },
+      }),
     };
   } catch (error) {
     if (signal.aborted) throw signal.reason ?? error;
@@ -1211,11 +1212,15 @@ function requestBodyIsTooLarge(context: Context<{ Bindings: Bindings }>) {
   return Number.isFinite(contentLength) && contentLength > MAX_ANALYSIS_BODY_BYTES;
 }
 
-function publicAnalysisErrorFromPayload(payload: Record<string, unknown>) {
+function publicAnalysisErrorFromPayload(payload: AnalysisErrorResponse) {
   const code = payload.code;
   return code === "no_checkable_claims"
     ? publicAnalysisError(new AnalysisError(code))
     : publicAnalysisError(undefined);
+}
+
+function analysisResponse(payload: AnalysisResponse) {
+  return payload;
 }
 
 async function enforceFirstPartyAnalysisQuota(

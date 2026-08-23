@@ -16,49 +16,17 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import type {
+  AnalysisResponse,
+  ClaimResult,
+  EvidenceSource,
+  ScoreDimension,
+  TraceraScore,
+} from "@repo/contracts";
 import { authClient } from "./src/auth-client";
 
-type ScoreDimension = { score: number; label: string };
-
-type TraceraScore = {
-  overall: number;
-  factualAccuracy: ScoreDimension;
-  sourceCorroboration: ScoreDimension;
-  framingManipulation: ScoreDimension;
-  evidenceQuality: ScoreDimension;
-  sourceReputation?: ScoreDimension;
-  recency: { flag: string; newestEvidenceAt: string | null };
-};
-
-type EvidenceSource = {
-  id: string;
-  title: string;
-  publisher?: string;
-  url?: string;
-};
-
-type ClaimResult = {
-  claim: { id: string; claimText: string; checkability: string };
-  verdict: string;
-  confidence: number;
-  reasoning: string[];
-  evidenceQuality?: number;
-  consideredSources?: EvidenceSource[];
-  supportingSources?: EvidenceSource[];
-  contradictingSources?: EvidenceSource[];
-};
-
-type Analysis = {
-  check: { id: string; createdAt: string };
-  claims: ClaimResult[];
-  traceraScore: TraceraScore;
-  cached: boolean;
+type Analysis = AnalysisResponse & {
   timeline?: TimelineEntry[];
-  groundZero?: {
-    confidence: string;
-    earliestSource: EvidenceSource | null;
-    signals: string[];
-  };
 };
 
 type TimelineEntry = {

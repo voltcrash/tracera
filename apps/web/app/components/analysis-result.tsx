@@ -1,42 +1,8 @@
 "use client";
 
-export type ScoreDimension = { score: number; label: string };
+import type { ClaimResult, EvidenceSource, TraceraScore } from "@repo/contracts";
 
-export type TraceraScore = {
-  overall: number;
-  factualAccuracy: ScoreDimension;
-  sourceCorroboration: ScoreDimension;
-  framingManipulation: ScoreDimension;
-  evidenceQuality: ScoreDimension;
-  sourceReputation?: ScoreDimension;
-  recency: { flag: string; newestEvidenceAt: string | null };
-};
-
-export type ClaimResult = {
-  claim: {
-    id: string;
-    claimText: string;
-    claimType: string;
-    checkability: string;
-    context?: string;
-  };
-  verdict: string;
-  confidence: number;
-  reasoning: string[];
-  evidenceQuality?: number;
-  consideredSources?: EvidenceSource[];
-  supportingSources?: EvidenceSource[];
-  contradictingSources?: EvidenceSource[];
-};
-
-type EvidenceSource = {
-  id: string;
-  title: string;
-  publisher?: string;
-  url?: string;
-  snippet?: string;
-  publishedAt?: string;
-};
+export type { ClaimResult, TraceraScore } from "@repo/contracts";
 
 const dimensionColors = [
   "bg-[#9cf0d1]",

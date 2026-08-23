@@ -2,12 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import {
-  AnalysisResult,
-  ScoreCard,
-  type ClaimResult,
-  type TraceraScore,
-} from "../../components/analysis-result";
+import type { ClaimResult, TraceraScore } from "@repo/contracts";
+import { AnalysisResult, ScoreCard } from "../../components/analysis-result";
 import { AppHeader } from "../../components/app-header";
 import { AccountRequired } from "../../components/account-required";
 import { useAuth } from "../../components/auth-provider";

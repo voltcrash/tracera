@@ -11,6 +11,9 @@
     "zip": "node scripts/validate-production-auth.mjs && wxt zip",
     "check-types": "wxt prepare && tsc --noEmit"
   },
+  "dependencies": {
+    "@repo/contracts": "workspace:*"
+  },
   "devDependencies": {
     "@types/chrome": "^0.2.5",
     "typescript": "5.9.2",

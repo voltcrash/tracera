@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { TraceraScore } from "./analysis-result";
+import type { TraceraScore } from "@repo/contracts";
 
 /** A listed check, as returned by both the News Hub and personal history. */
 export type TraceSummary = {
