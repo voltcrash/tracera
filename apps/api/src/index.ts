@@ -49,6 +49,7 @@ import {
 } from "@repo/ai";
 import { Redis } from "@upstash/redis";
 import { authenticatedUser, isValidEmail, normalizeEmail, type AuthBindings } from "./auth.js";
+import { AnalysisError, publicAnalysisError } from "./analysis-errors.js";
 import { runDecaySweep } from "./decay.js";
 import { allowedCorsOrigin } from "./cors-origin.js";
 import { reanalysisPolicy } from "./reanalysis-policy.js";
@@ -280,14 +281,13 @@ app.post("/v1/checks", async (context) => {
   }
   const result = await runAnalysis(context, parsed.data);
   if (result.status >= 400) {
-    const message =
-      typeof result.payload.error === "string" ? result.payload.error : "Analysis failed.";
+    const failure = publicAnalysisErrorFromPayload(result.payload);
     return context.json(
       {
         apiVersion: PUBLIC_API_VERSION,
         error: {
-          code: result.status === 422 ? "no_checkable_claims" : "analysis_failed",
-          message,
+          code: failure.code,
+          message: failure.message,
         },
       },
       result.status,
@@ -515,8 +515,10 @@ app.post("/analyze/stream", async (context) => {
             cancelled = true;
             return;
           }
+          const failure = publicAnalysisError(error);
           emit("error", {
-            error: error instanceof Error ? error.message : "Analysis failed.",
+            error: failure.message,
+            code: failure.code,
           });
           if (!cancelled) controller.close();
         })
@@ -766,10 +768,10 @@ async function runAnalysis(
   } catch (error) {
     if (signal.aborted) throw signal.reason ?? error;
     console.error("Analysis failed", error);
-    const message = error instanceof Error ? error.message : "Analysis failed.";
+    const failure = publicAnalysisError(error);
     return {
-      payload: { error: message },
-      status: message.startsWith("No checkable claims could be extracted") ? 422 : 503,
+      payload: { error: failure.message, code: failure.code },
+      status: failure.status,
     };
   }
 }
@@ -952,9 +954,7 @@ async function analyzeText(
     analyzeFraming(provider, input.text, audit),
   ]);
   if (extractedClaims.length === 0) {
-    throw new Error(
-      "No checkable claims could be extracted. Please provide the article text or a public news link.",
-    );
+    throw new AnalysisError("no_checkable_claims");
   }
   const claims: ClaimVerdict[] = [];
   const claimEmbeddings: number[][] = [];
@@ -1209,6 +1209,13 @@ function aiProviderName(value: string | undefined): AiProviderName {
 function requestBodyIsTooLarge(context: Context<{ Bindings: Bindings }>) {
   const contentLength = Number(context.req.header("content-length"));
   return Number.isFinite(contentLength) && contentLength > MAX_ANALYSIS_BODY_BYTES;
+}
+
+function publicAnalysisErrorFromPayload(payload: Record<string, unknown>) {
+  const code = payload.code;
+  return code === "no_checkable_claims"
+    ? publicAnalysisError(new AnalysisError(code))
+    : publicAnalysisError(undefined);
 }
 
 async function enforceFirstPartyAnalysisQuota(
