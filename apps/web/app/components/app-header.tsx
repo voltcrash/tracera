@@ -5,12 +5,11 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./auth-provider";
 
-type AppScreen = "home" | "hub" | "history";
+type AppScreen = "home" | "hub";
 
 const navigation: { href: string; label: string; screen: AppScreen }[] = [
   { href: "/home", label: "Analyze", screen: "home" },
   { href: "/hub", label: "News Hub", screen: "hub" },
-  { href: "/history", label: "History", screen: "history" },
 ];
 
 export function AppHeader({ active }: { active?: AppScreen }) {
@@ -40,7 +39,7 @@ export function AppHeader({ active }: { active?: AppScreen }) {
         />
       </Link>
       <nav
-        className="col-span-2 col-start-1 row-start-2 grid grid-cols-3 rounded-xl bg-emerald-950/5 p-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:flex sm:items-center sm:gap-1 sm:rounded-full sm:bg-transparent sm:p-0"
+        className="col-span-2 col-start-1 row-start-2 grid grid-cols-2 rounded-xl bg-emerald-950/5 p-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:flex sm:items-center sm:gap-1 sm:rounded-full sm:bg-transparent sm:p-0"
         aria-label="Primary navigation"
       >
         {navigation.map((item) => (

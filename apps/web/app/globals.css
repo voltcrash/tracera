@@ -1539,66 +1539,6 @@ body {
   opacity: 0.35;
 }
 
-/* History reuses the trace-library controls and cards, with its own hero so a
-   personal record never reads as the shared archive. */
-.history-page {
-  background:
-    radial-gradient(circle at 50% -10%, rgba(102, 218, 179, 0.08), transparent 28rem), #fafbf9;
-}
-
-.history-hero {
-  background:
-    radial-gradient(circle at 12% 82%, rgba(124, 210, 255, 0.1), transparent 20rem),
-    linear-gradient(150deg, #06302c, #0a2320 58%, #10352b);
-  box-shadow: 0 28px 60px -42px rgba(5, 65, 51, 0.78);
-}
-
-.history-hero::before {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  top: -7rem;
-  left: -7rem;
-  width: 24rem;
-  height: 24rem;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(156, 240, 209, 0.09), transparent 66%);
-}
-
-/* A stacked, receding rule set reading as a personal timeline. */
-.history-hero-lines {
-  pointer-events: none;
-  position: absolute;
-  right: -2rem;
-  bottom: -1rem;
-  width: 58%;
-  height: 66%;
-  opacity: 0.4;
-  background-image: repeating-linear-gradient(
-    180deg,
-    rgba(156, 240, 209, 0.1) 0,
-    rgba(156, 240, 209, 0.1) 1px,
-    transparent 1px,
-    transparent 22px
-  );
-  -webkit-mask-image: linear-gradient(160deg, transparent 6%, black 78%);
-  mask-image: linear-gradient(160deg, transparent 6%, black 78%);
-}
-
-.history-private-note {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  border: 1px solid rgba(156, 240, 209, 0.22);
-  border-radius: 999px;
-  background: rgba(156, 240, 209, 0.08);
-  padding: 0.45rem 0.85rem;
-  color: rgba(214, 250, 236, 0.82);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-}
-
 .trace-statement-card {
   position: relative;
 }

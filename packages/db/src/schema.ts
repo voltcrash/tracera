@@ -122,29 +122,6 @@ export const traceAppearances = pgTable("trace_appearances", {
   observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/**
- * One row per analysis a signed-in user runs, including analyses served from a
- * recent identical trace. A reused trace keeps its original owner, so ownership
- * alone cannot answer what a given account has checked.
- */
-export const analysisHistory = pgTable(
-  "analysis_history",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    checkId: uuid("check_id")
-      .notNull()
-      .references(() => checks.id, { onDelete: "cascade" }),
-    analyzedAt: timestamp("analyzed_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [
-    index("analysis_history_user_time_idx").on(table.userId, table.analyzedAt.desc()),
-    index("analysis_history_user_check_idx").on(table.userId, table.checkId),
-  ],
-);
-
 export const claims = pgTable("claims", {
   id: uuid("id").defaultRandom().primaryKey(),
   checkId: uuid("check_id")

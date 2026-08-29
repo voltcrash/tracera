@@ -120,6 +120,13 @@
       "when": 1786400000000,
       "tag": "0017_analysis_history",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788019816000,
+      "tag": "0018_drop_analysis_history",
+      "breakpoints": true
     }
   ]
 }

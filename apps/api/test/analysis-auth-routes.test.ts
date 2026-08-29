@@ -56,12 +56,3 @@ for (const path of ["/checks", "/checks/00000000-0000-4000-8000-000000000000"]) 
     });
   });
 }
-
-test("/history requires a signed-in user", async () => {
-  const response = await app.request("/history", {}, env);
-
-  assert.equal(response.status, 401);
-  assert.deepEqual(await response.json(), {
-    error: "Sign in or create an account to open your history.",
-  });
-});
