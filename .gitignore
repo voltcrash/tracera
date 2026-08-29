@@ -44,6 +44,3 @@ tmp/
 apps/extension/.wxt/
 apps/extension/.output/
 apps/extension/node_modules/
-apps/mobile/.expo/
-apps/mobile/dist/
-apps/mobile/node_modules/

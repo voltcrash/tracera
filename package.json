@@ -4,10 +4,8 @@
   "scripts": {
     "build": "vp run -r build",
     "dev": "vp run --parallel --filter api --filter web dev",
-    "dev:mobile": "vp run mobile#dev",
     "deploy:api": "vp run api#deploy",
     "deploy:web": "vp run web#deploy",
-    "ios": "vp run mobile#ios",
     "check-types": "vp run -r check-types",
     "prepare": "vp config"
   },

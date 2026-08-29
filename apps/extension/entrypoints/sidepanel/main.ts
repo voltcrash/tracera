@@ -45,7 +45,7 @@ function renderSignedOut() {
     <section class="state auth-state">
       <p class="eyebrow">YOUR TRACERA ACCOUNT</p>
       <h1>Keep this evidence trail attached to you.</h1>
-      <p>Sign in to check this page and keep your private traces synced across the web, mobile, and extension apps.</p>
+      <p>Sign in to check this page and keep your private traces synced across the web and extension apps.</p>
       <button id="sign-in" type="button">Sign in</button>
       <button id="sign-up" class="secondary-button" type="button">Create account</button>
     </section>`;

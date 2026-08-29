@@ -22,7 +22,6 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 
 - **Toolchain and monorepo:** Vite+ (`vp`), pnpm, TypeScript
 - **Web:** Next.js
-- **Mobile:** React Native, Expo
 - **Browser extension:** WXT, Manifest V3
 - **API:** Hono
 - **Data:** Neon Postgres, pgvector, PostgreSQL full-text search, Drizzle ORM
@@ -40,11 +39,10 @@ vp check
 vp test --run
 ```
 
-The applications use framework CLIs (Next.js, Wrangler, Expo, and WXT), so their workspace commands run through Vite Task rather than Vite's built-in app commands:
+The applications use framework CLIs (Next.js, Wrangler, and WXT), so their workspace commands run through Vite Task rather than Vite's built-in app commands:
 
 ```sh
 vp run dev          # API and web development servers
-vp run dev:mobile   # Expo development server
 vp run build        # Build every workspace application
 vp run deploy:api
 vp run deploy:web
@@ -54,11 +52,11 @@ vp run deploy:web
 
 ## Current deployment architecture
 
-The Next.js web application and Hono API are deployed as separate Cloudflare Workers. The web Worker serves the product at `tracera.voltcrash.com`. Browser and extension requests use the first-party `/api/tracera/*` proxy on that origin; the proxy communicates with the API Worker at `api.tracera.voltcrash.com` server-side. The mobile app communicates with the API Worker directly.
+The Next.js web application and Hono API are deployed as separate Cloudflare Workers. The web Worker serves the product at `tracera.voltcrash.com`. Browser and extension requests use the first-party `/api/tracera/*` proxy on that origin; the proxy communicates with the API Worker at `api.tracera.voltcrash.com` server-side.
 
 The API Worker connects to Neon Postgres for application data, full-text search, claim embeddings, and vector retrieval. Upstash Redis provides REST-based caching, API rate limits, and the durable ready/processing/dead-letter queue used for decay monitoring. An hourly Cloudflare Cron Trigger schedules re-analysis work, and the Worker processes queued checks without relying on a persistent server process.
 
-Better Auth is mounted by the web Worker at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google is the only enabled identity provider. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit OAuth redirect leaves the site for Google's account flow. The API Worker validates the same Better Auth session for authenticated web, mobile, and extension requests.
+Better Auth is mounted by the web Worker at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google is the only enabled identity provider. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit OAuth redirect leaves the site for Google's account flow. The API Worker validates the same Better Auth session for authenticated web and extension requests.
 
 The API calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
 
@@ -66,7 +64,6 @@ The API calls configured hosted AI providers through a shared abstraction and co
 flowchart TB
     subgraph Clients
         User["Web user"]
-        Mobile["Mobile app<br/>React Native + Expo"]
         Extension["Browser extension<br/>WXT + Manifest V3"]
     end
 
@@ -89,8 +86,6 @@ flowchart TB
     User -->|same-origin /api/auth/* and /api/tracera/*| Web
     Extension -->|same-origin session and API proxy| Web
     Web -->|server-side proxy| API
-    Mobile -->|Better Auth bearer session| API
-
     API <--> Neon
     API <--> Upstash
     API --> AI

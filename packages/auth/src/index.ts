@@ -1,4 +1,3 @@
-import { expo } from "@better-auth/expo";
 import { dash } from "@better-auth/infra";
 import { db } from "@repo/db";
 import * as databaseSchema from "@repo/db/schema";
@@ -58,9 +57,7 @@ export function createAuth(env: AuthRuntimeEnv) {
       TRACERA_AUTH_BASE_URL,
       "https://dash.better-auth.com",
       TRACERA_EXTENSION_ORIGIN,
-      "tracera://",
-      "tracera://*",
-      ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000", "exp://**"] : []),
+      ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
     ],
     onAPIError: {
       errorURL: "/auth/error",
@@ -75,7 +72,6 @@ export function createAuth(env: AuthRuntimeEnv) {
     },
     plugins: [
       bearer(),
-      expo(),
       ...(env.BETTER_AUTH_API_KEY
         ? [
             dash({
