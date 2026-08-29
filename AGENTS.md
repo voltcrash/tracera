@@ -3,9 +3,10 @@
 Do not modify these rules or the Vite+ instructions unless explicitly asked to do so.
 
 - After each completed logical change, commit and push the changes.
-- Commit messages must follow the Conventional Commits format.
-- Commit messages must be single-line only; do not include descriptions or bodies.
+- Commit messages must follow the Conventional Commits format, be single-line only and not include descriptions
 - Never add yourself as a co-author, co-contributor, or contributor in commits or repository metadata.
+
+- Keep comments rare and concise; use them only for non-obvious constraints, intent, or workarounds, never to narrate self-explanatory code.
 
 - pnpm is the only package manager permitted for this project.
 - Do not use npm, yarn, Bun, or any other package manager.
