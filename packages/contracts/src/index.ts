@@ -118,14 +118,13 @@ export interface GroundZeroResult {
   }>;
 }
 
-export type AnalysisReuseState = "reused_exact" | "fresh" | "reanalyzed" | "scheduled_recheck";
+export type AnalysisReuseState = "reused_exact" | "fresh" | "reanalyzed";
 
 export interface AnalysisReuse {
   state: AnalysisReuseState;
   expiresAt?: string;
   relatedContextClaims?: number;
   policyBand?: "breaking" | "developing" | "recent" | "established" | "unknown";
-  nextReviewAt?: string;
   policy?: string;
 }
 
@@ -134,7 +133,6 @@ export interface AnalysisResponse {
   check: {
     id: string;
     createdAt: string;
-    nextReviewAt?: string;
   };
   claims: ClaimResult[];
   traceraScore: TraceraScore;

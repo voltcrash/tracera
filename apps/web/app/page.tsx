@@ -131,7 +131,7 @@ export default async function LandingPage() {
           <SignalStat number="01" label="Break apart" detail="Atomic, checkable claims" />
           <SignalStat number="02" label="Follow back" detail="Origins and source trails" />
           <SignalStat number="03" label="Cross-check" detail="Support and contradiction" />
-          <SignalStat number="04" label="Keep watching" detail="Rechecks and alerts" />
+          <SignalStat number="04" label="Preserve context" detail="Trace history" />
         </section>
 
         <section id="features" className="scroll-mt-24 py-10 sm:py-16">
@@ -368,20 +368,10 @@ export default async function LandingPage() {
                 The story moved. Your understanding should too.
               </h2>
               <p className="mt-6 max-w-lg text-base leading-7 text-white/62 sm:text-lg sm:leading-8">
-                News rarely ends at publish. Tracera recognizes reappearances, preserves past
-                checks, and re-evaluates a story when evidence changes.
+                News rarely ends at publish. Tracera recognizes reappearances and preserves past
+                checks, so each new analysis keeps its context.
               </p>
               <div className="mt-9 grid gap-3 sm:grid-cols-2">
-                <DarkFeature
-                  icon="↻"
-                  title="Automatic rechecks"
-                  copy="Review schedules adapt to uncertainty and evidence age."
-                />
-                <DarkFeature
-                  icon="⌁"
-                  title="Material alerts"
-                  copy="Get notified when the score meaningfully changes."
-                />
                 <DarkFeature
                   icon="≋"
                   title="Trace history"
@@ -507,7 +497,7 @@ export default async function LandingPage() {
               </div>
               <div className="mt-7 grid gap-3 border-t border-emerald-950/8 pt-6 sm:grid-cols-3">
                 <CorpusMetric value="Instant" label="duplicate detection" />
-                <CorpusMetric value="Fresh" label="rechecks when due" />
+                <CorpusMetric value="Stored" label="past trace versions" />
                 <CorpusMetric value="Linked" label="related context" />
               </div>
             </article>

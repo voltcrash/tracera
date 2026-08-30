@@ -389,12 +389,7 @@ export async function persistCheck(input: {
   visibility?: "public" | "private";
   supersedesCheckId?: string;
   lineageReason?: "first_check" | "related_story" | "scheduled_recheck";
-  nextReviewHours?: number;
-}): Promise<{ id: string; createdAt: string; nextReviewAt: string }> {
-  const nextReviewHours = input.nextReviewHours ?? 24;
-  if (!Number.isInteger(nextReviewHours) || nextReviewHours < 1 || nextReviewHours > 24 * 365) {
-    throw new Error("Next-review hours must be an integer between 1 and 8760.");
-  }
+}): Promise<{ id: string; createdAt: string }> {
   const client = await pool.connect();
 
   try {
@@ -402,11 +397,10 @@ export async function persistCheck(input: {
     const check = await client.query<{
       id: string;
       created_at: string;
-      next_review_at: string;
     }>(
-      `INSERT INTO checks (input_type, raw_input, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, visibility, supersedes_check_id, lineage_reason, next_review_at)
-       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14, NOW() + ($15 * INTERVAL '1 hour'))
-       RETURNING id, created_at, next_review_at`,
+      `INSERT INTO checks (input_type, raw_input, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, visibility, supersedes_check_id, lineage_reason)
+       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14)
+       RETURNING id, created_at`,
       [
         input.inputType ?? "text",
         input.rawInput,
@@ -422,7 +416,6 @@ export async function persistCheck(input: {
         input.visibility ?? "public",
         input.supersedesCheckId ?? null,
         input.lineageReason ?? "first_check",
-        nextReviewHours,
       ],
     );
     const storedCheck = check.rows[0];
@@ -463,7 +456,6 @@ export async function persistCheck(input: {
     return {
       id: storedCheck.id,
       createdAt: storedCheck.created_at,
-      nextReviewAt: storedCheck.next_review_at,
     };
   } catch (error) {
     await client.query("ROLLBACK");
@@ -540,145 +532,6 @@ export async function getTraceAppearances(id: string, ownerUserId?: string) {
   );
   return result.rows;
 }
-export async function subscribeToCheck(checkId: string, email: string) {
-  const result = await pool.query<{ id: string; active: string }>(
-    `WITH RECURSIVE ancestors AS (
-       SELECT id, supersedes_check_id FROM checks WHERE id = $1
-       UNION ALL
-       SELECT parent.id, parent.supersedes_check_id
-         FROM checks AS parent JOIN ancestors AS child ON child.supersedes_check_id = parent.id
-     ), root AS (
-       SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
-     )
-     INSERT INTO alert_subscriptions (check_id, email, active, updated_at)
-     SELECT id, $2, 'true', NOW() FROM root
-     ON CONFLICT (check_id, email)
-     DO UPDATE SET active = 'true', updated_at = NOW()
-     RETURNING id, active`,
-    [checkId, email.toLowerCase()],
-  );
-  return result.rows[0];
-}
-
-export async function unsubscribeFromCheck(checkId: string, email: string) {
-  const result = await pool.query<{ id: string }>(
-    `WITH RECURSIVE ancestors AS (
-       SELECT id, supersedes_check_id FROM checks WHERE id = $1
-       UNION ALL SELECT parent.id, parent.supersedes_check_id FROM checks parent JOIN ancestors child ON child.supersedes_check_id = parent.id
-     ), root AS (SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1)
-     UPDATE alert_subscriptions SET active = 'false', updated_at = NOW()
-      WHERE check_id = (SELECT id FROM root) AND email = $2 RETURNING id`,
-    [checkId, email.toLowerCase()],
-  );
-  return result.rows[0] ?? null;
-}
-
-export async function alertSubscriptionForCheck(checkId: string, email: string) {
-  const result = await pool.query<{ id: string; active: string }>(
-    `WITH RECURSIVE ancestors AS (
-       SELECT id, supersedes_check_id FROM checks WHERE id = $1
-       UNION ALL SELECT parent.id, parent.supersedes_check_id FROM checks parent JOIN ancestors child ON child.supersedes_check_id = parent.id
-     ), root AS (SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1)
-     SELECT id, active FROM alert_subscriptions WHERE check_id = (SELECT id FROM root) AND email = $2 LIMIT 1`,
-    [checkId, email.toLowerCase()],
-  );
-  return result.rows[0] ?? null;
-}
-
-export async function markAlertSubscriptionsNotified(
-  checkId: string,
-  deliveredCheckId: string,
-  emails: string[],
-) {
-  if (!emails.length) return;
-  await pool.query(
-    `WITH RECURSIVE ancestors AS (
-       SELECT id, supersedes_check_id FROM checks WHERE id = $1
-       UNION ALL SELECT parent.id, parent.supersedes_check_id FROM checks parent JOIN ancestors child ON child.supersedes_check_id = parent.id
-     ), root AS (SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1)
-     UPDATE alert_subscriptions SET last_notified_check_id = $2, updated_at = NOW()
-      WHERE check_id = (SELECT id FROM root) AND email = ANY($3::text[])`,
-    [checkId, deliveredCheckId, emails],
-  );
-}
-
-export async function activeAlertEmailsForTrace(checkId: string) {
-  const result = await pool.query<{ email: string }>(
-    `WITH RECURSIVE ancestors AS (
-       SELECT id, supersedes_check_id FROM checks WHERE id = $1
-       UNION ALL
-       SELECT parent.id, parent.supersedes_check_id
-         FROM checks AS parent JOIN ancestors AS child ON child.supersedes_check_id = parent.id
-     ), root AS (
-       SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
-     )
-     SELECT DISTINCT email FROM alert_subscriptions
-      WHERE check_id = (SELECT id FROM root) AND active = 'true'`,
-    [checkId],
-  );
-  return result.rows.map((row) => row.email);
-}
-export interface DecayCheck {
-  id: string;
-  raw_input: string;
-  input_type: string;
-  source_url: string | null;
-  analysis: unknown;
-}
-
-export async function dueChecks(limit = 50): Promise<DecayCheck[]> {
-  return (
-    await pool.query<DecayCheck>(
-      `SELECT id, raw_input, input_type, source_url, analysis FROM checks WHERE next_review_at <= NOW() ORDER BY next_review_at LIMIT $1`,
-      [limit],
-    )
-  ).rows;
-}
-
-export async function getDecayCheckById(id: string) {
-  const result = await pool.query<DecayCheck>(
-    `SELECT id, raw_input, input_type, source_url, analysis
-       FROM checks WHERE id = $1 AND next_review_at <= NOW()`,
-    [id],
-  );
-  return result.rows[0] ?? null;
-}
-
-export async function recordDecayEvent(input: {
-  checkId?: string;
-  eventType: "scheduled" | "started" | "completed" | "changed" | "failed";
-  detail?: unknown;
-}) {
-  await pool.query(
-    `INSERT INTO decay_events (check_id, event_type, detail)
-     VALUES ($1, $2, $3::jsonb)`,
-    [input.checkId ?? null, input.eventType, JSON.stringify(input.detail ?? {})],
-  );
-}
-
-export async function getDecayObservability(limit = 100) {
-  const result = await pool.query<{
-    id: string;
-    check_id: string | null;
-    event_type: string;
-    detail: unknown;
-    created_at: string;
-  }>(
-    `SELECT id, check_id, event_type, detail, created_at
-       FROM decay_events
-      ORDER BY created_at DESC
-      LIMIT $1`,
-    [Math.min(Math.max(limit, 1), 500)],
-  );
-  return result.rows.map((row) => ({
-    id: row.id,
-    checkId: row.check_id,
-    eventType: row.event_type,
-    detail: row.detail,
-    createdAt: row.created_at,
-  }));
-}
-
 interface CheckSummaryRow {
   id: string;
   input_type: string;
@@ -689,7 +542,6 @@ interface CheckSummaryRow {
   source_domain: string | null;
   source_url: string | null;
   published_at: string | null;
-  next_review_at: string | null;
   visibility: "public" | "private";
   appearance_count: string;
 }
@@ -704,8 +556,7 @@ const CHECK_SUMMARY_COLUMNS = `item.id, item.input_type, item.raw_input,
            LIMIT 1)
        ) AS primary_claim,
        item.tracera_score, item.created_at,
-       item.source_domain, item.source_url, item.published_at,
-       item.next_review_at, item.visibility,
+       item.source_domain, item.source_url, item.published_at, item.visibility,
        (WITH RECURSIVE ancestors AS (
           SELECT id, supersedes_check_id FROM checks WHERE id = item.id
           UNION ALL
@@ -748,10 +599,6 @@ function toCheckSummary(row: CheckSummaryRow) {
     publishedAt: row.published_at,
     visibility: row.visibility,
     appearanceCount: Number(row.appearance_count),
-    reanalysisState:
-      row.next_review_at && new Date(row.next_review_at).getTime() <= Date.now()
-        ? "review_due"
-        : "scheduled",
   };
 }
 
@@ -797,7 +644,6 @@ export async function getCheckById(id: string, ownerUserId?: string, allowPrivat
     source_url: string | null;
     published_at: string | null;
     ground_zero: unknown;
-    next_review_at: string | null;
     visibility: "public" | "private";
     owner_user_id: string | null;
   }>(
@@ -810,7 +656,7 @@ export async function getCheckById(id: string, ownerUserId?: string, allowPrivat
                 LIMIT 1)
             ) AS primary_claim,
             tracera_score, analysis, created_at, source_domain, source_url,
-            published_at, ground_zero, next_review_at, visibility, owner_user_id
+            published_at, ground_zero, visibility, owner_user_id
      FROM checks
      WHERE id = $1 AND ($3::boolean OR visibility = 'public' OR owner_user_id = $2)
      LIMIT 1`,
@@ -831,7 +677,6 @@ export async function getCheckById(id: string, ownerUserId?: string, allowPrivat
         sourceUrl: row.source_url,
         publishedAt: row.published_at,
         groundZero: row.ground_zero,
-        nextReviewAt: row.next_review_at,
         visibility: row.visibility,
         ownerUserId: row.owner_user_id,
       }

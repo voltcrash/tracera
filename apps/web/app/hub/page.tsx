@@ -22,7 +22,6 @@ import { apiUrl } from "../lib/api";
 type PrimaryFilter = "all" | "high" | "review" | "seen";
 type SortOrder = "newest" | "oldest" | "highest" | "lowest";
 type PrivacyFilter = "all" | "public" | "private";
-type StatusFilter = "all" | "monitoring" | "review";
 
 const primaryFilters: TraceOption<PrimaryFilter>[] = [
   { value: "all", label: "All checks" },
@@ -51,7 +50,6 @@ export default function HubPage() {
   const [filter, setFilter] = useState<PrimaryFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [privacy, setPrivacy] = useState<PrivacyFilter>("all");
-  const [status, setStatus] = useState<StatusFilter>("all");
   const [viewMode, setViewMode] = useState<TraceViewMode>("grid");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
@@ -111,11 +109,7 @@ export default function HubPage() {
         (filter === "review" && score < 70) ||
         (filter === "seen" && check.appearanceCount > 1);
       const matchesPrivacy = privacy === "all" || check.visibility === privacy;
-      const matchesStatus =
-        status === "all" ||
-        (status === "monitoring" && check.reanalysisState === "scheduled") ||
-        (status === "review" && check.reanalysisState === "review_due");
-      return matchesPrimary && matchesPrivacy && matchesStatus;
+      return matchesPrimary && matchesPrivacy;
     });
 
     return filtered.sort((a, b) => {
@@ -125,13 +119,13 @@ export default function HubPage() {
       const bTime = new Date(b.createdAt).getTime();
       return sortOrder === "oldest" ? aTime - bTime : bTime - aTime;
     });
-  }, [checks, filter, privacy, sortOrder, status]);
+  }, [checks, filter, privacy, sortOrder]);
 
   const average = checks.length
     ? Math.round(checks.reduce((sum, item) => sum + item.traceraScore.overall, 0) / checks.length)
     : 0;
   const reviewCount = checks.filter((item) => item.traceraScore.overall < 70).length;
-  const hasSecondaryFilters = privacy !== "all" || status !== "all";
+  const hasSecondaryFilters = privacy !== "all";
 
   function toggleBookmark(id: string) {
     setBookmarked((current) => {
@@ -243,22 +237,11 @@ export default function HubPage() {
                       { value: "private", label: "Private" },
                     ]}
                   />
-                  <TraceFilterGroup
-                    label="Trace status"
-                    value={status}
-                    onChange={(value) => setStatus(value as StatusFilter)}
-                    options={[
-                      { value: "all", label: "Any" },
-                      { value: "monitoring", label: "Monitoring" },
-                      { value: "review", label: "Review due" },
-                    ]}
-                  />
                   {hasSecondaryFilters && (
                     <button
                       type="button"
                       onClick={() => {
                         setPrivacy("all");
-                        setStatus("all");
                       }}
                       className="hub-clear-filters"
                     >

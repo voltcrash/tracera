@@ -2,7 +2,6 @@ import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import {
   applyEditorialDomainTrustReview,
-  alertSubscriptionForCheck,
   checkDatabase,
   configureDatabase,
   findGroundZeroCorpusHistory,
@@ -11,7 +10,6 @@ import {
   findReusableExactCheck,
   findReusableImageCheck,
   getCheckById,
-  getDecayObservability,
   getMediaDietPreference,
   getDomainTrustHistory,
   getTraceAppearances,
@@ -22,9 +20,7 @@ import {
   persistCheck,
   recordTraceAppearance,
   recordDomainOutcomeSignals,
-  subscribeToCheck,
   setMediaDietPreference,
-  unsubscribeFromCheck,
 } from "@repo/db";
 import {
   aggregateScore,
@@ -47,9 +43,8 @@ import {
 } from "@repo/ai";
 import { Redis } from "@upstash/redis";
 import type { AnalysisErrorResponse, AnalysisResponse } from "@repo/contracts";
-import { authenticatedUser, isValidEmail, normalizeEmail, type AuthBindings } from "./auth.js";
+import { authenticatedUser, type AuthBindings } from "./auth.js";
 import { AnalysisError, publicAnalysisError } from "./analysis-errors.js";
-import { runDecaySweep } from "./decay.js";
 import { allowedCorsOrigin } from "./cors-origin.js";
 import { reanalysisPolicy } from "./reanalysis-policy.js";
 import {
@@ -335,7 +330,6 @@ function publicCheck(check: NonNullable<Awaited<ReturnType<typeof getCheckById>>
     framingAnalysis: check.analysis.framing ?? null,
     groundZero: check.groundZero,
     createdAt: check.createdAt,
-    nextReviewAt: check.nextReviewAt,
   };
 }
 
@@ -412,16 +406,6 @@ app.get("/health", async (context) => {
   }
 });
 
-app.get("/internal/decay/observability", async (context) => {
-  const token = process.env.INTERNAL_WORKER_TOKEN;
-  if (!token || context.req.header("x-tracera-worker-token") !== token) {
-    return context.json({ error: "Unauthorized" }, 401);
-  }
-  return context.json({
-    events: await getDecayObservability(positiveInteger(context.req.query("limit"), 100, 500)),
-  });
-});
-
 app.get("/internal/domains/:domain/trust-history", async (context) => {
   if (!authorizedDomainTrustAdmin(context)) return context.json({ error: "Unauthorized." }, 401);
   return context.json({
@@ -470,7 +454,7 @@ app.post("/analyze", async (context) => {
   if (!(await canRunAnalysis(context, body))) {
     return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
   }
-  const quotaResponse = await enforceFirstPartyAnalysisQuota(context, body);
+  const quotaResponse = await enforceFirstPartyAnalysisQuota(context);
   if (quotaResponse) return quotaResponse;
   const result = await runAnalysis(context, body);
   return context.json(result.payload, result.status);
@@ -486,7 +470,7 @@ app.post("/analyze/stream", async (context) => {
   if (!(await canRunAnalysis(context, body))) {
     return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
   }
-  const quotaResponse = await enforceFirstPartyAnalysisQuota(context, body);
+  const quotaResponse = await enforceFirstPartyAnalysisQuota(context);
   if (quotaResponse) return quotaResponse;
   const encoder = new TextEncoder();
   let cancelled = false;
@@ -556,11 +540,8 @@ async function runAnalysis(
       stage: "normalizing",
       message: "Reading and normalizing the submission.",
     });
-    const recheckOf = authorizedRecheckId(context, body);
     const user = await currentUser(context);
-    const parentCheck = recheckOf ? await getCheckById(recheckOf, undefined, true) : null;
-    if (recheckOf && !parentCheck) throw new Error("Recheck target was not found.");
-    const visibility = requestedVisibility(body, user?.id, parentCheck?.visibility);
+    const visibility = requestedVisibility(body, user?.id);
     const aiConfiguration = configuredAiConfiguration();
     const provider = createAiProvider(aiConfiguration);
     const normalized = await normalizeWithStoredFallback(body, provider, signal);
@@ -582,18 +563,17 @@ async function runAnalysis(
       initialPolicy.dedupHours,
       environmentNumber("DEDUP_MAX_AGE_HOURS", 24, 1, 24 * 30),
     );
-    const cached =
-      forceReanalysis || recheckOf
-        ? null
-        : normalized.inputType === "image"
-          ? await findReusableImageCheck(
-              normalized.rawInput,
-              inputEmbedding,
-              cacheHours,
-              environmentNumber("IMAGE_DEDUP_SIMILARITY_THRESHOLD", 0.98, 0.9, 1),
-              user?.id,
-            )
-          : await findReusableExactCheck(normalized.rawInput, cacheHours, user?.id);
+    const cached = forceReanalysis
+      ? null
+      : normalized.inputType === "image"
+        ? await findReusableImageCheck(
+            normalized.rawInput,
+            inputEmbedding,
+            cacheHours,
+            environmentNumber("IMAGE_DEDUP_SIMILARITY_THRESHOLD", 0.98, 0.9, 1),
+            user?.id,
+          )
+        : await findReusableExactCheck(normalized.rawInput, cacheHours, user?.id);
 
     // A previous version stored empty analyses when a URL was sent as text.
     // Never serve an incomplete cache entry. Image checks may validly finish
@@ -631,8 +611,6 @@ async function runAnalysis(
       };
     }
 
-    // User-triggered checks stay synchronous; scheduled rechecks run through
-    // the Cron-driven durable Upstash queue.
     const auditLog: Array<{ stage: string; prompt: string }> = [];
     const result = await analyzeText(normalized, provider, auditLog, emit, signal);
     signal.throwIfAborted();
@@ -669,20 +647,16 @@ async function runAnalysis(
       message: "Tracing the earliest known publication.",
     });
     const groundZero = traceGroundZero(groundZeroSources, groundZeroHistory, archiveHistory);
-    const relatedStory = recheckOf
-      ? null
-      : await findRelatedStoryCheck(
-          inputEmbedding,
-          environmentNumber("STORY_SIMILARITY_THRESHOLD", 0.84, 0, 1),
-          environmentNumber("STORY_MAX_AGE_HOURS", 24 * 90, 1, 24 * 3650),
-          visibility,
-          user?.id,
-        );
+    const relatedStory = await findRelatedStoryCheck(
+      inputEmbedding,
+      environmentNumber("STORY_SIMILARITY_THRESHOLD", 0.84, 0, 1),
+      environmentNumber("STORY_MAX_AGE_HOURS", 24 * 90, 1, 24 * 3650),
+      visibility,
+      user?.id,
+    );
     const completedPolicy = reanalysisPolicy({
       inputType: normalized.inputType,
       publishedAt: normalized.publishedAt,
-      evidenceQuality: result.score.evidenceQuality.score / 100,
-      overallScore: result.score.overall,
     });
     const stored = await persistCheck({
       rawInput: normalized.rawInput,
@@ -718,15 +692,10 @@ async function runAnalysis(
         },
         ...auditLog,
       ],
-      ownerUserId: parentCheck?.ownerUserId ?? user?.id,
+      ownerUserId: user?.id,
       visibility,
-      supersedesCheckId: recheckOf ?? relatedStory?.id,
-      lineageReason: recheckOf
-        ? "scheduled_recheck"
-        : relatedStory
-          ? "related_story"
-          : "first_check",
-      nextReviewHours: completedPolicy.nextReviewHours,
+      supersedesCheckId: relatedStory?.id,
+      lineageReason: relatedStory ? "related_story" : "first_check",
     });
     await recordDomainOutcomeSignals({
       checkId: stored.id,
@@ -752,10 +721,9 @@ async function runAnalysis(
         groundZero,
         inputMetadata: normalized.imageMetadata,
         reuse: {
-          state: forceReanalysis ? "reanalyzed" : recheckOf ? "scheduled_recheck" : "fresh",
+          state: forceReanalysis ? "reanalyzed" : "fresh",
           relatedContextClaims: relatedContextCount(result.claims),
           policyBand: completedPolicy.band,
-          nextReviewAt: stored.nextReviewAt,
           policy: completedPolicy.reason,
         },
       }),
@@ -787,38 +755,6 @@ app.get("/checks/:id/appearances", async (context) => {
   const user = await currentUser(context);
   if (!(await getCheckById(id, user?.id))) return context.json({ error: "Check not found." }, 404);
   return context.json({ appearances: await getTraceAppearances(id, user?.id) });
-});
-app.post("/checks/:id/alerts", async (context) => {
-  const id = context.req.param("id");
-  const body = await context.req.json().catch(() => null);
-  const user = await currentUser(context);
-  const email = user?.email ?? (typeof body?.email === "string" ? body.email.trim() : "");
-  if (!isUuid(id) || !isValidEmail(email))
-    return context.json({ error: "A valid check and email are required." }, 400);
-  if (!(await getCheckById(id, user?.id))) return context.json({ error: "Check not found." }, 404);
-  return context.json({ subscription: await subscribeToCheck(id, email) }, 201);
-});
-app.get("/checks/:id/alerts", async (context) => {
-  const user = await currentUser(context);
-  const id = context.req.param("id");
-  if (!user || !isUuid(id)) return context.json({ error: "Not authenticated." }, 401);
-  return context.json({
-    subscription: await alertSubscriptionForCheck(id, user.email),
-  });
-});
-app.delete("/checks/:id/alerts", async (context) => {
-  const id = context.req.param("id");
-  const body = await context.req.json().catch(() => null);
-  const user = await currentUser(context);
-  const requestedEmail = typeof body?.email === "string" ? body.email.trim() : "";
-  const email = user?.email ?? requestedEmail;
-  if (!isUuid(id) || !isValidEmail(email))
-    return context.json({ error: "A valid check and email are required." }, 400);
-  if (user && requestedEmail && normalizeEmail(requestedEmail) !== user.email)
-    return context.json({ error: "You can only manage your own alerts." }, 403);
-  if (!(await getCheckById(id, user?.id))) return context.json({ error: "Check not found." }, 404);
-  await unsubscribeFromCheck(id, email);
-  return context.body(null, 204);
 });
 app.get("/checks", async (context) => {
   const page = positiveInteger(context.req.query("page"), 1, 10_000);
@@ -1184,13 +1120,7 @@ function analysisResponse(payload: AnalysisResponse) {
   return payload;
 }
 
-async function enforceFirstPartyAnalysisQuota(
-  context: Context<{ Bindings: Bindings }>,
-  body: unknown,
-) {
-  // Scheduled internal rechecks are already bounded by the decay queue and do
-  // not belong to an end-user quota.
-  if (authorizedInternalRecheck(context, body)) return null;
+async function enforceFirstPartyAnalysisQuota(context: Context<{ Bindings: Bindings }>) {
   const user = await currentUser(context);
   if (!user) return null;
   const redis = upstashRedis(context.env);
@@ -1227,15 +1157,6 @@ async function enforceFirstPartyAnalysisQuota(
   context.header("RateLimit-Remaining", String(quota.remaining));
   context.header("RateLimit-Reset", String(quota.resetAt));
   return null;
-}
-
-function authorizedInternalRecheck(context: Context<{ Bindings: Bindings }>, body: unknown) {
-  const recheckOf =
-    body &&
-    typeof body === "object" &&
-    typeof (body as { recheckOf?: unknown }).recheckOf === "string";
-  const token = context.env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
-  return Boolean(recheckOf && token && context.req.header("x-tracera-worker-token") === token);
 }
 
 async function normalizeWithStoredFallback(
@@ -1284,39 +1205,8 @@ async function normalizeWithStoredFallback(
   }
 }
 
-/** Scheduled rechecks are the only callers allowed to bypass input deduplication. */
-function authorizedRecheckId(context: Context<{ Bindings: Bindings }>, body: unknown) {
-  const recheckOf =
-    body &&
-    typeof body === "object" &&
-    typeof (body as { recheckOf?: unknown }).recheckOf === "string"
-      ? (body as { recheckOf: string }).recheckOf
-      : undefined;
-  if (!recheckOf) return null;
-
-  const token = context.env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
-  if (!token || context.req.header("x-tracera-worker-token") !== token) {
-    throw new Error("Unauthorized recheck request.");
-  }
-  if (!isUuid(recheckOf)) throw new Error("Invalid recheck target.");
-  return recheckOf;
-}
-
 async function canRunAnalysis(context: Context<{ Bindings: Bindings }>, body: unknown) {
-  if (await currentUser(context)) return true;
-
-  const recheckOf =
-    body &&
-    typeof body === "object" &&
-    typeof (body as { recheckOf?: unknown }).recheckOf === "string"
-      ? (body as { recheckOf: string }).recheckOf
-      : undefined;
-  if (!recheckOf) return false;
-
-  const configuredToken = context.env.INTERNAL_WORKER_TOKEN ?? process.env.INTERNAL_WORKER_TOKEN;
-  return Boolean(
-    configuredToken && context.req.header("x-tracera-worker-token") === configuredToken,
-  );
+  return Boolean(body && (await currentUser(context)));
 }
 
 function requestedVisibility(
@@ -1378,12 +1268,4 @@ function currentUser(context: Context<{ Bindings: Bindings }>) {
 
 export default {
   fetch: app.fetch,
-  scheduled(
-    _controller: unknown,
-    env: Bindings,
-    executionContext: { waitUntil(promise: Promise<unknown>): void },
-  ) {
-    configureDatabase(env.DATABASE_URL);
-    executionContext.waitUntil(runDecaySweep(env));
-  },
 };

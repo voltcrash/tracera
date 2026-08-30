@@ -4,7 +4,7 @@ import { reanalysisPolicy } from "../src/reanalysis-policy.js";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 
-test("breaking stories use a short reuse and review window", () => {
+test("breaking stories use a short reuse window", () => {
   assert.deepEqual(
     reanalysisPolicy({
       inputType: "link",
@@ -14,13 +14,12 @@ test("breaking stories use a short reuse and review window", () => {
     {
       band: "breaking",
       dedupHours: 2,
-      nextReviewHours: 6,
-      reason: "Breaking stories are reused briefly and checked again quickly.",
+      reason: "Breaking stories reuse identical results for only a short period.",
     },
   );
 });
 
-test("established stories back off to three days", () => {
+test("established stories use a one-day reuse window", () => {
   const policy = reanalysisPolicy({
     inputType: "link",
     publishedAt: "2026-01-01T00:00:00.000Z",
@@ -28,24 +27,15 @@ test("established stories back off to three days", () => {
   });
   assert.equal(policy.band, "established");
   assert.equal(policy.dedupHours, 24);
-  assert.equal(policy.nextReviewHours, 72);
 });
 
-test("thin evidence and an inconclusive score accelerate review", () => {
-  const policy = reanalysisPolicy({
-    inputType: "text",
-    evidenceQuality: 0.3,
-    overallScore: 50,
-    now,
-  });
+test("undated text uses the standard reuse window", () => {
+  const policy = reanalysisPolicy({ inputType: "text", now });
   assert.equal(policy.band, "unknown");
   assert.equal(policy.dedupHours, 12);
-  assert.equal(policy.nextReviewHours, 6);
-  assert.match(policy.reason, /thin evidence and an inconclusive score/);
 });
 
 test("undated images use a shorter provenance window", () => {
   const policy = reanalysisPolicy({ inputType: "image", now });
   assert.equal(policy.dedupHours, 6);
-  assert.equal(policy.nextReviewHours, 12);
 });

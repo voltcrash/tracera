@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ClaimResult, TraceraScore } from "@repo/contracts";
 import { AnalysisResult, ScoreCard } from "../../components/analysis-result";
 import { AppHeader } from "../../components/app-header";
@@ -159,9 +159,8 @@ export default function CheckDetailPage({ params }: { params: Promise<{ id: stri
                   showScore={false}
                 />
                 {check.groundZero && <GroundZeroCard trace={check.groundZero} />}
-                <div className="mt-5 grid gap-5 lg:grid-cols-[1.08fr_.92fr] lg:items-start">
+                <div className="mt-5">
                   <TraceTimeline entries={timeline} appearances={appearances} />
-                  <AlertSubscription checkId={check.id} />
                 </div>
               </section>
             )}
@@ -194,91 +193,6 @@ function TraceMeta({ label, value, href }: { label: string; value: string; href?
         </p>
       )}
     </div>
-  );
-}
-
-function AlertSubscription({ checkId }: { checkId: string }) {
-  const { apiFetch } = useAuth();
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
-  const [subscribed, setSubscribed] = useState(false);
-  async function subscribe(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setStatus(null);
-    const response = await apiFetch(`${apiUrl}/checks/${checkId}/alerts`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data = await response.json();
-    setStatus(
-      response.ok
-        ? "You’ll be notified when this trace materially changes."
-        : (data.error ?? "Could not save your alert."),
-    );
-    if (response.ok) setSubscribed(true);
-  }
-  async function unsubscribe() {
-    const response = await apiFetch(`${apiUrl}/checks/${checkId}/alerts`, {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    setStatus(response.ok ? "Alert paused for this trace." : "Could not pause your alert.");
-    if (response.ok) setSubscribed(false);
-  }
-  return (
-    <form
-      onSubmit={subscribe}
-      className="landing-view-reveal overflow-hidden rounded-[1.75rem] border border-amber-900/10 bg-[#fae8ce] p-6 shadow-[0_22px_55px_-45px_rgba(16,34,31,.5)] sm:p-8"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-800">
-            STAY UPDATED
-          </p>
-          <p className="mt-3 text-2xl font-black tracking-[-.045em] text-emerald-950">
-            Follow this trace.
-          </p>
-        </div>
-        <span className="grid size-10 place-items-center rounded-xl bg-white/60 text-lg text-amber-800">
-          ⌁
-        </span>
-      </div>
-      <p className="mt-3 max-w-sm text-sm leading-6 text-emerald-950/58">
-        Get an email when new evidence materially changes its score.
-      </p>
-      <div className="mt-7">
-        <div className="flex flex-col gap-2">
-          <label className="flex-1">
-            <span className="sr-only">Email address for trace updates</span>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              className="w-full rounded-xl border border-amber-900/10 bg-white/78 px-4 py-3.5 text-sm text-emerald-950 outline-none transition placeholder:text-emerald-950/35 focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
-            />
-          </label>
-          <button className="rounded-xl bg-emerald-950 px-5 py-3.5 text-sm font-black text-white shadow-[3px_3px_0_#f5c451] transition hover:-translate-y-0.5">
-            {subscribed ? "Alert active" : "Notify me"}
-          </button>
-        </div>
-        <div className="mt-4 flex min-h-5 flex-wrap items-center gap-3 border-t border-amber-900/10 pt-4">
-          {subscribed && (
-            <button
-              type="button"
-              onClick={() => void unsubscribe()}
-              className="text-xs font-black text-amber-900 underline underline-offset-2"
-            >
-              Unsubscribe
-            </button>
-          )}
-          {status && <p className="text-xs font-semibold text-emerald-950/58">{status}</p>}
-        </div>
-      </div>
-    </form>
   );
 }
 

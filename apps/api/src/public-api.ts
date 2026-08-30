@@ -419,7 +419,6 @@ export const publicOpenApiDocument = {
           sourceUrl: { type: ["string", "null"], format: "uri" },
           publishedAt: { type: ["string", "null"], format: "date-time" },
           appearanceCount: { type: "integer", minimum: 0 },
-          reanalysisState: { enum: ["scheduled", "review_due"] },
         },
         additionalProperties: false,
       },
@@ -475,7 +474,7 @@ export const publicOpenApiDocument = {
           apiVersion: { const: PUBLIC_API_VERSION },
           data: {
             type: "object",
-            required: ["id", "input", "claims", "traceraScore", "createdAt", "nextReviewAt"],
+            required: ["id", "input", "claims", "traceraScore", "createdAt"],
             properties: {
               id: { type: "string", format: "uuid" },
               input: { type: "object", additionalProperties: true },
@@ -490,7 +489,6 @@ export const publicOpenApiDocument = {
                 additionalProperties: true,
               },
               createdAt: { type: "string", format: "date-time" },
-              nextReviewAt: { type: ["string", "null"], format: "date-time" },
             },
             additionalProperties: false,
           },

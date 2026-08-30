@@ -15,9 +15,6 @@
     "WEB_ORIGIN": "https://tracera.voltcrash.com",
     "PUBLIC_WEB_URL": "https://tracera.voltcrash.com",
   },
-  "triggers": {
-    "crons": ["0 * * * *"],
-  },
   "observability": {
     "enabled": true,
   },

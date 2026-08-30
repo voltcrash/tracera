@@ -3,46 +3,22 @@ export type ReanalysisBand = "breaking" | "developing" | "recent" | "established
 export interface ReanalysisPolicyInput {
   inputType: "text" | "link" | "image";
   publishedAt?: string;
-  evidenceQuality?: number;
-  overallScore?: number;
   now?: Date;
 }
 
 export interface ReanalysisPolicy {
   band: ReanalysisBand;
   dedupHours: number;
-  nextReviewHours: number;
   reason: string;
 }
 
 /**
- * Product policy for exact-result reuse and evidence decay. Publication
- * freshness is the primary signal. Weak evidence and an inconclusive overall
- * score shorten the next review without changing the exact-submission window.
+ * Product policy for exact-result reuse. Publication freshness determines how
+ * briefly an identical submission can reuse an existing result.
  */
 export function reanalysisPolicy(input: ReanalysisPolicyInput): ReanalysisPolicy {
   const band = freshnessBand(input.publishedAt, input.now ?? new Date());
-  const base = policyForBand(band, input.inputType);
-  const thinEvidence = typeof input.evidenceQuality === "number" && input.evidenceQuality < 0.45;
-  const uncertainScore =
-    typeof input.overallScore === "number" && input.overallScore >= 35 && input.overallScore <= 65;
-  const nextReviewHours = Math.max(
-    3,
-    Math.round(base.nextReviewHours * (thinEvidence ? 0.5 : 1) * (uncertainScore ? 0.5 : 1)),
-  );
-  const accelerators = [
-    thinEvidence ? "thin evidence" : null,
-    uncertainScore ? "an inconclusive score" : null,
-  ].filter((value): value is string => Boolean(value));
-
-  return {
-    band,
-    dedupHours: base.dedupHours,
-    nextReviewHours,
-    reason: `${base.reason}${
-      accelerators.length ? ` Next review accelerated by ${accelerators.join(" and ")}.` : ""
-    }`,
-  };
+  return { band, ...policyForBand(band, input.inputType) };
 }
 
 function freshnessBand(publishedAt: string | undefined, now: Date): ReanalysisBand {
@@ -60,40 +36,34 @@ function policyForBand(band: ReanalysisBand, inputType: ReanalysisPolicyInput["i
   if (band === "breaking") {
     return {
       dedupHours: 2,
-      nextReviewHours: 6,
-      reason: "Breaking stories are reused briefly and checked again quickly.",
+      reason: "Breaking stories reuse identical results for only a short period.",
     };
   }
   if (band === "developing") {
     return {
       dedupHours: 6,
-      nextReviewHours: 12,
-      reason: "Developing stories are revisited twice per day.",
+      reason: "Developing stories use a six-hour identical-result window.",
     };
   }
   if (band === "recent") {
     return {
       dedupHours: 12,
-      nextReviewHours: 24,
-      reason: "Recent stories are revisited daily.",
+      reason: "Recent stories use a twelve-hour identical-result window.",
     };
   }
   if (band === "established") {
     return {
       dedupHours: 24,
-      nextReviewHours: 72,
-      reason: "Established stories back off to a three-day review cadence.",
+      reason: "Established stories use a one-day identical-result window.",
     };
   }
   return inputType === "image"
     ? {
         dedupHours: 6,
-        nextReviewHours: 12,
-        reason: "Images without a publication date use a cautious review cadence.",
+        reason: "Undated images use a six-hour identical-result window.",
       }
     : {
         dedupHours: 12,
-        nextReviewHours: 24,
-        reason: "Undated submissions use the standard daily review cadence.",
+        reason: "Undated submissions use a twelve-hour identical-result window.",
       };
 }

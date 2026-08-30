@@ -13,7 +13,6 @@ export type TraceSummary = {
   sourceDomain: string | null;
   publishedAt: string | null;
   visibility: "public" | "private";
-  reanalysisState: "scheduled" | "review_due";
   appearanceCount: number;
 };
 
@@ -142,10 +141,6 @@ export function TraceCard({
 function TraceStatusPills({ trace }: { trace: TraceSummary }) {
   return (
     <>
-      <StatusPill
-        tone={trace.reanalysisState === "review_due" ? "amber" : "emerald"}
-        label={trace.reanalysisState === "review_due" ? "Review due" : "Monitoring"}
-      />
       {trace.visibility === "private" && <StatusPill tone="slate" label="Private" />}
       {trace.appearanceCount > 1 && (
         <StatusPill tone="violet" label={`Seen ${trace.appearanceCount}×`} />
