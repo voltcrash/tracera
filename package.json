@@ -8,7 +8,7 @@
     "prepare": "vp config"
   },
   "devDependencies": {
-    "next": "16.2.0",
+    "next": "16.3.4",
     "typescript": "5.9.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
