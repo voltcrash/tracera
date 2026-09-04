@@ -22,7 +22,6 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 - **Toolchain and monorepo:** Vite+ (`vp`), pnpm, TypeScript
 - **Website:** Next.js with Hono API routes
 - **Data:** Neon Postgres, pgvector, PostgreSQL full-text search, Drizzle ORM
-- **Cache and rate limits:** Upstash Redis REST
 - **Hosting:** One Vercel project serving the website and its server routes
 - **Authentication:** Better Auth with Google OAuth, Drizzle, and Neon Postgres
 - **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible APIs
@@ -50,7 +49,7 @@ vp run build         # Build the website and workspace packages
 
 Tracera is deployed as a single Next.js application on Vercel at `tracera.voltcrash.com`. The website serves its pages and mounts the Hono server behind `/api/*`: Better Auth answers at `/api/auth/*`, the first-party analysis routes at `/api/tracera/*`, and the public API at `/api/tracera/v1/*`.
 
-The server connects to Neon Postgres for application data, full-text search, claim embeddings, and vector retrieval. Upstash Redis provides REST-based caching and API rate limits. Analysis runs on demand: there is no scheduled re-analysis.
+The server connects to Neon Postgres for application data, full-text search, claim embeddings, vector retrieval, and reusable analysis results. Analysis runs on demand: there is no scheduled re-analysis.
 
 Better Auth is mounted at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google is the only enabled identity provider. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit OAuth redirect leaves the site for Google's account flow.
 
@@ -70,7 +69,6 @@ flowchart TB
 
     subgraph Data["Data and infrastructure"]
         Neon["Neon Postgres<br/>pgvector + full-text search"]
-        Upstash["Upstash Redis REST<br/>cache + rate limits"]
     end
 
     subgraph Intelligence["Verification services"]
@@ -82,7 +80,6 @@ flowchart TB
     User -->|same-origin API requests| Routes
     Consumer -->|website API routes| Routes
     Routes <--> Neon
-    Routes <--> Upstash
     Routes --> AI
     Routes --> Retrieval
 ```

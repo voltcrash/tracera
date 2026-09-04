@@ -16,80 +16,6 @@ export type FirstPartyAnalysisInput = PublicAnalysisInput & {
   recheckOf?: string;
 };
 
-export interface PublicQuotaStore {
-  incr(key: string): Promise<number>;
-  expire(key: string, seconds: number): Promise<unknown>;
-}
-
-export type PublicQuotaResult =
-  | {
-      allowed: true;
-      limit: number;
-      remaining: number;
-      resetAt: number;
-    }
-  | {
-      allowed: false;
-      status: 429;
-      code: "rate_limited";
-      message: string;
-      retryAfter: number;
-    };
-
-export async function consumePublicApiQuota(
-  store: PublicQuotaStore,
-  keyId: string,
-  options: {
-    minuteLimit: number;
-    dailyLimit: number;
-    nowSeconds?: number;
-    keyPrefix?: string;
-  },
-): Promise<PublicQuotaResult> {
-  const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1_000);
-  const keyPrefix = options.keyPrefix ?? "tracera:public-api";
-  const minuteWindow = Math.floor(nowSeconds / 60);
-  const minuteReset = (minuteWindow + 1) * 60;
-  const minuteCount = await incrementQuota(
-    store,
-    `${keyPrefix}:${keyId}:minute:${minuteWindow}`,
-    120,
-  );
-  if (minuteCount > options.minuteLimit) {
-    return {
-      allowed: false,
-      status: 429,
-      code: "rate_limited",
-      message: "The per-minute API limit was exceeded.",
-      retryAfter: Math.max(1, minuteReset - nowSeconds),
-    };
-  }
-
-  const dayWindow = Math.floor(nowSeconds / 86_400);
-  const dayReset = (dayWindow + 1) * 86_400;
-  const dailyCount = await incrementQuota(
-    store,
-    `${keyPrefix}:${keyId}:day:${dayWindow}`,
-    2 * 86_400,
-  );
-  if (dailyCount > options.dailyLimit) {
-    return {
-      allowed: false,
-      status: 429,
-      code: "rate_limited",
-      message: "The daily API quota was exceeded.",
-      retryAfter: Math.max(1, dayReset - nowSeconds),
-    };
-  }
-
-  return {
-    allowed: true,
-    limit: options.minuteLimit,
-    remaining: Math.max(0, options.minuteLimit - minuteCount),
-    resetAt: minuteReset,
-  };
-}
-
 export function parsePublicAnalysisInput(value: unknown): PublicInputResult {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return invalid("The request body must be a JSON object.");
@@ -221,7 +147,7 @@ export function parseFirstPartyAnalysisInput(
 export async function authenticatePublicApiKey(
   provided: string | undefined,
   configured: string | undefined,
-): Promise<{ authenticated: boolean; keyId?: string }> {
+): Promise<{ authenticated: boolean }> {
   const allowed = (configured ?? "")
     .split(/[\n,]/)
     .map((key) => key.trim())
@@ -231,9 +157,7 @@ export async function authenticatePublicApiKey(
   const providedHash = await sha256(provided);
   const allowedHashes = await Promise.all(allowed.map(sha256));
   const authenticated = allowedHashes.some((hash) => constantTimeEqual(hash, providedHash));
-  return authenticated
-    ? { authenticated: true, keyId: providedHash.slice(0, 16) }
-    : { authenticated: false };
+  return { authenticated };
 }
 
 export const publicOpenApiDocument = {
@@ -277,7 +201,6 @@ export const publicOpenApiDocument = {
             },
           },
           "401": { $ref: "#/components/responses/Unauthorized" },
-          "429": { $ref: "#/components/responses/RateLimited" },
         },
       },
       post: {
@@ -336,7 +259,6 @@ export const publicOpenApiDocument = {
           "400": { description: "The request did not match the input schema." },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "422": { description: "No checkable claim could be extracted." },
-          "429": { $ref: "#/components/responses/RateLimited" },
         },
       },
     },
@@ -362,7 +284,6 @@ export const publicOpenApiDocument = {
           },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "404": { description: "The trace was not found." },
-          "429": { $ref: "#/components/responses/RateLimited" },
         },
       },
     },
@@ -374,14 +295,6 @@ export const publicOpenApiDocument = {
     responses: {
       Unauthorized: {
         description: "A valid Tracera API key is required.",
-        content: {
-          "application/json": {
-            schema: { $ref: "#/components/schemas/ErrorResponse" },
-          },
-        },
-      },
-      RateLimited: {
-        description: "The minute or daily quota was exceeded.",
         content: {
           "application/json": {
             schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -530,10 +443,4 @@ function constantTimeEqual(left: string, right: string) {
     difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
   }
   return difference === 0;
-}
-
-async function incrementQuota(store: PublicQuotaStore, key: string, ttlSeconds: number) {
-  const count = await store.incr(key);
-  if (count === 1) await store.expire(key, ttlSeconds);
-  return count;
 }

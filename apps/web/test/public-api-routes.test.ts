@@ -20,7 +20,7 @@ test("public data routes fail closed when API access is not configured", async (
   assert.equal(payload.error?.code, "api_unavailable");
 });
 
-test("public data routes reject an invalid API key before quota access", async () => {
+test("public data routes reject an invalid API key", async () => {
   const response = await app.request(
     "/v1/checks",
     { headers: { "x-api-key": "wrong" } },
@@ -29,15 +29,4 @@ test("public data routes reject an invalid API key before quota access", async (
   assert.equal(response.status, 401);
   const payload = (await response.json()) as { error?: { code?: string } };
   assert.equal(payload.error?.code, "unauthorized");
-});
-
-test("public data routes fail closed when shared quotas are unavailable", async () => {
-  const response = await app.request(
-    "/v1/checks",
-    { headers: { "x-api-key": "correct" } },
-    { ...databaseEnv, PUBLIC_API_KEYS: "correct" },
-  );
-  assert.equal(response.status, 503);
-  const payload = (await response.json()) as { error?: { code?: string } };
-  assert.equal(payload.error?.code, "quota_unavailable");
 });

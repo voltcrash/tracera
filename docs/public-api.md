@@ -7,20 +7,11 @@ an API key in `x-api-key`; the OpenAPI document is available without a key at
 
 The base URL is `https://tracera.voltcrash.com/api/tracera`.
 
-## Authentication and quotas
+## Authentication
 
 Set one or more comma-separated secrets in `PUBLIC_API_KEYS`. Multiple
 keys support rotation without downtime. `PUBLIC_API_KEY` remains accepted as a
 single-key compatibility setting. Do not place API keys in browser code.
-
-Each key receives 30 requests per minute and 1,000 requests per UTC day by
-default. Configure `PUBLIC_API_RATE_LIMIT_PER_MINUTE` and
-`PUBLIC_API_DAILY_QUOTA` to change those limits. Public data routes fail closed
-if Upstash is unavailable, because Tracera cannot enforce quotas safely without
-the shared counter.
-
-Every successful response includes `RateLimit-Limit`, `RateLimit-Remaining`,
-and `RateLimit-Reset`. A `429` response also includes `Retry-After`.
 
 ## Analyze a submission
 

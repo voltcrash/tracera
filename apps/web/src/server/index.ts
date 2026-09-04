@@ -41,7 +41,6 @@ import {
   type NormalizedInput,
   type TraceraScore,
 } from "@repo/ai";
-import { Redis } from "@upstash/redis";
 import type { AnalysisErrorResponse, AnalysisResponse } from "@repo/contracts";
 import { authenticatedUser, type AuthBindings } from "./auth";
 import { AnalysisError, publicAnalysisError } from "./analysis-errors";
@@ -50,24 +49,18 @@ import { allowedCorsOrigin } from "./cors-origin";
 import { reanalysisPolicy } from "./reanalysis-policy";
 import {
   authenticatePublicApiKey,
-  consumePublicApiQuota,
   parseFirstPartyAnalysisInput,
   parsePublicAnalysisInput,
   PUBLIC_API_VERSION,
   publicOpenApiDocument,
-  type PublicQuotaResult,
 } from "./public-api";
 
 export type Bindings = AuthBindings & {
   DATABASE_URL?: string;
-  UPSTASH_REDIS_REST_URL?: string;
-  UPSTASH_REDIS_REST_TOKEN?: string;
   [key: string]: string | undefined;
 };
 
 export const app = new Hono<{ Bindings: Bindings }>();
-let upstash: Redis | undefined;
-let upstashConfig: string | undefined;
 const currentUserByRequest = new WeakMap<Request, ReturnType<typeof authenticatedUser>>();
 
 const DATABASE_FREE_PATHS = new Set(["/", "/v1", "/v1/openapi.json"]);
@@ -83,70 +76,9 @@ app.use("/*", async (context, next) =>
     origin: (origin) => allowedCorsOrigin(origin, context.env?.WEB_ORIGIN),
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "X-API-Key"],
-    exposeHeaders: ["RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset", "Retry-After"],
     credentials: true,
   })(context, next),
 );
-function upstashRedis(env: Bindings) {
-  const url = env.UPSTASH_REDIS_REST_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-  const token = env.UPSTASH_REDIS_REST_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return undefined;
-
-  const config = `${url}:${token}`;
-  if (!upstash || upstashConfig !== config) {
-    upstash = new Redis({ url, token });
-    upstashConfig = config;
-  }
-  return upstash;
-}
-
-type PublicAccessQuotaResult =
-  | PublicQuotaResult
-  | {
-      allowed: false;
-      status: 503;
-      code: "quota_unavailable";
-      message: string;
-    };
-
-async function publicApiQuota(
-  context: Context<{ Bindings: Bindings }>,
-  keyId: string,
-): Promise<PublicAccessQuotaResult> {
-  const redis = upstashRedis(context.env);
-  if (!redis) {
-    return {
-      allowed: false,
-      status: 503,
-      code: "quota_unavailable",
-      message: "Public API quotas are temporarily unavailable.",
-    };
-  }
-
-  const minuteLimit = configuredPositiveInteger(
-    context.env.PUBLIC_API_RATE_LIMIT_PER_MINUTE ?? process.env.PUBLIC_API_RATE_LIMIT_PER_MINUTE,
-    30,
-    10_000,
-  );
-  const dailyLimit = configuredPositiveInteger(
-    context.env.PUBLIC_API_DAILY_QUOTA ?? process.env.PUBLIC_API_DAILY_QUOTA,
-    1_000,
-    1_000_000,
-  );
-  return consumePublicApiQuota(redis, keyId, { minuteLimit, dailyLimit });
-}
-
-function configuredPositiveInteger(value: string | undefined, fallback: number, maximum: number) {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 && parsed <= maximum ? parsed : fallback;
-}
-
-async function checkRedis(env: Bindings) {
-  const cache = upstashRedis(env);
-  if (!cache) return "not configured";
-
-  return cache.ping();
-}
 
 app.get("/", (context) => context.json({ message: "Hello from Tracera API." }));
 
@@ -178,7 +110,7 @@ app.use("/v1/*", async (context, next) => {
     );
   }
   const access = await authenticatePublicApiKey(context.req.header("x-api-key"), configuredKeys);
-  if (!access.authenticated || !access.keyId) {
+  if (!access.authenticated) {
     return context.json(
       {
         apiVersion: PUBLIC_API_VERSION,
@@ -190,32 +122,6 @@ app.use("/v1/*", async (context, next) => {
       401,
     );
   }
-  const quota = await publicApiQuota(context, access.keyId).catch(
-    (error): PublicAccessQuotaResult => {
-      console.warn("Public API quota check failed", error);
-      return {
-        allowed: false,
-        status: 503,
-        code: "quota_unavailable",
-        message: "Public API quotas are temporarily unavailable.",
-      };
-    },
-  );
-  if (!quota.allowed) {
-    if ("retryAfter" in quota) {
-      context.header("Retry-After", String(quota.retryAfter));
-    }
-    return context.json(
-      {
-        apiVersion: PUBLIC_API_VERSION,
-        error: { code: quota.code, message: quota.message },
-      },
-      quota.status,
-    );
-  }
-  context.header("RateLimit-Limit", String(quota.limit));
-  context.header("RateLimit-Remaining", String(quota.remaining));
-  context.header("RateLimit-Reset", String(quota.resetAt));
   context.header("Cache-Control", "no-store");
   await next();
 });
@@ -383,9 +289,9 @@ app.post("/internal/reports/media-diet/deliver", async (context) => {
 
 app.get("/health", async (context) => {
   try {
-    const [database, cache] = await Promise.all([checkDatabase(), checkRedis(context.env)]);
+    const database = await checkDatabase();
 
-    return context.json({ status: "ok", services: { database, cache } });
+    return context.json({ status: "ok", services: { database } });
   } catch (error) {
     return context.json(
       {
@@ -445,8 +351,6 @@ app.post("/analyze", async (context) => {
   if (!(await canRunAnalysis(context, body))) {
     return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
   }
-  const quotaResponse = await enforceFirstPartyAnalysisQuota(context);
-  if (quotaResponse) return quotaResponse;
   const result = await runAnalysis(context, body);
   return context.json(result.payload, result.status);
 });
@@ -461,8 +365,6 @@ app.post("/analyze/stream", async (context) => {
   if (!(await canRunAnalysis(context, body))) {
     return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
   }
-  const quotaResponse = await enforceFirstPartyAnalysisQuota(context);
-  if (quotaResponse) return quotaResponse;
   const encoder = new TextEncoder();
   let cancelled = false;
   const analysisController = new AbortController();
@@ -1109,45 +1011,6 @@ function publicAnalysisErrorFromPayload(payload: AnalysisErrorResponse) {
 
 function analysisResponse(payload: AnalysisResponse) {
   return payload;
-}
-
-async function enforceFirstPartyAnalysisQuota(context: Context<{ Bindings: Bindings }>) {
-  const user = await currentUser(context);
-  if (!user) return null;
-  const redis = upstashRedis(context.env);
-  if (!redis) {
-    return context.json({ error: "Analysis quotas are temporarily unavailable." }, 503);
-  }
-
-  const quota = await consumePublicApiQuota(redis, user.id, {
-    minuteLimit: configuredPositiveInteger(
-      context.env.ANALYSIS_RATE_LIMIT_PER_MINUTE ?? process.env.ANALYSIS_RATE_LIMIT_PER_MINUTE,
-      5,
-      1_000,
-    ),
-    dailyLimit: configuredPositiveInteger(
-      context.env.ANALYSIS_DAILY_QUOTA ?? process.env.ANALYSIS_DAILY_QUOTA,
-      100,
-      100_000,
-    ),
-    keyPrefix: "tracera:first-party-analysis",
-  }).catch((error): PublicAccessQuotaResult => {
-    console.warn("First-party analysis quota check failed", error);
-    return {
-      allowed: false,
-      status: 503,
-      code: "quota_unavailable",
-      message: "Analysis quotas are temporarily unavailable.",
-    };
-  });
-  if (!quota.allowed) {
-    if ("retryAfter" in quota) context.header("Retry-After", String(quota.retryAfter));
-    return context.json({ error: quota.message }, quota.status);
-  }
-  context.header("RateLimit-Limit", String(quota.limit));
-  context.header("RateLimit-Remaining", String(quota.remaining));
-  context.header("RateLimit-Reset", String(quota.resetAt));
-  return null;
 }
 
 async function normalizeWithStoredFallback(

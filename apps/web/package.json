@@ -25,7 +25,6 @@
     "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
     "@tailwindcss/postcss": "^4.1.13",
-    "@upstash/redis": "^1.38.2",
     "better-auth": "^1.6.26",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
