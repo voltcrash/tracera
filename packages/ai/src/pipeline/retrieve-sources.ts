@@ -1,6 +1,6 @@
 import { findRelatedClaimsByEmbedding, getDomainTrustScores } from "@repo/db";
-import type { AiProvider } from "../provider.js";
-import type { EvidenceSource, ExtractedClaim } from "./types.js";
+import type { AiProvider } from "../provider";
+import type { EvidenceSource, ExtractedClaim } from "./types";
 
 const MAX_EVIDENCE_SOURCES = 5;
 // Analysis runs inside a serverless function. Keep evidence discovery bounded so

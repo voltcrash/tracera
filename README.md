@@ -20,12 +20,10 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 ## Stack
 
 - **Toolchain and monorepo:** Vite+ (`vp`), pnpm, TypeScript
-- **Web:** Next.js
-- **Browser extension:** WXT, Manifest V3
-- **API:** Hono
+- **Website:** Next.js with Hono API routes
 - **Data:** Neon Postgres, pgvector, PostgreSQL full-text search, Drizzle ORM
 - **Cache and rate limits:** Upstash Redis REST
-- **Hosting:** One Vercel project (static export plus a bundled Node.js function)
+- **Hosting:** One Vercel project serving the website and its server routes
 - **Authentication:** Better Auth with Google OAuth, Drizzle, and Neon Postgres
 - **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible APIs
 
@@ -39,25 +37,22 @@ vp check
 vp test --run
 ```
 
-The applications use framework CLIs (Next.js and WXT), so their workspace commands run through Vite Task rather than Vite's built-in app commands:
+The website uses the Next.js CLI, so its workspace commands run through Vite Task rather than Vite's built-in app commands:
 
 ```sh
-vp run dev           # Hono server and Next.js development servers
-vp run build         # Build every workspace application
-vp run build:vercel  # Produce the Vercel deployment output
+vp run dev           # Run the website and its API routes
+vp run build         # Build the website and workspace packages
 ```
 
 `vp dev` and `vp build` always invoke Vite's built-in commands. Use `vp run dev` and `vp run build` in this repository so the correct framework command is selected for each application.
 
 ## Current deployment architecture
 
-Tracera is deployed as a single Vercel project. The Next.js application is a static export served from Vercel's edge network at `tracera.voltcrash.com`, and one bundled Node.js function hosts the Hono server behind every `/api/*` path. Browser and extension requests therefore stay same-origin: Better Auth answers at `/api/auth/*` and the application API at `/api/tracera/*`. The public API keeps its own hostname, `api.tracera.voltcrash.com`, which routes to the same function with the shared prefix restored.
-
-The build produces the [Vercel Build Output API](https://vercel.com/docs/build-output-api/v3) directory in `.vercel/output`: `vp run build:vercel` exports the web application, bundles the server into a single file with `vp pack`, and writes the routing configuration.
+Tracera is deployed as a single Next.js application on Vercel at `tracera.voltcrash.com`. The website serves its pages and mounts the Hono server behind `/api/*`: Better Auth answers at `/api/auth/*`, the first-party analysis routes at `/api/tracera/*`, and the public API at `/api/tracera/v1/*`.
 
 The server connects to Neon Postgres for application data, full-text search, claim embeddings, and vector retrieval. Upstash Redis provides REST-based caching and API rate limits. Analysis runs on demand: there is no scheduled re-analysis.
 
-Better Auth is mounted at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google is the only enabled identity provider. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit OAuth redirect leaves the site for Google's account flow. The same Better Auth session authorizes authenticated web and extension requests.
+Better Auth is mounted at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google is the only enabled identity provider. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit OAuth redirect leaves the site for Google's account flow.
 
 The server calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
 
@@ -65,13 +60,12 @@ The server calls configured hosted AI providers through a shared abstraction and
 flowchart TB
     subgraph Clients
         User["Web user"]
-        Extension["Browser extension<br/>WXT + Manifest V3"]
-        Consumer["Public API consumer"]
+        Consumer["API client"]
     end
 
     subgraph Vercel["Vercel project"]
-        Static["Static Next.js export<br/>tracera.voltcrash.com"]
-        Fn["Node.js function<br/>Hono + Better Auth<br/>/api/auth/* and /api/tracera/*"]
+        Website["Next.js website<br/>tracera.voltcrash.com"]
+        Routes["Hono API routes<br/>/api/auth/* and /api/tracera/*"]
     end
 
     subgraph Data["Data and infrastructure"]
@@ -84,12 +78,11 @@ flowchart TB
         Retrieval["External retrieval services<br/>fact checks + news + web search"]
     end
 
-    User --> Static
-    User -->|same-origin /api/auth/* and /api/tracera/*| Fn
-    Extension -->|same-origin session and API| Fn
-    Consumer -->|api.tracera.voltcrash.com| Fn
-    Fn <--> Neon
-    Fn <--> Upstash
-    Fn --> AI
-    Fn --> Retrieval
+    User --> Website
+    User -->|same-origin API requests| Routes
+    Consumer -->|website API routes| Routes
+    Routes <--> Neon
+    Routes <--> Upstash
+    Routes --> AI
+    Routes --> Retrieval
 ```

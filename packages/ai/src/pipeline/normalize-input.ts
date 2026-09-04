@@ -1,9 +1,9 @@
 import { resolve4, resolve6 } from "node:dns/promises";
 import { isIP } from "node:net";
 import { z } from "zod";
-import type { AiProvider, AiRequestOptions } from "../provider.js";
-import type { NormalizedInput } from "./types.js";
-import { extractExifMetadata } from "./image-metadata.js";
+import type { AiProvider, AiRequestOptions } from "../provider";
+import type { NormalizedInput } from "./types";
+import { extractExifMetadata } from "./image-metadata";
 
 const ARTICLE_FETCH_TIMEOUT_MS = 15_000;
 const MAX_ARTICLE_BYTES = 2_000_000;
@@ -14,7 +14,7 @@ const MIN_READER_ARTICLE_WORDS = 20;
 export type RawAnalysisInput = {
   text?: string;
   url?: string;
-  /** Browser extensions can provide already-readable page text plus its source. */
+  /** Clients can provide already-readable page text plus its source. */
   sourceUrl?: string;
   image?: string;
   imageMimeType?: string;

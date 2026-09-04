@@ -3,8 +3,7 @@
   "private": true,
   "scripts": {
     "build": "vp run -r build",
-    "build:vercel": "vp run --filter api --filter web build && node scripts/build-vercel.mjs",
-    "dev": "vp run --parallel --filter api --filter web dev",
+    "dev": "vp run --filter web dev",
     "check-types": "vp run -r check-types",
     "prepare": "vp config"
   },

@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { AiProvider, AiRequestOptions, GenerateOptions, ImageInput } from "./provider.js";
+import type { AiProvider, AiRequestOptions, GenerateOptions, ImageInput } from "./provider";
 
 /** Combines independent generation and embedding providers behind one interface. */
 export class CompositeAiProvider implements AiProvider {

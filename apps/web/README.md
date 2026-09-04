@@ -1,14 +1,14 @@
 # Tracera web
 
-The Next.js client for Tracera. It is exported as a static site and deployed
-alongside the Hono server in a single Vercel project, so browser requests to
-`/api/auth/*` and `/api/tracera/*` stay on the same origin.
+The whole of Tracera: the Next.js client plus the Hono server it mounts at
+`/api/*`. Better Auth answers at `/api/auth/*` and the application API at
+`/api/tracera/*`, always on the same origin as the pages.
 
 From the repository root:
 
 ```sh
-vp run web#dev
+vp run --filter web dev
 ```
 
-Set `NEXT_PUBLIC_SERVER_ORIGIN` when the Hono server runs on a different port
-during local development.
+Copy `.env.example` to `.env` and fill in the database, auth, and AI provider
+values before running the server routes.

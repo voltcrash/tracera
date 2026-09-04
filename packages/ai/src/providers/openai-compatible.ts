@@ -1,5 +1,5 @@
-import type { AiRequestOptions, GenerateOptions, ImageInput, JsonSchema } from "../provider.js";
-import { StructuredOutputProvider } from "../provider.js";
+import type { AiRequestOptions, GenerateOptions, ImageInput, JsonSchema } from "../provider";
+import { StructuredOutputProvider } from "../provider";
 
 export interface OpenAiCompatibleProviderOptions {
   apiKey: string;

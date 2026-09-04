@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
-import { reanalysisPolicy } from "../src/reanalysis-policy.js";
+import { reanalysisPolicy } from "../server/reanalysis-policy";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
 

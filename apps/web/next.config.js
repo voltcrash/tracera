@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // The Vercel deployment serves this app as static files next to a single
-  // Node.js function that owns every `/api/*` route.
-  output: "export",
-  images: { unoptimized: true },
+  // The API route consumes the workspace packages directly from TypeScript.
+  transpilePackages: ["@repo/ai", "@repo/db", "@repo/auth", "@repo/contracts"],
 };
 
 export default nextConfig;

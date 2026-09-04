@@ -1,9 +1,9 @@
-import { aggregateScore } from "./aggregate-score.js";
-import { analyzeFraming } from "./analyze-framing.js";
-import { extractClaims } from "./extract-claims.js";
-import { retrieveSources } from "./retrieve-sources.js";
-import { scoreClaim } from "./score-claim.js";
-import type { ClaimVerdict, TraceraScore, VerifyTextOptions } from "./types.js";
+import { aggregateScore } from "./aggregate-score";
+import { analyzeFraming } from "./analyze-framing";
+import { extractClaims } from "./extract-claims";
+import { retrieveSources } from "./retrieve-sources";
+import { scoreClaim } from "./score-claim";
+import type { ClaimVerdict, TraceraScore, VerifyTextOptions } from "./types";
 
 export async function verifyText(
   text: string,
@@ -11,7 +11,7 @@ export async function verifyText(
 ): Promise<{
   claims: ClaimVerdict[];
   score: TraceraScore;
-  framing: import("./types.js").FramingAnalysis;
+  framing: import("./types").FramingAnalysis;
 }> {
   const [extractedClaims, framing] = await Promise.all([
     extractClaims(options.provider, text, { signal: options.signal }),

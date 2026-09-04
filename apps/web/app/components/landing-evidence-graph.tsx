@@ -46,7 +46,7 @@ export function LandingEvidenceGraph() {
 
   return (
     <section
-      className="noise relative overflow-hidden rounded-[2rem] bg-emerald-950 p-6 text-white shadow-[0_28px_70px_-30px_rgba(6,78,59,.8)] sm:p-8"
+      className="noise relative overflow-hidden rounded-[2rem] bg-panel p-6 text-panel-foreground shadow-(--shadow-panel) sm:p-8"
       aria-label="Interactive evidence map"
     >
       <div className="evidence-glow" aria-hidden="true" />

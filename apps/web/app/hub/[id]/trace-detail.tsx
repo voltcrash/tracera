@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import type { ClaimResult, FramingAnalysis, TraceraScore } from "@repo/contracts";
 import { AnalysisResult, ScoreCard } from "../../components/analysis-result";
@@ -46,10 +45,7 @@ type AppearanceEntry = {
   observed_at: string;
 };
 
-export function TraceDetail() {
-  // The static export renders one shell for every trace, so the check id comes
-  // from the browser location instead of a prerendered route parameter.
-  const id = decodeURIComponent(usePathname().split("/").pop() ?? "");
+export function TraceDetail({ id }: { id: string }) {
   const [check, setCheck] = useState<Check | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [appearances, setAppearances] = useState<AppearanceEntry[]>([]);
@@ -231,7 +227,7 @@ function TraceTimeline({
             : null;
           return (
             <li key={entry.id} className="relative py-4">
-              <span className="absolute -left-[1.62rem] top-6 size-3 rounded-full border-[3px] border-background bg-emerald-600" />
+              <span className="absolute -left-[1.62rem] top-6 size-3 rounded-full border-[3px] border-background bg-emerald" />
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold">
@@ -259,8 +255,8 @@ function TraceTimeline({
                         change === 0
                           ? "text-muted-foreground"
                           : change > 0
-                            ? "text-emerald-700"
-                            : "text-rose-700",
+                            ? "text-tint-mint-foreground"
+                            : "text-tint-rose-foreground",
                       )}
                     >
                       {change === 0 ? "unchanged" : `${change > 0 ? "+" : ""}${change} points`}

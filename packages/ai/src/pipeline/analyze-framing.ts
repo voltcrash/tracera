@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { AiProvider } from "../provider.js";
-import type { PromptAuditOptions } from "./extract-claims.js";
-import type { FramingAnalysis } from "./types.js";
+import type { AiProvider } from "../provider";
+import type { PromptAuditOptions } from "./extract-claims";
+import type { FramingAnalysis } from "./types";
 
 const framingSchema = z.object({
   emotionalLanguageLevel: z.number().min(0).max(1),

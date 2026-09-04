@@ -7,20 +7,20 @@ export {
   type StructuredOutputAttempt,
   StructuredOutputError,
   StructuredOutputProvider,
-} from "./provider.js";
-export { GeminiProvider, type GeminiProviderOptions } from "./providers/gemini.js";
-export { AnthropicProvider, type AnthropicProviderOptions } from "./providers/anthropic.js";
+} from "./provider";
+export { GeminiProvider, type GeminiProviderOptions } from "./providers/gemini";
+export { AnthropicProvider, type AnthropicProviderOptions } from "./providers/anthropic";
 export {
   OpenAiCompatibleProvider,
   type OpenAiCompatibleProviderOptions,
-} from "./providers/openai-compatible.js";
-export { CompositeAiProvider } from "./composite-provider.js";
+} from "./providers/openai-compatible";
+export { CompositeAiProvider } from "./composite-provider";
 export {
   createAiProvider,
   type AiProviderConfig,
   type AiProviderName,
   type ModelProviderConfig,
-} from "./create-provider.js";
+} from "./create-provider";
 export {
   aggregateScore,
   analyzeFraming,
@@ -41,4 +41,4 @@ export {
   type GroundZeroResult,
   type FramingAnalysis,
   type RawAnalysisInput,
-} from "./pipeline/index.js";
+} from "./pipeline/index";

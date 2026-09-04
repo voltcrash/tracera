@@ -6,16 +6,17 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Check, Search } from "lucide-react";
 import { LandingEvidenceGraph } from "./components/landing-evidence-graph";
+import { ThemeToggle } from "./components/theme-toggle";
 import { useAuth } from "./components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const scoreDimensions = [
-  { label: "Factual accuracy", value: 86, color: "bg-[#adf3d7]" },
-  { label: "Source corroboration", value: 78, color: "bg-[#72dfbd]" },
-  { label: "Evidence quality", value: 72, color: "bg-[#f5d67b]" },
-  { label: "Source reputation", value: 91, color: "bg-[#9fdde8]" },
-  { label: "Framing & language", value: 64, color: "bg-[#d8b4fe]" },
+  { label: "Factual accuracy", value: 86, color: "bg-chart-1" },
+  { label: "Source corroboration", value: 78, color: "bg-chart-2" },
+  { label: "Evidence quality", value: 72, color: "bg-chart-4" },
+  { label: "Source reputation", value: 91, color: "bg-chart-5" },
+  { label: "Framing & language", value: 64, color: "bg-chart-3" },
 ];
 
 export default function LandingPage() {
@@ -27,12 +28,12 @@ export default function LandingPage() {
   }, [router, user]);
 
   return (
-    <main className="landing-page paper-grid min-h-screen overflow-hidden bg-[#f4f6f2] text-[#10221f]">
+    <main className="landing-page paper-grid min-h-screen overflow-hidden bg-background text-foreground">
       <div className="landing-aurora landing-aurora-one" aria-hidden="true" />
       <div className="landing-aurora landing-aurora-two" aria-hidden="true" />
 
       <div className="relative z-10 mx-auto max-w-7xl px-5 sm:px-8">
-        <header className="landing-nav mt-3 flex items-center justify-between rounded-2xl border border-emerald-950/10 bg-[#f4f6f2]/85 px-4 py-3 shadow-[0_14px_44px_-30px_rgba(16,34,31,.65)] backdrop-blur-xl sm:mt-5 sm:px-5">
+        <header className="landing-nav mt-3 flex items-center justify-between rounded-2xl border border-line bg-background/85 px-4 py-3 shadow-(--shadow-nav) backdrop-blur-xl sm:mt-5 sm:px-5">
           <Link
             href="/"
             className="group block rounded-lg transition hover:-translate-y-0.5"
@@ -44,7 +45,7 @@ export default function LandingPage() {
               width={148}
               height={34}
               priority
-              className="h-7 w-auto sm:h-8"
+              className="brand-wordmark h-7 w-auto sm:h-8"
             />
           </Link>
           <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
@@ -62,6 +63,7 @@ export default function LandingPage() {
             </Link>
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <ThemeToggle />
             <Button asChild variant="ghost" className="hidden rounded-full sm:inline-flex">
               <Link href="/login">Log in</Link>
             </Button>
@@ -75,11 +77,11 @@ export default function LandingPage() {
           <div className="landing-reveal">
             <h1 className="max-w-4xl text-[3.55rem] font-black leading-[.88] tracking-[-.085em] sm:text-7xl lg:text-[5.8rem]">
               Don&apos;t just read the story.
-              <span className="landing-highlight relative mt-2 block w-fit text-emerald-700">
+              <span className="landing-highlight relative mt-2 block w-fit text-emerald">
                 Trace it.
               </span>
             </h1>
-            <p className="mt-8 max-w-xl text-lg leading-8 text-emerald-950/65 sm:text-xl sm:leading-9">
+            <p className="mt-8 max-w-xl text-lg leading-8 text-ink/65 sm:text-xl sm:leading-9">
               Tracera pulls news apart into checkable claims, follows each one back to its sources,
               and shows you exactly where confidence comes from.
             </p>
@@ -91,7 +93,7 @@ export default function LandingPage() {
                 <Link href="/hub">Explore live traces</Link>
               </Button>
             </div>
-            <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-xs font-bold text-emerald-950/52">
+            <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-xs font-bold text-ink/52">
               <span className="landing-check">Text, links & images</span>
               <span className="landing-check">Claim-level evidence</span>
               <span className="landing-check">Private by choice</span>
@@ -104,14 +106,14 @@ export default function LandingPage() {
             </div>
             <LandingEvidenceGraph />
             <div className="landing-float-tag landing-float-tag-bottom" aria-hidden="true">
-              <span className="font-black text-amber-600">△</span> Context gap found
+              <span className="font-black text-tint-amber-foreground">△</span> Context gap found
             </div>
           </div>
         </section>
 
         <section
           aria-label="What Tracera analyzes"
-          className="landing-signal-strip mb-24 grid overflow-hidden rounded-3xl border border-emerald-950/10 bg-white/70 shadow-[0_20px_55px_-45px_rgba(16,34,31,.6)] sm:grid-cols-2 lg:mb-32 lg:grid-cols-4"
+          className="landing-signal-strip mb-24 grid overflow-hidden rounded-3xl border border-line bg-glass-weak shadow-(--shadow-card) sm:grid-cols-2 lg:mb-32 lg:grid-cols-4"
         >
           <SignalStat number="01" label="Break apart" detail="Atomic, checkable claims" />
           <SignalStat number="02" label="Follow back" detail="Origins and source trails" />
@@ -134,19 +136,19 @@ export default function LandingPage() {
                   <FormatRow icon="↗" label="Drop a link" status="Detected" />
                   <FormatRow icon="◫" label="Add an image" status="OCR + metadata" />
                 </div>
-                <div className="relative overflow-hidden rounded-2xl bg-[#f1f5f0] p-5">
+                <div className="relative overflow-hidden rounded-2xl bg-sunken p-5">
                   <div className="mb-4 flex items-center gap-1.5" aria-hidden="true">
                     <span className="size-2 rounded-full bg-rose-300" />
                     <span className="size-2 rounded-full bg-amber-300" />
                     <span className="size-2 rounded-full bg-emerald-300" />
                   </div>
-                  <p className="text-sm font-semibold leading-6 text-emerald-950/65">
+                  <p className="text-sm font-semibold leading-6 text-ink/65">
                     “New research shows the policy cut household energy costs by 40% in its first
                     year...”
                   </p>
-                  <div className="mt-5 flex items-center justify-between gap-3 border-t border-emerald-950/8 pt-4">
-                    <span className="text-xs font-semibold text-emerald-700">Link found</span>
-                    <span className="rounded-lg bg-emerald-950 px-3 py-2 text-xs font-semibold text-white">
+                  <div className="mt-5 flex items-center justify-between gap-3 border-t border-line-weak pt-4">
+                    <span className="text-xs font-semibold text-emerald">Link found</span>
+                    <span className="rounded-lg bg-panel px-3 py-2 text-xs font-semibold text-panel-foreground">
                       Trace evidence
                     </span>
                   </div>
@@ -178,7 +180,7 @@ export default function LandingPage() {
 
             <article className="feature-card landing-view-reveal lg:col-span-5">
               <FeatureHeading title="No more all-or-nothing fact checks." />
-              <p className="mt-4 text-sm leading-6 text-emerald-950/58">
+              <p className="mt-4 text-sm leading-6 text-ink/58">
                 Tracera separates fact from framing, then gives every checkable claim its own
                 verdict.
               </p>
@@ -206,7 +208,7 @@ export default function LandingPage() {
                   <SourceNode date="May 14 · 08:00" source="Primary record" state="origin" />
                 </div>
               </div>
-              <p className="mt-7 max-w-2xl text-sm leading-6 text-emerald-950/62">
+              <p className="mt-7 max-w-2xl text-sm leading-6 text-ink/62">
                 Rewrites and citations are useful—but the earliest known report, dataset, or public
                 record is where context often changes.
               </p>
@@ -238,23 +240,23 @@ export default function LandingPage() {
 
             <article className="feature-card feature-card-lilac landing-view-reveal lg:col-span-5">
               <FeatureHeading title="Know how good the evidence really is." />
-              <div className="mt-8 rounded-2xl border border-violet-950/10 bg-white/65 p-5">
+              <div className="mt-8 rounded-2xl border border-line bg-glass-weak p-5">
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-sm text-violet-800/70">Evidence quality</p>
-                    <p className="mt-1 text-4xl font-black tracking-[-.07em] text-violet-950">
+                    <p className="text-sm text-tint-lilac-foreground/85">Evidence quality</p>
+                    <p className="mt-1 text-4xl font-black tracking-[-.07em] text-tint-lilac-foreground">
                       72
-                      <span className="text-base text-violet-950/40">/100</span>
+                      <span className="text-base text-tint-lilac-foreground/55">/100</span>
                     </p>
                   </div>
-                  <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-black text-violet-800">
+                  <span className="rounded-full bg-tint-lilac px-3 py-1 text-xs font-black text-tint-lilac-foreground">
                     Moderate
                   </span>
                 </div>
-                <div className="mt-5 h-2 overflow-hidden rounded-full bg-violet-950/8">
-                  <span className="block h-full w-[72%] rounded-full bg-violet-500" />
+                <div className="mt-5 h-2 overflow-hidden rounded-full bg-line-weak">
+                  <span className="block h-full w-[72%] rounded-full bg-chart-3" />
                 </div>
-                <p className="mt-4 text-xs leading-5 text-violet-950/58">
+                <p className="mt-4 text-xs leading-5 text-tint-lilac-foreground/75">
                   Recent and relevant, with one missing primary source.
                 </p>
               </div>
@@ -268,7 +270,7 @@ export default function LandingPage() {
               <h2 className="max-w-lg text-4xl font-black leading-[.96] tracking-[-.065em] sm:text-5xl">
                 A clear answer without skipping the hard parts.
               </h2>
-              <p className="mt-6 max-w-[52ch] text-base leading-relaxed text-emerald-950/60">
+              <p className="mt-6 max-w-[52ch] text-base leading-relaxed text-ink/60">
                 Tracera does the source work in stages, then keeps the full path open for you to
                 inspect.
               </p>
@@ -282,21 +284,21 @@ export default function LandingPage() {
                 title="Separate the claims"
                 copy="The story is normalized, factual statements are isolated, and opinion or framing is identified instead of quietly mixed into the verdict."
                 label="CLAIMS"
-                accent="bg-[#dff7ed] text-emerald-900"
+                accent="bg-tint-mint text-tint-mint-foreground"
               />
               <ProcessStep
                 number="02"
                 title="Retrieve and audit evidence"
                 copy="Relevant reporting, public records, fact checks, and related verified claims are gathered, ranked, and compared for support or contradiction."
                 label="SOURCES"
-                accent="bg-[#fff0c7] text-amber-900"
+                accent="bg-tint-amber text-tint-amber-foreground"
               />
               <ProcessStep
                 number="03"
                 title="Explain the result"
                 copy="Each claim receives a verdict, reasoning, confidence, and evidence-quality assessment before those signals roll up into the Tracera Score."
                 label="VERDICT"
-                accent="bg-[#eee5ff] text-violet-900"
+                accent="bg-tint-lilac text-tint-lilac-foreground"
               />
             </ol>
           </div>
@@ -305,7 +307,7 @@ export default function LandingPage() {
 
       <section
         id="living-traces"
-        className="relative scroll-mt-20 overflow-hidden bg-[#0d2a25] py-24 text-white sm:py-32"
+        className="relative scroll-mt-20 overflow-hidden bg-panel py-24 text-white sm:py-32"
       >
         <div className="living-grid" aria-hidden="true" />
         <div className="relative z-10 mx-auto max-w-7xl px-5 sm:px-8">
@@ -339,7 +341,7 @@ export default function LandingPage() {
                     <p className="font-bold text-white/90">Household energy policy impact</p>
                     <p className="mt-1 text-sm text-white/45">Trace 0284</p>
                   </div>
-                  <span className="inline-flex items-center gap-2 rounded-full bg-[#9cf0d1]/12 px-3 py-1.5 text-xs font-semibold text-[#9cf0d1]">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-mint/12 px-3 py-1.5 text-xs font-semibold text-mint">
                     <span className="landing-status-dot" /> Following
                   </span>
                 </div>
@@ -371,19 +373,17 @@ export default function LandingPage() {
                   <div className="flex min-w-40 flex-col justify-between rounded-2xl bg-white/[.07] p-5">
                     <div>
                       <p className="text-sm text-white/45">Current score</p>
-                      <p className="mt-2 text-5xl font-black tracking-[-.08em] text-[#9cf0d1]">
-                        82
-                      </p>
+                      <p className="mt-2 text-5xl font-black tracking-[-.08em] text-mint">82</p>
                     </div>
                     <div className="mt-8">
                       <p className="text-xs font-bold text-white/55">Since first trace</p>
-                      <p className="mt-1 text-xl font-black text-[#9cf0d1]">+14 points</p>
+                      <p className="mt-1 text-xl font-black text-mint">+14 points</p>
                     </div>
                   </div>
                 </div>
               </div>
               <div className="trace-notification" aria-hidden="true">
-                <span className="grid size-9 place-items-center rounded-xl bg-emerald-100 text-emerald-900">
+                <span className="grid size-9 place-items-center rounded-xl bg-tint-mint text-tint-mint-foreground">
                   ↗
                 </span>
                 <span>
@@ -430,7 +430,7 @@ export default function LandingPage() {
                 <span className="corpus-line corpus-line-two" />
                 <span className="corpus-line corpus-line-three" />
               </div>
-              <div className="mt-7 grid gap-3 border-t border-emerald-950/8 pt-6 sm:grid-cols-3">
+              <div className="mt-7 grid gap-3 border-t border-line-weak pt-6 sm:grid-cols-3">
                 <CorpusMetric value="Instant" label="duplicate detection" />
                 <CorpusMetric value="Stored" label="past trace versions" />
                 <CorpusMetric value="Linked" label="related context" />
@@ -439,11 +439,11 @@ export default function LandingPage() {
 
             <article className="feature-card feature-card-peach landing-view-reveal">
               <FeatureHeading title="A public record of how stories evolve." />
-              <p className="mt-5 text-sm leading-6 text-emerald-950/62">
+              <p className="mt-5 text-sm leading-6 text-ink/62">
                 Search previous checks, filter high-confidence results, revisit source trails, and
                 follow a trace from its first verdict to its latest evidence.
               </p>
-              <div className="mt-8 rounded-2xl bg-white/75 p-4 shadow-sm">
+              <div className="mt-8 rounded-2xl bg-glass-weak p-4 shadow-sm">
                 <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
                   <Search className="size-4" /> Search claims and stories
                 </div>
@@ -464,7 +464,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="landing-cta relative mb-8 overflow-hidden rounded-[2.5rem] bg-[#b7f1dc] px-6 py-16 text-center sm:px-12 sm:py-20">
+        <section className="landing-cta relative mb-8 overflow-hidden rounded-[2.5rem] bg-cta px-6 py-16 text-center text-cta-foreground sm:px-12 sm:py-20">
           <div className="cta-ring cta-ring-one" aria-hidden="true" />
           <div className="cta-ring cta-ring-two" aria-hidden="true" />
           <div className="relative z-10 mx-auto max-w-3xl">
@@ -473,7 +473,7 @@ export default function LandingPage() {
               <br />
               See what&apos;s missing.
             </h2>
-            <p className="mx-auto mt-6 max-w-[52ch] text-base leading-relaxed text-emerald-950/62">
+            <p className="mx-auto mt-6 max-w-[52ch] text-base leading-relaxed text-cta-foreground/70">
               Paste a headline, article, claim, link, or image. Tracera will take it from there.
             </p>
             <Button asChild variant="brand" size="xl" className="mt-9">
@@ -489,23 +489,23 @@ export default function LandingPage() {
               alt="Tracera"
               width={126}
               height={29}
-              className="h-7 w-auto"
+              className="brand-wordmark h-7 w-auto"
             />
           </div>
           <nav
-            className="flex flex-wrap gap-x-6 gap-y-2 text-xs font-bold text-emerald-950/55"
+            className="flex flex-wrap gap-x-6 gap-y-2 text-xs font-bold text-ink/55"
             aria-label="Footer navigation"
           >
-            <a href="#features" className="hover:text-emerald-800">
+            <a href="#features" className="hover:text-emerald">
               Features
             </a>
-            <a href="#how-it-works" className="hover:text-emerald-800">
+            <a href="#how-it-works" className="hover:text-emerald">
               How it works
             </a>
-            <Link href="/hub" className="hover:text-emerald-800">
+            <Link href="/hub" className="hover:text-emerald">
               News Hub
             </Link>
-            <Link href="/login" className="hover:text-emerald-800">
+            <Link href="/login" className="hover:text-emerald">
               Log in
             </Link>
           </nav>
@@ -521,7 +521,7 @@ function SectionIntro({ title, copy }: { title: string; copy: string }) {
       <h2 className="max-w-3xl text-4xl font-black leading-[.95] tracking-[-.065em] sm:text-6xl">
         {title}
       </h2>
-      <p className="max-w-[52ch] text-base leading-relaxed text-emerald-950/60 lg:justify-self-end">
+      <p className="max-w-[52ch] text-base leading-relaxed text-ink/60 lg:justify-self-end">
         {copy}
       </p>
     </div>
@@ -531,9 +531,9 @@ function SectionIntro({ title, copy }: { title: string; copy: string }) {
 function SignalStat({ number, label, detail }: { number: string; label: string; detail: string }) {
   return (
     <div className="signal-stat p-5 sm:p-6">
-      <p className="text-sm font-semibold tabular-nums text-emerald-700">{number}</p>
+      <p className="text-sm font-semibold tabular-nums text-emerald">{number}</p>
       <p className="mt-2 text-sm font-bold">{label}</p>
-      <p className="mt-1 text-sm text-emerald-950/50">{detail}</p>
+      <p className="mt-1 text-sm text-ink/50">{detail}</p>
     </div>
   );
 }
@@ -543,7 +543,7 @@ function FeatureHeading({ title, dark = false }: { title: string; dark?: boolean
     <h3
       className={cn(
         "max-w-lg text-2xl font-black leading-[1.04] tracking-[-.045em] sm:text-3xl",
-        dark ? "text-white" : "text-emerald-950",
+        dark ? "text-panel-foreground" : "text-foreground",
       )}
     >
       {title}
@@ -564,18 +564,16 @@ function FormatRow({
 }) {
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl border p-3 transition ${active ? "border-emerald-300 bg-emerald-50 shadow-sm" : "border-emerald-950/8 bg-white/65"}`}
+      className={`flex items-center gap-3 rounded-xl border p-3 transition ${active ? "border-emerald/40 bg-tint-mint shadow-sm" : "border-line-weak bg-glass-weak"}`}
     >
       <span
-        className={`grid size-9 place-items-center rounded-lg text-xs font-black ${active ? "bg-emerald-950 text-white" : "bg-emerald-950/5 text-emerald-950/58"}`}
+        className={`grid size-9 place-items-center rounded-lg text-xs font-black ${active ? "bg-panel text-panel-foreground" : "bg-line-weak text-ink-soft"}`}
       >
         {icon}
       </span>
       <span className="min-w-0">
         <strong className="block text-xs">{label}</strong>
-        <small className="block truncate text-[10px] font-semibold text-emerald-950/42">
-          {status}
-        </small>
+        <small className="block truncate text-[10px] font-semibold text-ink/42">{status}</small>
       </span>
     </div>
   );
@@ -605,17 +603,17 @@ function Claim({
   tone: "emerald" | "amber" | "slate";
 }) {
   const styles = {
-    emerald: "bg-emerald-100 text-emerald-800",
-    amber: "bg-amber-100 text-amber-800",
-    slate: "bg-slate-100 text-slate-700",
+    emerald: "bg-tint-mint text-tint-mint-foreground",
+    amber: "bg-tint-amber text-tint-amber-foreground",
+    slate: "bg-muted text-muted-foreground",
   } as const;
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-950/8 bg-white/70 px-4 py-3.5">
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-line-weak bg-glass-weak px-4 py-3.5">
       <div className="flex items-center gap-3">
-        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/6 text-brand-emerald">
+        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/8 text-emerald">
           <Check className="size-3" />
         </span>
-        <p className="text-xs font-bold leading-5 text-emerald-950/72">{label}</p>
+        <p className="text-xs font-bold leading-5 text-ink/75">{label}</p>
       </div>
       <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black", styles[tone])}>
         {verdict}
@@ -637,11 +635,11 @@ function SourceNode({
     <div className={`source-node source-node-${state}`}>
       <span className="source-dot" />
       <div>
-        <p className="text-xs text-emerald-900/50">{date}</p>
-        <p className="mt-0.5 text-sm font-semibold text-emerald-950/80">{source}</p>
+        <p className="text-xs text-ink-faint">{date}</p>
+        <p className="mt-0.5 text-sm font-semibold text-ink/85">{source}</p>
       </div>
       {state === "origin" && (
-        <span className="ml-auto rounded-full bg-emerald-950 px-2.5 py-1 text-xs font-semibold text-[#9cf0d1]">
+        <span className="ml-auto rounded-full bg-panel px-2.5 py-1 text-xs font-semibold text-mint">
           Origin
         </span>
       )}
@@ -661,9 +659,9 @@ function EvidenceColumn({
   sources: string[];
 }) {
   const styles = {
-    support: "bg-emerald-50 text-emerald-800 border-emerald-200",
-    conflict: "bg-rose-50 text-rose-800 border-rose-200",
-    open: "bg-amber-50 text-amber-800 border-amber-200",
+    support: "border-emerald/25 bg-tint-mint text-tint-mint-foreground",
+    conflict: "border-tint-rose-foreground/25 bg-tint-rose text-tint-rose-foreground",
+    open: "border-tint-amber-foreground/25 bg-tint-amber text-tint-amber-foreground",
   };
   return (
     <div className={`rounded-2xl border p-4 ${styles[tone]}`}>
@@ -673,7 +671,7 @@ function EvidenceColumn({
       </div>
       <div className="mt-5 space-y-2">
         {sources.map((source) => (
-          <p key={source} className="rounded-lg bg-white/65 px-3 py-2 text-[10px] font-bold">
+          <p key={source} className="rounded-lg bg-glass-weak px-3 py-2 text-[10px] font-bold">
             {source}
           </p>
         ))}
@@ -705,7 +703,7 @@ function ProcessStep({
             {label}
           </span>
         </div>
-        <p className="mt-4 max-w-xl text-sm leading-7 text-emerald-950/58">{copy}</p>
+        <p className="mt-4 max-w-xl text-sm leading-7 text-ink/58">{copy}</p>
       </div>
     </li>
   );
@@ -714,9 +712,7 @@ function ProcessStep({
 function DarkFeature({ icon, title, copy }: { icon: string; title: string; copy: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[.055] p-4">
-      <span className="grid size-8 place-items-center rounded-lg bg-[#9cf0d1]/12 text-[#9cf0d1]">
-        {icon}
-      </span>
+      <span className="grid size-8 place-items-center rounded-lg bg-mint/12 text-mint">{icon}</span>
       <p className="mt-4 text-sm font-black">{title}</p>
       <p className="mt-1 text-xs leading-5 text-white/48">{copy}</p>
     </div>
@@ -742,13 +738,13 @@ function TraceEvent({
     <div className="trace-event">
       <span className={`trace-event-dot ${active ? "trace-event-dot-active" : ""}`} />
       <div className="flex-1">
-        <p className={cn("text-xs", active ? "text-[#9cf0d1]" : "text-white/40")}>{date}</p>
+        <p className={cn("text-xs", active ? "text-mint" : "text-white/40")}>{date}</p>
         <p className="mt-1 text-sm font-semibold text-white/85">{title}</p>
         <p className="mt-1 text-xs text-white/45">{detail}</p>
       </div>
       <div className="text-right">
         <strong className="block text-lg tracking-[-.04em]">{score}</strong>
-        <span className={cn("text-xs font-semibold", active ? "text-[#9cf0d1]" : "text-white/40")}>
+        <span className={cn("text-xs font-semibold", active ? "text-mint" : "text-white/40")}>
           {change}
         </span>
       </div>
@@ -779,8 +775,8 @@ function CorpusNode({
 function CorpusMetric({ value, label }: { value: string; label: string }) {
   return (
     <div>
-      <p className="text-lg font-black tracking-[-.035em] text-emerald-800">{value}</p>
-      <p className="mt-1 text-[10px] font-bold text-emerald-950/45">{label}</p>
+      <p className="text-lg font-black tracking-[-.035em] text-emerald">{value}</p>
+      <p className="mt-1 text-[10px] font-bold text-ink/45">{label}</p>
     </div>
   );
 }
@@ -788,12 +784,12 @@ function CorpusMetric({ value, label }: { value: string; label: string }) {
 function HubRow({ score, title, status }: { score: string; title: string; status: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-950 text-sm font-black text-[#9cf0d1]">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-panel text-sm font-black text-mint">
         {score}
       </span>
       <span className="min-w-0">
         <strong className="block truncate text-xs">{title}</strong>
-        <small className="text-[10px] font-bold text-emerald-950/42">{status}</small>
+        <small className="text-[10px] font-bold text-ink/42">{status}</small>
       </span>
     </div>
   );

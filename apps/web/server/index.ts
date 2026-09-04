@@ -43,11 +43,11 @@ import {
 } from "@repo/ai";
 import { Redis } from "@upstash/redis";
 import type { AnalysisErrorResponse, AnalysisResponse } from "@repo/contracts";
-import { authenticatedUser, type AuthBindings } from "./auth.js";
-import { AnalysisError, publicAnalysisError } from "./analysis-errors.js";
-import { apiRelativePath } from "./base-path.js";
-import { allowedCorsOrigin } from "./cors-origin.js";
-import { reanalysisPolicy } from "./reanalysis-policy.js";
+import { authenticatedUser, type AuthBindings } from "./auth";
+import { AnalysisError, publicAnalysisError } from "./analysis-errors";
+import { apiRelativePath } from "./base-path";
+import { allowedCorsOrigin } from "./cors-origin";
+import { reanalysisPolicy } from "./reanalysis-policy";
 import {
   authenticatePublicApiKey,
   consumePublicApiQuota,
@@ -56,7 +56,7 @@ import {
   PUBLIC_API_VERSION,
   publicOpenApiDocument,
   type PublicQuotaResult,
-} from "./public-api.js";
+} from "./public-api";
 
 export type Bindings = AuthBindings & {
   DATABASE_URL?: string;
@@ -80,17 +80,9 @@ app.use("*", async (context, next) => {
 });
 app.use("/*", async (context, next) =>
   cors({
-    // The browser extension has a unique chrome-extension:// origin on every
-    // install. Reflect only that origin (and the configured web app) so its
-    // side panel can call the Worker without opening CORS to arbitrary sites.
-    origin: (origin) => {
-      return allowedCorsOrigin(origin, context.env?.WEB_ORIGIN) ||
-        origin?.startsWith("chrome-extension://")
-        ? origin
-        : undefined;
-    },
+    origin: (origin) => allowedCorsOrigin(origin, context.env?.WEB_ORIGIN),
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization", "X-API-Key"],
+    allowHeaders: ["Content-Type", "X-API-Key"],
     exposeHeaders: ["RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset", "Retry-After"],
     credentials: true,
   })(context, next),

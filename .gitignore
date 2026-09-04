@@ -41,6 +41,3 @@ yarn-error.log*
 .pnpm-store/
 .tmp-tracera-deck/
 tmp/
-apps/extension/.wxt/
-apps/extension/.output/
-apps/extension/node_modules/

@@ -394,7 +394,7 @@ export function TraceStat({
     <div className="flex items-center gap-4 py-5 first:pt-0 last:pb-0">
       <Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="ml-auto text-3xl font-black tabular-nums tracking-[-.05em] text-brand-deep">
+      <p className="ml-auto text-3xl font-black tabular-nums tracking-[-.05em] text-foreground">
         {value}
       </p>
     </div>

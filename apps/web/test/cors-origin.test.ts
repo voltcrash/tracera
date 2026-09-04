@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
-import { allowedCorsOrigin } from "../src/cors-origin.js";
+import { allowedCorsOrigin } from "../server/cors-origin";
 
 test("allows the configured web origin", () => {
   assert.equal(

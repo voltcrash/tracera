@@ -244,10 +244,7 @@ export const publicOpenApiDocument = {
     description:
       "Submit news text, links, or images for evidence-backed claim verification and retrieve public traces.",
   },
-  servers: [
-    { url: "https://api.tracera.voltcrash.com" },
-    { url: "https://tracera.voltcrash.com/api/tracera" },
-  ],
+  servers: [{ url: "https://tracera.voltcrash.com/api/tracera" }],
   security: [{ ApiKey: [] }],
   paths: {
     "/v1/checks": {

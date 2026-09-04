@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { AiProvider } from "../provider.js";
-import type { StructuredOutputAttempt } from "../provider.js";
-import type { ExtractedClaim } from "./types.js";
+import type { AiProvider } from "../provider";
+import type { StructuredOutputAttempt } from "../provider";
+import type { ExtractedClaim } from "./types";
 
 export interface PromptAuditOptions {
   signal?: AbortSignal;

@@ -36,7 +36,7 @@ export default function AuthCompletePage() {
         aria-live="polite"
         aria-busy="true"
       >
-        <div className="auth-transition-mark flex size-20 items-center justify-center rounded-3xl bg-primary shadow-[0_18px_50px_-20px_rgba(16,34,31,.65)]">
+        <div className="auth-transition-mark flex size-20 items-center justify-center rounded-3xl bg-primary shadow-(--shadow-panel)">
           <span
             aria-hidden="true"
             className="-mt-1 text-4xl font-black tracking-[-.12em] text-white"

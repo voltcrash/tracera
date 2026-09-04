@@ -1,4 +1,4 @@
-import type { ClaimVerdict, FramingAnalysis, ScoreDimension, TraceraScore } from "./types.js";
+import type { ClaimVerdict, FramingAnalysis, ScoreDimension, TraceraScore } from "./types";
 
 export function aggregateScore(claims: ClaimVerdict[], framing?: FramingAnalysis): TraceraScore {
   const factualAccuracy = weightedAverage(

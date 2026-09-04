@@ -3,13 +3,9 @@ import { db } from "@repo/db";
 import * as databaseSchema from "@repo/db/schema";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { bearer } from "better-auth/plugins";
 
 export const TRACERA_AUTH_BASE_URL = "https://tracera.voltcrash.com";
 export const TRACERA_AUTH_BASE_PATH = "/api/auth";
-export const TRACERA_SESSION_COOKIE = "tracera.session_token";
-export const TRACERA_EXTENSION_ID = "pojehdamemgikkedidbdpopegjfoglih";
-export const TRACERA_EXTENSION_ORIGIN = `chrome-extension://${TRACERA_EXTENSION_ID}`;
 
 export type AuthRuntimeEnv = {
   BETTER_AUTH_SECRET?: string;
@@ -56,7 +52,6 @@ export function createAuth(env: AuthRuntimeEnv) {
     trustedOrigins: [
       TRACERA_AUTH_BASE_URL,
       "https://dash.better-auth.com",
-      TRACERA_EXTENSION_ORIGIN,
       ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
     ],
     onAPIError: {
@@ -70,18 +65,15 @@ export function createAuth(env: AuthRuntimeEnv) {
       cookiePrefix: "tracera",
       useSecureCookies: true,
     },
-    plugins: [
-      bearer(),
-      ...(env.BETTER_AUTH_API_KEY
-        ? [
-            dash({
-              apiKey: env.BETTER_AUTH_API_KEY,
-              ...(env.BETTER_AUTH_API_URL ? { apiUrl: env.BETTER_AUTH_API_URL } : {}),
-              ...(env.BETTER_AUTH_KV_URL ? { kvUrl: env.BETTER_AUTH_KV_URL } : {}),
-            }),
-          ]
-        : []),
-    ],
+    plugins: env.BETTER_AUTH_API_KEY
+      ? [
+          dash({
+            apiKey: env.BETTER_AUTH_API_KEY,
+            ...(env.BETTER_AUTH_API_URL ? { apiUrl: env.BETTER_AUTH_API_URL } : {}),
+            ...(env.BETTER_AUTH_KV_URL ? { kvUrl: env.BETTER_AUTH_KV_URL } : {}),
+          }),
+        ]
+      : [],
   });
 }
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { AiProvider } from "../provider.js";
-import type { ClaimVerdict, EvidenceSource, ExtractedClaim } from "./types.js";
-import type { PromptAuditOptions } from "./extract-claims.js";
+import type { AiProvider } from "../provider";
+import type { ClaimVerdict, EvidenceSource, ExtractedClaim } from "./types";
+import type { PromptAuditOptions } from "./extract-claims";
 
 const verdictSchema = z.object({
   verdict: z.enum(["supported", "contradicted", "misleading", "mixed", "unverified"]),
@@ -18,7 +18,7 @@ export async function scoreClaim(
   audit?: PromptAuditOptions,
 ): Promise<ClaimVerdict> {
   // A retrieval outage or a story that is too new to be indexed must never
-  // turn into an extension failure. Surface the absence of corroboration as a
+  // turn into an analysis failure. Surface the absence of corroboration as a
   // useful, explicitly unverified result instead of asking the model to invent
   // a verdict from an empty evidence set.
   if (sources.length === 0) {

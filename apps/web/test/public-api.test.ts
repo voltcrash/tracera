@@ -6,7 +6,7 @@ import {
   parseFirstPartyAnalysisInput,
   parsePublicAnalysisInput,
   publicOpenApiDocument,
-} from "../src/public-api.js";
+} from "../server/public-api";
 
 test("public input accepts exactly one supported input", () => {
   assert.deepEqual(parsePublicAnalysisInput({ text: "  A checkable claim.  " }), {

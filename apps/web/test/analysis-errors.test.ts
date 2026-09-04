@@ -4,7 +4,7 @@ import {
   ANALYSIS_ERROR_MESSAGES,
   AnalysisError,
   publicAnalysisError,
-} from "../src/analysis-errors.js";
+} from "../server/analysis-errors";
 
 test("known analysis failures retain a stable client code and message", () => {
   assert.deepEqual(publicAnalysisError(new AnalysisError("no_checkable_claims")), {

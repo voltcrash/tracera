@@ -3,10 +3,9 @@
 The public API exposes completed public traces and accepts new public analysis
 requests. It is intended for server-to-server use. Every data endpoint requires
 an API key in `x-api-key`; the OpenAPI document is available without a key at
-`GET /v1/openapi.json`.
+`GET /api/tracera/v1/openapi.json`.
 
-The base URL is `https://api.tracera.voltcrash.com`. The same routes are also
-reachable on the product origin under `https://tracera.voltcrash.com/api/tracera`.
+The base URL is `https://tracera.voltcrash.com/api/tracera`.
 
 ## Authentication and quotas
 
@@ -28,7 +27,7 @@ and `RateLimit-Reset`. A `429` response also includes `Retry-After`.
 Send exactly one of `text`, `url`, or `image`:
 
 ```sh
-curl https://api.tracera.voltcrash.com/v1/checks \
+curl https://tracera.voltcrash.com/api/tracera/v1/checks \
   -H 'content-type: application/json' \
   -H 'x-api-key: YOUR_API_KEY' \
   --data '{"url":"https://example.com/news/story"}'
@@ -43,10 +42,10 @@ multi-dimensional Tracera Score, Ground Zero, and the next review time.
 
 ```sh
 curl -H 'x-api-key: YOUR_API_KEY' \
-  'https://api.tracera.voltcrash.com/v1/checks?q=climate&page=1&pageSize=20'
+  'https://tracera.voltcrash.com/api/tracera/v1/checks?q=climate&page=1&pageSize=20'
 
 curl -H 'x-api-key: YOUR_API_KEY' \
-  'https://api.tracera.voltcrash.com/v1/checks/CHECK_UUID'
+  'https://tracera.voltcrash.com/api/tracera/v1/checks/CHECK_UUID'
 ```
 
 Search uses PostgreSQL full-text indexes across both original submissions and

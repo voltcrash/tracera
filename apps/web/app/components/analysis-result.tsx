@@ -508,7 +508,7 @@ export function ScoreCard({ score, sticky = true }: { score: TraceraScore; stick
   return (
     <aside
       className={cn(
-        "app-score-card noise order-1 h-fit overflow-hidden rounded-3xl bg-brand-deep px-6 py-7 text-white shadow-[0_28px_70px_-32px_rgba(6,78,59,.78)] lg:order-2",
+        "app-score-card noise order-1 h-fit overflow-hidden rounded-3xl bg-panel px-6 py-7 text-panel-foreground shadow-(--shadow-panel) lg:order-2",
         sticky && "lg:sticky lg:top-24",
       )}
     >

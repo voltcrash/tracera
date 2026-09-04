@@ -17,6 +17,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useAuth } from "./auth-provider";
+import { ThemeToggle } from "./theme-toggle";
 
 type AppScreen = "home" | "hub";
 
@@ -36,7 +37,7 @@ export function AppHeader({ active }: { active?: AppScreen }) {
   }
 
   return (
-    <header className="sticky top-3 z-50 mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 rounded-2xl border border-border bg-background/85 px-4 py-3 shadow-[0_16px_42px_-32px_rgba(16,34,31,.68)] backdrop-blur-xl sm:mt-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-x-2 sm:px-5">
+    <header className="sticky top-3 z-50 mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 rounded-2xl border border-border bg-background/85 px-4 py-3 shadow-(--shadow-nav) backdrop-blur-xl sm:mt-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-x-2 sm:px-5">
       <Link
         href="/home"
         className="col-start-1 row-start-1 block w-fit rounded-lg transition hover:-translate-y-0.5"
@@ -48,7 +49,7 @@ export function AppHeader({ active }: { active?: AppScreen }) {
           width={148}
           height={34}
           priority
-          className="h-7 w-auto sm:h-8"
+          className="brand-wordmark h-7 w-auto sm:h-8"
         />
       </Link>
 
@@ -71,7 +72,8 @@ export function AppHeader({ active }: { active?: AppScreen }) {
         ))}
       </nav>
 
-      <div className="col-start-2 row-start-1 flex items-center justify-end sm:col-start-3">
+      <div className="col-start-2 row-start-1 flex items-center justify-end gap-1.5 sm:col-start-3">
+        <ThemeToggle />
         {isLoading ? (
           <Skeleton className="size-10 rounded-full" aria-label="Loading account" />
         ) : user ? (

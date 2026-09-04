@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
-import { app, type Bindings } from "../src/index.js";
+import { app, type Bindings } from "../server/index";
 
 const databaseEnv = {
   DATABASE_URL: "postgresql://user:password@localhost/tracera",

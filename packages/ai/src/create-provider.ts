@@ -1,8 +1,8 @@
-import { AnthropicProvider } from "./providers/anthropic.js";
-import { GeminiProvider } from "./providers/gemini.js";
-import { OpenAiCompatibleProvider } from "./providers/openai-compatible.js";
-import { CompositeAiProvider } from "./composite-provider.js";
-import type { AiProvider } from "./provider.js";
+import { AnthropicProvider } from "./providers/anthropic";
+import { GeminiProvider } from "./providers/gemini";
+import { OpenAiCompatibleProvider } from "./providers/openai-compatible";
+import { CompositeAiProvider } from "./composite-provider";
+import type { AiProvider } from "./provider";
 
 export type AiProviderName = "anthropic" | "gemini" | "openai" | "openrouter" | "openai-compatible";
 

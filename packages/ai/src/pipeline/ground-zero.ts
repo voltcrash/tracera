@@ -1,4 +1,4 @@
-import type { EvidenceSource, GroundZeroResult } from "./types.js";
+import type { EvidenceSource, GroundZeroResult } from "./types";
 type CorpusHistory = GroundZeroResult["corpusHistory"];
 type ArchiveHistory = GroundZeroResult["archiveHistory"];
 type GroundZeroRelationship = GroundZeroResult["relationships"][number];

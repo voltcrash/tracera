@@ -169,7 +169,7 @@ export default function HubPage() {
                 <div className="relative z-10 flex h-full flex-col items-start justify-center">
                   <h1 className="max-w-2xl text-[2.8rem] font-black leading-[.92] tracking-[-.07em] sm:text-6xl xl:text-[4.3rem]">
                     The receipts
-                    <span className="block text-[#49cf9d]">stay attached.</span>
+                    <span className="block text-mint">stay attached.</span>
                   </h1>
                   <p className="mt-6 max-w-xl text-sm leading-relaxed text-white/70 sm:text-base">
                     Every check is a living evidence trail—not a one-off verdict. Search the

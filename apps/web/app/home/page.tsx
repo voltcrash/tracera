@@ -143,7 +143,7 @@ export default function Home() {
 
           <form
             onSubmit={analyze}
-            className="analyze-composer mt-10 overflow-hidden rounded-3xl border border-border bg-card shadow-[0_28px_75px_-46px_rgba(16,34,31,.62)]"
+            className="analyze-composer mt-10 overflow-hidden rounded-3xl border border-border bg-card shadow-(--shadow-card)"
           >
             <label className="sr-only" htmlFor="story-input">
               Story or claim to analyze
@@ -305,7 +305,7 @@ function TraceProgress({ progress }: { progress: string }) {
   const current = traceProgressIndex(progress);
   return (
     <section
-      className="trace-progress-panel noise mt-6 overflow-hidden rounded-3xl bg-brand-deep p-6 text-white shadow-[0_28px_65px_-36px_rgba(6,78,59,.8)] sm:p-7"
+      className="trace-progress-panel noise mt-6 overflow-hidden rounded-3xl bg-panel p-6 text-panel-foreground shadow-(--shadow-panel) sm:p-7"
       role="status"
       aria-live="polite"
     >
