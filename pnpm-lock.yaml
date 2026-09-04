@@ -30,7 +30,7 @@ importers:
         specifier: 'catalog:'
         version: 0.2.9(@types/node@22.15.3)(@voidzero-dev/vite-plus-core@0.2.9(@types/node@22.15.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(typescript@5.9.2)(yaml@2.9.0))(bufferutil@4.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(typescript@5.9.2)(utf-8-validate@6.0.6)(yaml@2.9.0)
 
-  apps/web:
+  apps:
     dependencies:
       '@radix-ui/react-avatar':
         specifier: ^1.2.6
@@ -67,16 +67,16 @@ importers:
         version: 1.2.16(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@repo/ai':
         specifier: workspace:*
-        version: link:../../packages/ai
+        version: link:../packages/ai
       '@repo/auth':
         specifier: workspace:*
-        version: link:../../packages/auth
+        version: link:../packages/auth
       '@repo/contracts':
         specifier: workspace:*
-        version: link:../../packages/contracts
+        version: link:../packages/contracts
       '@repo/db':
         specifier: workspace:*
-        version: link:../../packages/db
+        version: link:../packages/db
       '@tailwindcss/postcss':
         specifier: ^4.1.13
         version: 4.3.3
@@ -119,7 +119,7 @@ importers:
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
-        version: link:../../packages/typescript-config
+        version: link:../packages/typescript-config
       '@types/node':
         specifier: ^22.15.3
         version: 22.15.3
