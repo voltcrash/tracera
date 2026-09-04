@@ -3,9 +3,8 @@
   "private": true,
   "scripts": {
     "build": "vp run -r build",
+    "build:vercel": "vp run --filter api --filter web build && node scripts/build-vercel.mjs",
     "dev": "vp run --parallel --filter api --filter web dev",
-    "deploy:api": "vp run api#deploy",
-    "deploy:web": "vp run web#deploy",
     "check-types": "vp run -r check-types",
     "prepare": "vp config"
   },
@@ -15,7 +14,7 @@
     "vite-plus": "catalog:"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.12"
   },
   "packageManager": "pnpm@11.20.0"
 }
