@@ -5,15 +5,15 @@ export const EMBEDDING_DIMENSIONS = 1024;
 
 let activeConnectionString = process.env.DATABASE_URL;
 
-// Cloudflare isolates may handle more than one request, but WebSocket database
+// Serverless instances may handle more than one request, but WebSocket database
 // connections cannot outlive the request that created them. Route standalone
 // Pool queries over Neon's stateless HTTP transport instead. The few interactive
 // transactions below still use WebSockets and destroy their clients on release.
 neonConfig.poolQueryViaFetch = true;
 
 /**
- * The Neon driver uses WebSockets in Workers and remains compatible with the
- * node-postgres API used by this package. Configure it from the Worker binding
+ * The Neon driver uses WebSockets and remains compatible with the
+ * node-postgres API used by this package. Configure it from the environment
  * before handling a request.
  */
 export let pool = new Pool({ connectionString: activeConnectionString });
@@ -21,7 +21,7 @@ export let db = drizzle({ client: pool });
 
 export function configureDatabase(connectionString: string | undefined) {
   if (!connectionString) {
-    throw new Error("DATABASE_URL must be configured on the API Worker.");
+    throw new Error("DATABASE_URL must be configured for the Tracera server.");
   }
   if (connectionString === activeConnectionString) return;
   activeConnectionString = connectionString;

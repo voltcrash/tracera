@@ -3,7 +3,7 @@ import type { AiProvider } from "../provider.js";
 import type { EvidenceSource, ExtractedClaim } from "./types.js";
 
 const MAX_EVIDENCE_SOURCES = 5;
-// Analysis runs inside a Cloudflare Worker. Keep evidence discovery bounded so
+// Analysis runs inside a serverless function. Keep evidence discovery bounded so
 // a three-claim trace leaves enough of the 50-subrequest Free-plan allowance
 // for AI calls, database reads, archive checks, and the final transaction.
 const DEFAULT_EXTERNAL_REQUEST_LIMIT = 5;
@@ -73,7 +73,7 @@ export async function retrieveSources(
   );
 
   // Guarantee the resilient, no-key news index a request before optional or
-  // rate-limited providers can consume the shared Worker budget.
+  // rate-limited providers can consume the shared request budget.
   const primaryGoogleNews = await safelyRetrieve("Google News RSS", () =>
     retrieveGoogleNewsSources(claim, claim.claimText, evidenceFetch, options.storyContext),
   );
@@ -592,7 +592,7 @@ async function retrieveGoogleNewsSources(
     .slice(0, 12);
 }
 
-/** Independent no-key fallback for periods when Google News throttles Worker
+/** Independent no-key fallback for periods when Google News throttles serverless
  * egress. Bing redirect URLs are resolved back to publisher URLs before they
  * enter ranking, provenance, or Ground Zero. */
 async function retrieveBingNewsSources(

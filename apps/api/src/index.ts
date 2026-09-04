@@ -45,6 +45,7 @@ import { Redis } from "@upstash/redis";
 import type { AnalysisErrorResponse, AnalysisResponse } from "@repo/contracts";
 import { authenticatedUser, type AuthBindings } from "./auth.js";
 import { AnalysisError, publicAnalysisError } from "./analysis-errors.js";
+import { apiRelativePath } from "./base-path.js";
 import { allowedCorsOrigin } from "./cors-origin.js";
 import { reanalysisPolicy } from "./reanalysis-policy.js";
 import {
@@ -69,12 +70,10 @@ let upstash: Redis | undefined;
 let upstashConfig: string | undefined;
 const currentUserByRequest = new WeakMap<Request, ReturnType<typeof authenticatedUser>>();
 
+const DATABASE_FREE_PATHS = new Set(["/", "/v1", "/v1/openapi.json"]);
+
 app.use("*", async (context, next) => {
-  if (
-    context.req.path !== "/" &&
-    context.req.path !== "/v1" &&
-    context.req.path !== "/v1/openapi.json"
-  ) {
+  if (!DATABASE_FREE_PATHS.has(apiRelativePath(context.req.path))) {
     configureDatabase(context.env.DATABASE_URL);
   }
   await next();
@@ -1265,7 +1264,3 @@ function currentUser(context: Context<{ Bindings: Bindings }>) {
   currentUserByRequest.set(request, user);
   return user;
 }
-
-export default {
-  fetch: app.fetch,
-};

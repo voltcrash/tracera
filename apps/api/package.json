@@ -4,13 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "build": "tsc --noEmit",
-    "check-types": "tsc --noEmit",
-    "cf:typegen": "wrangler types --env-interface CloudflareEnv",
-    "deploy": "wrangler deploy"
+    "dev": "tsx watch src/dev.ts",
+    "build": "vp pack",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.1",
     "@repo/ai": "workspace:*",
     "@repo/auth": "workspace:*",
     "@repo/contracts": "workspace:*",
@@ -21,7 +20,7 @@
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
-    "typescript": "5.9.2",
-    "wrangler": "^4.120.0"
+    "tsx": "^4.23.11",
+    "typescript": "5.9.2"
   }
 }
