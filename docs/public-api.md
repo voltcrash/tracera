@@ -5,9 +5,12 @@ requests. It is intended for server-to-server use. Every data endpoint requires
 an API key in `x-api-key`; the OpenAPI document is available without a key at
 `GET /v1/openapi.json`.
 
+The base URL is `https://api.tracera.voltcrash.com`. The same routes are also
+reachable on the product origin under `https://tracera.voltcrash.com/api/tracera`.
+
 ## Authentication and quotas
 
-Set one or more comma-separated Worker secrets in `PUBLIC_API_KEYS`. Multiple
+Set one or more comma-separated secrets in `PUBLIC_API_KEYS`. Multiple
 keys support rotation without downtime. `PUBLIC_API_KEY` remains accepted as a
 single-key compatibility setting. Do not place API keys in browser code.
 

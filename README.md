@@ -15,7 +15,7 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 - **Evidence-quality confidence:** Show how strong, recent, and complete the available evidence is separately from the claim verdict.
 - **Tracera Score:** Summarize source reputation, factual skew, manipulative language, recency, and cross-source corroboration in a transparent rating.
 - **Trace timelines:** Track previous checks, reappearances, and score changes as a story develops.
-- **Verified claims corpus:** Reuse prior analysis for deduplication and related context while periodically re-checking claims as evidence changes.
+- **Verified claims corpus:** Reuse prior analysis for deduplication and related context.
 
 ## Stack
 
@@ -24,7 +24,8 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 - **Browser extension:** WXT, Manifest V3
 - **API:** Hono
 - **Data:** Neon Postgres, pgvector, PostgreSQL full-text search, Drizzle ORM
-- **Cache and durable work queue:** Upstash Redis REST
+- **Cache and rate limits:** Upstash Redis REST
+- **Hosting:** One Vercel project (static export plus a bundled Node.js function)
 - **Authentication:** Better Auth with Google OAuth, Drizzle, and Neon Postgres
 - **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible APIs
 
@@ -38,43 +39,44 @@ vp check
 vp test --run
 ```
 
-The applications use framework CLIs (Next.js, Wrangler, and WXT), so their workspace commands run through Vite Task rather than Vite's built-in app commands:
+The applications use framework CLIs (Next.js and WXT), so their workspace commands run through Vite Task rather than Vite's built-in app commands:
 
 ```sh
-vp run dev          # API and web development servers
-vp run build        # Build every workspace application
-vp run deploy:api
-vp run deploy:web
+vp run dev           # Hono server and Next.js development servers
+vp run build         # Build every workspace application
+vp run build:vercel  # Produce the Vercel deployment output
 ```
 
 `vp dev` and `vp build` always invoke Vite's built-in commands. Use `vp run dev` and `vp run build` in this repository so the correct framework command is selected for each application.
 
 ## Current deployment architecture
 
-The Next.js web application and Hono API are deployed as separate Cloudflare Workers. The web Worker serves the product at `tracera.voltcrash.com`. Browser and extension requests use the first-party `/api/tracera/*` proxy on that origin; the proxy communicates with the API Worker at `api.tracera.voltcrash.com` server-side.
+Tracera is deployed as a single Vercel project. The Next.js application is a static export served from Vercel's edge network at `tracera.voltcrash.com`, and one bundled Node.js function hosts the Hono server behind every `/api/*` path. Browser and extension requests therefore stay same-origin: Better Auth answers at `/api/auth/*` and the application API at `/api/tracera/*`. The public API keeps its own hostname, `api.tracera.voltcrash.com`, which routes to the same function with the shared prefix restored.
 
-The API Worker connects to Neon Postgres for application data, full-text search, claim embeddings, and vector retrieval. Upstash Redis provides REST-based caching, API rate limits, and the durable ready/processing/dead-letter queue used for decay monitoring. An hourly Cloudflare Cron Trigger schedules re-analysis work, and the Worker processes queued checks without relying on a persistent server process.
+The build produces the [Vercel Build Output API](https://vercel.com/docs/build-output-api/v3) directory in `.vercel/output`: `vp run build:vercel` exports the web application, bundles the server into a single file with `vp pack`, and writes the routing configuration.
 
-Better Auth is mounted by the web Worker at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google is the only enabled identity provider. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit OAuth redirect leaves the site for Google's account flow. The API Worker validates the same Better Auth session for authenticated web and extension requests.
+The server connects to Neon Postgres for application data, full-text search, claim embeddings, and vector retrieval. Upstash Redis provides REST-based caching and API rate limits. Analysis runs on demand: there is no scheduled re-analysis.
 
-The API calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
+Better Auth is mounted at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google is the only enabled identity provider. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit OAuth redirect leaves the site for Google's account flow. The same Better Auth session authorizes authenticated web and extension requests.
+
+The server calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
 
 ```mermaid
 flowchart TB
     subgraph Clients
         User["Web user"]
         Extension["Browser extension<br/>WXT + Manifest V3"]
+        Consumer["Public API consumer"]
     end
 
-    subgraph Cloudflare["Cloudflare"]
-        Web["Web Worker<br/>Next.js<br/>tracera.voltcrash.com"]
-        API["API Worker<br/>Hono<br/>api.tracera.voltcrash.com"]
-        Cron["Hourly Cron Trigger"]
+    subgraph Vercel["Vercel project"]
+        Static["Static Next.js export<br/>tracera.voltcrash.com"]
+        Fn["Node.js function<br/>Hono + Better Auth<br/>/api/auth/* and /api/tracera/*"]
     end
 
     subgraph Data["Data and infrastructure"]
         Neon["Neon Postgres<br/>pgvector + full-text search"]
-        Upstash["Upstash Redis REST<br/>cache + rate limits + durable queue"]
+        Upstash["Upstash Redis REST<br/>cache + rate limits"]
     end
 
     subgraph Intelligence["Verification services"]
@@ -82,15 +84,12 @@ flowchart TB
         Retrieval["External retrieval services<br/>fact checks + news + web search"]
     end
 
-    User -->|same-origin /api/auth/* and /api/tracera/*| Web
-    Extension -->|same-origin session and API proxy| Web
-    Web -->|server-side proxy| API
-    API <--> Neon
-    API <--> Upstash
-    API --> AI
-    API --> Retrieval
-
-    Cron --> API
-    API -->|enqueue re-analysis| Upstash
-    Upstash -->|process queued checks| API
+    User --> Static
+    User -->|same-origin /api/auth/* and /api/tracera/*| Fn
+    Extension -->|same-origin session and API| Fn
+    Consumer -->|api.tracera.voltcrash.com| Fn
+    Fn <--> Neon
+    Fn <--> Upstash
+    Fn --> AI
+    Fn --> Retrieval
 ```
