@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import type { ClaimResult, TraceraScore } from "@repo/contracts";
+import type { ClaimResult, FramingAnalysis, TraceraScore } from "@repo/contracts";
 import { AnalysisResult, ScoreCard } from "../../components/analysis-result";
 import { AppHeader } from "../../components/app-header";
 import { AccountRequired } from "../../components/account-required";
@@ -23,7 +23,7 @@ type Check = {
   rawInput: string;
   createdAt: string;
   traceraScore: TraceraScore;
-  analysis: { claims: ClaimResult[]; score: TraceraScore };
+  analysis: { claims: ClaimResult[]; score: TraceraScore; framing?: FramingAnalysis };
   sourceDomain: string | null;
   sourceUrl: string | null;
   publishedAt: string | null;
@@ -154,6 +154,7 @@ export function TraceDetail() {
                 <AnalysisResult
                   claims={check.analysis.claims}
                   score={check.analysis.score ?? check.traceraScore}
+                  framing={check.analysis.framing}
                   showScore={false}
                 />
                 {check.groundZero && <GroundZeroCard trace={check.groundZero} />}

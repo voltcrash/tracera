@@ -268,7 +268,11 @@ export default function Home() {
               </p>
               <ReuseNotice reuse={result.reuse} cached={result.cached} />
             </div>
-            <AnalysisResult claims={result.claims} score={result.traceraScore} />
+            <AnalysisResult
+              claims={result.claims}
+              score={result.traceraScore}
+              framing={result.framingAnalysis}
+            />
             {result.reuse?.state === "reused_exact" && (
               <Button
                 type="button"
