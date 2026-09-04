@@ -3,13 +3,26 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { LogOut, ScanSearch, Newspaper } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { useAuth } from "./auth-provider";
 
 type AppScreen = "home" | "hub";
 
-const navigation: { href: string; label: string; screen: AppScreen }[] = [
-  { href: "/home", label: "Analyze", screen: "home" },
-  { href: "/hub", label: "News Hub", screen: "hub" },
+const navigation = [
+  { href: "/home", label: "Analyze", screen: "home" as const, icon: ScanSearch },
+  { href: "/hub", label: "News Hub", screen: "hub" as const, icon: Newspaper },
 ];
 
 export function AppHeader({ active }: { active?: AppScreen }) {
@@ -23,10 +36,10 @@ export function AppHeader({ active }: { active?: AppScreen }) {
   }
 
   return (
-    <header className="app-header-panel sticky top-3 z-50 mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 rounded-2xl border border-emerald-950/10 bg-[#f4f6f2]/88 px-4 py-3 shadow-[0_16px_42px_-32px_rgba(16,34,31,.68)] backdrop-blur-xl sm:mt-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-x-2 sm:px-5">
+    <header className="sticky top-3 z-50 mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 rounded-2xl border border-border bg-background/85 px-4 py-3 shadow-[0_16px_42px_-32px_rgba(16,34,31,.68)] backdrop-blur-xl sm:mt-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-x-2 sm:px-5">
       <Link
         href="/home"
-        className="group col-start-1 row-start-1 block w-fit rounded-lg transition group-hover:-translate-y-0.5"
+        className="col-start-1 row-start-1 block w-fit rounded-lg transition hover:-translate-y-0.5"
         aria-label="Tracera analysis home"
       >
         <Image
@@ -38,50 +51,60 @@ export function AppHeader({ active }: { active?: AppScreen }) {
           className="h-7 w-auto sm:h-8"
         />
       </Link>
+
       <nav
-        className="col-span-2 col-start-1 row-start-2 grid grid-cols-2 rounded-xl bg-emerald-950/5 p-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:flex sm:items-center sm:gap-1 sm:rounded-full sm:bg-transparent sm:p-0"
+        className="col-span-2 col-start-1 row-start-2 grid grid-cols-2 gap-1 rounded-xl bg-primary/5 p-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:flex sm:items-center sm:rounded-full sm:bg-transparent sm:p-0"
         aria-label="Primary navigation"
       >
         {navigation.map((item) => (
-          <Link
+          <Button
             key={item.screen}
-            href={item.href}
-            aria-current={active === item.screen ? "page" : undefined}
-            className={`flex min-h-10 items-center justify-center whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold transition sm:px-4 ${active === item.screen ? "bg-emerald-950 text-white shadow-sm" : "text-emerald-950/65 hover:bg-emerald-950/7 hover:text-emerald-950"}`}
+            asChild
+            variant={active === item.screen ? "default" : "ghost"}
+            className={cn("rounded-full", active !== item.screen && "text-muted-foreground")}
           >
-            {item.label}
-          </Link>
+            <Link href={item.href} aria-current={active === item.screen ? "page" : undefined}>
+              <item.icon />
+              {item.label}
+            </Link>
+          </Button>
         ))}
       </nav>
+
       <div className="col-start-2 row-start-1 flex items-center justify-end sm:col-start-3">
         {isLoading ? (
-          <span
-            className="size-10 animate-pulse rounded-full bg-emerald-950/10"
-            aria-label="Loading account"
-          />
+          <Skeleton className="size-10 rounded-full" aria-label="Loading account" />
         ) : user ? (
-          <div className="flex items-center gap-2">
-            <span
-              className="hidden max-w-40 truncate text-sm font-semibold text-emerald-950/65 lg:block"
-              title={user.email}
-            >
-              {user.email}
-            </span>
-            <button
-              type="button"
-              onClick={() => void handleSignOut()}
-              className="flex min-h-10 items-center whitespace-nowrap rounded-full border border-emerald-950/15 bg-white px-3.5 py-2 text-sm font-bold text-emerald-950 transition hover:-translate-y-0.5 hover:border-emerald-950"
-            >
-              Log out
-            </button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="gap-2 rounded-full pl-1.5 pr-3"
+                aria-label="Account menu"
+              >
+                <Avatar className="size-7">
+                  <AvatarFallback>{user.email.slice(0, 2)}</AvatarFallback>
+                </Avatar>
+                <span className="hidden max-w-40 truncate text-muted-foreground lg:block">
+                  {user.email}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+              <DropdownMenuLabel className="truncate text-muted-foreground">
+                {user.email}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void handleSignOut()}>
+                <LogOut />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : (
-          <Link
-            href="/login"
-            className="flex min-h-10 items-center whitespace-nowrap rounded-full border border-emerald-950/15 bg-white px-3.5 py-2 text-sm font-bold text-emerald-950 transition hover:-translate-y-0.5 hover:border-emerald-950"
-          >
-            Log in
-          </Link>
+          <Button asChild variant="outline" className="rounded-full">
+            <Link href="/login">Log in</Link>
+          </Button>
         )}
       </div>
     </header>

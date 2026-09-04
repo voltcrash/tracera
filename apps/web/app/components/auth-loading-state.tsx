@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
 
 export function AuthLoadingState() {
   const [isTakingLonger, setIsTakingLonger] = useState(false);
@@ -11,23 +13,23 @@ export function AuthLoadingState() {
   }, []);
 
   return (
-    <div
-      className="flex min-h-56 w-full flex-col items-center justify-center rounded-3xl border border-emerald-950/10 bg-white/70 px-8 text-center shadow-sm"
+    <Card
+      className="min-h-56 w-full items-center justify-center rounded-3xl bg-card/70 px-8 text-center"
       role="status"
       aria-live="polite"
     >
-      <span className="size-7 animate-spin rounded-full border-2 border-emerald-950/15 border-t-emerald-800" />
-      <p className="mt-5 text-sm font-bold text-emerald-950">
+      <Loader2 className="size-7 animate-spin text-brand-emerald" />
+      <p className="text-sm font-black">
         {isTakingLonger
           ? "Authentication is taking longer than expected"
           : "Loading secure sign-in…"}
       </p>
       {isTakingLonger && (
-        <p className="mt-2 max-w-xs text-xs leading-5 text-emerald-950/55">
+        <p className="-mt-3 max-w-xs text-xs leading-5 text-muted-foreground">
           Reload this page. If it still does not open, check that your browser is not blocking
           requests from this site.
         </p>
       )}
-    </div>
+    </Card>
   );
 }

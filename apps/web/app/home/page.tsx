@@ -4,11 +4,27 @@ import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
 import type { AnalysisResponse, AnalysisReuse, ImageMetadata } from "@repo/contracts";
 import Image from "next/image";
 import Link from "next/link";
+import {
+  ArrowRight,
+  Check,
+  ExternalLink,
+  ImagePlus,
+  Loader2,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { AnalysisResult } from "../components/analysis-result";
 import { AppHeader } from "../components/app-header";
 import { useAuth } from "../components/auth-provider";
 import { GroundZeroCard } from "../components/ground-zero-card";
 import { apiUrl } from "../lib/api";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 const example =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
@@ -109,35 +125,31 @@ export default function Home() {
   }
 
   return (
-    <main className="app-enter paper-grid min-h-screen bg-[#f4f6f2] text-emerald-950">
+    <main className="app-enter paper-grid min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <AppHeader active="home" />
         <section
           className={`mx-auto flex max-w-4xl flex-col justify-center ${result || loading ? "py-12 sm:py-16" : "min-h-[calc(100vh-10rem)] py-16 sm:py-24"}`}
         >
           <div className="text-center">
-            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-950/10 bg-white/70 px-3 py-1.5 text-[10px] font-black tracking-[.17em] text-emerald-700 shadow-sm">
-              <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" />
-              START A TRACE
-            </p>
-            <h1 className="mt-5 text-4xl font-black leading-[.94] tracking-[-.07em] sm:text-6xl">
+            <h1 className="text-4xl font-black leading-[.94] tracking-[-.07em] sm:text-6xl">
               Trace a story to its source.
             </h1>
-            <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-emerald-950/58">
-              Paste what you&apos;ve seen. Tracera will separate the claims, retrieve the evidence,
-              and show exactly how the verdict was built.
+            <p className="mx-auto mt-5 max-w-[52ch] text-base leading-relaxed text-muted-foreground">
+              Paste what you&apos;ve seen. Tracera separates the claims, retrieves the evidence, and
+              shows how the verdict was built.
             </p>
           </div>
 
           <form
             onSubmit={analyze}
-            className="analyze-composer mt-10 overflow-hidden rounded-[2rem] border border-emerald-950/10 bg-white shadow-[0_28px_75px_-46px_rgba(16,34,31,.62)]"
+            className="analyze-composer mt-10 overflow-hidden rounded-3xl border border-border bg-card shadow-[0_28px_75px_-46px_rgba(16,34,31,.62)]"
           >
             <label className="sr-only" htmlFor="story-input">
               Story or claim to analyze
             </label>
             {image ? (
-              <div className="relative m-3 overflow-hidden rounded-[1.35rem] bg-[#f3f7f3] p-4 sm:m-4">
+              <div className="relative m-3 overflow-hidden rounded-2xl bg-muted p-4 sm:m-4">
                 <Image
                   src={image.dataUrl}
                   alt="Selected for analysis"
@@ -146,19 +158,16 @@ export default function Home() {
                   unoptimized
                   className="h-56 w-full rounded-xl object-contain"
                 />
-                <div className="mt-3 flex items-center justify-between gap-3 text-sm font-semibold text-emerald-950/70">
+                <div className="mt-3 flex items-center justify-between gap-3 text-sm font-semibold text-muted-foreground">
                   <span className="truncate">{image.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setImage(null)}
-                    className="shrink-0 rounded-lg border border-emerald-950/8 bg-white px-3 py-1.5 text-xs font-black text-emerald-800 shadow-sm"
-                  >
+                  <Button type="button" variant="outline" size="sm" onClick={() => setImage(null)}>
+                    <Trash2 />
                     Remove
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
-              <textarea
+              <Textarea
                 id="story-input"
                 value={text}
                 onChange={(event) => setText(event.target.value)}
@@ -167,127 +176,109 @@ export default function Home() {
                 required={!image}
                 rows={5}
                 placeholder="Paste a headline, claim, article, public link, or image…"
-                className="min-h-44 w-full resize-none bg-transparent p-6 text-base font-medium leading-7 outline-none placeholder:text-emerald-950/28 disabled:bg-slate-50 sm:min-h-48 sm:p-7"
+                className="min-h-44 resize-none rounded-none border-0 bg-transparent p-6 text-base font-medium leading-7 shadow-none focus-visible:ring-0 sm:min-h-48 sm:p-7"
               />
             )}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-emerald-950/8 bg-[#f7f9f6] px-5 py-4 sm:px-6">
-              <div className="flex items-center gap-4">
-                <button
-                  type="button"
-                  onClick={() => setText(example)}
-                  className="text-xs font-black text-emerald-800 transition hover:text-emerald-600"
-                >
-                  ✦ Try an example
-                </button>
-                <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-black text-emerald-800 transition hover:text-emerald-600">
-                  <ImageIcon />
-                  Add image
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="sr-only"
-                    onChange={selectImage}
-                    disabled={loading}
-                  />
-                </label>
+            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-muted/60 px-5 py-4 sm:px-6">
+              <div className="flex items-center gap-1">
+                <Button type="button" variant="link" size="sm" onClick={() => setText(example)}>
+                  <Sparkles />
+                  Try an example
+                </Button>
+                <Button asChild variant="link" size="sm">
+                  <label className="cursor-pointer">
+                    <ImagePlus />
+                    Add image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="sr-only"
+                      onChange={selectImage}
+                      disabled={loading}
+                    />
+                  </label>
+                </Button>
               </div>
-              <button
+              <Button
                 type="submit"
+                variant="brand"
+                size="lg"
                 disabled={loading || isAuthLoading || (!text.trim() && !image)}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-950 px-5 py-3.5 text-sm font-black text-white shadow-[3px_3px_0_#8ee8cb] transition hover:-translate-y-0.5 hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               >
                 {loading ? (
                   <>
-                    <Spinner /> Tracing evidence…
+                    <Loader2 className="animate-spin" /> Tracing evidence…
                   </>
                 ) : (
                   <>
-                    Analyze <span>→</span>
+                    Analyze <ArrowRight />
                   </>
                 )}
-              </button>
+              </Button>
             </div>
             {user && (
-              <label className="flex cursor-pointer items-center gap-2 border-t border-emerald-950/8 px-6 py-3 text-[10px] font-bold text-emerald-950/48">
-                <input
-                  type="checkbox"
+              <div className="flex items-center gap-2.5 border-t border-border px-6 py-3.5">
+                <Checkbox
+                  id="private-trace"
                   checked={privateTrace}
-                  onChange={(event) => setPrivateTrace(event.target.checked)}
+                  onCheckedChange={(checked) => setPrivateTrace(checked === true)}
                   disabled={loading}
-                  className="accent-emerald-800"
                 />
-                Keep this trace private
-              </label>
+                <Label htmlFor="private-trace" className="text-xs text-muted-foreground">
+                  Keep this trace private
+                </Label>
+              </div>
             )}
           </form>
           {showAuthPrompt && !user && (
-            <div
-              className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center text-sm text-emerald-950"
-              role="status"
-            >
-              <p className="font-bold">Sign in to start this fact-check.</p>
-              <p className="mt-1 text-emerald-950/65">
-                Log in or create an account to trace it against the evidence.
-              </p>
-              <div className="mt-4 flex justify-center gap-2">
-                <Link
-                  href="/login"
-                  className="rounded-xl bg-emerald-950 px-4 py-2.5 font-black text-white transition hover:bg-emerald-800"
-                >
-                  Log in
-                </Link>
-                <Link
-                  href="/signup"
-                  className="rounded-xl border border-emerald-950/15 bg-white px-4 py-2.5 font-black text-emerald-950 transition hover:bg-emerald-100"
-                >
-                  Create account
-                </Link>
-              </div>
-            </div>
+            <Alert variant="info" className="mt-5">
+              <Check />
+              <AlertTitle>Sign in to start this fact-check.</AlertTitle>
+              <AlertDescription>
+                <p>Log in or create an account to trace it against the evidence.</p>
+                <div className="mt-3 flex gap-2">
+                  <Button asChild size="sm">
+                    <Link href="/login">Log in</Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href="/signup">Create account</Link>
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
           )}
-          <p className="mt-4 text-center text-[10px] font-bold tracking-[.04em] text-emerald-950/38">
-            LINKS DETECT AUTOMATICALLY · IMAGES UP TO 5 MB · PRIVATE BY CHOICE
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            Links are detected automatically. Images up to 5 MB.
           </p>
 
           {loading && <TraceProgress progress={progress} />}
           {error && (
-            <p
-              className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
-              role="alert"
-            >
-              {error}
-            </p>
+            <Alert variant="destructive" className="mt-6">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
         </section>
         {result && (
           <section className="pb-20">
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-950/10 bg-white/70 px-5 py-4 shadow-[0_16px_40px_-34px_rgba(16,34,31,.6)]">
-              <div className="flex items-center gap-3">
-                <span className="grid size-9 place-items-center rounded-xl bg-emerald-950 text-[#9cf0d1]">
-                  ✓
-                </span>
-                <div>
-                  <p className="text-[9px] font-black tracking-[.16em] text-emerald-700">
-                    TRACE COMPLETE
-                  </p>
-                  <p className="mt-0.5 text-sm font-black text-emerald-950">
-                    Evidence trail assembled
-                  </p>
-                </div>
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
+              <p className="flex items-center gap-2.5 text-sm font-semibold">
+                <Check className="size-4 text-brand-emerald" />
+                Evidence trail assembled
+              </p>
               <ReuseNotice reuse={result.reuse} cached={result.cached} />
             </div>
             <AnalysisResult claims={result.claims} score={result.traceraScore} />
             {result.reuse?.state === "reused_exact" && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                className="mt-4"
                 onClick={() => void analyze(undefined, true)}
                 disabled={loading}
-                className="mt-4 rounded-xl border border-emerald-900/15 bg-white px-4 py-2.5 text-sm font-black text-emerald-800 transition hover:bg-emerald-50 disabled:opacity-50"
               >
                 Analyze again with current evidence
-              </button>
+              </Button>
             )}
             {result.groundZero && <GroundZeroCard trace={result.groundZero} />}
             {result.inputMetadata && <ImageProvenance metadata={result.inputMetadata} />}
@@ -295,25 +286,6 @@ export default function Home() {
         )}
       </div>
     </main>
-  );
-}
-
-function ImageIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-4"
-    >
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <circle cx="9" cy="9" r="2" />
-      <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
-    </svg>
   );
 }
 
@@ -329,43 +301,39 @@ function TraceProgress({ progress }: { progress: string }) {
   const current = traceProgressIndex(progress);
   return (
     <section
-      className="trace-progress-panel noise mt-6 overflow-hidden rounded-[2rem] bg-[#0e3028] p-6 text-white shadow-[0_28px_65px_-36px_rgba(6,78,59,.8)] sm:p-7"
+      className="trace-progress-panel noise mt-6 overflow-hidden rounded-3xl bg-brand-deep p-6 text-white shadow-[0_28px_65px_-36px_rgba(6,78,59,.8)] sm:p-7"
       role="status"
       aria-live="polite"
     >
       <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-[9px] font-black tracking-[.18em] text-[#9cf0d1]">
-            LIVE EVIDENCE TRACE
-          </p>
-          <h2 className="mt-2 text-xl font-black tracking-[-.035em]">{progress}</h2>
-        </div>
-        <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1.5 text-[9px] font-black text-white/58">
-          <Spinner /> ANALYZING
-        </span>
+        <h2 className="text-xl font-bold tracking-[-.02em]">{progress}</h2>
+        <Badge className="bg-white/10 text-white/60">
+          <Loader2 className="animate-spin" /> Analyzing
+        </Badge>
       </div>
-      <ol className="relative z-10 mt-7 grid gap-2 sm:grid-cols-5">
+      <ol className="relative z-10 mt-8 grid gap-y-4 sm:grid-cols-5 sm:gap-x-3">
         {traceStages.map((stage, index) => {
-          const state = index < current ? "done" : index === current ? "active" : "waiting";
+          const done = index < current;
+          const active = index === current;
           return (
-            <li key={stage.label} className={`trace-progress-step trace-progress-step-${state}`}>
-              <span className="trace-progress-number">
-                {state === "done" ? "✓" : String(index + 1).padStart(2, "0")}
-              </span>
-              <span>
-                <strong>{stage.label}</strong>
-                <small>{stage.detail}</small>
-              </span>
+            <li
+              key={stage.label}
+              className={cn(
+                "border-t-2 pt-3 transition-opacity",
+                done && "border-brand-mint",
+                active && "border-brand-mint",
+                !done && !active && "border-white/15 opacity-45",
+              )}
+            >
+              <p className="flex items-center gap-1.5 text-sm font-semibold">
+                {done && <Check className="size-3.5 text-brand-mint" />}
+                {stage.label}
+              </p>
+              <p className="mt-0.5 text-xs text-white/45">{stage.detail}</p>
             </li>
           );
         })}
       </ol>
-      <div className="relative z-10 mt-5 h-1 overflow-hidden rounded-full bg-white/10">
-        <span
-          className="trace-progress-bar block h-full rounded-full bg-[#9cf0d1]"
-          style={{ width: `${((current + 1) / traceStages.length) * 100}%` }}
-        />
-      </div>
     </section>
   );
 }
@@ -418,47 +386,44 @@ async function readAnalysisStream(
 
 function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
   const exif = Object.entries(metadata.exif ?? {});
+  const details = [
+    {
+      label: "Text extraction",
+      value: metadata.ocrProvider === "configured" ? "Provider verified" : "Model fallback",
+    },
+    { label: "File type", value: metadata.mimeType ?? "Unknown" },
+    ...exif.slice(0, 4).map(([label, value]) => ({ label, value })),
+  ];
+
   return (
-    <section className="landing-view-reveal mt-5 overflow-hidden rounded-[2rem] border border-violet-950/10 bg-[#eee8fb] p-6 shadow-[0_24px_60px_-46px_rgba(16,34,31,.5)] sm:p-8">
-      <div className="grid gap-7 sm:grid-cols-[.75fr_1.25fr] sm:items-start">
+    <section className="mt-8 border-t border-border pt-8">
+      <div className="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <div>
-          <p className="text-[10px] font-black tracking-[.18em] text-violet-700">
-            IMAGE PROVENANCE
-          </p>
-          <h2 className="mt-3 text-2xl font-black leading-tight tracking-[-.045em] text-violet-950">
-            The file leaves clues too.
-          </h2>
-          <p className="mt-3 text-sm leading-6 text-violet-950/55">
+          <h2 className="text-2xl font-extrabold tracking-[-.03em]">The file leaves clues too</h2>
+          <p className="mt-2 max-w-[46ch] text-sm leading-relaxed text-muted-foreground">
             Visible text and embedded metadata were inspected alongside the claims.
           </p>
-        </div>
-        <div className="rounded-2xl border border-violet-950/8 bg-white/65 p-4">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <ProvenanceMetric
-              label="OCR"
-              value={metadata.ocrProvider === "configured" ? "Provider verified" : "Model fallback"}
-            />
-            <ProvenanceMetric label="File type" value={metadata.mimeType ?? "Unknown"} />
-            {exif.slice(0, 4).map(([key, value]) => (
-              <ProvenanceMetric key={key} label={key} value={value} />
-            ))}
-          </div>
-          {!exif.length && (
-            <p className="mt-3 rounded-xl bg-violet-50 px-3 py-2.5 text-xs font-semibold text-violet-950/52">
-              No embedded EXIF details were available.
-            </p>
-          )}
           {metadata.reverseSearchUrl && (
-            <a
-              href={metadata.reverseSearchUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-2 text-xs font-black text-violet-800 transition hover:gap-3"
-            >
-              Search with Google Lens <span>↗</span>
-            </a>
+            <Button asChild variant="link" size="sm" className="mt-2 -ml-3">
+              <a href={metadata.reverseSearchUrl} target="_blank" rel="noreferrer">
+                Search this image with Google Lens
+                <ExternalLink />
+              </a>
+            </Button>
           )}
         </div>
+        {exif.length || details.length ? (
+          <dl className="divide-y divide-border">
+            {details.map((detail) => (
+              <ProvenanceMetric key={detail.label} label={detail.label} value={detail.value} />
+            ))}
+            {!exif.length && (
+              <div className="py-2.5 text-sm text-muted-foreground">
+                No embedded camera or location data was present.
+              </div>
+            )}
+          </dl>
+        ) : null}
       </div>
     </section>
   );
@@ -466,11 +431,11 @@ function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
 
 function ProvenanceMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/80 px-3 py-2.5">
-      <p className="text-[8px] font-black uppercase tracking-[.12em] text-violet-950/35">{label}</p>
-      <p className="mt-1 truncate text-[10px] font-black text-violet-950/72" title={value}>
+    <div className="flex items-baseline justify-between gap-6 py-2.5">
+      <dt className="text-sm capitalize text-muted-foreground">{label}</dt>
+      <dd className="truncate text-sm font-semibold" title={value}>
         {value}
-      </p>
+      </dd>
     </div>
   );
 }
@@ -478,35 +443,20 @@ function ProvenanceMetric({ label, value }: { label: string; value: string }) {
 function ReuseNotice({ reuse, cached }: { reuse?: AnalysisReuse; cached: boolean }) {
   if (reuse?.state === "reused_exact" && reuse.expiresAt) {
     return (
-      <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-[9px] font-black text-emerald-800">
-        RECENT TRACE REUSED · {new Date(reuse.expiresAt).toLocaleDateString()}
-      </span>
+      <Badge variant="emerald">
+        Recent trace reused · {new Date(reuse.expiresAt).toLocaleDateString()}
+      </Badge>
     );
   }
-  if (reuse?.state === "reanalyzed")
-    return (
-      <span className="rounded-full bg-violet-100 px-3 py-1.5 text-[9px] font-black text-violet-800">
-        FRESHLY RE-ANALYZED
-      </span>
-    );
+  if (reuse?.state === "reanalyzed") return <Badge variant="violet">Freshly re-analyzed</Badge>;
   if (reuse && reuse.relatedContextClaims)
     return (
-      <span className="rounded-full bg-amber-100 px-3 py-1.5 text-[9px] font-black text-amber-800">
-        {reuse.relatedContextClaims} RELATED CLAIM
-        {reuse.relatedContextClaims === 1 ? "" : "S"} USED
-      </span>
+      <Badge variant="amber">
+        {reuse.relatedContextClaims} related claim
+        {reuse.relatedContextClaims === 1 ? "" : "s"} used
+      </Badge>
     );
-  return cached ? (
-    <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[9px] font-black text-slate-700">
-      RECENT MATCHING CHECK
-    </span>
-  ) : null;
-}
-
-function Spinner() {
-  return (
-    <span className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent" />
-  );
+  return cached ? <Badge variant="slate">Recent matching check</Badge> : null;
 }
 
 function isHttpUrl(value: string) {

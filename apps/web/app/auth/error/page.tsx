@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const ERROR_MESSAGES = new Map<string, string>(
   Object.entries({
@@ -37,31 +39,26 @@ function AuthError() {
     ERROR_MESSAGES.get(errorCode) ?? "We could not complete sign-in. Please try again shortly.";
 
   return (
-    <main className="paper-grid flex min-h-screen items-center justify-center bg-[#f4f6f2] p-6 text-emerald-950">
-      <section className="w-full max-w-md rounded-3xl border border-emerald-950/10 bg-white p-8 shadow-sm">
-        <Link href="/" className="text-lg font-extrabold tracking-tight">
-          tracera<span className="text-emerald-500">.</span>
-        </Link>
-        <p className="mt-10 text-xs font-black tracking-[.18em] text-amber-700">SIGN-IN PAUSED</p>
-        <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-emerald-950">
-          Sign-in wasn&apos;t completed
-        </h1>
-        <p className="mt-4 leading-7 text-slate-600">{message}</p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Link
-            href={retryURL}
-            className="rounded-xl bg-emerald-950 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-emerald-900"
-          >
-            Try again
+    <main className="paper-grid flex min-h-screen items-center justify-center bg-background p-6">
+      <Card className="w-full max-w-md rounded-3xl p-2">
+        <CardHeader>
+          <Link href="/" className="text-lg font-extrabold tracking-tight">
+            tracera<span className="text-brand-emerald">.</span>
           </Link>
-          <Link
-            href="/"
-            className="rounded-xl border border-slate-300 px-5 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-emerald-800 hover:text-emerald-950"
-          >
-            Return home
-          </Link>
-        </div>
-      </section>
+          <CardTitle className="mt-8 text-3xl font-extrabold tracking-[-.04em]">
+            Sign-in didn&apos;t complete
+          </CardTitle>
+          <CardDescription className="mt-2 leading-relaxed">{message}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row">
+          <Button asChild size="lg" className="flex-1">
+            <Link href={retryURL}>Try again</Link>
+          </Button>
+          <Button asChild size="lg" variant="outline" className="flex-1">
+            <Link href="/">Return home</Link>
+          </Button>
+        </CardContent>
+      </Card>
     </main>
   );
 }

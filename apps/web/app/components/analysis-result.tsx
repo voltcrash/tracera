@@ -1,16 +1,16 @@
 "use client";
 
 import type { ClaimResult, EvidenceSource, TraceraScore } from "@repo/contracts";
+import { ExternalLink } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 export type { ClaimResult, TraceraScore } from "@repo/contracts";
 
-const dimensionColors = [
-  "bg-[#9cf0d1]",
-  "bg-[#72dfbd]",
-  "bg-[#d8b4fe]",
-  "bg-[#f5d67b]",
-  "bg-[#9fdde8]",
-];
+const dimensionColors = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"];
 
 export function AnalysisResult({
   claims,
@@ -23,25 +23,23 @@ export function AnalysisResult({
 }) {
   return (
     <section
-      className={`mt-8 grid gap-5 ${showScore ? "lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start" : ""}`}
+      className={cn(
+        "mt-8 grid gap-5",
+        showScore && "lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start",
+      )}
     >
       <div className={showScore ? "order-2 lg:order-1" : ""}>
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-black tracking-[.2em] text-emerald-700">
-              CLAIM DECOMPOSITION · {String(claims.length).padStart(2, "0")}
-            </p>
-            <h2 className="mt-2 text-3xl font-black leading-none tracking-[-.055em] text-emerald-950">
-              Story, separated from spin.
-            </h2>
-          </div>
-          <p className="max-w-52 text-right text-xs font-semibold leading-5 text-emerald-950/45">
-            Read every claim and its evidence independently.
+        <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+          <h2 className="text-3xl font-extrabold tracking-[-.04em]">
+            {claims.length === 1 ? "One claim to check" : `${claims.length} claims to check`}
+          </h2>
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+            Each claim carries its own verdict and evidence. Read them independently.
           </p>
         </div>
         <div className="space-y-4">
           {claims.map((item, index) => (
-            <ClaimCard key={item.claim.id || index} item={item} index={index} />
+            <ClaimCard key={item.claim.id || index} item={item} />
           ))}
         </div>
       </div>
@@ -50,7 +48,7 @@ export function AnalysisResult({
   );
 }
 
-function ClaimCard({ item, index }: { item: ClaimResult; index: number }) {
+function ClaimCard({ item }: { item: ClaimResult }) {
   const confidence = Math.round(item.confidence * 100);
   const evidenceQuality =
     typeof item.evidenceQuality === "number" ? Math.round(item.evidenceQuality * 100) : null;
@@ -61,16 +59,8 @@ function ClaimCard({ item, index }: { item: ClaimResult; index: number }) {
     (source) => !classifiedIds.has(source.id),
   );
   const groups = [
-    {
-      label: "Supporting",
-      sources: supporting,
-      tone: "support" as const,
-    },
-    {
-      label: "Conflicting",
-      sources: conflicting,
-      tone: "conflict" as const,
-    },
+    { label: "Supporting", sources: supporting, tone: "support" as const },
+    { label: "Conflicting", sources: conflicting, tone: "conflict" as const },
     {
       label:
         item.supportingSources?.length || item.contradictingSources?.length
@@ -80,85 +70,76 @@ function ClaimCard({ item, index }: { item: ClaimResult; index: number }) {
       tone: "review" as const,
     },
   ]
-    .map((group) => ({
-      ...group,
-      sources: uniqueSources(group.sources).slice(0, 4),
-    }))
+    .map((group) => ({ ...group, sources: uniqueSources(group.sources).slice(0, 4) }))
     .filter((group) => group.sources.length > 0);
 
   return (
-    <article className="analysis-claim-card landing-view-reveal">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex max-w-2xl gap-3.5">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-950 text-[10px] font-black text-[#9cf0d1]">
-            {String(index + 1).padStart(2, "0")}
-          </span>
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-[.16em] text-emerald-700">
-              {item.claim.claimType.replaceAll("_", " ")}
-            </p>
-            <h3 className="mt-1.5 text-base font-black leading-6 tracking-[-.02em] text-emerald-950 sm:text-lg">
-              {item.claim.claimText}
-            </h3>
-          </div>
+    <Card asChild>
+      <article className="landing-view-reveal gap-0 p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <h3 className="max-w-2xl text-lg font-bold leading-snug tracking-[-.015em] sm:text-xl">
+            {item.claim.claimText}
+          </h3>
+          <Verdict verdict={item.verdict} />
         </div>
-        <Verdict verdict={item.verdict} />
-      </div>
+        <p className="mt-2 text-sm capitalize text-muted-foreground">
+          {item.claim.claimType.replaceAll("_", " ")}
+        </p>
 
-      <div className="mt-6 grid gap-2 sm:grid-cols-3">
-        <Metric
-          label="Confidence"
-          value={`${confidence}%`}
-          progress={confidence}
-          color="bg-emerald-500"
-        />
-        <Metric
-          label="Evidence quality"
-          value={evidenceQuality === null ? "Not rated" : `${evidenceQuality}%`}
-          progress={evidenceQuality}
-          color="bg-violet-500"
-        />
-        <Metric
-          label="Checkability"
-          value={item.claim.checkability.replaceAll("_", " ")}
-          color="bg-amber-400"
-        />
-      </div>
-
-      {item.reasoning.length > 0 && (
-        <div className="mt-5 rounded-2xl bg-[#f3f7f3] p-4 sm:p-5">
-          <p className="text-[9px] font-black uppercase tracking-[.16em] text-emerald-700">
-            Why this verdict
-          </p>
-          <ul className="mt-3 space-y-2.5 text-sm leading-6 text-emerald-950/68">
-            {item.reasoning.map((reason, reasonIndex) => (
-              <li key={reasonIndex} className="flex gap-2.5">
-                <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-emerald-500" />
-                <span>{reason}</span>
-              </li>
-            ))}
-          </ul>
+        <div className="mt-6 grid gap-x-6 gap-y-4 border-y border-border py-4 sm:grid-cols-3 sm:divide-x sm:divide-border">
+          <Metric
+            label="Confidence"
+            value={`${confidence}%`}
+            progress={confidence}
+            indicator="bg-emerald-600"
+          />
+          <Metric
+            label="Evidence quality"
+            value={evidenceQuality === null ? "Not rated" : `${evidenceQuality}%`}
+            progress={evidenceQuality}
+            indicator="bg-violet-500"
+            className="sm:pl-6"
+          />
+          <Metric
+            label="Checkability"
+            value={item.claim.checkability.replaceAll("_", " ")}
+            indicator="bg-amber-400"
+            className="sm:pl-6"
+          />
         </div>
-      )}
 
-      {groups.length > 0 && (
-        <div className="mt-5 border-t border-emerald-950/8 pt-5">
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-[9px] font-black uppercase tracking-[.16em] text-emerald-950/45">
-              Evidence sources
-            </p>
-            <p className="text-[9px] font-bold text-emerald-950/38">
-              {uniqueSources(groups.flatMap((group) => group.sources)).length} reviewed
-            </p>
+        {item.reasoning.length > 0 && (
+          <div className="mt-5">
+            <p className="text-sm font-semibold">Why this verdict</p>
+            <ul className="mt-2.5 max-w-[68ch] space-y-2 text-sm leading-relaxed text-muted-foreground">
+              {item.reasoning.map((reason, reasonIndex) => (
+                <li key={reasonIndex} className="flex gap-2.5">
+                  <span className="mt-2 size-1 shrink-0 rounded-full bg-emerald-600" />
+                  <span>{reason}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="mt-3 grid gap-3 md:grid-cols-3">
-            {groups.map((group) => (
-              <SourceGroup key={group.label} {...group} />
-            ))}
+        )}
+
+        {groups.length > 0 && (
+          <div className="mt-6">
+            <Separator className="mb-5" />
+            <p className="text-sm font-semibold">
+              Evidence reviewed
+              <span className="ml-2 font-normal text-muted-foreground">
+                {uniqueSources(groups.flatMap((group) => group.sources)).length} sources
+              </span>
+            </p>
+            <div className="mt-4 grid gap-x-6 gap-y-6 md:grid-cols-3">
+              {groups.map((group) => (
+                <SourceGroup key={group.label} {...group} />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-    </article>
+        )}
+      </article>
+    </Card>
   );
 }
 
@@ -166,27 +147,22 @@ function Metric({
   label,
   value,
   progress,
-  color,
+  indicator,
+  className,
 }: {
   label: string;
   value: string;
   progress?: number | null;
-  color: string;
+  indicator: string;
+  className?: string;
 }) {
   return (
-    <div className="rounded-xl border border-emerald-950/8 bg-white/70 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[9px] font-black uppercase tracking-[.1em] text-emerald-950/38">
-          {label}
-        </span>
-        <strong className="truncate text-[11px] capitalize text-emerald-950/75">{value}</strong>
+    <div className={className}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="truncate text-sm font-semibold capitalize">{value}</span>
       </div>
-      <div className="mt-2 h-1 overflow-hidden rounded-full bg-emerald-950/6">
-        <span
-          className={`block h-full rounded-full ${color}`}
-          style={{ width: `${progress ?? 100}%` }}
-        />
-      </div>
+      <Progress className="mt-2" value={progress ?? 100} indicatorClassName={indicator} />
     </div>
   );
 }
@@ -200,29 +176,22 @@ function SourceGroup({
   sources: EvidenceSource[];
   tone: "support" | "conflict" | "review";
 }) {
-  const tones = {
-    support: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    conflict: "border-rose-200 bg-rose-50 text-rose-800",
-    review: "border-amber-200 bg-amber-50 text-amber-800",
-  };
-  const dots = {
-    support: "bg-emerald-500",
-    conflict: "bg-rose-500",
-    review: "bg-amber-500",
+  const rules = {
+    support: "border-emerald-600",
+    conflict: "border-rose-500",
+    review: "border-amber-500",
   };
   return (
-    <div className={`rounded-2xl border p-3 ${tones[tone]}`}>
-      <p className="flex items-center justify-between text-[9px] font-black uppercase tracking-[.12em]">
-        <span className="flex items-center gap-2">
-          <span className={`size-1.5 rounded-full ${dots[tone]}`} /> {label}
-        </span>
-        <span>{String(sources.length).padStart(2, "0")}</span>
+    <div className={cn("border-t-2 pt-3", rules[tone])}>
+      <p className="flex items-baseline justify-between gap-2 text-sm font-semibold">
+        {label}
+        <span className="font-normal text-muted-foreground">{sources.length}</span>
       </p>
-      <div className="mt-3 space-y-2">
+      <ul className="mt-2 divide-y divide-border">
         {sources.map((source) => (
           <SourceLink key={source.id} source={source} />
         ))}
-      </div>
+      </ul>
     </div>
   );
 }
@@ -230,22 +199,35 @@ function SourceGroup({
 function SourceLink({ source }: { source: EvidenceSource }) {
   const content = (
     <>
-      <strong className="block line-clamp-2 text-[10px] leading-4">{source.title}</strong>
+      <span className="flex items-start gap-1.5 text-sm leading-snug">
+        <span className="line-clamp-2">{source.title}</span>
+        {source.url && <ExternalLink className="mt-1 size-3 shrink-0 opacity-50" />}
+      </span>
       {(source.publisher || source.publishedAt) && (
-        <small className="mt-1 block truncate text-[9px] font-semibold opacity-55">
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
           {source.publisher ?? "Source"}
-          {source.publishedAt ? ` · ${new Date(source.publishedAt).toLocaleDateString()}` : ""}
-        </small>
+          {source.publishedAt
+            ? `, ${new Date(source.publishedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}`
+            : ""}
+        </span>
       )}
     </>
   );
-  const className = "block rounded-xl bg-white/70 px-3 py-2.5 transition hover:bg-white";
-  return source.url ? (
-    <a href={source.url} target="_blank" rel="noreferrer" className={className}>
-      {content}
-    </a>
-  ) : (
-    <div className={className}>{content}</div>
+  return (
+    <li className="py-2">
+      {source.url ? (
+        <a
+          href={source.url}
+          target="_blank"
+          rel="noreferrer"
+          className="block transition hover:text-brand-emerald"
+        >
+          {content}
+        </a>
+      ) : (
+        content
+      )}
+    </li>
   );
 }
 
@@ -257,81 +239,65 @@ export function ScoreCard({ score, sticky = true }: { score: TraceraScore; stick
     ["Evidence quality", score.evidenceQuality],
     ["Source reputation", score.sourceReputation ?? score.sourceCorroboration],
   ] as const;
-  const overall = Math.max(0, Math.min(100, score.overall));
+  const reading =
+    score.overall >= 70
+      ? "Strong signal"
+      : score.overall >= 45
+        ? "Needs context"
+        : "Low confidence";
 
   return (
     <aside
-      className={`app-score-card noise order-1 h-fit overflow-hidden rounded-[2rem] bg-[#0e3028] p-6 text-white shadow-[0_28px_70px_-32px_rgba(6,78,59,.78)] lg:order-2 ${sticky ? "lg:sticky lg:top-24" : ""}`}
+      className={cn(
+        "app-score-card noise order-1 h-fit overflow-hidden rounded-3xl bg-brand-deep px-6 py-7 text-white shadow-[0_28px_70px_-32px_rgba(6,78,59,.78)] lg:order-2",
+        sticky && "lg:sticky lg:top-24",
+      )}
     >
-      <div className="relative z-10 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[9px] font-black tracking-[.18em] text-[#9cf0d1]">
-            TRANSPARENT BY DESIGN
-          </p>
-          <h2 className="mt-2 text-xl font-black tracking-[-.04em]">Tracera Score</h2>
-        </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/8 px-2.5 py-1 text-[9px] font-black text-white/60">
-          <span className="size-1.5 rounded-full bg-[#9cf0d1]" /> LIVE SIGNALS
-        </span>
+      <div className="relative z-10">
+        <h2 className="text-sm font-semibold text-white/70">Tracera Score</h2>
+        <p className="mt-3 flex items-baseline gap-2">
+          <span
+            className="text-[5.5rem] font-black leading-[.8] tracking-[-.06em] text-brand-mint"
+            aria-label={`Overall score ${score.overall} out of 100`}
+          >
+            {score.overall}
+          </span>
+          <span className="text-lg font-semibold text-white/35">/100</span>
+        </p>
+        <p className="mt-3 text-base font-semibold">{reading}</p>
       </div>
 
-      <div className="relative z-10 mt-7 grid grid-cols-[auto_1fr] items-center gap-6">
-        <div
-          className="app-score-ring"
-          style={{
-            background: `conic-gradient(#9cf0d1 0 ${overall}%, rgba(255,255,255,.09) ${overall}% 100%)`,
-          }}
-          aria-label={`Overall score ${score.overall} out of 100`}
-        >
-          <div>
-            <strong>{score.overall}</strong>
-            <span>/100</span>
-          </div>
-        </div>
-        <div className="space-y-3.5">
-          {rows.map(([name, dimension], index) => (
-            <div key={name}>
-              <div className="mb-1.5 flex items-center justify-between gap-3 text-[9px] font-bold">
-                <span className="truncate text-white/55">{name}</span>
-                <span className="text-white">{dimension.score}</span>
-              </div>
-              <div className="h-1 overflow-hidden rounded-full bg-white/10">
-                <span
-                  className={`block h-full rounded-full ${dimensionColors[index]}`}
-                  style={{
-                    width: `${Math.max(0, Math.min(100, dimension.score))}%`,
-                  }}
-                />
-              </div>
+      <div className="relative z-10 mt-7 space-y-3">
+        {rows.map(([name, dimension], index) => (
+          <div key={name}>
+            <div className="mb-1.5 flex items-baseline justify-between gap-3 text-xs">
+              <span className="truncate text-white/60">{name}</span>
+              <span className="font-semibold tabular-nums">{dimension.score}</span>
             </div>
-          ))}
-        </div>
+            <Progress
+              className="h-1.5 bg-white/10"
+              indicatorClassName={dimensionColors[index]}
+              value={Math.max(0, Math.min(100, dimension.score))}
+            />
+          </div>
+        ))}
       </div>
 
-      <div className="relative z-10 mt-7 flex items-center justify-between gap-4 border-t border-white/10 pt-5">
-        <div>
-          <p className="text-[9px] font-black tracking-[.13em] text-white/38">EVIDENCE RECENCY</p>
-          <p className="mt-1 text-xs font-bold capitalize text-white/75">{score.recency.flag}</p>
-        </div>
-        <span className="rounded-full bg-[#9cf0d1]/12 px-3 py-1.5 text-[9px] font-black uppercase tracking-[.1em] text-[#9cf0d1]">
-          {score.overall >= 70
-            ? "Strong signal"
-            : score.overall >= 45
-              ? "Needs context"
-              : "Low confidence"}
-        </span>
-      </div>
+      <Separator className="relative z-10 mt-7 bg-white/10" />
+      <p className="relative z-10 pt-4 text-xs text-white/50">
+        Evidence recency: <span className="capitalize text-white/80">{score.recency.flag}</span>
+      </p>
     </aside>
   );
 }
 
 function Verdict({ verdict }: { verdict: string }) {
-  const styles: Record<string, string> = {
-    supported: "border-emerald-200 bg-emerald-100 text-emerald-800",
-    contradicted: "border-rose-200 bg-rose-100 text-rose-800",
-    misleading: "border-amber-200 bg-amber-100 text-amber-800",
-    mixed: "border-violet-200 bg-violet-100 text-violet-800",
-    unverified: "border-slate-200 bg-slate-100 text-slate-700",
+  const variants: Record<string, "emerald" | "rose" | "amber" | "violet" | "slate"> = {
+    supported: "emerald",
+    contradicted: "rose",
+    misleading: "amber",
+    mixed: "violet",
+    unverified: "slate",
   };
   const dots: Record<string, string> = {
     supported: "bg-emerald-500",
@@ -341,12 +307,10 @@ function Verdict({ verdict }: { verdict: string }) {
     unverified: "bg-slate-500",
   };
   return (
-    <span
-      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[9px] font-black uppercase tracking-[.1em] ${styles[verdict] ?? styles.unverified}`}
-    >
-      <span className={`size-1.5 rounded-full ${dots[verdict] ?? dots.unverified}`} />
-      {verdict}
-    </span>
+    <Badge variant={variants[verdict] ?? "slate"} className="px-3 py-1.5">
+      <span className={cn("size-1.5 rounded-full", dots[verdict] ?? dots.unverified)} />
+      <span className="capitalize">{verdict}</span>
+    </Badge>
   );
 }
 

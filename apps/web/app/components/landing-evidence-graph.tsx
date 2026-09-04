@@ -52,18 +52,17 @@ export function LandingEvidenceGraph() {
       <div className="evidence-glow" aria-hidden="true" />
       <div className="relative z-10 flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] font-black tracking-[.2em] text-[#9cf0d1]">EVIDENCE MAP</p>
-          <h2 className="mt-3 text-2xl font-black leading-tight tracking-[-.045em]">
+          <h2 className="text-2xl font-black leading-tight tracking-[-.045em]">
             One story.
             <br />
             More than one signal.
           </h2>
         </div>
-        <span className="mt-1 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold text-white/70">
-          <span className="landing-status-dot" /> LIVE TRACE
+        <span className="mt-1 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/70">
+          <span className="landing-status-dot" /> Live trace
         </span>
       </div>
-      <div className="relative z-10 mt-6 rounded-2xl border border-white/10 bg-white/[.06] p-3 sm:p-4">
+      <div className="relative z-10 mt-6">
         <svg
           viewBox="0 0 460 205"
           className="h-auto w-full"
@@ -175,7 +174,7 @@ export function LandingEvidenceGraph() {
           >
             {active.score}
           </span>
-          <span className="text-[10px] font-bold tracking-[.12em] text-white/45">SIGNAL</span>
+          <span className="text-xs text-white/45">signal</span>
         </p>
       </div>
     </section>

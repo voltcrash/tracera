@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, Bookmark, Mail } from "lucide-react";
 import { AccountRequired } from "../components/account-required";
 import { AppHeader } from "../components/app-header";
 import { useAuth } from "../components/auth-provider";
@@ -18,6 +19,10 @@ import {
   type TraceViewMode,
 } from "../components/trace-library";
 import { apiUrl } from "../lib/api";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 type PrimaryFilter = "all" | "high" | "review" | "seen";
 type SortOrder = "newest" | "oldest" | "highest" | "lowest";
@@ -151,7 +156,7 @@ export default function HubPage() {
   }
 
   return (
-    <main className="hub-page min-h-screen text-emerald-950">
+    <main className="hub-page min-h-screen text-foreground">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <AppHeader active="hub" />
         {isAuthLoading && <TraceLoading />}
@@ -162,46 +167,31 @@ export default function HubPage() {
               <section className="hub-hero noise relative overflow-hidden rounded-[1.5rem] px-6 py-9 text-white sm:px-10 sm:py-11 lg:min-h-[25rem] lg:px-11">
                 <div className="hub-hero-grid" aria-hidden="true" />
                 <div className="relative z-10 flex h-full flex-col items-start justify-center">
-                  <p className="text-[10px] font-black tracking-[.19em] text-white/80 sm:text-xs">
-                    THE NEWS HUB · LIVING ARCHIVE
-                  </p>
-                  <h1 className="mt-7 max-w-2xl text-[2.8rem] font-black leading-[.92] tracking-[-.07em] sm:text-6xl xl:text-[4.3rem]">
+                  <h1 className="max-w-2xl text-[2.8rem] font-black leading-[.92] tracking-[-.07em] sm:text-6xl xl:text-[4.3rem]">
                     The receipts
                     <span className="block text-[#49cf9d]">stay attached.</span>
                   </h1>
-                  <p className="mt-6 max-w-xl text-sm leading-6 text-white/68 sm:text-base sm:leading-7">
+                  <p className="mt-6 max-w-xl text-sm leading-relaxed text-white/70 sm:text-base">
                     Every check is a living evidence trail—not a one-off verdict. Search the
                     archive, reopen the sources, and return when the story changes.
                   </p>
-                  <Link
-                    href="/home"
-                    className="mt-7 inline-flex min-h-11 items-center gap-3 rounded-full bg-[#4bd09f] px-5 py-3 text-sm font-black text-[#0b3028] shadow-[0_14px_35px_-18px_rgba(58,220,164,.9)] transition hover:-translate-y-0.5 hover:bg-[#69ddb3] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#9cf0d1]"
-                  >
-                    Start a new trace <span aria-hidden="true">→</span>
-                  </Link>
+                  <Button asChild variant="mint" size="lg" className="mt-7 rounded-full">
+                    <Link href="/home">
+                      Start a new trace <ArrowRight />
+                    </Link>
+                  </Button>
                 </div>
               </section>
 
-              <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:gap-5">
+              <div className="flex flex-col justify-center divide-y divide-border px-1 sm:px-2">
                 <TraceStat
                   value={String(pagination.total || checks.length)}
                   label="Checks in this archive"
-                  eyebrow="Archive"
                   icon="archive"
                 />
-                <TraceStat
-                  value={`${average}/100`}
-                  label="Average signal score"
-                  eyebrow="Signal"
-                  icon="signal"
-                />
-                <TraceStat
-                  value={String(reviewCount)}
-                  label="Need another look"
-                  eyebrow="Review queue"
-                  icon="review"
-                />
-                <MediaDietCard />
+                <TraceStat value={`${average}/100`} label="Average signal score" icon="signal" />
+                <TraceStat value={String(reviewCount)} label="Need another look" icon="review" />
+                <MediaDietRow />
               </div>
             </div>
 
@@ -238,36 +228,34 @@ export default function HubPage() {
                     ]}
                   />
                   {hasSecondaryFilters && (
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => {
-                        setPrivacy("all");
-                      }}
-                      className="hub-clear-filters"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      onClick={() => setPrivacy("all")}
                     >
                       Clear filters
-                    </button>
+                    </Button>
                   )}
                 </>
               }
             />
 
             {error && (
-              <div
-                className="mt-7 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
-                role="alert"
-              >
-                <div className="flex items-center justify-between gap-4">
+              <Alert variant="destructive" className="mt-7">
+                <AlertDescription className="flex w-full items-center justify-between gap-4">
                   <span>{error}</span>
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => setRequestVersion((version) => version + 1)}
-                    className="shrink-0 rounded-lg border border-rose-300 bg-white px-3 py-2 font-bold transition hover:bg-rose-100"
                   >
                     Try again
-                  </button>
-                </div>
-              </div>
+                  </Button>
+                </AlertDescription>
+              </Alert>
             )}
 
             <div className="mt-8 flex flex-wrap items-center gap-3 sm:mt-10">
@@ -275,7 +263,7 @@ export default function HubPage() {
                 Trace Library
               </h2>
               {!loading && !error && (
-                <span className="rounded-full bg-[#eaf0ec] px-3 py-1 text-xs font-bold text-emerald-950/48">
+                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-muted-foreground">
                   {visible.length === checks.length
                     ? `${pagination.total} matching checks`
                     : `${visible.length} shown on this page`}
@@ -285,22 +273,21 @@ export default function HubPage() {
 
             {loading && <TraceLoading compact viewMode={viewMode} />}
             {!loading && !error && visible.length === 0 && (
-              <div className="mt-5 rounded-[1.5rem] border border-dashed border-emerald-950/20 bg-white px-5 py-14 text-center">
-                <p className="font-black text-emerald-950">No traces found.</p>
-                <p className="mt-2 text-sm text-emerald-950/55">
+              <Card className="mt-5 gap-2 border-dashed px-5 py-14 text-center shadow-none">
+                <p className="font-black">No traces found.</p>
+                <p className="text-sm text-muted-foreground">
                   Try a different search or clear one of your filters.
                 </p>
-              </div>
+              </Card>
             )}
 
             {!loading && !error && visible.length > 0 && (
               <>
                 <TraceResults viewMode={viewMode}>
-                  {visible.map((check, index) => (
+                  {visible.map((check) => (
                     <TraceCard
                       key={check.id}
                       trace={check}
-                      traceNumber={(pagination.page - 1) * 20 + index + 1}
                       viewMode={viewMode}
                       actions={
                         <BookmarkButton
@@ -334,19 +321,21 @@ function BookmarkButton({
   onToggleBookmark: () => void;
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon-sm"
       onClick={onToggleBookmark}
       aria-pressed={bookmarked}
       aria-label={bookmarked ? "Remove bookmark" : "Bookmark trace"}
-      className={`hub-bookmark-button ${bookmarked ? "hub-bookmark-button-active" : ""}`}
+      className={cn("rounded-full text-muted-foreground", bookmarked && "text-amber-500")}
     >
-      <span aria-hidden="true">{bookmarked ? "◆" : "◇"}</span>
-    </button>
+      <Bookmark className={cn(bookmarked && "fill-current")} />
+    </Button>
   );
 }
 
-function MediaDietCard() {
+function MediaDietRow() {
   const { apiFetch } = useAuth();
   const [report, setReport] = useState<{
     periodDays: number;
@@ -388,24 +377,21 @@ function MediaDietCard() {
   }
 
   return (
-    <section className="hub-stat-card hub-diet-card">
-      <div className="hub-stat-icon hub-stat-icon-violet" aria-hidden="true">
-        ▦
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-black text-emerald-950/74">
-          Your diet · {report?.periodDays ?? 30} days
-        </p>
-        <p className="mt-2 text-sm text-emerald-950/44">Evidence snapshot</p>
-        <button
-          type="button"
-          onClick={() => void toggle()}
-          disabled={saving}
-          className="mt-5 text-left text-sm font-black text-[#073d33] transition hover:text-emerald-700 disabled:opacity-50"
-        >
-          {enabled ? "Monthly report on ✓" : "Email my monthly report →"}
-        </button>
-      </div>
-    </section>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-5 last:pb-0">
+      <Mail className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <p className="text-sm text-muted-foreground">
+        Your reading diet, last {report?.periodDays ?? 30} days
+      </p>
+      <Button
+        type="button"
+        variant={enabled ? "secondary" : "outline"}
+        size="sm"
+        className="ml-auto"
+        onClick={() => void toggle()}
+        disabled={saving}
+      >
+        {enabled ? "Emailing monthly" : "Email it monthly"}
+      </Button>
+    </div>
   );
 }
