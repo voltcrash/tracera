@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { ClaimResult, TraceraScore } from "@repo/contracts";
 import { AnalysisResult, ScoreCard } from "../../components/analysis-result";
 import { AppHeader } from "../../components/app-header";
@@ -38,7 +39,10 @@ type AppearanceEntry = {
   observed_at: string;
 };
 
-export default function CheckDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export function TraceDetail() {
+  // The static export renders one shell for every trace, so the check id comes
+  // from the browser location instead of a prerendered route parameter.
+  const id = decodeURIComponent(usePathname().split("/").pop() ?? "");
   const [check, setCheck] = useState<Check | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [appearances, setAppearances] = useState<AppearanceEntry[]>([]);
@@ -46,37 +50,35 @@ export default function CheckDetailPage({ params }: { params: Promise<{ id: stri
   const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
 
   useEffect(() => {
-    if (isAuthLoading || !user) return;
-    void params.then(({ id }) =>
-      Promise.all([
-        apiFetch(`${apiUrl}/checks/${id}`),
-        apiFetch(`${apiUrl}/checks/${id}/timeline`),
-        apiFetch(`${apiUrl}/checks/${id}/appearances`),
-      ])
-        .then(async ([checkResponse, timelineResponse, appearancesResponse]) => {
-          const [checkData, timelineData, appearancesData] = await Promise.all([
-            checkResponse.json(),
-            timelineResponse.json(),
-            appearancesResponse.json(),
-          ]);
-          if (!checkResponse.ok) {
-            throw new Error(checkData.error ?? "Unable to load this check.");
-          }
-          setCheck(checkData.check);
-          if (timelineResponse.ok && Array.isArray(timelineData.timeline)) {
-            setTimeline(timelineData.timeline);
-          }
-          if (appearancesResponse.ok && Array.isArray(appearancesData.appearances)) {
-            setAppearances(appearancesData.appearances);
-          }
-        })
-        .catch((requestError) =>
-          setError(
-            requestError instanceof Error ? requestError.message : "Unable to load this check.",
-          ),
+    if (isAuthLoading || !user || !id) return;
+    void Promise.all([
+      apiFetch(`${apiUrl}/checks/${id}`),
+      apiFetch(`${apiUrl}/checks/${id}/timeline`),
+      apiFetch(`${apiUrl}/checks/${id}/appearances`),
+    ])
+      .then(async ([checkResponse, timelineResponse, appearancesResponse]) => {
+        const [checkData, timelineData, appearancesData] = await Promise.all([
+          checkResponse.json(),
+          timelineResponse.json(),
+          appearancesResponse.json(),
+        ]);
+        if (!checkResponse.ok) {
+          throw new Error(checkData.error ?? "Unable to load this check.");
+        }
+        setCheck(checkData.check);
+        if (timelineResponse.ok && Array.isArray(timelineData.timeline)) {
+          setTimeline(timelineData.timeline);
+        }
+        if (appearancesResponse.ok && Array.isArray(appearancesData.appearances)) {
+          setAppearances(appearancesData.appearances);
+        }
+      })
+      .catch((requestError) =>
+        setError(
+          requestError instanceof Error ? requestError.message : "Unable to load this check.",
         ),
-    );
-  }, [apiFetch, isAuthLoading, params, user]);
+      );
+  }, [apiFetch, id, isAuthLoading, user]);
 
   return (
     <main className="paper-grid min-h-screen bg-[#f4f6f2] text-emerald-950">

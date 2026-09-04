@@ -1,13 +1,8 @@
-import type { Metadata } from "next";
-import Link from "next/link";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Sign-in problem | Tracera",
-  robots: {
-    index: false,
-    follow: false,
-  },
-};
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 const ERROR_MESSAGES = new Map<string, string>(
   Object.entries({
@@ -26,14 +21,18 @@ const ERROR_MESSAGES = new Map<string, string>(
   }),
 );
 
-type AuthErrorPageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-};
+export default function AuthErrorPage() {
+  return (
+    <Suspense fallback={null}>
+      <AuthError />
+    </Suspense>
+  );
+}
 
-export default async function AuthErrorPage({ searchParams }: AuthErrorPageProps) {
-  const params = await searchParams;
-  const errorCode = first(params.error) ?? "unknown";
-  const retryURL = first(params.flow) === "signup" ? "/signup" : "/login";
+function AuthError() {
+  const params = useSearchParams();
+  const errorCode = params.get("error") ?? "unknown";
+  const retryURL = params.get("flow") === "signup" ? "/signup" : "/login";
   const message =
     ERROR_MESSAGES.get(errorCode) ?? "We could not complete sign-in. Please try again shortly.";
 
@@ -65,8 +64,4 @@ export default async function AuthErrorPage({ searchParams }: AuthErrorPageProps
       </section>
     </main>
   );
-}
-
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
 }

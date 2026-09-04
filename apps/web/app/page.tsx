@@ -1,15 +1,11 @@
-import { createAuth } from "@repo/auth";
-import { configureDatabase } from "@repo/db";
-import { getSessionCookie } from "better-auth/cookies";
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { LandingEvidenceGraph } from "./components/landing-evidence-graph";
-import { webRuntimeEnv } from "./lib/server-runtime";
-
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
+import { useAuth } from "./components/auth-provider";
 
 const scoreDimensions = [
   { label: "Factual accuracy", value: 86, color: "bg-[#adf3d7]" },
@@ -19,21 +15,13 @@ const scoreDimensions = [
   { label: "Framing & language", value: 64, color: "bg-[#d8b4fe]" },
 ];
 
-export default async function LandingPage() {
-  const requestHeaders = await headers();
-  const sessionToken = getSessionCookie(requestHeaders, {
-    cookiePrefix: "tracera",
-  });
+export default function LandingPage() {
+  const { user } = useAuth();
+  const router = useRouter();
 
-  if (sessionToken) {
-    const env = webRuntimeEnv();
-    configureDatabase(env.DATABASE_URL);
-    const session = await createAuth(env).api.getSession({
-      headers: requestHeaders,
-    });
-
-    if (session?.user) redirect("/home");
-  }
+  useEffect(() => {
+    if (user) router.replace("/home");
+  }, [router, user]);
 
   return (
     <main className="landing-page paper-grid min-h-screen overflow-hidden bg-[#f4f6f2] text-[#10221f]">

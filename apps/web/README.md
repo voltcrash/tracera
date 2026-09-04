@@ -1,7 +1,8 @@
 # Tracera web
 
-The Next.js client for Tracera. API requests always use the deployed
-`tracera-api` Cloudflare Worker at `https://api.tracera.voltcrash.com`.
+The Next.js client for Tracera. It is exported as a static site and deployed
+alongside the Hono server in a single Vercel project, so browser requests to
+`/api/auth/*` and `/api/tracera/*` stay on the same origin.
 
 From the repository root:
 
@@ -9,4 +10,5 @@ From the repository root:
 vp run web#dev
 ```
 
-Deploy the web Worker with `vp run deploy:web`.
+Set `NEXT_PUBLIC_SERVER_ORIGIN` when the Hono server runs on a different port
+during local development.
