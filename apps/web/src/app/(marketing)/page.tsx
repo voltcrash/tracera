@@ -64,11 +64,15 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <ThemeToggle />
-            <Button asChild variant="ghost" className="hidden rounded-full sm:inline-flex">
-              <Link href="/login">Log in</Link>
+            <Button
+              render={<Link href="/login" />}
+              variant="ghost"
+              className="hidden rounded-full sm:inline-flex"
+            >
+              Log in
             </Button>
-            <Button asChild variant="brand">
-              <Link href="/home">Start a trace</Link>
+            <Button render={<Link href="/home" />} variant="brand">
+              Start a trace
             </Button>
           </div>
         </header>
@@ -86,11 +90,11 @@ export default function LandingPage() {
               and shows you exactly where confidence comes from.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Button asChild variant="brand" size="xl">
-                <Link href="/home">Check a story</Link>
+              <Button render={<Link href="/home" />} variant="brand" size="xl">
+                Check a story
               </Button>
-              <Button asChild variant="outline" size="xl">
-                <Link href="/hub">Explore live traces</Link>
+              <Button render={<Link href="/hub" />} variant="outline" size="xl">
+                Explore live traces
               </Button>
             </div>
             <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-xs font-bold text-ink/52">
@@ -274,8 +278,13 @@ export default function LandingPage() {
                 Tracera does the source work in stages, then keeps the full path open for you to
                 inspect.
               </p>
-              <Button asChild variant="link" size="lg" className="mt-8 -ml-6">
-                <Link href="/home">Try it with a story</Link>
+              <Button
+                render={<Link href="/home" />}
+                variant="link"
+                size="lg"
+                className="mt-8 -ml-6"
+              >
+                Try it with a story
               </Button>
             </div>
             <ol className="space-y-5">
@@ -457,8 +466,8 @@ export default function LandingPage() {
                   <HubRow score="61" title="Viral climate infographic" status="Review due" />
                 </div>
               </div>
-              <Button asChild variant="link" size="lg" className="mt-7 -ml-6">
-                <Link href="/hub">Explore the News Hub</Link>
+              <Button render={<Link href="/hub" />} variant="link" size="lg" className="mt-7 -ml-6">
+                Explore the News Hub
               </Button>
             </article>
           </div>
@@ -476,8 +485,8 @@ export default function LandingPage() {
             <p className="mx-auto mt-6 max-w-[52ch] text-base leading-relaxed text-cta-foreground/70">
               Paste a headline, article, claim, link, or image. Tracera will take it from there.
             </p>
-            <Button asChild variant="brand" size="xl" className="mt-9">
-              <Link href="/home">Start your first trace</Link>
+            <Button render={<Link href="/home" />} variant="brand" size="xl" className="mt-9">
+              Start your first trace
             </Button>
           </div>
         </section>

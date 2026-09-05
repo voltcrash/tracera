@@ -14,11 +14,11 @@ export function AccountRequired({ feature }: { feature: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex justify-center gap-3">
-        <Button asChild size="lg">
-          <Link href="/login">Log in</Link>
+        <Button render={<Link href="/login" />} size="lg">
+          Log in
         </Button>
-        <Button asChild size="lg" variant="secondary">
-          <Link href="/signup">Create account</Link>
+        <Button render={<Link href="/signup" />} size="lg" variant="secondary">
+          Create account
         </Button>
       </CardContent>
     </Card>

@@ -109,11 +109,14 @@ export function TraceDetail({ id }: { id: string }) {
             )}
             {check && (
               <section className="py-12 sm:py-16">
-                <Button asChild variant="outline" size="sm" className="rounded-full">
-                  <Link href="/hub">
-                    <ArrowLeft />
-                    Back to News Hub
-                  </Link>
+                <Button
+                  render={<Link href="/hub" />}
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full"
+                >
+                  <ArrowLeft />
+                  Back to News Hub
                 </Button>
                 <div className="mt-9 grid gap-5 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-stretch">
                   <Card className="trace-statement-card min-h-72 justify-between gap-0 overflow-hidden rounded-3xl p-6 sm:p-8">

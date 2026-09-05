@@ -185,106 +185,104 @@ function ClaimCard({ item }: { item: ClaimResult }) {
   const context = item.claim.context?.trim();
 
   return (
-    <Card asChild>
-      <article className="landing-view-reveal gap-0 p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <h3 className="max-w-2xl text-lg font-bold leading-snug tracking-[-.015em] sm:text-xl">
-            {item.claim.claimText}
-          </h3>
-          <Verdict verdict={item.verdict} />
+    <Card render={<article className="landing-view-reveal gap-0 p-5 sm:p-6" />}>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <h3 className="max-w-2xl text-lg font-bold leading-snug tracking-[-.015em] sm:text-xl">
+          {item.claim.claimText}
+        </h3>
+        <Verdict verdict={item.verdict} />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p className="text-sm capitalize text-muted-foreground">
+          {item.claim.claimType.replaceAll("_", " ")}
+        </p>
+        {item.sourceConflict && (
+          <Badge variant="amber">
+            <TriangleAlert />
+            Sources disagree
+          </Badge>
+        )}
+      </div>
+
+      {context && context !== item.claim.claimText && (
+        <p className="mt-3 max-w-[68ch] border-l-2 border-border pl-3 text-sm leading-relaxed text-muted-foreground">
+          {context}
+        </p>
+      )}
+
+      <div className="mt-6 grid gap-x-6 gap-y-4 border-y border-border py-4 sm:grid-cols-3 sm:divide-x sm:divide-border">
+        <Metric
+          label="Confidence"
+          value={`${confidence}%`}
+          progress={confidence}
+          indicator="bg-emerald-600"
+        />
+        <Metric
+          label="Evidence quality"
+          value={evidenceQuality === null ? "Not rated" : `${evidenceQuality}%`}
+          progress={evidenceQuality}
+          indicator="bg-violet-500"
+          className="sm:pl-6"
+        />
+        <div className="sm:pl-6">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-sm text-muted-foreground">Checkability</span>
+            <span className="truncate text-sm font-semibold capitalize">
+              {item.claim.checkability.replaceAll("_", " ")}
+            </span>
+          </div>
+          <Segments
+            filled={checkabilityLevel(item.claim.checkability)}
+            total={3}
+            indicator="bg-amber-400"
+          />
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <p className="text-sm capitalize text-muted-foreground">
-            {item.claim.claimType.replaceAll("_", " ")}
+      </div>
+
+      {item.reasoning.length > 0 && (
+        <div className="mt-5">
+          <p className="text-sm font-semibold">Why this verdict</p>
+          <ul className="mt-2.5 max-w-[68ch] space-y-2 text-sm leading-relaxed text-muted-foreground">
+            {item.reasoning.map((reason, reasonIndex) => (
+              <li key={reasonIndex} className="flex gap-2.5">
+                <span className="mt-2 size-1 shrink-0 rounded-full bg-emerald-600" />
+                <span>{reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {groups.length > 0 && (
+        <div className="mt-6">
+          <Separator className="mb-5" />
+          <p className="text-sm font-semibold">
+            Evidence reviewed
+            <span className="ml-2 font-normal text-muted-foreground">
+              {totalSources} {totalSources === 1 ? "source" : "sources"}
+            </span>
           </p>
-          {item.sourceConflict && (
-            <Badge variant="amber">
-              <TriangleAlert />
-              Sources disagree
-            </Badge>
+          <div className="mt-4 grid gap-x-6 gap-y-6 md:grid-cols-3">
+            {groups.map((group) => (
+              <SourceGroup key={group.label} {...group} expanded={expanded} />
+            ))}
+          </div>
+          {hidden > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((open) => !open)}
+              className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-brand-emerald hover:underline"
+            >
+              {expanded
+                ? "Show fewer sources"
+                : `Show ${hidden} more source${hidden === 1 ? "" : "s"}`}
+              <ChevronDown
+                className={cn("size-4 transition-transform", expanded && "rotate-180")}
+              />
+            </button>
           )}
         </div>
-
-        {context && context !== item.claim.claimText && (
-          <p className="mt-3 max-w-[68ch] border-l-2 border-border pl-3 text-sm leading-relaxed text-muted-foreground">
-            {context}
-          </p>
-        )}
-
-        <div className="mt-6 grid gap-x-6 gap-y-4 border-y border-border py-4 sm:grid-cols-3 sm:divide-x sm:divide-border">
-          <Metric
-            label="Confidence"
-            value={`${confidence}%`}
-            progress={confidence}
-            indicator="bg-emerald-600"
-          />
-          <Metric
-            label="Evidence quality"
-            value={evidenceQuality === null ? "Not rated" : `${evidenceQuality}%`}
-            progress={evidenceQuality}
-            indicator="bg-violet-500"
-            className="sm:pl-6"
-          />
-          <div className="sm:pl-6">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm text-muted-foreground">Checkability</span>
-              <span className="truncate text-sm font-semibold capitalize">
-                {item.claim.checkability.replaceAll("_", " ")}
-              </span>
-            </div>
-            <Segments
-              filled={checkabilityLevel(item.claim.checkability)}
-              total={3}
-              indicator="bg-amber-400"
-            />
-          </div>
-        </div>
-
-        {item.reasoning.length > 0 && (
-          <div className="mt-5">
-            <p className="text-sm font-semibold">Why this verdict</p>
-            <ul className="mt-2.5 max-w-[68ch] space-y-2 text-sm leading-relaxed text-muted-foreground">
-              {item.reasoning.map((reason, reasonIndex) => (
-                <li key={reasonIndex} className="flex gap-2.5">
-                  <span className="mt-2 size-1 shrink-0 rounded-full bg-emerald-600" />
-                  <span>{reason}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {groups.length > 0 && (
-          <div className="mt-6">
-            <Separator className="mb-5" />
-            <p className="text-sm font-semibold">
-              Evidence reviewed
-              <span className="ml-2 font-normal text-muted-foreground">
-                {totalSources} {totalSources === 1 ? "source" : "sources"}
-              </span>
-            </p>
-            <div className="mt-4 grid gap-x-6 gap-y-6 md:grid-cols-3">
-              {groups.map((group) => (
-                <SourceGroup key={group.label} {...group} expanded={expanded} />
-              ))}
-            </div>
-            {hidden > 0 && (
-              <button
-                type="button"
-                onClick={() => setExpanded((open) => !open)}
-                className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-brand-emerald hover:underline"
-              >
-                {expanded
-                  ? "Show fewer sources"
-                  : `Show ${hidden} more source${hidden === 1 ? "" : "s"}`}
-                <ChevronDown
-                  className={cn("size-4 transition-transform", expanded && "rotate-180")}
-                />
-              </button>
-            )}
-          </div>
-        )}
-      </article>
+      )}
     </Card>
   );
 }
@@ -434,57 +432,55 @@ function FramingPanel({ framing }: { framing: FramingAnalysis }) {
   ];
 
   return (
-    <Card asChild>
-      <section className="mt-4 gap-0 p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <div>
-            <h3 className="text-lg font-bold tracking-[-.015em] sm:text-xl">How it is told</h3>
-            <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
-              Presentation is scored separately from truth. A true story can still be framed to push
-              a reading.
-            </p>
-          </div>
-          <Badge variant={integrity >= 70 ? "emerald" : integrity >= 45 ? "amber" : "rose"}>
-            {integrity}% presentation integrity
-          </Badge>
+    <Card render={<section className="mt-4 gap-0 p-5 sm:p-6" />}>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div>
+          <h3 className="text-lg font-bold tracking-[-.015em] sm:text-xl">How it is told</h3>
+          <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
+            Presentation is scored separately from truth. A true story can still be framed to push a
+            reading.
+          </p>
         </div>
+        <Badge variant={integrity >= 70 ? "emerald" : integrity >= 45 ? "amber" : "rose"}>
+          {integrity}% presentation integrity
+        </Badge>
+      </div>
 
-        <div className="mt-6 grid gap-x-6 gap-y-4 border-y border-border py-4 sm:grid-cols-3 sm:divide-x sm:divide-border">
-          {risks.map((risk, index) => {
-            const level = Math.round(risk.level * 100);
-            return (
-              <div key={risk.label} className={index > 0 ? "sm:pl-6" : undefined}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm text-muted-foreground">{risk.label}</span>
-                  <span className="text-sm font-semibold">{riskWord(risk.level)}</span>
-                </div>
-                <Progress
-                  className="mt-2"
-                  value={level}
-                  indicatorClassName={
-                    risk.level >= 0.6
-                      ? "bg-rose-500"
-                      : risk.level >= 0.3
-                        ? "bg-amber-400"
-                        : "bg-emerald-600"
-                  }
-                />
+      <div className="mt-6 grid gap-x-6 gap-y-4 border-y border-border py-4 sm:grid-cols-3 sm:divide-x sm:divide-border">
+        {risks.map((risk, index) => {
+          const level = Math.round(risk.level * 100);
+          return (
+            <div key={risk.label} className={index > 0 ? "sm:pl-6" : undefined}>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm text-muted-foreground">{risk.label}</span>
+                <span className="text-sm font-semibold">{riskWord(risk.level)}</span>
               </div>
-            );
-          })}
-        </div>
+              <Progress
+                className="mt-2"
+                value={level}
+                indicatorClassName={
+                  risk.level >= 0.6
+                    ? "bg-rose-500"
+                    : risk.level >= 0.3
+                      ? "bg-amber-400"
+                      : "bg-emerald-600"
+                }
+              />
+            </div>
+          );
+        })}
+      </div>
 
-        {framing.findings.length > 0 && (
-          <ul className="mt-5 max-w-[68ch] space-y-2 text-sm leading-relaxed text-muted-foreground">
-            {framing.findings.map((finding, index) => (
-              <li key={index} className="flex gap-2.5">
-                <span className="mt-2 size-1 shrink-0 rounded-full bg-amber-500" />
-                <span>{finding}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {framing.findings.length > 0 && (
+        <ul className="mt-5 max-w-[68ch] space-y-2 text-sm leading-relaxed text-muted-foreground">
+          {framing.findings.map((finding, index) => (
+            <li key={index} className="flex gap-2.5">
+              <span className="mt-2 size-1 shrink-0 rounded-full bg-amber-500" />
+              <span>{finding}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }

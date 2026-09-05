@@ -27,11 +27,14 @@ export default function LoginPage() {
       </section>
       <section className="flex items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-md">
-          <Button asChild variant="ghost" size="sm" className="mb-10 -ml-3 text-muted-foreground">
-            <Link href="/">
-              <ArrowLeft />
-              Back to Tracera
-            </Link>
+          <Button
+            render={<Link href="/" />}
+            variant="ghost"
+            size="sm"
+            className="mb-10 -ml-3 text-muted-foreground"
+          >
+            <ArrowLeft />
+            Back to Tracera
           </Button>
           <GoogleAuthCard mode="login" />
         </div>

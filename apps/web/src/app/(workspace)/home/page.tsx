@@ -185,19 +185,28 @@ export default function Home() {
                   <Sparkles />
                   Try an example
                 </Button>
-                <Button asChild variant="link" size="sm">
-                  <label className="cursor-pointer">
-                    <ImagePlus />
-                    Add image
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="sr-only"
-                      onChange={selectImage}
-                      disabled={loading}
+                <Button
+                  render={
+                    <label
+                      htmlFor="trace-image"
+                      className="cursor-pointer"
+                      aria-label="Add image"
                     />
-                  </label>
+                  }
+                  variant="link"
+                  size="sm"
+                >
+                  <ImagePlus />
+                  Add image
+                  <input
+                    id="trace-image"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="sr-only"
+                    onChange={selectImage}
+                    disabled={loading}
+                  />
                 </Button>
               </div>
               <Button
@@ -238,11 +247,11 @@ export default function Home() {
               <AlertDescription>
                 <p>Log in or create an account to trace it against the evidence.</p>
                 <div className="mt-3 flex gap-2">
-                  <Button asChild size="sm">
-                    <Link href="/login">Log in</Link>
+                  <Button render={<Link href="/login" />} size="sm">
+                    Log in
                   </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href="/signup">Create account</Link>
+                  <Button render={<Link href="/signup" />} size="sm" variant="outline">
+                    Create account
                   </Button>
                 </div>
               </AlertDescription>
@@ -408,11 +417,21 @@ function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
             Visible text and embedded metadata were inspected alongside the claims.
           </p>
           {metadata.reverseSearchUrl && (
-            <Button asChild variant="link" size="sm" className="mt-2 -ml-3">
-              <a href={metadata.reverseSearchUrl} target="_blank" rel="noreferrer">
-                Search this image with Google Lens
-                <ExternalLink />
-              </a>
+            <Button
+              render={
+                <a
+                  href={metadata.reverseSearchUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Search this image with Google Lens"
+                />
+              }
+              variant="link"
+              size="sm"
+              className="mt-2 -ml-3"
+            >
+              Search this image with Google Lens
+              <ExternalLink />
             </Button>
           )}
         </div>

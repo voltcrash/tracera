@@ -51,11 +51,11 @@ function AuthError() {
           <CardDescription className="mt-2 leading-relaxed">{message}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row">
-          <Button asChild size="lg" className="flex-1">
-            <Link href={retryURL}>Try again</Link>
+          <Button render={<Link href={retryURL} />} size="lg" className="flex-1">
+            Try again
           </Button>
-          <Button asChild size="lg" variant="outline" className="flex-1">
-            <Link href="/">Return home</Link>
+          <Button render={<Link href="/" />} size="lg" variant="outline" className="flex-1">
+            Return home
           </Button>
         </CardContent>
       </Card>

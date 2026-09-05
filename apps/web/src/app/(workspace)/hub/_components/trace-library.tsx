@@ -109,69 +109,69 @@ export function TraceCard({
 
   if (viewMode === "list") {
     return (
-      <Card asChild>
-        <article className="hub-list-row group gap-0 py-0">
-          <div className="hub-list-meta min-w-0">
-            {label}
-            <div className="mt-2">{source}</div>
-          </div>
+      <Card render={<article className="hub-list-row group gap-0 py-0" />}>
+        <div className="hub-list-meta min-w-0">
+          {label}
+          <div className="mt-2">{source}</div>
+        </div>
 
-          <Link
-            href={`/hub/${trace.id}`}
-            className="hub-list-title line-clamp-2 min-w-0 font-black leading-[1.3] tracking-[-.025em] outline-offset-4 transition group-hover:text-brand-emerald focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            {trace.rawInput}
-          </Link>
+        <Link
+          href={`/hub/${trace.id}`}
+          className="hub-list-title line-clamp-2 min-w-0 font-black leading-[1.3] tracking-[-.025em] outline-offset-4 transition group-hover:text-brand-emerald focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          {trace.rawInput}
+        </Link>
 
-          <div className="hub-list-state">
-            <div className="flex flex-wrap gap-1.5">
-              <TraceStatusPills trace={trace} />
-              {pills}
-            </div>
-            <TraceDate value={shownAt} />
+        <div className="hub-list-state">
+          <div className="flex flex-wrap gap-1.5">
+            <TraceStatusPills trace={trace} />
+            {pills}
           </div>
+          <TraceDate value={shownAt} />
+        </div>
 
-          <div className="hub-list-actions">
-            {ring}
-            {actions}
-            <OpenTraceButton id={trace.id} />
-          </div>
-        </article>
+        <div className="hub-list-actions">
+          {ring}
+          {actions}
+          <OpenTraceButton id={trace.id} />
+        </div>
       </Card>
     );
   }
 
   return (
-    <Card asChild>
-      <article className="hub-check-card group flex min-h-[16.75rem] min-w-0 flex-col gap-0 overflow-hidden p-5 transition sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            {label}
-            <div className="mt-3">{source}</div>
-          </div>
-          {ring}
+    <Card
+      render={
+        <article className="hub-check-card group flex min-h-[16.75rem] min-w-0 flex-col gap-0 overflow-hidden p-5 transition sm:p-6" />
+      }
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          {label}
+          <div className="mt-3">{source}</div>
         </div>
+        {ring}
+      </div>
 
-        <Link
-          href={`/hub/${trace.id}`}
-          className="mt-5 line-clamp-3 min-w-0 text-lg font-black leading-[1.28] tracking-[-.035em] outline-offset-4 transition group-hover:text-brand-emerald focus-visible:outline-2 focus-visible:outline-ring sm:text-xl"
-        >
-          {trace.rawInput}
-        </Link>
+      <Link
+        href={`/hub/${trace.id}`}
+        className="mt-5 line-clamp-3 min-w-0 text-lg font-black leading-[1.28] tracking-[-.035em] outline-offset-4 transition group-hover:text-brand-emerald focus-visible:outline-2 focus-visible:outline-ring sm:text-xl"
+      >
+        {trace.rawInput}
+      </Link>
 
-        <div className="mt-auto pt-7">
-          <div className="flex flex-wrap gap-1.5">
-            <TraceStatusPills trace={trace} />
-            {pills}
-          </div>
-          <Separator className="my-4" />
-          <div className="flex items-center gap-3">
-            <TraceDate value={shownAt} className="mr-auto" />
-            {actions}
-            <OpenTraceButton id={trace.id} />
-          </div>
+      <div className="mt-auto pt-7">
+        <div className="flex flex-wrap gap-1.5">
+          <TraceStatusPills trace={trace} />
+          {pills}
         </div>
-      </article>
+        <Separator className="my-4" />
+        <div className="flex items-center gap-3">
+          <TraceDate value={shownAt} className="mr-auto" />
+          {actions}
+          <OpenTraceButton id={trace.id} />
+        </div>
+      </div>
     </Card>
   );
 }
@@ -200,14 +200,12 @@ export function TraceDate({ value, className = "" }: { value: string; className?
 function OpenTraceButton({ id }: { id: string }) {
   return (
     <Button
-      asChild
+      render={<Link href={`/hub/${id}`} />}
       size="icon-sm"
       className="rounded-full transition group-hover:translate-x-1"
       aria-label="Open trace"
     >
-      <Link href={`/hub/${id}`}>
-        <ArrowRight />
-      </Link>
+      <ArrowRight />
     </Button>
   );
 }
@@ -254,9 +252,8 @@ export function TraceToolbar({
     <>
       <div className="mt-7 flex flex-wrap items-center gap-2.5 lg:mt-9">
         <ToggleGroup
-          type="single"
-          value={filter}
-          onValueChange={(value) => value && onFilterChange(value)}
+          value={[filter]}
+          onValueChange={(value) => value[0] && onFilterChange(value[0])}
           aria-label={filtersLabel}
           className="order-1 grid w-full grid-cols-2 sm:flex sm:w-auto"
         >
@@ -282,7 +279,11 @@ export function TraceToolbar({
         </label>
 
         <div className="order-2 ml-auto flex items-center gap-2.5 sm:order-3 sm:ml-0">
-          <Select value={sortOrder} onValueChange={onSortChange}>
+          <Select
+            items={sortOptions}
+            value={sortOrder}
+            onValueChange={(value) => value && onSortChange(value)}
+          >
             <SelectTrigger aria-label="Sort traces">
               <SelectValue />
             </SelectTrigger>
@@ -296,9 +297,8 @@ export function TraceToolbar({
           </Select>
 
           <ToggleGroup
-            type="single"
-            value={viewMode}
-            onValueChange={(value) => value && onViewModeChange(value as TraceViewMode)}
+            value={[viewMode]}
+            onValueChange={(value) => value[0] && onViewModeChange(value[0] as TraceViewMode)}
             aria-label="Choose trace library view"
           >
             {[
@@ -306,10 +306,10 @@ export function TraceToolbar({
               { mode: "list" as const, icon: Rows3, label: "List view" },
             ].map((item) => (
               <Tooltip key={item.mode}>
-                <TooltipTrigger asChild>
-                  <ToggleGroupItem value={item.mode} aria-label={item.label} size="sm">
-                    <item.icon />
-                  </ToggleGroupItem>
+                <TooltipTrigger
+                  render={<ToggleGroupItem value={item.mode} aria-label={item.label} size="sm" />}
+                >
+                  <item.icon />
                 </TooltipTrigger>
                 <TooltipContent>{item.label}</TooltipContent>
               </Tooltip>
@@ -358,9 +358,8 @@ export function TraceFilterGroup({
     <div>
       <Label className="text-sm font-normal text-muted-foreground">{label}</Label>
       <ToggleGroup
-        type="single"
-        value={value}
-        onValueChange={(next) => next && onChange(next)}
+        value={[value]}
+        onValueChange={(next) => next[0] && onChange(next[0])}
         className="mt-2"
       >
         {options.map((option) => (

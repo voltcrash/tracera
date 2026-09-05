@@ -1,24 +1,24 @@
 import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
+import { mergeProps } from "@base-ui/react/merge-props";
+import { useRender } from "@base-ui/react/use-render";
 
 import { cn } from "@/lib/utils";
 
-function Card({
-  className,
-  asChild = false,
-  ...props
-}: React.ComponentProps<"div"> & { asChild?: boolean }) {
-  const Comp = asChild ? Slot : "div";
-  return (
-    <Comp
-      data-slot="card"
-      className={cn(
-        "flex flex-col gap-6 rounded-2xl border border-border bg-card py-6 text-card-foreground shadow-(--shadow-card)",
-        className,
-      )}
-      {...props}
-    />
-  );
+function Card({ className, render, ...props }: useRender.ComponentProps<"div">) {
+  return useRender({
+    defaultTagName: "div",
+    props: mergeProps<"div">(
+      {
+        className: cn(
+          "flex flex-col gap-6 rounded-2xl border border-border bg-card py-6 text-card-foreground shadow-(--shadow-card)",
+          className,
+        ),
+      },
+      props,
+    ),
+    render,
+    state: { slot: "card" },
+  });
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {

@@ -60,14 +60,14 @@ export function AppHeader({ active }: { active?: AppScreen }) {
         {navigation.map((item) => (
           <Button
             key={item.screen}
-            asChild
+            render={
+              <Link href={item.href} aria-current={active === item.screen ? "page" : undefined} />
+            }
             variant={active === item.screen ? "default" : "ghost"}
             className={cn("rounded-full", active !== item.screen && "text-muted-foreground")}
           >
-            <Link href={item.href} aria-current={active === item.screen ? "page" : undefined}>
-              <item.icon />
-              {item.label}
-            </Link>
+            <item.icon />
+            {item.label}
           </Button>
         ))}
       </nav>
@@ -78,34 +78,36 @@ export function AppHeader({ active }: { active?: AppScreen }) {
           <Skeleton className="size-10 rounded-full" aria-label="Loading account" />
         ) : user ? (
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="gap-2 rounded-full pl-1.5 pr-3"
-                aria-label="Account menu"
-              >
-                <Avatar className="size-7">
-                  <AvatarFallback>{user.email.slice(0, 2)}</AvatarFallback>
-                </Avatar>
-                <span className="hidden max-w-40 truncate text-muted-foreground lg:block">
-                  {user.email}
-                </span>
-              </Button>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  className="gap-2 rounded-full pl-1.5 pr-3"
+                  aria-label="Account menu"
+                />
+              }
+            >
+              <Avatar className="size-7">
+                <AvatarFallback>{user.email.slice(0, 2)}</AvatarFallback>
+              </Avatar>
+              <span className="hidden max-w-40 truncate text-muted-foreground lg:block">
+                {user.email}
+              </span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-56">
               <DropdownMenuLabel className="truncate text-muted-foreground">
                 {user.email}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void handleSignOut()}>
+              <DropdownMenuItem onClick={() => void handleSignOut()}>
                 <LogOut />
                 Log out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <Button asChild variant="outline" className="rounded-full">
-            <Link href="/login">Log in</Link>
+          <Button render={<Link href="/login" />} variant="outline" className="rounded-full">
+            Log in
           </Button>
         )}
       </div>

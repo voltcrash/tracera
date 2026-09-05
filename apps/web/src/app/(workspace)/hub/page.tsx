@@ -175,10 +175,13 @@ export default function HubPage() {
                     Every check is a living evidence trail—not a one-off verdict. Search the
                     archive, reopen the sources, and return when the story changes.
                   </p>
-                  <Button asChild variant="mint" size="lg" className="mt-7 rounded-full">
-                    <Link href="/home">
-                      Start a new trace <ArrowRight />
-                    </Link>
+                  <Button
+                    render={<Link href="/home" />}
+                    variant="mint"
+                    size="lg"
+                    className="mt-7 rounded-full"
+                  >
+                    Start a new trace <ArrowRight />
                   </Button>
                 </div>
               </section>
