@@ -29,20 +29,16 @@ what is needed:
 
 ## Optional integrations
 
-- `PUBLIC_API_KEYS` — comma- or newline-separated keys that enable the
-  API-key-protected public API.
 - `GOOGLE_FACT_CHECK_API_KEY` and `NEWS_API_KEY` — additional evidence
   retrieval providers.
 
 ## Operational settings
 
-These are only needed for administration or scheduled delivery:
+These are only needed for administration:
 
 - `BETTER_AUTH_API_KEY` — optional Better Auth dashboard integration.
 - `DOMAIN_TRUST_AUTO_REFINE` and `DOMAIN_TRUST_ADMIN_TOKEN` — domain trust
   review controls.
-- `INTERNAL_WORKER_TOKEN` — authorizes internal maintenance requests.
-- `RESEND_API_KEY` and `ALERT_FROM_EMAIL` — email delivery configuration.
 
 Analysis thresholds, story-reuse policy, embedding dimensions, site origins,
 and model-evaluation thresholds are application behavior rather than deployment

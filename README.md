@@ -49,7 +49,7 @@ vp run build         # Build the website and workspace packages
 
 ## Current deployment architecture
 
-Tracera is deployed as a single Next.js application on Vercel at `tracera.voltcrash.com`. The website serves its pages and mounts the Hono server behind `/api/*`: Better Auth answers at `/api/auth/*`, the first-party analysis routes at `/api/tracera/*`, and the public API at `/api/tracera/v1/*`.
+Tracera is deployed as a single Next.js application on Vercel at `tracera.voltcrash.com`. The website serves its pages and mounts the Hono server behind `/api/*`: Better Auth answers at `/api/auth/*` and the first-party application routes at `/api/tracera/*`.
 
 The server connects to Neon Postgres for application data, full-text search, claim embeddings, vector retrieval, and reusable analysis results. Analysis runs on demand: there is no scheduled re-analysis.
 
@@ -61,7 +61,6 @@ The server calls configured hosted AI providers through a shared abstraction and
 flowchart TB
     subgraph Clients
         User["Web user"]
-        Consumer["API client"]
     end
 
     subgraph Vercel["Vercel project"]
@@ -80,7 +79,6 @@ flowchart TB
 
     User --> Website
     User -->|same-origin API requests| Routes
-    Consumer -->|website API routes| Routes
     Routes <--> Neon
     Routes --> AI
     Routes --> Retrieval

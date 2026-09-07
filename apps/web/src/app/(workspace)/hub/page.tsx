@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Bookmark, Mail } from "lucide-react";
+import { ArrowRight, Bookmark } from "lucide-react";
 import { AccountRequired } from "@/components/auth/account-required";
 import { AppHeader } from "@/components/navigation/app-header";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -194,7 +194,6 @@ export default function HubPage() {
                 />
                 <TraceStat value={`${average}/100`} label="Average signal score" icon="signal" />
                 <TraceStat value={String(reviewCount)} label="Need another look" icon="review" />
-                <MediaDietRow />
               </div>
             </div>
 
@@ -335,66 +334,5 @@ function BookmarkButton({
     >
       <Bookmark className={cn(bookmarked && "fill-current")} />
     </Button>
-  );
-}
-
-function MediaDietRow() {
-  const { apiFetch } = useAuth();
-  const [report, setReport] = useState<{
-    periodDays: number;
-    totalChecks: number;
-    averageSourceReputation: number | null;
-    averageSignal: number | null;
-  } | null>(null);
-  const [enabled, setEnabled] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    apiFetch(`${apiUrl}/reports/media-diet`)
-      .then(async (response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (data) {
-          setReport(data.report);
-          setEnabled(Boolean(data.preference?.enabled));
-        }
-      })
-      .catch(() => undefined);
-  }, [apiFetch]);
-
-  async function toggle() {
-    const next = !enabled;
-    setEnabled(next);
-    setSaving(true);
-    try {
-      const response = await apiFetch(`${apiUrl}/reports/media-diet/preferences`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ enabled: next, frequency: "monthly" }),
-      });
-      if (!response.ok) setEnabled(!next);
-    } catch {
-      setEnabled(!next);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-5 last:pb-0">
-      <Mail className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <p className="text-sm text-muted-foreground">
-        Your reading diet, last {report?.periodDays ?? 30} days
-      </p>
-      <Button
-        type="button"
-        variant={enabled ? "secondary" : "outline"}
-        size="sm"
-        className="ml-auto"
-        onClick={() => void toggle()}
-        disabled={saving}
-      >
-        {enabled ? "Emailing monthly" : "Email it monthly"}
-      </Button>
-    </div>
   );
 }

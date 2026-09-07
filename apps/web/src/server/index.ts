@@ -10,17 +10,13 @@ import {
   findReusableExactCheck,
   findReusableImageCheck,
   getCheckById,
-  getMediaDietPreference,
   getDomainTrustHistory,
   getTraceAppearances,
   getTraceTimeline,
   listChecks,
-  mediaDietReport,
-  optedInMediaDietRecipients,
   persistCheck,
   recordTraceAppearance,
   recordDomainOutcomeSignals,
-  setMediaDietPreference,
   EMBEDDING_DIMENSIONS,
 } from "@repo/db";
 import {
@@ -48,13 +44,7 @@ import { AnalysisError, publicAnalysisError } from "./analysis-errors";
 import { apiRelativePath } from "./base-path";
 import { allowedCorsOrigin } from "./cors-origin";
 import { reanalysisPolicy } from "./reanalysis-policy";
-import {
-  authenticatePublicApiKey,
-  parseFirstPartyAnalysisInput,
-  parsePublicAnalysisInput,
-  PUBLIC_API_VERSION,
-  publicOpenApiDocument,
-} from "./public-api";
+import { parseFirstPartyAnalysisInput } from "./analysis-input";
 
 export type Bindings = AuthBindings & {
   DATABASE_URL?: string;
@@ -64,10 +54,8 @@ export type Bindings = AuthBindings & {
 export const app = new Hono<{ Bindings: Bindings }>();
 const currentUserByRequest = new WeakMap<Request, ReturnType<typeof authenticatedUser>>();
 
-const DATABASE_FREE_PATHS = new Set(["/", "/v1", "/v1/openapi.json"]);
-
 app.use("*", async (context, next) => {
-  if (!DATABASE_FREE_PATHS.has(apiRelativePath(context.req.path))) {
+  if (apiRelativePath(context.req.path) !== "/") {
     configureDatabase(context.env.DATABASE_URL);
   }
   await next();
@@ -76,212 +64,16 @@ app.use("/*", async (context, next) =>
   cors({
     origin: (origin) => allowedCorsOrigin(origin, context.req.url),
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "X-API-Key"],
+    allowHeaders: ["Content-Type"],
     credentials: true,
   })(context, next),
 );
 
 app.get("/", (context) => context.json({ message: "Hello from Tracera API." }));
 
-app.get("/v1/openapi.json", (context) => context.json(publicOpenApiDocument));
-app.get("/v1", (context) =>
-  context.json({
-    apiVersion: PUBLIC_API_VERSION,
-    name: "Tracera Public API",
-    openapi: "/v1/openapi.json",
-  }),
-);
-
-app.use("/v1/*", async (context, next) => {
-  const configuredKeys = context.env.PUBLIC_API_KEYS ?? process.env.PUBLIC_API_KEYS;
-  if (!configuredKeys) {
-    return context.json(
-      {
-        apiVersion: PUBLIC_API_VERSION,
-        error: {
-          code: "api_unavailable",
-          message: "Public API access is not configured.",
-        },
-      },
-      503,
-    );
-  }
-  const access = await authenticatePublicApiKey(context.req.header("x-api-key"), configuredKeys);
-  if (!access.authenticated) {
-    return context.json(
-      {
-        apiVersion: PUBLIC_API_VERSION,
-        error: {
-          code: "unauthorized",
-          message: "A valid API key is required.",
-        },
-      },
-      401,
-    );
-  }
-  context.header("Cache-Control", "no-store");
-  await next();
-});
-
-app.get("/v1/checks", async (context) => {
-  const page = positiveInteger(context.req.query("page"), 1, 10_000);
-  const pageSize = positiveInteger(context.req.query("pageSize"), 20, 100);
-  const query = (context.req.query("q") ?? "").slice(0, 200);
-  const result = await listChecks(page, pageSize, query);
-  return context.json({
-    apiVersion: PUBLIC_API_VERSION,
-    data: result.checks.map(({ visibility: _visibility, rawInput, ...check }) => ({
-      ...check,
-      summary: rawInput,
-    })),
-    pagination: {
-      page,
-      pageSize,
-      total: result.total,
-      totalPages: Math.ceil(result.total / pageSize),
-    },
-  });
-});
-
-app.post("/v1/checks", async (context) => {
-  const contentLength = Number(context.req.header("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > 7_100_000) {
-    return context.json(
-      {
-        apiVersion: PUBLIC_API_VERSION,
-        error: {
-          code: "payload_too_large",
-          message: "Request body is too large.",
-        },
-      },
-      413,
-    );
-  }
-  const parsed = parsePublicAnalysisInput(await context.req.json().catch(() => null));
-  if (!parsed.success) {
-    return context.json(
-      {
-        apiVersion: PUBLIC_API_VERSION,
-        error: { code: "invalid_request", message: parsed.error },
-      },
-      400,
-    );
-  }
-  const result = await runAnalysis(context, parsed.data);
-  if ("error" in result.payload) {
-    const failure = publicAnalysisErrorFromPayload(result.payload);
-    return context.json(
-      {
-        apiVersion: PUBLIC_API_VERSION,
-        error: {
-          code: failure.code,
-          message: failure.message,
-        },
-      },
-      result.status,
-    );
-  }
-  return context.json({ apiVersion: PUBLIC_API_VERSION, ...result.payload }, result.status);
-});
-
-app.get("/v1/checks/:id", async (context) => {
-  const id = context.req.param("id");
-  if (!isUuid(id)) {
-    return context.json(
-      {
-        apiVersion: PUBLIC_API_VERSION,
-        error: { code: "not_found", message: "Trace not found." },
-      },
-      404,
-    );
-  }
-  const check = await getCheckById(id);
-  return check
-    ? context.json({ apiVersion: PUBLIC_API_VERSION, data: publicCheck(check) })
-    : context.json(
-        {
-          apiVersion: PUBLIC_API_VERSION,
-          error: { code: "not_found", message: "Trace not found." },
-        },
-        404,
-      );
-});
-
-function publicCheck(check: NonNullable<Awaited<ReturnType<typeof getCheckById>>>) {
-  return {
-    id: check.id,
-    input: {
-      type: check.inputType,
-      // Avoid returning a multi-megabyte data URI. Image provenance metadata
-      // and the structured analysis remain available below.
-      value: check.inputType === "image" ? null : check.rawInput,
-      sourceUrl: check.sourceUrl,
-      sourceDomain: check.sourceDomain,
-      publishedAt: check.publishedAt,
-    },
-    claims: check.analysis.claims,
-    traceraScore: check.analysis.score ?? check.traceraScore,
-    framingAnalysis: check.analysis.framing ?? null,
-    groundZero: check.groundZero,
-    createdAt: check.createdAt,
-  };
-}
-
 app.get("/auth/me", async (context) => {
   const user = await currentUser(context);
   return user ? context.json({ user }) : context.json({ error: "Not authenticated." }, 401);
-});
-app.get("/reports/media-diet", async (context) => {
-  const user = await currentUser(context);
-  if (!user) return context.json({ error: "Not authenticated." }, 401);
-  return context.json({
-    report: await mediaDietReport(user.id),
-    preference: await getMediaDietPreference(user.id),
-  });
-});
-app.put("/reports/media-diet/preferences", async (context) => {
-  const user = await currentUser(context);
-  const body = await context.req.json().catch(() => null);
-  if (!user) return context.json({ error: "Not authenticated." }, 401);
-  const frequency = body?.frequency === "weekly" ? "weekly" : "monthly";
-  await setMediaDietPreference(user.id, Boolean(body?.enabled), frequency);
-  return context.json({ preference: await getMediaDietPreference(user.id) });
-});
-app.post("/internal/reports/media-diet/deliver", async (context) => {
-  if (
-    !process.env.INTERNAL_WORKER_TOKEN ||
-    context.req.header("x-tracera-worker-token") !== process.env.INTERNAL_WORKER_TOKEN
-  )
-    return context.json({ error: "Unauthorized" }, 401);
-  const recipients = await optedInMediaDietRecipients();
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.ALERT_FROM_EMAIL;
-  if (!apiKey || !from)
-    return context.json({
-      delivered: 0,
-      skipped: recipients.length,
-      reason: "Email delivery is not configured.",
-    });
-  await Promise.all(
-    recipients.map(async (recipient) => {
-      const report = await mediaDietReport(recipient.id, recipient.frequency === "weekly" ? 7 : 30);
-      const response = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          from,
-          to: [recipient.email],
-          subject: "Your Tracera media-diet report",
-          text: `In the last ${report.periodDays} days, you checked ${report.totalChecks} items. Average source reputation: ${report.averageSourceReputation ?? "not enough data"}/100. Average signal: ${report.averageSignal ?? "not enough data"}/100.`,
-        }),
-      });
-      if (!response.ok) throw new Error(`Media-diet delivery failed with HTTP ${response.status}.`);
-    }),
-  );
-  return context.json({ delivered: recipients.length });
 });
 
 app.get("/health", async (context) => {
@@ -994,13 +786,6 @@ function aiProviderName(value: string | undefined): AiProviderName {
 function requestBodyIsTooLarge(context: Context<{ Bindings: Bindings }>) {
   const contentLength = Number(context.req.header("content-length"));
   return Number.isFinite(contentLength) && contentLength > MAX_ANALYSIS_BODY_BYTES;
-}
-
-function publicAnalysisErrorFromPayload(payload: AnalysisErrorResponse) {
-  const code = payload.code;
-  return code === "no_checkable_claims"
-    ? publicAnalysisError(new AnalysisError(code))
-    : publicAnalysisError(undefined);
 }
 
 function analysisResponse(payload: AnalysisResponse) {
