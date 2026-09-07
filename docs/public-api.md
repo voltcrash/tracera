@@ -9,9 +9,9 @@ The base URL is `https://tracera.voltcrash.com/api/tracera`.
 
 ## Authentication
 
-Set one or more comma-separated secrets in `PUBLIC_API_KEYS`. Multiple
-keys support rotation without downtime. `PUBLIC_API_KEY` remains accepted as a
-single-key compatibility setting. Do not place API keys in browser code.
+Set one or more comma- or newline-separated secrets in `PUBLIC_API_KEYS`.
+Multiple keys support rotation without downtime. Do not place API keys in
+browser code.
 
 ## Analyze a submission
 

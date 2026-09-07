@@ -15,8 +15,11 @@ another 5–10 case set.
 The command exits non-zero unless extraction, atomicity, verdict accuracy,
 evidence use, structured-output reliability, and latency meet their configured
 thresholds. It prints a JSON report containing per-case reasoning for mandatory
-human review. Optional `EVAL_INPUT_USD_PER_MILLION_TOKENS` and
-`EVAL_OUTPUT_USD_PER_MILLION_TOKENS` values add an estimated cost.
+human review. Override thresholds with `--min-extraction-rate`,
+`--min-atomicity-rate`, `--min-verdict-rate`, `--min-evidence-use-rate`,
+`--min-schema-rate`, or `--max-p95-latency-ms`. Pass both
+`--input-usd-per-million-tokens` and `--output-usd-per-million-tokens` to add an
+estimated cost.
 
 Production approval requires both `approved: true` and a human review confirming
 that claims are genuinely atomic and reasoning is supported by the cited fixture.

@@ -4,26 +4,24 @@ import * as databaseSchema from "@repo/db/schema";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
-export const TRACERA_AUTH_BASE_URL = "https://tracera.voltcrash.com";
 export const TRACERA_AUTH_BASE_PATH = "/api/auth";
 
 export type AuthRuntimeEnv = {
   BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_API_KEY?: string;
-  BETTER_AUTH_API_URL?: string;
-  BETTER_AUTH_KV_URL?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
 };
 
-export function createAuth(env: AuthRuntimeEnv) {
+export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
   const secret = required(env.BETTER_AUTH_SECRET, "BETTER_AUTH_SECRET");
   const googleClientId = required(env.GOOGLE_CLIENT_ID, "GOOGLE_CLIENT_ID");
   const googleClientSecret = required(env.GOOGLE_CLIENT_SECRET, "GOOGLE_CLIENT_SECRET");
+  const baseURL = new URL(requestUrl).origin;
 
   return betterAuth({
     appName: "Tracera",
-    baseURL: TRACERA_AUTH_BASE_URL,
+    baseURL,
     basePath: TRACERA_AUTH_BASE_PATH,
     secret,
     database: drizzleAdapter(db, {
@@ -50,7 +48,7 @@ export function createAuth(env: AuthRuntimeEnv) {
       },
     },
     trustedOrigins: [
-      TRACERA_AUTH_BASE_URL,
+      baseURL,
       "https://dash.better-auth.com",
       ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
     ],
@@ -65,15 +63,7 @@ export function createAuth(env: AuthRuntimeEnv) {
       cookiePrefix: "tracera",
       useSecureCookies: true,
     },
-    plugins: env.BETTER_AUTH_API_KEY
-      ? [
-          dash({
-            apiKey: env.BETTER_AUTH_API_KEY,
-            ...(env.BETTER_AUTH_API_URL ? { apiUrl: env.BETTER_AUTH_API_URL } : {}),
-            ...(env.BETTER_AUTH_KV_URL ? { kvUrl: env.BETTER_AUTH_KV_URL } : {}),
-          }),
-        ]
-      : [],
+    plugins: env.BETTER_AUTH_API_KEY ? [dash({ apiKey: env.BETTER_AUTH_API_KEY })] : [],
   });
 }
 

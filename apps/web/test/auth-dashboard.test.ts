@@ -16,12 +16,15 @@ test("dashboard validation uses the hosted API when URL overrides are unset", as
   console.warn = () => undefined;
 
   try {
-    const auth = createAuth({
-      BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long",
-      BETTER_AUTH_API_KEY: "test-dashboard-key",
-      GOOGLE_CLIENT_ID: "test-client-id",
-      GOOGLE_CLIENT_SECRET: "test-client-secret",
-    });
+    const auth = createAuth(
+      {
+        BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long",
+        BETTER_AUTH_API_KEY: "test-dashboard-key",
+        GOOGLE_CLIENT_ID: "test-client-id",
+        GOOGLE_CLIENT_SECRET: "test-client-secret",
+      },
+      "https://tracera.voltcrash.com/api/auth/dash/validate",
+    );
     const response = await auth.handler(
       new Request("https://tracera.voltcrash.com/api/auth/dash/validate", {
         headers: { authorization: "Bearer invalid-dashboard-token" },

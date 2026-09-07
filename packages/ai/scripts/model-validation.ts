@@ -30,8 +30,19 @@ const caseSchema = z.object({
 const datasetSchema = z.array(caseSchema).min(5).max(10);
 type EvaluationCase = z.infer<typeof caseSchema>;
 
+const numericOptions = new Set([
+  "min-extraction-rate",
+  "min-atomicity-rate",
+  "min-verdict-rate",
+  "min-evidence-use-rate",
+  "min-schema-rate",
+  "max-p95-latency-ms",
+  "input-usd-per-million-tokens",
+  "output-usd-per-million-tokens",
+]);
+const cli = parseArguments(process.argv.slice(2));
 const datasetPath = resolve(
-  process.argv[2] ?? new URL("../evaluation/model-validation.json", import.meta.url).pathname,
+  cli.datasetPath ?? new URL("../evaluation/model-validation.json", import.meta.url).pathname,
 );
 const dataset = datasetSchema.parse(JSON.parse(await readFile(datasetPath, "utf8")));
 const provider = createAiProvider(providerConfiguration());
@@ -125,12 +136,12 @@ function buildReport(results: Awaited<ReturnType<typeof evaluateCase>>[]) {
   const outputTokens = sum(results.map((result) => result.estimatedTokens.output));
   const estimatedCostUsd = estimateCost(inputTokens, outputTokens);
   const thresholds = {
-    extractionRate: environmentNumber("EVAL_MIN_EXTRACTION_RATE", 0.8),
-    atomicityRate: environmentNumber("EVAL_MIN_ATOMICITY_RATE", 0.8),
-    verdictRate: environmentNumber("EVAL_MIN_VERDICT_RATE", 0.8),
-    evidenceUseRate: environmentNumber("EVAL_MIN_EVIDENCE_USE_RATE", 0.8),
-    firstAttemptSchemaRate: environmentNumber("EVAL_MIN_SCHEMA_RATE", 0.95),
-    p95LatencyMs: environmentNumber("EVAL_MAX_P95_LATENCY_MS", 60_000),
+    extractionRate: optionNumber("min-extraction-rate", 0.8),
+    atomicityRate: optionNumber("min-atomicity-rate", 0.8),
+    verdictRate: optionNumber("min-verdict-rate", 0.8),
+    evidenceUseRate: optionNumber("min-evidence-use-rate", 0.8),
+    firstAttemptSchemaRate: optionNumber("min-schema-rate", 0.95),
+    p95LatencyMs: optionNumber("max-p95-latency-ms", 60_000),
   };
   const metrics = {
     cases: results.length,
@@ -215,9 +226,9 @@ function sum(values: number[]) {
 }
 
 function estimateCost(inputTokens: number, outputTokens: number) {
-  const inputRate = Number(process.env.EVAL_INPUT_USD_PER_MILLION_TOKENS);
-  const outputRate = Number(process.env.EVAL_OUTPUT_USD_PER_MILLION_TOKENS);
-  if (!Number.isFinite(inputRate) || !Number.isFinite(outputRate)) return null;
+  const inputRate = cli.options.get("input-usd-per-million-tokens");
+  const outputRate = cli.options.get("output-usd-per-million-tokens");
+  if (inputRate === undefined || outputRate === undefined) return null;
   return round((inputTokens * inputRate + outputTokens * outputRate) / 1_000_000);
 }
 
@@ -225,9 +236,34 @@ function round(value: number) {
   return Number(value.toFixed(4));
 }
 
-function environmentNumber(name: string, fallback: number) {
-  const value = Number(process.env[name]);
-  return Number.isFinite(value) ? value : fallback;
+function optionNumber(name: string, fallback: number) {
+  return cli.options.get(name) ?? fallback;
+}
+
+function parseArguments(arguments_: string[]) {
+  const options = new Map<string, number>();
+  let datasetPath: string | undefined;
+
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index];
+    if (!argument?.startsWith("--")) {
+      if (datasetPath) throw new Error("Provide at most one evaluation dataset path.");
+      datasetPath = argument;
+      continue;
+    }
+
+    const name = argument.slice(2);
+    if (!numericOptions.has(name)) throw new Error(`Unknown model-validation option: --${name}.`);
+    const rawValue = arguments_[index + 1];
+    const value = Number(rawValue);
+    if (!rawValue || rawValue.startsWith("--") || !Number.isFinite(value) || value < 0) {
+      throw new Error(`--${name} requires a non-negative numeric value.`);
+    }
+    options.set(name, value);
+    index += 1;
+  }
+
+  return { datasetPath, options };
 }
 
 function requireEnvironment(name: string) {

@@ -16,7 +16,7 @@ export async function authenticatedUser(
   env: AuthBindings,
 ): Promise<AuthUser | null> {
   try {
-    const session = await createAuth(env).api.getSession({
+    const session = await createAuth(env, request.url).api.getSession({
       headers: request.headers,
     });
     if (!session) return null;

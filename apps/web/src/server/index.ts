@@ -21,6 +21,7 @@ import {
   recordTraceAppearance,
   recordDomainOutcomeSignals,
   setMediaDietPreference,
+  EMBEDDING_DIMENSIONS,
 } from "@repo/db";
 import {
   aggregateScore,
@@ -73,7 +74,7 @@ app.use("*", async (context, next) => {
 });
 app.use("/*", async (context, next) =>
   cors({
-    origin: (origin) => allowedCorsOrigin(origin, context.env?.WEB_ORIGIN),
+    origin: (origin) => allowedCorsOrigin(origin, context.req.url),
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "X-API-Key"],
     credentials: true,
@@ -92,11 +93,7 @@ app.get("/v1", (context) =>
 );
 
 app.use("/v1/*", async (context, next) => {
-  const configuredKeys =
-    context.env.PUBLIC_API_KEYS ??
-    process.env.PUBLIC_API_KEYS ??
-    context.env.PUBLIC_API_KEY ??
-    process.env.PUBLIC_API_KEY;
+  const configuredKeys = context.env.PUBLIC_API_KEYS ?? process.env.PUBLIC_API_KEYS;
   if (!configuredKeys) {
     return context.json(
       {
@@ -340,6 +337,11 @@ type AnalysisProgress = {
 type ProgressEmitter = (progress: AnalysisProgress) => void;
 
 const MAX_ANALYSIS_BODY_BYTES = 7_100_000;
+const DEDUP_SAFETY_CAP_HOURS = 24;
+const IMAGE_DEDUP_SIMILARITY = 0.98;
+const RELATED_STORY_SIMILARITY = 0.84;
+const RELATED_STORY_MAX_AGE_HOURS = 24 * 90;
+const CORPUS_SIMILARITY = 0.78;
 
 app.post("/analyze", async (context) => {
   if (requestBodyIsTooLarge(context)) {
@@ -450,12 +452,7 @@ async function runAnalysis(
       inputType: normalized.inputType,
       publishedAt: normalized.publishedAt,
     });
-    // This environment value is an operational safety cap, not the product
-    // duration. The freshness policy chooses the actual reuse window.
-    const cacheHours = Math.min(
-      initialPolicy.dedupHours,
-      environmentNumber("DEDUP_MAX_AGE_HOURS", 24, 1, 24 * 30),
-    );
+    const cacheHours = Math.min(initialPolicy.dedupHours, DEDUP_SAFETY_CAP_HOURS);
     const cached = forceReanalysis
       ? null
       : normalized.inputType === "image"
@@ -463,7 +460,7 @@ async function runAnalysis(
             normalized.rawInput,
             inputEmbedding,
             cacheHours,
-            environmentNumber("IMAGE_DEDUP_SIMILARITY_THRESHOLD", 0.98, 0.9, 1),
+            IMAGE_DEDUP_SIMILARITY,
             user?.id,
           )
         : await findReusableExactCheck(normalized.rawInput, cacheHours, user?.id);
@@ -542,8 +539,8 @@ async function runAnalysis(
     const groundZero = traceGroundZero(groundZeroSources, groundZeroHistory, archiveHistory);
     const relatedStory = await findRelatedStoryCheck(
       inputEmbedding,
-      environmentNumber("STORY_SIMILARITY_THRESHOLD", 0.84, 0, 1),
-      environmentNumber("STORY_MAX_AGE_HOURS", 24 * 90, 1, 24 * 3650),
+      RELATED_STORY_SIMILARITY,
+      RELATED_STORY_MAX_AGE_HOURS,
       visibility,
       user?.id,
     );
@@ -763,7 +760,7 @@ async function analyzeText(
       provider,
       signal,
       factCheckApiKey: process.env.GOOGLE_FACT_CHECK_API_KEY,
-      corpusSimilarityThreshold: environmentNumber("CORPUS_SIMILARITY_THRESHOLD", 0.78, 0, 1),
+      corpusSimilarityThreshold: CORPUS_SIMILARITY,
       newsApiKey: process.env.NEWS_API_KEY,
       webSearchEndpoint: process.env.WEB_SEARCH_ENDPOINT,
       webSearchApiKey: process.env.WEB_SEARCH_API_KEY,
@@ -947,7 +944,6 @@ function configuredAiConfiguration(): AiProviderConfig {
     ? aiProviderName(process.env.AI_EMBEDDING_PROVIDER)
     : undefined;
   const embeddingModel = optionalEnvironment("AI_EMBEDDING_MODEL");
-  const embeddingDimensions = positiveInteger(process.env.AI_EMBEDDING_DIMENSIONS, 1024, 10_000);
 
   return {
     provider,
@@ -961,12 +957,12 @@ function configuredAiConfiguration(): AiProviderConfig {
             apiKey: optionalEnvironment("AI_EMBEDDING_API_KEY") ?? apiKey,
             model: embeddingModel,
             baseUrl: optionalEnvironment("AI_EMBEDDING_BASE_URL"),
-            dimensions: embeddingDimensions,
+            dimensions: EMBEDDING_DIMENSIONS,
           },
         }
       : {
           embeddingModel,
-          embeddingDimensions,
+          embeddingDimensions: EMBEDDING_DIMENSIONS,
         }),
   };
 }
@@ -1079,11 +1075,6 @@ function requestedVisibility(
   return requested;
 }
 
-function environmentNumber(name: string, fallback: number, minimum: number, maximum = Infinity) {
-  const value = Number(process.env[name]);
-  return Number.isFinite(value) && value >= minimum && value <= maximum ? value : fallback;
-}
-
 function environmentBoolean(rawValue: string | undefined, fallback: boolean) {
   const value = rawValue?.trim().toLowerCase();
   if (!value) return fallback;
@@ -1111,8 +1102,6 @@ function currentUser(context: Context<{ Bindings: Bindings }>) {
   const user = authenticatedUser(request, {
     BETTER_AUTH_SECRET: context.env.BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_API_KEY: context.env.BETTER_AUTH_API_KEY ?? process.env.BETTER_AUTH_API_KEY,
-    BETTER_AUTH_API_URL: context.env.BETTER_AUTH_API_URL ?? process.env.BETTER_AUTH_API_URL,
-    BETTER_AUTH_KV_URL: context.env.BETTER_AUTH_KV_URL ?? process.env.BETTER_AUTH_KV_URL,
     GOOGLE_CLIENT_ID: context.env.GOOGLE_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: context.env.GOOGLE_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
   });

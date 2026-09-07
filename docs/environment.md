@@ -1,8 +1,8 @@
 # Environment configuration
 
-The web app needs six core values. Start with `apps/web/.env.example`; the
-settings below are optional and should only be added when the related feature
-is enabled.
+The web app needs six values. All environment configuration is server-only;
+the browser bundle does not require environment variables. Start with
+`apps/web/.env.example` and add an optional value only when enabling its feature.
 
 ## Core values
 
@@ -15,12 +15,12 @@ is enabled.
 
 ## AI provider overrides
 
-Gemini uses built-in model defaults, including 1024-dimensional embeddings.
-For other providers, add only what is needed:
+Gemini uses built-in generation and embedding defaults. Tracera stores
+1024-dimensional embeddings for every provider. For other providers, add only
+what is needed:
 
 - `AI_MODEL` — generation model override.
 - `AI_EMBEDDING_MODEL` — embedding model for OpenAI-compatible providers.
-- `AI_EMBEDDING_DIMENSIONS` — embedding size; defaults to `1024`.
 - `AI_BASE_URL` — required when `AI_PROVIDER=openai-compatible`.
 - `AI_EMBEDDING_PROVIDER` — separate embedding provider, required for
   Anthropic generation.
@@ -29,11 +29,8 @@ For other providers, add only what is needed:
 
 ## Optional integrations
 
-- `NEXT_PUBLIC_SITE_URL` — canonical site URL; defaults to the deployed
-  Tracera URL.
-- `WEB_ORIGIN` — comma-separated additional browser origins for CORS.
-- `PUBLIC_API_KEYS` — enables the API-key-protected public API. The legacy
-  `PUBLIC_API_KEY` name is also accepted.
+- `PUBLIC_API_KEYS` — comma- or newline-separated keys that enable the
+  API-key-protected public API.
 - `GOOGLE_FACT_CHECK_API_KEY`, `NEWS_API_KEY`, `WEB_SEARCH_ENDPOINT`, and
   `WEB_SEARCH_API_KEY` — additional evidence retrieval providers.
 - `OCR_ENDPOINT` and `OCR_API_KEY` — external OCR for image submissions.
@@ -44,13 +41,13 @@ For other providers, add only what is needed:
 
 These are only needed for administration or scheduled delivery:
 
-- `BETTER_AUTH_API_KEY`, `BETTER_AUTH_API_URL`, and `BETTER_AUTH_KV_URL` —
-  optional Better Auth dashboard integration.
+- `BETTER_AUTH_API_KEY` — optional Better Auth dashboard integration.
 - `DOMAIN_TRUST_AUTO_REFINE` and `DOMAIN_TRUST_ADMIN_TOKEN` — domain trust
   review controls.
 - `INTERNAL_WORKER_TOKEN` — authorizes internal maintenance requests.
 - `RESEND_API_KEY` and `ALERT_FROM_EMAIL` — email delivery configuration.
 
-The analysis and story-reuse thresholds have safe code defaults and do not
-need to be configured. The AI evaluation scripts also accept optional
-`EVAL_*` overrides; they are not required by the deployed app.
+Analysis thresholds, story-reuse policy, embedding dimensions, site origins,
+and model-evaluation thresholds are application behavior rather than deployment
+configuration. They are defined in code. Model-evaluation overrides are passed
+as command-line options documented in `packages/ai/evaluation/README.md`.
