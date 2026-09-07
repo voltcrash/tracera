@@ -98,8 +98,8 @@ export default function LandingPage() {
             </nav>
             <Button
               render={<Link href="/login" />}
-              variant="ghost"
-              className="hidden sm:inline-flex"
+              variant="outline"
+              className="rounded-full border-foreground/40 bg-surface px-5 text-foreground shadow-sm hover:border-foreground hover:bg-foreground hover:text-background"
             >
               Log in
             </Button>
