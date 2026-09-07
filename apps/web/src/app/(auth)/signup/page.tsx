@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 export default function SignupPage() {
   return (
-    <main className="paper-grid flex min-h-screen items-center justify-center bg-background p-6">
+    <main className="flex min-h-screen items-center justify-center bg-background p-6">
       <section className="w-full max-w-md">
         <Button
           render={<Link href="/" />}

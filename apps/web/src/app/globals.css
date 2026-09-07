@@ -62,7 +62,6 @@
   --line-weak: rgba(16, 34, 31, 0.07);
   --line: rgba(16, 34, 31, 0.1);
   --line-strong: rgba(16, 34, 31, 0.16);
-  --grid-line: rgba(16, 34, 31, 0.035);
 
   --ink-soft: rgba(16, 34, 31, 0.62);
   --ink-faint: rgba(16, 34, 31, 0.45);
@@ -140,7 +139,6 @@
   --line-weak: rgba(151, 236, 208, 0.08);
   --line: rgba(151, 236, 208, 0.13);
   --line-strong: rgba(151, 236, 208, 0.22);
-  --grid-line: rgba(151, 236, 208, 0.045);
 
   --ink-soft: rgba(228, 239, 234, 0.66);
   --ink-faint: rgba(228, 239, 234, 0.46);
@@ -282,13 +280,6 @@
     background: var(--mint);
     color: #06231d;
   }
-}
-
-.paper-grid {
-  background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 28px 28px;
 }
 
 .noise {
@@ -603,22 +594,6 @@
     0 0 0 7rem rgba(130, 227, 194, 0.018);
 }
 
-.hub-hero-grid {
-  pointer-events: none;
-  position: absolute;
-  right: -1rem;
-  bottom: -1rem;
-  width: 55%;
-  height: 58%;
-  opacity: 0.27;
-  background-image:
-    linear-gradient(rgba(156, 240, 209, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(156, 240, 209, 0.08) 1px, transparent 1px);
-  background-size: 30px 30px;
-  -webkit-mask-image: linear-gradient(135deg, transparent 4%, black 74%);
-  mask-image: linear-gradient(135deg, transparent 4%, black 74%);
-}
-
 .hub-check-card {
   min-width: 0;
   max-width: 100%;
@@ -904,10 +879,6 @@
 }
 
 @media (max-width: 639px) {
-  .hub-hero-grid {
-    width: 78%;
-  }
-
   .landing-float-tag-top {
     right: 0.75rem;
   }

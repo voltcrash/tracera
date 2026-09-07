@@ -30,7 +30,7 @@ export default function AuthCompletePage() {
   }, [apiFetch, isLoading, router, user]);
 
   return (
-    <main className="paper-grid flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
+    <main className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
       <section
         className="auth-transition-in flex w-full max-w-sm flex-col items-center text-center"
         aria-live="polite"

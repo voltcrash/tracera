@@ -165,7 +165,6 @@ export default function HubPage() {
           <section className="pb-16 pt-6 sm:pt-8 lg:pb-24">
             <div className="grid gap-4 lg:grid-cols-[1fr_1fr] xl:gap-5">
               <section className="hub-hero noise relative overflow-hidden rounded-[1.5rem] px-6 py-9 text-white sm:px-10 sm:py-11 lg:min-h-[25rem] lg:px-11">
-                <div className="hub-hero-grid" aria-hidden="true" />
                 <div className="relative z-10 flex h-full flex-col items-start justify-center">
                   <h1 className="max-w-2xl text-[2.8rem] font-black leading-[.92] tracking-[-.07em] sm:text-6xl xl:text-[4.3rem]">
                     The receipts

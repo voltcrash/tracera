@@ -39,7 +39,7 @@ function AuthError() {
     ERROR_MESSAGES.get(errorCode) ?? "We could not complete sign-in. Please try again shortly.";
 
   return (
-    <main className="paper-grid flex min-h-screen items-center justify-center bg-background p-6">
+    <main className="flex min-h-screen items-center justify-center bg-background p-6">
       <Card className="w-full max-w-md rounded-3xl p-2">
         <CardHeader>
           <Link href="/" className="text-lg font-extrabold tracking-tight">

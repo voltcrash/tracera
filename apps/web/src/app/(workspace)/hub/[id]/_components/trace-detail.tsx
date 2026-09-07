@@ -84,7 +84,7 @@ export function TraceDetail({ id }: { id: string }) {
   }, [apiFetch, id, isAuthLoading, user]);
 
   return (
-    <main className="paper-grid min-h-screen bg-background text-foreground">
+    <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <AppHeader active="hub" />
         {isAuthLoading && (

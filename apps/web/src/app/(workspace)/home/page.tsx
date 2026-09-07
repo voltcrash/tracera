@@ -125,7 +125,7 @@ export default function Home() {
   }
 
   return (
-    <main className="app-enter paper-grid min-h-screen bg-background text-foreground">
+    <main className="app-enter min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <AppHeader active="home" />
         <section
