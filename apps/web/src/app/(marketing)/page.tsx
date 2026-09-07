@@ -271,30 +271,6 @@ export default function LandingPage() {
           </p>
         </div>
       </section>
-
-      <footer className="mx-auto flex max-w-5xl flex-col gap-4 px-6 py-8 sm:flex-row sm:items-center sm:justify-between">
-        <Image
-          src="/brand/tracera-wordmark-cropped.png"
-          alt="Tracera"
-          width={126}
-          height={29}
-          className="brand-wordmark h-6 w-auto"
-        />
-        <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink-faint">
-          <a href="#trail" className="hover:text-foreground">
-            Where a story starts
-          </a>
-          <a href="#score" className="hover:text-foreground">
-            The score
-          </a>
-          <Link href="/hub" className="hover:text-foreground">
-            Traces
-          </Link>
-          <Link href="/login" className="hover:text-foreground">
-            Log in
-          </Link>
-        </nav>
-      </footer>
     </main>
   );
 }
