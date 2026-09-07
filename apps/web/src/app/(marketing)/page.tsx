@@ -73,7 +73,7 @@ export default function LandingPage() {
 
   return (
     <main className="doc min-h-screen bg-background text-foreground">
-      <header className="border-b border-line">
+      <header className="sticky top-0 z-50 border-b border-line bg-background/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Link href="/" aria-label="Tracera home">
             <Image
@@ -110,7 +110,7 @@ export default function LandingPage() {
       </header>
 
       <div className="mx-auto max-w-5xl px-6">
-        <section className="pb-24 pt-16 sm:pt-24">
+        <section className="pb-20 pt-16 sm:pt-20">
           <h1 className="max-w-[18ch] font-serif text-5xl leading-[1.05] tracking-[-0.02em] sm:text-6xl">
             Every story is a stack of claims.
           </h1>
@@ -119,7 +119,7 @@ export default function LandingPage() {
             marks the ones that don&rsquo;t hold up.
           </p>
 
-          <div className="mt-14 grid gap-10 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14">
+          <div className="mt-14 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14">
             <div>
               <p className="text-sm text-ink-faint">Sample excerpt, as Tracera marks it</p>
               <blockquote className="mt-4 font-serif text-2xl leading-[1.6] sm:text-[1.7rem] sm:leading-[1.62]">
@@ -148,6 +148,21 @@ export default function LandingPage() {
                 </span>
                 .&rdquo;
               </blockquote>
+
+              <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-4">
+                <Button render={<Link href="/home" />} variant="brand" size="lg">
+                  Check a story
+                </Button>
+                <Link
+                  href="/hub"
+                  className="text-sm font-semibold text-ink-soft underline underline-offset-4 hover:text-foreground"
+                >
+                  Browse recent traces
+                </Link>
+              </div>
+              <p className="mt-5 text-sm text-ink-faint">
+                Paste the text, drop the link, or upload a screenshot.
+              </p>
             </div>
 
             <div className="space-y-7 border-t border-line pt-7 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-1">
@@ -166,21 +181,6 @@ export default function LandingPage() {
               ))}
             </div>
           </div>
-
-          <div className="mt-14 flex flex-wrap items-center gap-x-6 gap-y-4">
-            <Button render={<Link href="/home" />} variant="brand" size="lg">
-              Check a story
-            </Button>
-            <Link
-              href="/hub"
-              className="text-sm font-bold text-lime-ink underline-offset-4 hover:underline"
-            >
-              Browse recent traces
-            </Link>
-          </div>
-          <p className="mt-5 text-sm text-ink-faint">
-            Paste the text, drop the link, or upload a screenshot.
-          </p>
         </section>
 
         <section id="trail" className="scroll-mt-8 border-t border-line py-20">
