@@ -294,9 +294,10 @@
   mix-blend-mode: overlay;
 }
 
-/* The wordmark is ink on paper; on black it needs to be lifted to a monochrome
-   lockup, keeping lime reserved for live signal. */
+/* The source asset is still two-tone teal, so both themes flatten it to a
+   monochrome lockup, keeping lime reserved for live signal. */
 .brand-wordmark {
+  filter: brightness(0) opacity(0.9);
   transition: filter 200ms ease;
 }
 
