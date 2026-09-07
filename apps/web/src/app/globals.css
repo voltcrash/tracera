@@ -432,7 +432,15 @@
 .score-rule > span {
   display: block;
   height: 100%;
-  background: var(--lime-ink);
+  background: var(--rule-ink, var(--lime-ink));
+}
+
+.score-rule[data-tone="mixed"] > span {
+  --rule-ink: var(--tint-amber-foreground);
+}
+
+.score-rule[data-tone="weak"] > span {
+  --rule-ink: var(--tint-rose-foreground);
 }
 
 @keyframes claim-ink {

@@ -58,6 +58,11 @@ const scoreParts = [
   { label: "Neutral language", value: 58 },
 ];
 
+/** Same bands the hub scores against, so a part reads the same wherever it appears. */
+function scoreTone(value: number) {
+  return value >= 70 ? "strong" : value >= 45 ? "mixed" : "weak";
+}
+
 export default function LandingPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -236,7 +241,7 @@ export default function LandingPage() {
                     <span className="text-sm text-ink-soft">{part.label}</span>
                     <span className="font-serif text-lg tabular-nums">{part.value}</span>
                   </div>
-                  <span className="score-rule mt-2.5">
+                  <span className="score-rule mt-2.5" data-tone={scoreTone(part.value)}>
                     <span style={{ width: `${part.value}%` }} />
                   </span>
                 </li>
