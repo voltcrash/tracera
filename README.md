@@ -36,6 +36,8 @@ vp check
 vp test --run
 ```
 
+Environment variables are documented in [docs/environment.md](docs/environment.md).
+
 The website uses the Next.js CLI, so its workspace commands run through Vite Task rather than Vite's built-in app commands:
 
 ```sh
