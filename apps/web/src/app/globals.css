@@ -86,6 +86,15 @@
   --cta-line: rgba(23, 23, 23, 0.12);
   --cta-dot: rgba(23, 23, 23, 0.18);
 
+  --story-cta-base: #171717;
+  --story-cta-base-foreground: #ffffff;
+  --story-cta-sweep: #89f336;
+  --story-cta-sweep-foreground: #171717;
+  --login-cta-base: #ffffff;
+  --login-cta-base-foreground: #171717;
+  --login-cta-sweep: #89f336;
+  --login-cta-sweep-foreground: #171717;
+
   /* Decorative bloom opacity: full strength on paper, halved on black. */
   --glow: 1;
 
@@ -161,6 +170,11 @@
   --cta-foreground: #ededed;
   --cta-line: rgba(255, 255, 255, 0.14);
   --cta-dot: rgba(255, 255, 255, 0.16);
+
+  --story-cta-base: #89f336;
+  --story-cta-base-foreground: #171717;
+  --story-cta-sweep: #ffffff;
+  --story-cta-sweep-foreground: #171717;
 
   --glow: 0.5;
 
@@ -371,6 +385,38 @@
   outline: 2px solid var(--lime-ink);
   outline-offset: 3px;
   border-radius: 2px;
+}
+
+.color-sweep-button {
+  --button-base: var(--story-cta-base);
+  --button-base-foreground: var(--story-cta-base-foreground);
+  --button-sweep: var(--story-cta-sweep);
+  --button-sweep-foreground: var(--story-cta-sweep-foreground);
+
+  border: 1px solid var(--button-sweep);
+  background:
+    linear-gradient(var(--button-sweep), var(--button-sweep)) left / 0 100% no-repeat,
+    var(--button-base);
+  color: var(--button-base-foreground);
+  box-shadow: 3px 3px 0 var(--button-sweep);
+  transition:
+    background-size 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms ease;
+}
+
+.color-sweep-button:hover,
+.color-sweep-button:focus-visible {
+  background-size: 100% 100%;
+  color: var(--button-sweep-foreground);
+}
+
+.login-cta {
+  --button-base: var(--login-cta-base);
+  --button-base-foreground: var(--login-cta-base-foreground);
+  --button-sweep: var(--login-cta-sweep);
+  --button-sweep-foreground: var(--login-cta-sweep-foreground);
 }
 
 .claim {
@@ -755,7 +801,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   body,
-  .theme-toggle-icons > svg {
+  .theme-toggle-icons > svg,
+  .color-sweep-button {
     transition: none;
   }
 }

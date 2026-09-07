@@ -99,7 +99,7 @@ export default function LandingPage() {
             <Button
               render={<Link href="/login" />}
               variant="outline"
-              className="rounded-full border-foreground/40 bg-surface px-5 text-foreground shadow-sm hover:border-foreground hover:bg-foreground hover:text-background"
+              className="color-sweep-button login-cta rounded-full px-5"
             >
               Log in
             </Button>
@@ -153,7 +153,7 @@ export default function LandingPage() {
                   render={<Link href="/home" />}
                   variant="brand"
                   size="lg"
-                  className="dark:shadow-[3px_3px_0_#fff]"
+                  className="color-sweep-button"
                 >
                   Check a story
                 </Button>
