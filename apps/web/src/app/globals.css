@@ -97,24 +97,24 @@
 }
 
 .dark {
-  --background: #0d0d0d;
+  --background: #000000;
   --foreground: #ededed;
-  --card: #161616;
+  --card: #0a0a0a;
   --card-foreground: #ededed;
-  --popover: #1a1a1a;
+  --popover: #101010;
   --popover-foreground: #ededed;
   --primary: #89f336;
   --primary-foreground: #0d1a02;
-  --secondary: #242424;
+  --secondary: #1a1a1a;
   --secondary-foreground: #ededed;
-  --muted: #1c1c1c;
+  --muted: #121212;
   --muted-foreground: #a1a1a1;
-  --accent: #1e2a12;
+  --accent: #18220e;
   --accent-foreground: #a8f56e;
   --destructive: #f2657f;
   --destructive-foreground: #26060d;
-  --border: rgba(255, 255, 255, 0.14);
-  --input: rgba(255, 255, 255, 0.18);
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.16);
   --ring: #89f336;
 
   --chart-1: #89f336;
@@ -123,21 +123,21 @@
   --chart-4: #f2c66a;
   --chart-5: #86ccd9;
 
-  --surface: #161616;
-  --sunken: #111111;
-  --glass-weak: rgba(28, 28, 28, 0.55);
-  --glass: rgba(28, 28, 28, 0.78);
-  --glass-strong: rgba(31, 31, 31, 0.93);
+  --surface: #0a0a0a;
+  --sunken: #000000;
+  --glass-weak: rgba(14, 14, 14, 0.6);
+  --glass: rgba(14, 14, 14, 0.82);
+  --glass-strong: rgba(18, 18, 18, 0.95);
 
-  --panel: #1a1a1a;
+  --panel: #0a0a0a;
   --panel-foreground: #ededed;
   --panel-muted: rgba(237, 237, 237, 0.55);
-  --panel-line: rgba(255, 255, 255, 0.14);
+  --panel-line: rgba(255, 255, 255, 0.12);
   --panel-inset: rgba(255, 255, 255, 0.06);
 
-  --line-weak: rgba(255, 255, 255, 0.08);
-  --line: rgba(255, 255, 255, 0.13);
-  --line-strong: rgba(255, 255, 255, 0.22);
+  --line-weak: rgba(255, 255, 255, 0.07);
+  --line: rgba(255, 255, 255, 0.12);
+  --line-strong: rgba(255, 255, 255, 0.2);
 
   --ink-soft: rgba(237, 237, 237, 0.66);
   --ink-faint: rgba(237, 237, 237, 0.46);
@@ -154,22 +154,22 @@
   --tint-rose: rgba(247, 140, 160, 0.13);
   --tint-rose-foreground: #f78ca0;
 
-  --hub-page-base: #0d0d0d;
-  --hero-a: #1a1a1a;
-  --hero-b: #121212;
-  --cta-bg: #1a1a1a;
+  --hub-page-base: #000000;
+  --hero-a: #0f0f0f;
+  --hero-b: #000000;
+  --cta-bg: #0a0a0a;
   --cta-foreground: #ededed;
-  --cta-line: rgba(255, 255, 255, 0.18);
+  --cta-line: rgba(255, 255, 255, 0.14);
   --cta-dot: rgba(255, 255, 255, 0.16);
 
   --glow: 0.5;
 
   /* On black, depth comes from the lit top edge, not from a cast shadow. */
-  --shadow-card: 0 24px 60px -40px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --shadow-lift: 0 34px 70px -38px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --shadow-float: 0 18px 40px -20px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.07);
-  --shadow-nav: 0 18px 44px -30px rgba(0, 0, 0, 0.9);
-  --shadow-panel: 0 28px 70px -34px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-lift: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --shadow-float: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-nav: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-panel: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 @theme inline {
