@@ -152,7 +152,7 @@ export default function LandingPage() {
                   className="note grid grid-cols-[1.25rem_1fr] gap-x-2"
                   style={{ "--note-delay": `${1150 + index * 160}ms` } as CSSProperties}
                 >
-                  <span className="text-sm font-bold text-lime-ink">{note.marker}</span>
+                  <span className={cn("text-sm font-bold", note.tone)}>{note.marker}</span>
                   <div>
                     <p className={cn("text-sm font-bold", note.tone)}>{note.verdict}</p>
                     <p className="mt-1 text-sm leading-6 text-ink-soft">{note.body}</p>

@@ -394,6 +394,7 @@
 
 /* Framing isn't verified, so its stroke is broken rather than solid. */
 .claim-framing {
+  --claim-ink: var(--ink-faint);
   background-image: repeating-linear-gradient(90deg, var(--ink-faint) 0 3px, transparent 3px 7px);
   background-size: 0 1.5px;
 }
@@ -405,7 +406,7 @@
   vertical-align: super;
   letter-spacing: 0;
   margin-left: 0.15em;
-  color: var(--lime-ink);
+  color: var(--claim-ink, var(--lime-ink));
 }
 
 .note {
