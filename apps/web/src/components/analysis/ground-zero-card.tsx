@@ -51,7 +51,7 @@ export function GroundZeroCard({ trace }: { trace: GroundZeroTrace }) {
                 <>
                   {trace.earliestSource.url ? (
                     <a
-                      className="text-base font-bold leading-snug transition hover:text-brand-emerald"
+                      className="text-base font-bold leading-snug transition hover:text-brand-lime-ink"
                       href={trace.earliestSource.url}
                       rel="noreferrer"
                       target="_blank"

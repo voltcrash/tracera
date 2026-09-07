@@ -23,7 +23,7 @@ function Progress({
       >
         <ProgressPrimitive.Indicator
           data-slot="progress-indicator"
-          className={cn("h-full rounded-full bg-brand-emerald transition-all", indicatorClassName)}
+          className={cn("h-full rounded-full bg-brand-lime-ink transition-all", indicatorClassName)}
         />
       </ProgressPrimitive.Track>
     </ProgressPrimitive.Root>

@@ -14,7 +14,7 @@ const notes = [
   {
     marker: "1",
     verdict: "Supported",
-    tone: "text-emerald",
+    tone: "text-lime-ink",
     body: "The department's own dataset gives the 40% figure, and three independent reports match it.",
   },
   {
@@ -152,7 +152,7 @@ export default function LandingPage() {
                   className="note grid grid-cols-[1.25rem_1fr] gap-x-2"
                   style={{ "--note-delay": `${1150 + index * 160}ms` } as CSSProperties}
                 >
-                  <span className="text-sm font-bold text-emerald">{note.marker}</span>
+                  <span className="text-sm font-bold text-lime-ink">{note.marker}</span>
                   <div>
                     <p className={cn("text-sm font-bold", note.tone)}>{note.verdict}</p>
                     <p className="mt-1 text-sm leading-6 text-ink-soft">{note.body}</p>
@@ -168,7 +168,7 @@ export default function LandingPage() {
             </Button>
             <Link
               href="/hub"
-              className="text-sm font-bold text-emerald underline-offset-4 hover:underline"
+              className="text-sm font-bold text-lime-ink underline-offset-4 hover:underline"
             >
               Browse recent traces
             </Link>
@@ -198,7 +198,7 @@ export default function LandingPage() {
                   <p className="font-serif text-xl">
                     {entry.source}
                     {entry.origin ? (
-                      <span className="ml-3 align-middle text-xs font-bold text-emerald font-sans">
+                      <span className="ml-3 align-middle text-xs font-bold text-lime-ink font-sans">
                         Earliest found
                       </span>
                     ) : null}
@@ -252,7 +252,7 @@ export default function LandingPage() {
             Bring something you&rsquo;re not sure about.
           </h2>
           <div className="mt-10">
-            <Button render={<Link href="/home" />} variant="mint" size="lg">
+            <Button render={<Link href="/home" />} variant="lime" size="lg">
               Check a story
             </Button>
           </div>

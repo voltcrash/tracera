@@ -41,7 +41,7 @@ export default function AuthCompletePage() {
             aria-hidden="true"
             className="-mt-1 text-4xl font-black tracking-[-.12em] text-white"
           >
-            t<span className="text-brand-mint">.</span>
+            t<span className="text-brand-lime">.</span>
           </span>
         </div>
         <h1 className="mt-7 text-3xl font-extrabold tracking-[-.04em]">Opening Tracera</h1>
@@ -49,7 +49,7 @@ export default function AuthCompletePage() {
           Securing your session and preparing your workspace.
         </p>
         <div className="mt-7 h-1 w-36 overflow-hidden rounded-full bg-primary/10">
-          <div className="auth-transition-progress h-full w-full rounded-full bg-brand-emerald" />
+          <div className="auth-transition-progress h-full w-full rounded-full bg-brand-lime-ink" />
         </div>
       </section>
     </main>

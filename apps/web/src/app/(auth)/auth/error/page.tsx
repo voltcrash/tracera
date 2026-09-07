@@ -43,7 +43,7 @@ function AuthError() {
       <Card className="w-full max-w-md rounded-3xl p-2">
         <CardHeader>
           <Link href="/" className="text-lg font-extrabold tracking-tight">
-            tracera<span className="text-brand-emerald">.</span>
+            tracera<span className="text-brand-lime-ink">.</span>
           </Link>
           <CardTitle className="mt-8 text-3xl font-extrabold tracking-[-.04em]">
             Sign-in didn&apos;t complete

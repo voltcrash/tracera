@@ -18,7 +18,7 @@ export function AuthLoadingState() {
       role="status"
       aria-live="polite"
     >
-      <Loader2 className="size-7 animate-spin text-brand-emerald" />
+      <Loader2 className="size-7 animate-spin text-brand-lime-ink" />
       <p className="text-sm font-black">
         {isTakingLonger
           ? "Authentication is taking longer than expected"

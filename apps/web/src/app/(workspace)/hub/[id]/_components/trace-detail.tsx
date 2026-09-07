@@ -189,7 +189,7 @@ function TraceMeta({
             href={href}
             target="_blank"
             rel="noreferrer"
-            className="mt-1 flex items-center gap-1 text-sm font-semibold text-brand-emerald hover:underline"
+            className="mt-1 flex items-center gap-1 text-sm font-semibold text-brand-lime-ink hover:underline"
             title={value}
           >
             <span className="truncate">{value}</span>
@@ -230,7 +230,7 @@ function TraceTimeline({
             : null;
           return (
             <li key={entry.id} className="relative py-4">
-              <span className="absolute -left-[1.62rem] top-6 size-3 rounded-full border-[3px] border-background bg-emerald" />
+              <span className="absolute -left-[1.62rem] top-6 size-3 rounded-full border-[3px] border-background bg-lime" />
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold">
@@ -258,7 +258,7 @@ function TraceTimeline({
                         change === 0
                           ? "text-muted-foreground"
                           : change > 0
-                            ? "text-tint-mint-foreground"
+                            ? "text-tint-lime-foreground"
                             : "text-tint-rose-foreground",
                       )}
                     >
@@ -268,7 +268,7 @@ function TraceTimeline({
                 </div>
               </div>
               {entry.source_domain && (
-                <p className="mt-1 text-xs font-medium text-brand-emerald">
+                <p className="mt-1 text-xs font-medium text-brand-lime-ink">
                   Observed at {entry.source_domain}
                 </p>
               )}

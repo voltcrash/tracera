@@ -20,7 +20,7 @@ export type { ClaimResult, TraceraScore } from "@repo/contracts";
 const dimensionColors = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"];
 
 const verdicts = {
-  supported: { label: "Supported", badge: "emerald", dot: "bg-emerald-500", bar: "bg-emerald-500" },
+  supported: { label: "Supported", badge: "lime", dot: "bg-lime-ink", bar: "bg-lime-ink" },
   mixed: { label: "Mixed", badge: "violet", dot: "bg-violet-500", bar: "bg-violet-500" },
   misleading: { label: "Misleading", badge: "amber", dot: "bg-amber-500", bar: "bg-amber-500" },
   contradicted: { label: "Contradicted", badge: "rose", dot: "bg-rose-500", bar: "bg-rose-500" },
@@ -29,7 +29,7 @@ const verdicts = {
   VerdictName,
   {
     label: string;
-    badge: "emerald" | "violet" | "amber" | "rose" | "slate";
+    badge: "lime" | "violet" | "amber" | "rose" | "slate";
     dot: string;
     bar: string;
   }
@@ -144,7 +144,7 @@ function VerdictSummary({
           <button
             type="button"
             onClick={() => onFilter(filter)}
-            className="ml-auto text-xs font-semibold text-brand-emerald hover:underline"
+            className="ml-auto text-xs font-semibold text-brand-lime-ink hover:underline"
           >
             Show all claims
           </button>
@@ -215,7 +215,7 @@ function ClaimCard({ item }: { item: ClaimResult }) {
           label="Confidence"
           value={`${confidence}%`}
           progress={confidence}
-          indicator="bg-emerald-600"
+          indicator="bg-lime-ink"
         />
         <Metric
           label="Evidence quality"
@@ -245,7 +245,7 @@ function ClaimCard({ item }: { item: ClaimResult }) {
           <ul className="mt-2.5 max-w-[68ch] space-y-2 text-sm leading-relaxed text-muted-foreground">
             {item.reasoning.map((reason, reasonIndex) => (
               <li key={reasonIndex} className="flex gap-2.5">
-                <span className="mt-2 size-1 shrink-0 rounded-full bg-emerald-600" />
+                <span className="mt-2 size-1 shrink-0 rounded-full bg-lime-ink" />
                 <span>{reason}</span>
               </li>
             ))}
@@ -271,7 +271,7 @@ function ClaimCard({ item }: { item: ClaimResult }) {
             <button
               type="button"
               onClick={() => setExpanded((open) => !open)}
-              className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-brand-emerald hover:underline"
+              className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-brand-lime-ink hover:underline"
             >
               {expanded
                 ? "Show fewer sources"
@@ -349,7 +349,7 @@ function SourceGroup({
   expanded: boolean;
 }) {
   const rules = {
-    support: "border-emerald-600",
+    support: "border-lime-ink",
     conflict: "border-rose-500",
     review: "border-amber-500",
   };
@@ -395,7 +395,7 @@ function SourceLink({ source, detailed }: { source: EvidenceSource; detailed: bo
           href={source.url}
           target="_blank"
           rel="noreferrer"
-          className="block transition hover:text-brand-emerald"
+          className="block transition hover:text-brand-lime-ink"
         >
           {content}
         </a>
@@ -441,7 +441,7 @@ function FramingPanel({ framing }: { framing: FramingAnalysis }) {
             reading.
           </p>
         </div>
-        <Badge variant={integrity >= 70 ? "emerald" : integrity >= 45 ? "amber" : "rose"}>
+        <Badge variant={integrity >= 70 ? "lime" : integrity >= 45 ? "amber" : "rose"}>
           {integrity}% presentation integrity
         </Badge>
       </div>
@@ -463,7 +463,7 @@ function FramingPanel({ framing }: { framing: FramingAnalysis }) {
                     ? "bg-rose-500"
                     : risk.level >= 0.3
                       ? "bg-amber-400"
-                      : "bg-emerald-600"
+                      : "bg-lime-ink"
                 }
               />
             </div>
@@ -515,7 +515,7 @@ export function ScoreCard({ score, sticky = true }: { score: TraceraScore; stick
             className={cn(
               "text-[5.5rem] font-black leading-[.8] tracking-[-.06em]",
               score.overall >= 70
-                ? "text-brand-mint"
+                ? "text-brand-lime"
                 : score.overall >= 45
                   ? "text-amber-300"
                   : "text-rose-300",

@@ -10,7 +10,7 @@ export default function LoginPage() {
     <main className="grid min-h-screen bg-background lg:grid-cols-2">
       <section className="hidden bg-brand-ink p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <Link href="/" className="text-lg font-extrabold tracking-tight">
-          tracera<span className="text-brand-mint">.</span>
+          tracera<span className="text-brand-lime">.</span>
         </Link>
         <div>
           <h1 className="max-w-md text-5xl font-black leading-[1.02] tracking-[-.045em]">

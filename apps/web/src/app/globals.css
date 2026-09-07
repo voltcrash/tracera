@@ -13,8 +13,8 @@
   --brand-paper: #f4f6f2;
   --brand-ink: #10221f;
   --brand-deep: #0e3028;
-  --brand-mint: #9cf0d1;
-  --brand-emerald: #047857;
+  --brand-lime: #89f336;
+  --brand-lime-ink: #4a7d12;
 
   --background: #f4f6f2;
   --foreground: #10221f;
@@ -34,9 +34,9 @@
   --destructive-foreground: #ffffff;
   --border: rgba(16, 34, 31, 0.1);
   --input: rgba(16, 34, 31, 0.14);
-  --ring: #059669;
+  --ring: #4a7d12;
 
-  --chart-1: #9cf0d1;
+  --chart-1: #89f336;
   --chart-2: #72dfbd;
   --chart-3: #d8b4fe;
   --chart-4: #f5d67b;
@@ -66,12 +66,11 @@
   --ink-soft: rgba(16, 34, 31, 0.62);
   --ink-faint: rgba(16, 34, 31, 0.45);
 
-  --mint: #9cf0d1;
-  --emerald: #047857;
-  --emerald-bright: #10b981;
+  --lime: #89f336;
+  --lime-ink: #4a7d12;
 
-  --tint-mint: #dcf7ed;
-  --tint-mint-foreground: #065f46;
+  --tint-lime: #e9fbd4;
+  --tint-lime-foreground: #3d6b0d;
   --tint-amber: #fae8ce;
   --tint-amber-foreground: #92400e;
   --tint-lilac: #eee8fb;
@@ -82,7 +81,7 @@
   --hub-page-base: #fafbf9;
   --hero-a: #0c392f;
   --hero-b: #082f28;
-  --cta-bg: #b7f1dc;
+  --cta-bg: #89f336;
   --cta-foreground: #10221f;
   --cta-line: rgba(16, 34, 31, 0.12);
   --cta-dot: rgba(16, 34, 31, 0.18);
@@ -104,21 +103,21 @@
   --card-foreground: #e4efea;
   --popover: #12211d;
   --popover-foreground: #e4efea;
-  --primary: #8ce9c8;
-  --primary-foreground: #052019;
+  --primary: #89f336;
+  --primary-foreground: #0d1a02;
   --secondary: #16302a;
   --secondary-foreground: #e4efea;
   --muted: #15251f;
   --muted-foreground: #96aaa3;
   --accent: #17342c;
-  --accent-foreground: #a9ecd0;
+  --accent-foreground: #a8f56e;
   --destructive: #f2657f;
   --destructive-foreground: #26060d;
   --border: rgba(151, 236, 208, 0.13);
   --input: rgba(151, 236, 208, 0.18);
-  --ring: #4fd3a5;
+  --ring: #89f336;
 
-  --chart-1: #8ce9c8;
+  --chart-1: #89f336;
   --chart-2: #5cd3ae;
   --chart-3: #c9b0f7;
   --chart-4: #f2c66a;
@@ -143,12 +142,11 @@
   --ink-soft: rgba(228, 239, 234, 0.66);
   --ink-faint: rgba(228, 239, 234, 0.46);
 
-  --mint: #8ce9c8;
-  --emerald: #4fd3a5;
-  --emerald-bright: #38c99b;
+  --lime: #89f336;
+  --lime-ink: #89f336;
 
-  --tint-mint: rgba(80, 214, 170, 0.13);
-  --tint-mint-foreground: #8ee8c6;
+  --tint-lime: rgba(137, 243, 54, 0.14);
+  --tint-lime-foreground: #a8f56e;
   --tint-amber: rgba(240, 190, 90, 0.13);
   --tint-amber-foreground: #f2c66a;
   --tint-lilac: rgba(196, 168, 248, 0.14);
@@ -198,8 +196,8 @@
   --color-brand-paper: var(--brand-paper);
   --color-brand-ink: var(--brand-ink);
   --color-brand-deep: var(--brand-deep);
-  --color-brand-mint: var(--brand-mint);
-  --color-brand-emerald: var(--brand-emerald);
+  --color-brand-lime: var(--brand-lime);
+  --color-brand-lime-ink: var(--brand-lime-ink);
 
   --color-surface: var(--surface);
   --color-sunken: var(--sunken);
@@ -224,12 +222,11 @@
   --color-cta-foreground: var(--cta-foreground);
   --color-cta-line: var(--cta-line);
 
-  --color-mint: var(--mint);
-  --color-emerald: var(--emerald);
-  --color-emerald-bright: var(--emerald-bright);
+  --color-lime: var(--lime);
+  --color-lime-ink: var(--lime-ink);
 
-  --color-tint-mint: var(--tint-mint);
-  --color-tint-mint-foreground: var(--tint-mint-foreground);
+  --color-tint-lime: var(--tint-lime);
+  --color-tint-lime-foreground: var(--tint-lime-foreground);
   --color-tint-amber: var(--tint-amber);
   --color-tint-amber-foreground: var(--tint-amber-foreground);
   --color-tint-lilac: var(--tint-lilac);
@@ -277,7 +274,7 @@
   }
 
   ::selection {
-    background: var(--mint);
+    background: var(--lime);
     color: #06231d;
   }
 }
@@ -298,7 +295,7 @@
 }
 
 /* The wordmark is ink on paper; on black it needs to be lifted to a monochrome
-   lockup, keeping mint reserved for live signal. */
+   lockup, keeping lime reserved for live signal. */
 .brand-wordmark {
   transition: filter 200ms ease;
 }
@@ -370,7 +367,7 @@
    margin. Every rule below exists to support that one metaphor. */
 .doc a:focus-visible,
 .doc button:focus-visible {
-  outline: 2px solid var(--emerald);
+  outline: 2px solid var(--lime-ink);
   outline-offset: 3px;
   border-radius: 2px;
 }
@@ -387,7 +384,7 @@
 }
 
 .claim-supported {
-  --claim-ink: var(--emerald);
+  --claim-ink: var(--lime-ink);
 }
 
 .claim-context {
@@ -407,7 +404,7 @@
   vertical-align: super;
   letter-spacing: 0;
   margin-left: 0.15em;
-  color: var(--emerald);
+  color: var(--lime-ink);
 }
 
 .note {
@@ -433,7 +430,7 @@
 .score-rule > span {
   display: block;
   height: 100%;
-  background: var(--emerald);
+  background: var(--lime-ink);
 }
 
 @keyframes claim-ink {
@@ -515,7 +512,7 @@
   bottom: 1.2rem;
   left: 0.35rem;
   width: 2px;
-  background: linear-gradient(var(--line-strong), var(--emerald));
+  background: linear-gradient(var(--line-strong), var(--lime-ink));
 }
 
 .ground-zero-step {
@@ -536,7 +533,7 @@
 
 .ground-zero-origin {
   align-items: center;
-  border-color: rgba(5, 150, 105, 0.24);
+  border-color: color-mix(in oklab, var(--lime-ink) 34%, transparent);
   background: var(--glass-strong);
   box-shadow: var(--shadow-card);
 }
@@ -550,23 +547,23 @@
   margin-top: 0.2rem;
   border: 3px solid var(--card);
   border-radius: 50%;
-  background: color-mix(in oklab, var(--muted-foreground) 80%, var(--emerald));
+  background: color-mix(in oklab, var(--muted-foreground) 80%, var(--lime-ink));
   box-shadow: 0 0 0 1px var(--line-strong);
 }
 
 .ground-zero-origin .ground-zero-dot {
   margin-top: 0;
-  background: var(--emerald-bright);
+  background: var(--lime);
   box-shadow:
-    0 0 0 1px var(--emerald-bright),
-    0 0 0 5px color-mix(in oklab, var(--emerald-bright) 14%, transparent);
+    0 0 0 1px var(--lime),
+    0 0 0 5px color-mix(in oklab, var(--lime) 22%, transparent);
 }
 
 .hub-page {
   background:
     radial-gradient(
       circle at 50% -10%,
-      color-mix(in oklab, var(--emerald) calc(9% * var(--glow)), transparent),
+      color-mix(in oklab, var(--lime) calc(9% * var(--glow)), transparent),
       transparent 28rem
     ),
     var(--hub-page-base);
@@ -606,7 +603,7 @@
 
 .hub-check-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(5, 150, 105, 0.24);
+  border-color: color-mix(in oklab, var(--lime-ink) 34%, transparent);
   box-shadow: var(--shadow-lift);
 }
 
@@ -631,7 +628,7 @@
 
 .hub-list-row:hover {
   transform: translateY(-2px);
-  border-color: rgba(5, 150, 105, 0.24);
+  border-color: color-mix(in oklab, var(--lime-ink) 34%, transparent);
   box-shadow: var(--shadow-lift);
 }
 
@@ -732,7 +729,7 @@
   bottom: 1.2rem;
   left: 0.26rem;
   width: 2px;
-  background: linear-gradient(var(--emerald), var(--line-weak));
+  background: linear-gradient(var(--lime-ink), var(--line-weak));
 }
 
 .dark .noise::after {

@@ -56,7 +56,7 @@ function scoreTone(score: number) {
 }
 
 const labelVariants = {
-  strong: "emerald",
+  strong: "lime",
   mixed: "amber",
   weak: "rose",
 } as const;
@@ -117,7 +117,7 @@ export function TraceCard({
 
         <Link
           href={`/hub/${trace.id}`}
-          className="hub-list-title line-clamp-2 min-w-0 font-black leading-[1.3] tracking-[-.025em] outline-offset-4 transition group-hover:text-brand-emerald focus-visible:outline-2 focus-visible:outline-ring"
+          className="hub-list-title line-clamp-2 min-w-0 font-black leading-[1.3] tracking-[-.025em] outline-offset-4 transition group-hover:text-brand-lime-ink focus-visible:outline-2 focus-visible:outline-ring"
         >
           {trace.rawInput}
         </Link>
@@ -155,7 +155,7 @@ export function TraceCard({
 
       <Link
         href={`/hub/${trace.id}`}
-        className="mt-5 line-clamp-3 min-w-0 text-lg font-black leading-[1.28] tracking-[-.035em] outline-offset-4 transition group-hover:text-brand-emerald focus-visible:outline-2 focus-visible:outline-ring sm:text-xl"
+        className="mt-5 line-clamp-3 min-w-0 text-lg font-black leading-[1.28] tracking-[-.035em] outline-offset-4 transition group-hover:text-brand-lime-ink focus-visible:outline-2 focus-visible:outline-ring sm:text-xl"
       >
         {trace.rawInput}
       </Link>
@@ -326,7 +326,7 @@ export function TraceToolbar({
           >
             <SlidersHorizontal />
             Filters
-            {hasSecondaryFilters && <span className="size-1.5 rounded-full bg-brand-mint" />}
+            {hasSecondaryFilters && <span className="size-1.5 rounded-full bg-brand-lime" />}
           </Button>
         </div>
       </div>

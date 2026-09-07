@@ -272,7 +272,7 @@ export default function Home() {
           <section className="pb-20">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
               <p className="flex items-center gap-2.5 text-sm font-semibold">
-                <Check className="size-4 text-brand-emerald" />
+                <Check className="size-4 text-brand-lime-ink" />
                 Evidence trail assembled
               </p>
               <ReuseNotice reuse={result.reuse} cached={result.cached} />
@@ -333,13 +333,13 @@ function TraceProgress({ progress }: { progress: string }) {
               key={stage.label}
               className={cn(
                 "border-t-2 pt-3 transition-opacity",
-                done && "border-brand-mint",
-                active && "border-brand-mint",
+                done && "border-brand-lime",
+                active && "border-brand-lime",
                 !done && !active && "border-white/15 opacity-45",
               )}
             >
               <p className="flex items-center gap-1.5 text-sm font-semibold">
-                {done && <Check className="size-3.5 text-brand-mint" />}
+                {done && <Check className="size-3.5 text-brand-lime" />}
                 {stage.label}
               </p>
               <p className="mt-0.5 text-xs text-white/45">{stage.detail}</p>
@@ -467,7 +467,7 @@ function ProvenanceMetric({ label, value }: { label: string; value: string }) {
 function ReuseNotice({ reuse, cached }: { reuse?: AnalysisReuse; cached: boolean }) {
   if (reuse?.state === "reused_exact" && reuse.expiresAt) {
     return (
-      <Badge variant="emerald">
+      <Badge variant="lime">
         Recent trace reused · {new Date(reuse.expiresAt).toLocaleDateString()}
       </Badge>
     );
