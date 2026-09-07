@@ -38,7 +38,7 @@ export async function normalizeInput(
       text,
       imageMetadata: {
         mimeType: input.imageMimeType,
-        ocrProvider: process.env.OCR_ENDPOINT ? "configured" : "model_fallback",
+        textExtractionProvider: "ai_provider",
         reverseSearchUrl,
         exif: extractExifMetadata(input.image),
       },
@@ -348,19 +348,6 @@ async function extractImageText(
   provider: AiProvider,
   signal?: AbortSignal,
 ) {
-  if (process.env.OCR_ENDPOINT) {
-    const response = await fetch(process.env.OCR_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(process.env.OCR_API_KEY ? { authorization: `Bearer ${process.env.OCR_API_KEY}` } : {}),
-      },
-      body: JSON.stringify({ image, mimeType }),
-      signal,
-    });
-    const payload = (await response.json()) as { text?: string };
-    if (payload.text?.trim()) return payload.text.trim();
-  }
   const result = await provider.generateFromImage(
     "Transcribe all visible text exactly. Preserve names, dates, numbers, captions, and source labels. Do not infer text that is not visible.",
     { data: image, mimeType },

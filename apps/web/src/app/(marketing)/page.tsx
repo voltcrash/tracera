@@ -138,7 +138,7 @@ export default function LandingPage() {
                 <div className="space-y-3">
                   <FormatRow icon="Aa" label="Paste text" status="Ready" active />
                   <FormatRow icon="↗" label="Drop a link" status="Detected" />
-                  <FormatRow icon="◫" label="Add an image" status="OCR + metadata" />
+                  <FormatRow icon="◫" label="Add an image" status="Vision + metadata" />
                 </div>
                 <div className="relative overflow-hidden rounded-2xl bg-sunken p-5">
                   <div className="mb-4 flex items-center gap-1.5" aria-hidden="true">

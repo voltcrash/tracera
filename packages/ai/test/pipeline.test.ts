@@ -384,7 +384,7 @@ test("image normalization sends the actual image through the multimodal provider
   const controller = new AbortController();
   const provider: AiProvider = {
     async generate() {
-      throw new Error("Text generation is not used for image OCR.");
+      throw new Error("Text generation is not used for image text extraction.");
     },
     async generateFromImage(_prompt, input, _schema, options) {
       receivedImage = input.data;
@@ -402,7 +402,7 @@ test("image normalization sends the actual image through the multimodal provider
   assert.equal(receivedImage, image);
   assert.equal(receivedSignal, controller.signal);
   assert.equal(normalized.text, "Visible headline");
-  assert.equal(normalized.imageMetadata?.ocrProvider, "model_fallback");
+  assert.equal(normalized.imageMetadata?.textExtractionProvider, "ai_provider");
 });
 
 test("retrieval stops immediately when its caller aborts", async () => {

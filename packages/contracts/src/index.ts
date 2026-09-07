@@ -83,7 +83,7 @@ export interface ImageMetadata {
   mimeType?: string;
   reverseSearchUrl?: string;
   exif?: Record<string, string>;
-  ocrProvider?: "configured" | "model_fallback";
+  textExtractionProvider?: "ai_provider";
 }
 
 export interface GroundZeroResult {

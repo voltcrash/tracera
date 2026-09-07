@@ -402,7 +402,8 @@ function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
   const details = [
     {
       label: "Text extraction",
-      value: metadata.ocrProvider === "configured" ? "Provider verified" : "Model fallback",
+      value:
+        metadata.textExtractionProvider === "ai_provider" ? "Selected AI provider" : "Unavailable",
     },
     { label: "File type", value: metadata.mimeType ?? "Unknown" },
     ...exif.slice(0, 4).map(([label, value]) => ({ label, value })),

@@ -33,7 +33,6 @@ what is needed:
   API-key-protected public API.
 - `GOOGLE_FACT_CHECK_API_KEY`, `NEWS_API_KEY`, `WEB_SEARCH_ENDPOINT`, and
   `WEB_SEARCH_API_KEY` — additional evidence retrieval providers.
-- `OCR_ENDPOINT` and `OCR_API_KEY` — external OCR for image submissions.
 - `REVERSE_IMAGE_SEARCH_ENDPOINT` and `REVERSE_IMAGE_SEARCH_API_KEY` —
   external reverse-image search for image provenance.
 
