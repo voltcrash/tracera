@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import type { CSSProperties } from "react";
+import { ThemeToggle } from "@/components/navigation/theme-toggle";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -84,9 +85,27 @@ export default function LandingPage() {
               className="brand-wordmark h-7 w-auto"
             />
           </Link>
-          <Button render={<Link href="/login" />} variant="ghost">
-            Log in
-          </Button>
+          <div className="flex items-center gap-5">
+            <nav className="hidden items-center gap-5 text-sm text-ink-soft sm:flex">
+              <a href="#trail" className="hover:text-foreground">
+                Where a story starts
+              </a>
+              <a href="#score" className="hover:text-foreground">
+                The score
+              </a>
+              <Link href="/hub" className="hover:text-foreground">
+                Traces
+              </Link>
+            </nav>
+            <ThemeToggle />
+            <Button
+              render={<Link href="/login" />}
+              variant="ghost"
+              className="hidden sm:inline-flex"
+            >
+              Log in
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -100,22 +119,7 @@ export default function LandingPage() {
             marks the ones that don&rsquo;t hold up.
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
-            <Button render={<Link href="/home" />} variant="brand" size="lg">
-              Check a story
-            </Button>
-            <Link
-              href="/hub"
-              className="text-sm font-semibold text-ink-soft underline underline-offset-4 hover:text-foreground"
-            >
-              Browse recent traces
-            </Link>
-          </div>
-          <p className="mt-4 text-sm text-ink-faint">
-            Paste the text, drop the link, or upload a screenshot.
-          </p>
-
-          <div className="mt-16 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14">
+          <div className="mt-14 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14">
             <div>
               <p className="text-sm text-ink-faint">Sample excerpt, as Tracera marks it</p>
               <blockquote className="mt-4 font-serif text-2xl leading-[1.6] sm:text-[1.7rem] sm:leading-[1.62]">
@@ -144,6 +148,21 @@ export default function LandingPage() {
                 </span>
                 .&rdquo;
               </blockquote>
+
+              <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-4">
+                <Button render={<Link href="/home" />} variant="brand" size="lg">
+                  Check a story
+                </Button>
+                <Link
+                  href="/hub"
+                  className="text-sm font-semibold text-ink-soft underline underline-offset-4 hover:text-foreground"
+                >
+                  Browse recent traces
+                </Link>
+              </div>
+              <p className="mt-5 text-sm text-ink-faint">
+                Paste the text, drop the link, or upload a screenshot.
+              </p>
             </div>
 
             <div className="space-y-7 border-t border-line pt-7 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-1">
