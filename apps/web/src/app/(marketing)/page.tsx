@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import type { CSSProperties } from "react";
-import { ThemeToggle } from "@/components/navigation/theme-toggle";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -97,7 +96,6 @@ export default function LandingPage() {
                 Traces
               </Link>
             </nav>
-            <ThemeToggle />
             <Button
               render={<Link href="/login" />}
               variant="ghost"
@@ -143,14 +141,20 @@ export default function LandingPage() {
                   className="claim claim-context"
                   style={{ "--claim-delay": "900ms" } as CSSProperties}
                 >
-                  every home will feel the benefit before winter
+                  every home will feel the benefit before winter, no matter where they live or what
+                  they earn
                   <span className="claim-marker">3</span>
                 </span>
                 .&rdquo;
               </blockquote>
 
               <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-4">
-                <Button render={<Link href="/home" />} variant="brand" size="lg">
+                <Button
+                  render={<Link href="/home" />}
+                  variant="brand"
+                  size="lg"
+                  className="dark:shadow-[3px_3px_0_#fff]"
+                >
                   Check a story
                 </Button>
                 <Link

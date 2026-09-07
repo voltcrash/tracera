@@ -17,7 +17,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
-import { ThemeToggle } from "@/components/navigation/theme-toggle";
 
 type AppScreen = "home" | "hub";
 
@@ -73,7 +72,6 @@ export function AppHeader({ active }: { active?: AppScreen }) {
       </nav>
 
       <div className="col-start-2 row-start-1 flex items-center justify-end gap-1.5 sm:col-start-3">
-        <ThemeToggle />
         {isLoading ? (
           <Skeleton className="size-10 rounded-full" aria-label="Loading account" />
         ) : user ? (

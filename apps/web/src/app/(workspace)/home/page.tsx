@@ -212,6 +212,7 @@ export default function Home() {
               <Button
                 type="submit"
                 variant="brand"
+                className="dark:shadow-[3px_3px_0_#fff]"
                 size="lg"
                 disabled={loading || isAuthLoading || (!text.trim() && !image)}
               >
