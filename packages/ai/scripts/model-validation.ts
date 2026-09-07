@@ -72,7 +72,7 @@ async function evaluateCase(evaluation: EvaluationCase) {
   const selectedClaim = selectClaim(claims, evaluation.expectedTerms);
   const evidence = evaluation.evidence.map((source) => ({
     ...source,
-    type: "web_search" as const,
+    type: "newsapi" as const,
     sourceDomain: new URL(source.url).hostname.replace(/^www\./, ""),
     similarity: 1,
   }));

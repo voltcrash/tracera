@@ -32,8 +32,6 @@ export interface VerifyTextOptions {
   factCheckApiKey?: string;
   corpusSimilarityThreshold?: number;
   newsApiKey?: string;
-  webSearchEndpoint?: string;
-  webSearchApiKey?: string;
   /** The surrounding story text used to keep short atomic claims on-topic. */
   storyContext?: string;
   /** The item being analyzed. It is context, not independent corroboration. */

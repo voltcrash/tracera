@@ -23,8 +23,6 @@ interface RetrieveSourcesOptions {
   corpusLimit?: number;
   factCheckLimit?: number;
   newsApiKey?: string;
-  webSearchEndpoint?: string;
-  webSearchApiKey?: string;
   claimEmbedding?: number[];
   storyContext?: string;
   submittedSource?: EvidenceSource;
@@ -95,7 +93,7 @@ export async function retrieveSources(
       : [];
   options.signal?.throwIfAborted();
 
-  const [corpus, factChecks, newsApi, webSearch] = await Promise.all([
+  const [corpus, factChecks, newsApi] = await Promise.all([
     corpusPromise,
     safelyRetrieve("Google Fact Check", () =>
       retrieveGoogleFactCheckSources(
@@ -109,15 +107,6 @@ export async function retrieveSources(
     safelyRetrieve("NewsAPI", () =>
       retrieveNewsApiSources(claim, options.newsApiKey, evidenceFetch, options.storyContext),
     ),
-    safelyRetrieve("web search", () =>
-      retrieveWebSearchSources(
-        claim,
-        options.webSearchEndpoint,
-        options.webSearchApiKey,
-        evidenceFetch,
-        options.storyContext,
-      ),
-    ),
   ]);
   options.signal?.throwIfAborted();
 
@@ -127,7 +116,6 @@ export async function retrieveSources(
     ...bingNews,
     ...factChecks,
     ...newsApi,
-    ...webSearch,
   ];
   const gdelt =
     initialCandidates.length < 2 && evidenceFetch.remaining() > 0
@@ -147,7 +135,6 @@ export async function retrieveSources(
     ...primaryGoogleNews,
     ...contextualGoogleNews,
     ...bingNews,
-    ...webSearch,
   ]);
   const trust = await safelyGetDomainTrustScores(deduplicated);
   options.signal?.throwIfAborted();
@@ -765,7 +752,7 @@ function significantTerms(text: string) {
 /**
  * A source must be about the same concrete subject, not simply share generic
  * news vocabulary. This hard boundary is applied to every source type,
- * including generic web search and publisher RSS feeds.
+ * including publisher RSS feeds.
  */
 function passesRelevanceGate(claim: ExtractedClaim, source: EvidenceSource, storyContext?: string) {
   if (!source.title.trim() || (source.type !== "corpus" && !source.url)) return false;
@@ -827,7 +814,6 @@ function sourceRank(source: EvidenceSource) {
     gdelt: 0.08,
     publisher_rss: 0.06,
     google_news_rss: 0.05,
-    web_search: 0.04,
   };
   return (source.similarity ?? 0) + sourcePriority[source.type] + (source.credibility ?? 0) * 0.1;
 }
@@ -868,45 +854,6 @@ function normalizeFeedDate(value?: string) {
   if (!value) return undefined;
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : value;
-}
-
-async function retrieveWebSearchSources(
-  claim: ExtractedClaim,
-  endpoint?: string,
-  apiKey?: string,
-  evidenceFetch: EvidenceFetch = limitedFetch(DEFAULT_EXTERNAL_REQUEST_LIMIT),
-  storyContext?: string,
-): Promise<EvidenceSource[]> {
-  if (!endpoint || !apiKey) return [];
-  const url = new URL(endpoint);
-  url.searchParams.set("q", claim.claimText);
-  const response = await evidenceFetch(url, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-  if (!response) return [];
-  if (!response.ok) return [];
-  const payload = (await response.json()) as {
-    results?: Array<{
-      title: string;
-      url: string;
-      snippet?: string;
-      publishedAt?: string;
-    }>;
-  };
-  const claimTerms = significantTerms(claim.claimText);
-  return (payload.results ?? [])
-    .slice(0, 8)
-    .map((item, index) => ({
-      id: `web:${index}`,
-      type: "web_search" as const,
-      title: item.title,
-      url: item.url,
-      sourceDomain: domain(item.url),
-      snippet: item.snippet,
-      publishedAt: item.publishedAt,
-      similarity: sourceRelevance(claimTerms, `${item.title} ${item.snippet ?? ""}`),
-    }))
-    .filter((source) => passesRelevanceGate(claim, source, storyContext));
 }
 
 function domain(value?: string) {

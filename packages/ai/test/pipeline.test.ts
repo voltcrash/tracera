@@ -185,8 +185,6 @@ test("evidence retrieval respects the Worker subrequest budget", async () => {
       corpusLimit: 0,
       factCheckApiKey: "test-fact-check-key",
       newsApiKey: "test-news-key",
-      webSearchEndpoint: "https://search.example.test",
-      webSearchApiKey: "test-search-key",
       externalRequestLimit: 2,
     });
 
@@ -323,7 +321,7 @@ test("the Tracera Score retains evidence and source signals separately", () => {
     consideredSources: [
       {
         id: "source-1",
-        type: "web_search",
+        type: "newsapi",
         title: "Independent evidence",
         credibility: 0.9,
         publishedAt: new Date().toISOString(),
@@ -332,7 +330,7 @@ test("the Tracera Score retains evidence and source signals separately", () => {
     supportingSources: [
       {
         id: "source-1",
-        type: "web_search",
+        type: "newsapi",
         title: "Independent evidence",
         credibility: 0.9,
         publishedAt: new Date().toISOString(),
@@ -377,8 +375,8 @@ test("article-level framing analysis drives the framing dimension", async () => 
   assert.equal(score.framingManipulation.score, 34);
 });
 
-test("image normalization sends the actual image through the multimodal provider", async () => {
-  const image = "data:image/png;base64,aGVsbG8=";
+test("image normalization uses the multimodal provider and links remote images to Lens", async () => {
+  const image = "https://images.example/headline.png";
   let receivedImage: string | undefined;
   let receivedSignal: AbortSignal | undefined;
   const controller = new AbortController();
@@ -403,6 +401,10 @@ test("image normalization sends the actual image through the multimodal provider
   assert.equal(receivedSignal, controller.signal);
   assert.equal(normalized.text, "Visible headline");
   assert.equal(normalized.imageMetadata?.textExtractionProvider, "ai_provider");
+  assert.equal(
+    normalized.imageMetadata?.reverseSearchUrl,
+    "https://lens.google.com/uploadbyurl?url=https%3A%2F%2Fimages.example%2Fheadline.png",
+  );
 });
 
 test("retrieval stops immediately when its caller aborts", async () => {
@@ -509,7 +511,7 @@ test("Ground Zero lowers confidence for index dates and citation chronology conf
     [
       {
         id: "indexed-earliest",
-        type: "web_search",
+        type: "google_news_rss",
         title: "Search-index candidate",
         url: "https://one.example/story",
         sourceDomain: "one.example",

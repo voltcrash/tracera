@@ -17,8 +17,7 @@ export type EvidenceSourceType =
   | "newsapi"
   | "gdelt"
   | "publisher_rss"
-  | "google_news_rss"
-  | "web_search";
+  | "google_news_rss";
 
 export interface EvidenceSource {
   id: string;

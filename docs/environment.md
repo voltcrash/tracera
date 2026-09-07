@@ -31,10 +31,8 @@ what is needed:
 
 - `PUBLIC_API_KEYS` — comma- or newline-separated keys that enable the
   API-key-protected public API.
-- `GOOGLE_FACT_CHECK_API_KEY`, `NEWS_API_KEY`, `WEB_SEARCH_ENDPOINT`, and
-  `WEB_SEARCH_API_KEY` — additional evidence retrieval providers.
-- `REVERSE_IMAGE_SEARCH_ENDPOINT` and `REVERSE_IMAGE_SEARCH_API_KEY` —
-  external reverse-image search for image provenance.
+- `GOOGLE_FACT_CHECK_API_KEY` and `NEWS_API_KEY` — additional evidence
+  retrieval providers.
 
 ## Operational settings
 

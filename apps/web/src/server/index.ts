@@ -509,7 +509,7 @@ async function runAnalysis(
         ? [
             {
               id: "submitted-source",
-              type: "web_search",
+              type: "submitted_source",
               title: normalized.sourceDomain ?? "Submitted publisher",
               url: normalized.sourceUrl,
               canonicalUrl: normalized.sourceUrl,
@@ -762,8 +762,6 @@ async function analyzeText(
       factCheckApiKey: process.env.GOOGLE_FACT_CHECK_API_KEY,
       corpusSimilarityThreshold: CORPUS_SIMILARITY,
       newsApiKey: process.env.NEWS_API_KEY,
-      webSearchEndpoint: process.env.WEB_SEARCH_ENDPOINT,
-      webSearchApiKey: process.env.WEB_SEARCH_API_KEY,
       claimEmbedding,
       storyContext: input.text,
       submittedSource: input.sourceUrl

@@ -28,10 +28,7 @@ export async function normalizeInput(
   options.signal?.throwIfAborted();
   if (input.url) return normalizeUrl(input.url, options.signal);
   if (input.image) {
-    const [text, reverseSearchUrl] = await Promise.all([
-      extractImageText(input.image, input.imageMimeType, provider, options.signal),
-      findReverseImageSearch(input.image, input.imageMimeType, options.signal),
-    ]);
+    const text = await extractImageText(input.image, input.imageMimeType, provider, options.signal);
     return {
       inputType: "image",
       rawInput: input.image,
@@ -39,7 +36,7 @@ export async function normalizeInput(
       imageMetadata: {
         mimeType: input.imageMimeType,
         textExtractionProvider: "ai_provider",
-        reverseSearchUrl,
+        reverseSearchUrl: getReverseImageSearchUrl(input.image),
         exif: extractExifMetadata(input.image),
       },
     };
@@ -357,33 +354,11 @@ async function extractImageText(
   return result.text;
 }
 
-async function findReverseImageSearch(image: string, mimeType?: string, signal?: AbortSignal) {
+function getReverseImageSearchUrl(image: string) {
   if (/^https?:\/\//i.test(image)) {
     return `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(image)}`;
   }
-  const endpoint = process.env.REVERSE_IMAGE_SEARCH_ENDPOINT;
-  if (!endpoint) return undefined;
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(process.env.REVERSE_IMAGE_SEARCH_API_KEY
-          ? {
-              authorization: `Bearer ${process.env.REVERSE_IMAGE_SEARCH_API_KEY}`,
-            }
-          : {}),
-      },
-      body: JSON.stringify({ image, mimeType }),
-      signal,
-    });
-    if (!response.ok) return undefined;
-    const payload = (await response.json()) as { searchUrl?: unknown };
-    return typeof payload.searchUrl === "string" ? payload.searchUrl : undefined;
-  } catch {
-    signal?.throwIfAborted();
-    return undefined;
-  }
+  return undefined;
 }
 
 function signalWithTimeout(signal: AbortSignal | undefined, milliseconds: number) {
