@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Newsreader } from "next/font/google";
 import localFont from "next/font/local";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { ThemeProvider, themeBootstrapScript } from "@/components/providers/theme-provider";
@@ -12,31 +13,36 @@ const geistMono = localFont({
   src: "./fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
 });
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-newsreader",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tracera.voltcrash.com"),
-  title: "Tracera — Don’t just read the story. Trace it.",
+  title: "Tracera — Every story is a stack of claims",
   description:
-    "Break news into checkable claims, trace each one to its sources, and see how the evidence changes over time.",
+    "Tracera takes a story apart one claim at a time, checks each against sources it can name, and marks the ones that don’t hold up.",
   openGraph: {
-    title: "Tracera — Don’t just read the story. Trace it.",
+    title: "Tracera — Every story is a stack of claims",
     description:
-      "Understand what a story gets right, what it leaves out, and where the evidence begins.",
+      "Tracera marks the claims in a story, traces them back to their earliest source, and shows the evidence behind each one.",
     type: "website",
     images: [
       {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Tracera evidence trail connecting a story to its claims and sources",
+        alt: "A news excerpt with its factual claims underlined and annotated in the margin",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tracera — Don’t just read the story. Trace it.",
+    title: "Tracera — Every story is a stack of claims",
     description:
-      "Understand what a story gets right, what it leaves out, and where the evidence begins.",
+      "Tracera marks the claims in a story, traces them back to their earliest source, and shows the evidence behind each one.",
     images: ["/og.png"],
   },
 };
@@ -58,7 +64,9 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} font-sans`}
+      >
         <ThemeProvider>
           <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>
