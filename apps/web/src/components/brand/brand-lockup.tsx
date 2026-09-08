@@ -45,7 +45,7 @@ export function BrandLockup({
   return (
     <span className={cn("flex items-center gap-2", className)}>
       <TraceraMark className={markClassName} />
-      <span className="font-serif text-2xl leading-none tracking-tight text-foreground">
+      <span className="font-serif text-2xl uppercase leading-none tracking-wide text-foreground">
         Tracera
       </span>
     </span>
