@@ -4,7 +4,7 @@ export function TraceraMark({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 32 32"
-      className={cn("h-7 w-7", className)}
+      className={cn("h-8 w-8", className)}
       aria-hidden="true"
       focusable="false"
     >
@@ -45,7 +45,7 @@ export function BrandLockup({
   return (
     <span className={cn("flex items-center gap-2", className)}>
       <TraceraMark className={markClassName} />
-      <span className="font-serif text-xl leading-none tracking-tight text-foreground">
+      <span className="font-serif text-2xl leading-none tracking-tight text-foreground">
         Tracera
       </span>
     </span>

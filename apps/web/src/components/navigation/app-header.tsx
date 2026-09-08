@@ -42,7 +42,7 @@ export function AppHeader({ active }: { active?: AppScreen }) {
         className="col-start-1 row-start-1 block w-fit rounded-lg transition hover:-translate-y-0.5"
         aria-label="Tracera analysis home"
       >
-        <BrandLockup markClassName="h-7 w-7 sm:h-8 sm:w-8" />
+        <BrandLockup markClassName="h-8 w-8 sm:h-9 sm:w-9" />
       </Link>
 
       <nav
