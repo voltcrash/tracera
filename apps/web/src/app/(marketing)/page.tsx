@@ -104,7 +104,7 @@ export default function LandingPage() {
             <Button
               type="button"
               variant="outline"
-              className="color-sweep-button rounded-full px-5"
+              className="color-sweep-button theme-primary-cta rounded-full px-5"
               onClick={showGoogleSignIn}
             >
               Try Tracera

@@ -410,6 +410,13 @@
   --button-sweep-foreground: var(--login-cta-sweep-foreground);
 }
 
+.dark .theme-primary-cta {
+  --button-base: var(--login-cta-base);
+  --button-base-foreground: var(--login-cta-base-foreground);
+  --button-sweep: var(--login-cta-sweep);
+  --button-sweep-foreground: var(--login-cta-sweep-foreground);
+}
+
 .google-cta-highlight .color-sweep-button {
   animation: google-cta-highlight 1.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
