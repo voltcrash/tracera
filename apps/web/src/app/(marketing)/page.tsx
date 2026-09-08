@@ -254,7 +254,7 @@ export default function LandingPage() {
         </section>
       </div>
 
-      <section className="bg-panel text-panel-foreground">
+      <section className="landing-cta bg-panel text-panel-foreground">
         <div className="mx-auto max-w-5xl px-6 py-24">
           <h2 className="max-w-[16ch] font-serif text-4xl leading-[1.1] tracking-[-0.02em] sm:text-5xl">
             Bring something you&rsquo;re not sure about.
