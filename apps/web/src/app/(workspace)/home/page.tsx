@@ -4,8 +4,7 @@ import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
 import type { AnalysisResponse, AnalysisReuse, ImageMetadata } from "@repo/contracts";
 import Image from "next/image";
 import { Check, ExternalLink, ImagePlus, Loader2, Newspaper, Sparkles, Trash2 } from "lucide-react";
-import { AnalysisResult } from "@/components/analysis/analysis-result";
-import { GroundZeroCard } from "@/components/analysis/ground-zero-card";
+import { TraceAside, TraceReport } from "@/components/analysis/trace-report";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { apiUrl } from "@/lib/api";
@@ -234,32 +233,35 @@ export default function Home() {
         )}
 
         {result && (
-          <section className="pb-20 pt-10">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
-              <p className="flex items-center gap-2.5 text-sm font-semibold">
+          <section className="pb-24 pt-10">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <p className="flex items-center gap-2.5 text-sm text-ink-soft">
                 <Check className="size-4 text-brand-lime-ink" />
                 Evidence trail assembled
               </p>
-              <ReuseNotice reuse={result.reuse} cached={result.cached} />
+              <div className="flex items-center gap-3">
+                <ReuseNotice reuse={result.reuse} cached={result.cached} />
+                {result.reuse?.state === "reused_exact" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void analyze(undefined, true)}
+                    disabled={loading}
+                  >
+                    Check again with today&rsquo;s evidence
+                  </Button>
+                )}
+              </div>
             </div>
-            <AnalysisResult
+            <TraceReport
               claims={result.claims}
               score={result.traceraScore}
               framing={result.framingAnalysis}
-            />
-            {result.reuse?.state === "reused_exact" && (
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4"
-                onClick={() => void analyze(undefined, true)}
-                disabled={loading}
-              >
-                Analyze again with current evidence
-              </Button>
-            )}
-            {result.groundZero && <GroundZeroCard trace={result.groundZero} />}
-            {result.inputMetadata && <ImageProvenance metadata={result.inputMetadata} />}
+              groundZero={result.groundZero}
+            >
+              {result.inputMetadata && <ImageProvenance metadata={result.inputMetadata} />}
+            </TraceReport>
           </section>
         )}
       </div>
@@ -375,53 +377,40 @@ function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
   ];
 
   return (
-    <section className="mt-8 border-t border-border pt-8">
-      <div className="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-[-.03em]">The file leaves clues too</h2>
-          <p className="mt-2 max-w-[46ch] text-sm leading-relaxed text-muted-foreground">
-            Visible text and embedded metadata were inspected alongside the claims.
+    <TraceAside margin="The file" gloss="Metadata carried inside the image itself.">
+      <h2 className="trace-section-title">The file leaves clues too</h2>
+      <p className="trace-section-say">
+        Visible text and embedded metadata were inspected alongside the claims.
+      </p>
+      <dl className="mt-6 max-w-[38rem]">
+        {details.map((detail) => (
+          <ProvenanceMetric key={detail.label} label={detail.label} value={detail.value} />
+        ))}
+        {!exif.length && (
+          <p className="pt-3 text-sm text-ink-faint">
+            No embedded camera or location data was present.
           </p>
-          {metadata.reverseSearchUrl && (
-            <Button
-              render={
-                <a
-                  href={metadata.reverseSearchUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Search this image with Google Lens"
-                />
-              }
-              variant="link"
-              size="sm"
-              className="mt-2 -ml-3"
-            >
-              Search this image with Google Lens
-              <ExternalLink />
-            </Button>
-          )}
-        </div>
-        {exif.length || details.length ? (
-          <dl className="divide-y divide-border">
-            {details.map((detail) => (
-              <ProvenanceMetric key={detail.label} label={detail.label} value={detail.value} />
-            ))}
-            {!exif.length && (
-              <div className="py-2.5 text-sm text-muted-foreground">
-                No embedded camera or location data was present.
-              </div>
-            )}
-          </dl>
-        ) : null}
-      </div>
-    </section>
+        )}
+      </dl>
+      {metadata.reverseSearchUrl && (
+        <a
+          href={metadata.reverseSearchUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="trace-external mt-4 inline-flex text-sm"
+        >
+          Search this image with Google Lens
+          <ExternalLink />
+        </a>
+      )}
+    </TraceAside>
   );
 }
 
 function ProvenanceMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-6 py-2.5">
-      <dt className="text-sm capitalize text-muted-foreground">{label}</dt>
+    <div className="flex items-baseline justify-between gap-6 border-t border-line-weak py-2.5">
+      <dt className="text-sm capitalize text-ink-faint">{label}</dt>
       <dd className="truncate text-sm font-semibold" title={value}>
         {value}
       </dd>
