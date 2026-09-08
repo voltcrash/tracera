@@ -15,12 +15,12 @@
   "dependencies": {
     "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
-    "zod": "^4.1.13"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
-    "@types/node": "^22.15.3",
-    "tsx": "^4.20.6",
-    "typescript": "5.9.2"
+    "@types/node": "^26.5.0",
+    "tsx": "^4.23.13",
+    "typescript": "7.0.2"
   }
 }
