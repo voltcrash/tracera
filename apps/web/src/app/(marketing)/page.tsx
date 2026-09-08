@@ -89,7 +89,7 @@ export default function LandingPage() {
     <main className="doc min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-50 border-b border-line bg-background/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/" aria-label="Tracera home">
+          <Link href="/" className="flex h-10 items-center" aria-label="Tracera home">
             <BrandLockup />
           </Link>
           <div className="flex h-10 items-center gap-5">
