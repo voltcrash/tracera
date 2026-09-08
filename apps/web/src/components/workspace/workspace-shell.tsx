@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -216,12 +217,14 @@ function RailAccount() {
             sideOffset={8}
             className="w-[16.25rem] max-w-[calc(100vw-1.25rem)] min-w-0 p-1.5"
           >
-            <DropdownMenuLabel className="flex items-center gap-2.5 px-2 py-2">
-              <Avatar className="size-8">
-                <AvatarFallback>{user.email.slice(0, 2)}</AvatarFallback>
-              </Avatar>
-              <span className="truncate text-sm text-popover-foreground">{user.email}</span>
-            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="flex items-center gap-2.5 px-2 py-2">
+                <Avatar className="size-8">
+                  <AvatarFallback>{user.email.slice(0, 2)}</AvatarFallback>
+                </Avatar>
+                <span className="truncate text-sm text-popover-foreground">{user.email}</span>
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem>
               <Settings />

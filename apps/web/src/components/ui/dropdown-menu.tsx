@@ -66,6 +66,10 @@ function DropdownMenuItem({
   );
 }
 
+function DropdownMenuGroup({ ...props }: DropdownMenuPrimitive.Group.Props) {
+  return <DropdownMenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />;
+}
+
 function DropdownMenuLabel({
   className,
   inset,
@@ -96,6 +100,7 @@ export {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
 };
