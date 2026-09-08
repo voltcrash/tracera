@@ -6,7 +6,6 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import type { ClaimResult, FramingAnalysis, TraceraScore } from "@repo/contracts";
 import { AnalysisResult, ScoreCard } from "@/components/analysis/analysis-result";
 import { GroundZeroCard, type GroundZeroTrace } from "@/components/analysis/ground-zero-card";
-import { AccountRequired } from "@/components/auth/account-required";
 import { AppHeader } from "@/components/navigation/app-header";
 import { useAuth } from "@/components/providers/auth-provider";
 import { apiUrl } from "@/lib/api";
@@ -92,7 +91,6 @@ export function TraceDetail({ id }: { id: string }) {
             Restoring your account…
           </p>
         )}
-        {!isAuthLoading && !user && <AccountRequired feature="this News Hub trace" />}
         {!isAuthLoading && user && (
           <>
             {error && (

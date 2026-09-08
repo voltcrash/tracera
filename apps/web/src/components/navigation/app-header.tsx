@@ -17,7 +17,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
-import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 
 type AppScreen = "home" | "hub";
 
@@ -104,9 +103,7 @@ export function AppHeader({ active }: { active?: AppScreen }) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        ) : (
-          <GoogleSignInButton expandable className="rounded-full" />
-        )}
+        ) : null}
       </div>
     </header>
   );

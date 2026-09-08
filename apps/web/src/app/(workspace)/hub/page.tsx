@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Bookmark } from "lucide-react";
-import { AccountRequired } from "@/components/auth/account-required";
 import { AppHeader } from "@/components/navigation/app-header";
 import { useAuth } from "@/components/providers/auth-provider";
 import {
@@ -160,7 +159,6 @@ export default function HubPage() {
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <AppHeader active="hub" />
         {isAuthLoading && <TraceLoading />}
-        {!isAuthLoading && !user && <AccountRequired feature="the News Hub" />}
         {!isAuthLoading && user && (
           <section className="pb-16 pt-6 sm:pt-8 lg:pb-24">
             <div className="grid gap-4 lg:grid-cols-[1fr_1fr] xl:gap-5">

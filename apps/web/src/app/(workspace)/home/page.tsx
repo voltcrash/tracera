@@ -3,7 +3,6 @@
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
 import type { AnalysisResponse, AnalysisReuse, ImageMetadata } from "@repo/contracts";
 import Image from "next/image";
-import Link from "next/link";
 import {
   ArrowRight,
   Check,
@@ -15,11 +14,10 @@ import {
 } from "lucide-react";
 import { AnalysisResult } from "@/components/analysis/analysis-result";
 import { GroundZeroCard } from "@/components/analysis/ground-zero-card";
-import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { AppHeader } from "@/components/navigation/app-header";
 import { useAuth } from "@/components/providers/auth-provider";
 import { apiUrl } from "@/lib/api";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,16 +41,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("Preparing the evidence trace.");
   const [privateTrace, setPrivateTrace] = useState(false);
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
   async function analyze(event?: FormEvent<HTMLFormElement>, forceReanalysis = false) {
     event?.preventDefault();
     if (!text.trim() && !image) return;
-    if (!user) {
-      setShowAuthPrompt(true);
-      return;
-    }
-    setShowAuthPrompt(false);
+    if (!user) return;
     setLoading(true);
     setError(null);
     setResult(null);
@@ -242,21 +235,6 @@ export default function Home() {
               </div>
             )}
           </form>
-          {showAuthPrompt && !user && (
-            <Alert variant="info" className="mt-5">
-              <Check />
-              <AlertTitle>Sign in to start this fact-check.</AlertTitle>
-              <AlertDescription>
-                <p>Sign in or create an account to trace it against the evidence.</p>
-                <div className="mt-3 flex gap-2">
-                  <GoogleSignInButton size="sm" variant="default" />
-                  <Button render={<Link href="/signup" />} size="sm" variant="outline">
-                    Create account
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
           <p className="mt-4 text-center text-xs text-muted-foreground">
             Links are detected automatically. Images up to 5 MB.
           </p>
