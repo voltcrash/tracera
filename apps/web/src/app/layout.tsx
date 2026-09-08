@@ -21,11 +21,11 @@ const newsreader = Newsreader({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tracera.voltcrash.com"),
-  title: "Tracera — Every story is a stack of claims",
+  title: "Tracera - trace a story to its source",
   description:
     "Tracera takes a story apart one claim at a time, checks each against sources it can name, and marks the ones that don’t hold up.",
   openGraph: {
-    title: "Tracera — Every story is a stack of claims",
+    title: "Tracera - trace a story to its source",
     description:
       "Tracera marks the claims in a story, traces them back to their earliest source, and shows the evidence behind each one.",
     type: "website",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tracera — Every story is a stack of claims",
+    title: "Tracera - trace a story to its source",
     description:
       "Tracera marks the claims in a story, traces them back to their earliest source, and shows the evidence behind each one.",
     images: ["/og.png"],
