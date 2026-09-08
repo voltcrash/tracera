@@ -64,7 +64,7 @@ function scoreTone(value: number) {
 }
 
 export default function LandingPage() {
-  const { isLoading, user } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const googleCtaRef = useRef<HTMLDivElement>(null);
 
@@ -85,7 +85,7 @@ export default function LandingPage() {
     googleCta.classList.add("google-cta-highlight");
   }
 
-  if (isLoading || user) return null;
+  if (user) return null;
 
   return (
     <main className="doc min-h-screen bg-background text-foreground">

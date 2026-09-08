@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!session.isPending && !user && pathname !== "/") router.replace("/");
   }, [pathname, router, session.isPending, user]);
 
-  const canRender = pathname === "/" || Boolean(user);
+  const canRender = pathname === "/" || session.isPending || Boolean(user);
 
   return <AuthContext.Provider value={value}>{canRender ? children : null}</AuthContext.Provider>;
 }

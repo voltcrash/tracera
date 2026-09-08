@@ -3,7 +3,15 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 export function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname === "/" || getSessionCookie(request, { cookiePrefix: "tracera" })) {
+  const sessionCookie = getSessionCookie(request, { cookiePrefix: "tracera" });
+
+  if (request.nextUrl.pathname === "/") {
+    return sessionCookie
+      ? NextResponse.redirect(new URL("/home", request.url))
+      : NextResponse.next();
+  }
+
+  if (sessionCookie) {
     return NextResponse.next();
   }
 
