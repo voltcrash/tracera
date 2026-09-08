@@ -3,10 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { useAuth } from "@/components/providers/auth-provider";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const notes = [
@@ -65,10 +66,25 @@ function scoreTone(value: number) {
 export default function LandingPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const googleCtaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (user) router.replace("/home");
   }, [router, user]);
+
+  function showGoogleSignIn() {
+    const googleCta = googleCtaRef.current;
+    if (!googleCta) return;
+
+    googleCta.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "center",
+    });
+    googleCta.classList.remove("google-cta-highlight");
+    void googleCta.offsetWidth;
+    googleCta.classList.add("google-cta-highlight");
+    googleCta.querySelector("button")?.focus({ preventScroll: true });
+  }
 
   return (
     <main className="doc min-h-screen bg-background text-foreground">
@@ -93,10 +109,14 @@ export default function LandingPage() {
                 The score
               </a>
             </nav>
-            <GoogleSignInButton
-              label="Try Tracera"
+            <Button
+              type="button"
+              variant="outline"
               className="color-sweep-button login-cta rounded-full px-5"
-            />
+              onClick={showGoogleSignIn}
+            >
+              Try Tracera
+            </Button>
           </div>
         </div>
       </header>
@@ -142,7 +162,10 @@ export default function LandingPage() {
                 .&rdquo;
               </blockquote>
 
-              <div className="mt-12">
+              <p className="mt-10 text-sm text-ink-faint">
+                Paste the text, drop the link, or upload a screenshot.
+              </p>
+              <div id="try-tracera" ref={googleCtaRef} className="mt-5 inline-flex rounded-2xl">
                 <GoogleSignInButton
                   label="Continue with Google"
                   showGoogleMark
@@ -151,9 +174,6 @@ export default function LandingPage() {
                   className="color-sweep-button"
                 />
               </div>
-              <p className="mt-5 text-sm text-ink-faint">
-                Paste the text, drop the link, or upload a screenshot.
-              </p>
             </div>
 
             <div className="space-y-7 border-t border-line pt-7 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-1">
@@ -248,12 +268,14 @@ export default function LandingPage() {
             Bring something you&rsquo;re not sure about.
           </h2>
           <div className="mt-10">
-            <GoogleSignInButton
-              label="Continue with Google"
-              showGoogleMark
-              variant="lime"
-              size="lg"
-            />
+            <Button
+              type="button"
+              variant="outline"
+              className="color-sweep-button login-cta rounded-full px-5"
+              onClick={showGoogleSignIn}
+            >
+              Try Tracera
+            </Button>
           </div>
           <p className="mt-8 max-w-[56ch] text-sm leading-6 text-panel-muted">
             Tracera is automated, and it can be wrong. Every claim it marks shows the sources behind

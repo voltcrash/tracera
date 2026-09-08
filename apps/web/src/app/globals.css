@@ -419,6 +419,21 @@
   --button-sweep-foreground: var(--login-cta-sweep-foreground);
 }
 
+.google-cta-highlight {
+  animation: google-cta-highlight 2.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes google-cta-highlight {
+  18%,
+  58% {
+    box-shadow:
+      0 0 0 4px var(--background),
+      0 0 0 8px var(--lime),
+      0 0 34px 10px color-mix(in oklab, var(--lime) 42%, transparent);
+    transform: scale(1.035);
+  }
+}
+
 .google-sign-in-button {
   overflow: hidden;
 }
@@ -549,6 +564,10 @@
   .note {
     animation: none;
     opacity: 1;
+  }
+
+  .google-cta-highlight {
+    animation-duration: 1.2s;
   }
 }
 
