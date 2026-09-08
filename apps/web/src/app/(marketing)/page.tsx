@@ -5,9 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import type { CSSProperties } from "react";
-import { useAuth } from "@/components/providers/auth-provider";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
-import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
 const notes = [
@@ -93,12 +92,9 @@ export default function LandingPage() {
               <a href="#score" className="hover:text-foreground">
                 The score
               </a>
-              <Link href="/hub" className="hover:text-foreground">
-                Traces
-              </Link>
             </nav>
             <GoogleSignInButton
-              expandable
+              label="Try Tracera"
               className="color-sweep-button login-cta rounded-full px-5"
             />
           </div>
@@ -146,21 +142,14 @@ export default function LandingPage() {
                 .&rdquo;
               </blockquote>
 
-              <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-4">
-                <Button
-                  render={<Link href="/home" />}
+              <div className="mt-12">
+                <GoogleSignInButton
+                  label="Continue with Google"
+                  showGoogleMark
                   variant="brand"
                   size="lg"
                   className="color-sweep-button"
-                >
-                  Check a story
-                </Button>
-                <Link
-                  href="/hub"
-                  className="text-sm font-semibold text-ink-soft underline underline-offset-4 hover:text-foreground"
-                >
-                  Browse recent traces
-                </Link>
+                />
               </div>
               <p className="mt-5 text-sm text-ink-faint">
                 Paste the text, drop the link, or upload a screenshot.
@@ -259,9 +248,12 @@ export default function LandingPage() {
             Bring something you&rsquo;re not sure about.
           </h2>
           <div className="mt-10">
-            <Button render={<Link href="/home" />} variant="lime" size="lg">
-              Check a story
-            </Button>
+            <GoogleSignInButton
+              label="Continue with Google"
+              showGoogleMark
+              variant="lime"
+              size="lg"
+            />
           </div>
           <p className="mt-8 max-w-[56ch] text-sm leading-6 text-panel-muted">
             Tracera is automated, and it can be wrong. Every claim it marks shows the sources behind

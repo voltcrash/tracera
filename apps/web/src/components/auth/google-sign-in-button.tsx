@@ -9,13 +9,17 @@ import { cn } from "@/lib/utils";
 type GoogleSignInButtonProps = {
   className?: string;
   expandable?: boolean;
+  label?: string;
+  showGoogleMark?: boolean;
   size?: "sm" | "default" | "lg";
-  variant?: "default" | "outline";
+  variant?: "default" | "brand" | "lime" | "outline";
 };
 
 export function GoogleSignInButton({
   className,
   expandable = false,
+  label,
+  showGoogleMark = false,
   size = "default",
   variant = "outline",
 }: GoogleSignInButtonProps) {
@@ -46,13 +50,18 @@ export function GoogleSignInButton({
         size={size}
         className={cn(expandable && "google-sign-in-button", className)}
         disabled={isStarting}
-        aria-label={isStarting ? "Opening Google sign-in" : "Sign in with Google"}
+        aria-label={isStarting ? "Opening Google sign-in" : (label ?? "Sign in with Google")}
         onClick={() => void signInWithGoogle()}
       >
         {isStarting ? (
           <>
             <Loader2 className="animate-spin" />
             <span>Opening Google…</span>
+          </>
+        ) : label ? (
+          <>
+            {showGoogleMark ? <GoogleMark /> : null}
+            <span>{label}</span>
           </>
         ) : (
           <span className="flex items-center">
