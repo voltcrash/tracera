@@ -35,7 +35,6 @@ export default function AuthErrorPage() {
 function AuthError() {
   const params = useSearchParams();
   const errorCode = params.get("error") ?? "unknown";
-  const isSignup = params.get("flow") === "signup";
   const message =
     ERROR_MESSAGES.get(errorCode) ?? "We could not complete sign-in. Please try again shortly.";
 
@@ -52,13 +51,7 @@ function AuthError() {
           <CardDescription className="mt-2 leading-relaxed">{message}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row">
-          {isSignup ? (
-            <Button render={<Link href="/signup" />} size="lg" className="flex-1">
-              Try again
-            </Button>
-          ) : (
-            <GoogleSignInButton size="lg" variant="default" className="flex-1" />
-          )}
+          <GoogleSignInButton size="lg" variant="default" className="flex-1" />
           <Button render={<Link href="/" />} size="lg" variant="outline" className="flex-1">
             Return home
           </Button>
