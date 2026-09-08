@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, Newspaper, PenLine, X } from "lucide-react";
+import { LogOut, Menu, Newspaper, PenLine, Settings, X } from "lucide-react";
 import type { TraceSummary } from "@/app/(workspace)/hub/_components/trace-library";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -201,21 +201,35 @@ function RailAccount() {
       ) : (
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<button type="button" className="rail-account" aria-label="Account" />}
+            render={
+              <button type="button" className="rail-account" aria-label="Open account menu" />
+            }
           >
             <Avatar className="size-7">
               <AvatarFallback>{user.email.slice(0, 2)}</AvatarFallback>
             </Avatar>
             <span className="truncate">{user.email}</span>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-56">
-            <DropdownMenuLabel className="truncate text-muted-foreground">
-              {user.email}
+          <DropdownMenuContent
+            align="start"
+            side="top"
+            sideOffset={8}
+            className="w-[16.25rem] max-w-[calc(100vw-1.25rem)] min-w-0 p-1.5"
+          >
+            <DropdownMenuLabel className="flex items-center gap-2.5 px-2 py-2">
+              <Avatar className="size-8">
+                <AvatarFallback>{user.email.slice(0, 2)}</AvatarFallback>
+              </Avatar>
+              <span className="truncate text-sm text-popover-foreground">{user.email}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem>
+              <Settings />
+              Settings
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => void handleSignOut()}>
               <LogOut />
-              Log out
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
