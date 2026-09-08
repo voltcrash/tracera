@@ -442,10 +442,11 @@ app.get("/checks", async (context) => {
   const page = positiveInteger(context.req.query("page"), 1, 10_000);
   const pageSize = positiveInteger(context.req.query("pageSize"), 20, 100);
   const query = (context.req.query("q") ?? "").slice(0, 200);
+  const ownedOnly = context.req.query("scope") === "mine";
 
   try {
     const user = await currentUser(context);
-    const result = await listChecks(page, pageSize, query, user?.id);
+    const result = await listChecks(page, pageSize, query, user?.id, ownedOnly);
     return context.json({
       checks: result.checks,
       pagination: {

@@ -6,7 +6,6 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import type { ClaimResult, FramingAnalysis, TraceraScore } from "@repo/contracts";
 import { AnalysisResult, ScoreCard } from "@/components/analysis/analysis-result";
 import { GroundZeroCard, type GroundZeroTrace } from "@/components/analysis/ground-zero-card";
-import { AppHeader } from "@/components/navigation/app-header";
 import { useAuth } from "@/components/providers/auth-provider";
 import { apiUrl } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -85,7 +84,6 @@ export function TraceDetail({ id }: { id: string }) {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <AppHeader active="hub" />
         {isAuthLoading && (
           <p className="mt-10 text-sm font-medium text-muted-foreground" role="status">
             Restoring your account…

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Bookmark } from "lucide-react";
-import { AppHeader } from "@/components/navigation/app-header";
 import { useAuth } from "@/components/providers/auth-provider";
 import {
   TraceCard,
@@ -157,7 +156,6 @@ export default function HubPage() {
   return (
     <main className="hub-page min-h-screen text-foreground">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <AppHeader active="hub" />
         {isAuthLoading && <TraceLoading />}
         {!isAuthLoading && user && (
           <section className="pb-16 pt-6 sm:pt-8 lg:pb-24">

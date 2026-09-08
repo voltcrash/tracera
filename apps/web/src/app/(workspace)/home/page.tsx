@@ -3,19 +3,11 @@
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
 import type { AnalysisResponse, AnalysisReuse, ImageMetadata } from "@repo/contracts";
 import Image from "next/image";
-import {
-  ArrowRight,
-  Check,
-  ExternalLink,
-  ImagePlus,
-  Loader2,
-  Sparkles,
-  Trash2,
-} from "lucide-react";
+import { Check, ExternalLink, ImagePlus, Loader2, Newspaper, Sparkles, Trash2 } from "lucide-react";
 import { AnalysisResult } from "@/components/analysis/analysis-result";
 import { GroundZeroCard } from "@/components/analysis/ground-zero-card";
-import { AppHeader } from "@/components/navigation/app-header";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { apiUrl } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const example =
@@ -41,6 +34,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("Preparing the evidence trace.");
   const [privateTrace, setPrivateTrace] = useState(false);
+  const refreshHistory = useHistoryRefresh();
 
   async function analyze(event?: FormEvent<HTMLFormElement>, forceReanalysis = false) {
     event?.preventDefault();
@@ -68,6 +62,7 @@ export default function Home() {
       });
       if (!response.ok) throw new Error("Unable to start this analysis.");
       setResult(await readAnalysisStream(response, setProgress));
+      refreshHistory();
     } catch (requestError) {
       setError(
         requestError instanceof Error ? requestError.message : "Unable to analyze this text.",
@@ -119,136 +114,128 @@ export default function Home() {
   }
 
   return (
-    <main className="app-enter min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <AppHeader active="home" />
-        <section
-          className={`mx-auto flex max-w-4xl flex-col justify-center ${result || loading ? "py-12 sm:py-16" : "min-h-[calc(100vh-10rem)] py-16 sm:py-24"}`}
-        >
-          <div className="text-center">
-            <h1 className="text-4xl font-black leading-[.94] tracking-[-.07em] sm:text-6xl">
-              Trace a story to its source.
-            </h1>
-            <p className="mx-auto mt-5 max-w-[52ch] text-base leading-relaxed text-muted-foreground">
-              Paste what you&apos;ve seen. Tracera separates the claims, retrieves the evidence, and
-              shows how the verdict was built.
-            </p>
-          </div>
+    <main className="home">
+      <div className={cn("home-inner", (result || loading) && "home-inner-working")}>
+        {!result && !loading && <h1 className="home-headline">What did you see?</h1>}
 
-          <form
-            onSubmit={analyze}
-            className="analyze-composer mt-10 overflow-hidden rounded-3xl border border-border bg-card shadow-(--shadow-card)"
-          >
-            <label className="sr-only" htmlFor="story-input">
-              Story or claim to analyze
-            </label>
-            {image ? (
-              <div className="relative m-3 overflow-hidden rounded-2xl bg-muted p-4 sm:m-4">
-                <Image
-                  src={image.dataUrl}
-                  alt="Selected for analysis"
-                  width={800}
-                  height={400}
-                  unoptimized
-                  className="h-56 w-full rounded-xl object-contain"
-                />
-                <div className="mt-3 flex items-center justify-between gap-3 text-sm font-semibold text-muted-foreground">
-                  <span className="truncate">{image.name}</span>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setImage(null)}>
-                    <Trash2 />
-                    Remove
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Textarea
-                id="story-input"
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                onPaste={pasteImage}
-                disabled={loading}
-                required={!image}
-                rows={5}
-                placeholder="Paste a headline, claim, article, public link, or image…"
-                className="min-h-44 resize-none rounded-none border-0 bg-transparent p-6 text-base font-medium leading-7 shadow-none focus-visible:ring-0 sm:min-h-48 sm:p-7"
+        <form onSubmit={analyze} className="composer app-enter">
+          <label className="sr-only" htmlFor="story-input">
+            Story or claim to analyze
+          </label>
+          {image ? (
+            <div className="composer-image">
+              <Image
+                src={image.dataUrl}
+                alt="Selected for analysis"
+                width={800}
+                height={400}
+                unoptimized
+                className="h-52 w-full rounded-lg object-contain"
               />
-            )}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-muted/60 px-5 py-4 sm:px-6">
-              <div className="flex items-center gap-1">
-                <Button type="button" variant="link" size="sm" onClick={() => setText(example)}>
-                  <Sparkles />
-                  Try an example
-                </Button>
-                <Button
-                  render={
-                    <label
-                      htmlFor="trace-image"
-                      className="cursor-pointer"
-                      aria-label="Add image"
-                    />
-                  }
-                  variant="link"
-                  size="sm"
-                >
-                  <ImagePlus />
-                  Add image
-                  <input
-                    id="trace-image"
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="sr-only"
-                    onChange={selectImage}
-                    disabled={loading}
-                  />
+              <div className="mt-3 flex items-center justify-between gap-3 text-sm text-ink-soft">
+                <span className="truncate">{image.name}</span>
+                <Button type="button" variant="outline" size="sm" onClick={() => setImage(null)}>
+                  <Trash2 />
+                  Remove
                 </Button>
               </div>
-              <Button
-                type="submit"
-                variant="brand"
-                className="dark:shadow-[3px_3px_0_#fff]"
-                size="lg"
-                disabled={loading || isAuthLoading || (!text.trim() && !image)}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="animate-spin" /> Tracing evidence…
-                  </>
-                ) : (
-                  <>
-                    Analyze <ArrowRight />
-                  </>
-                )}
-              </Button>
             </div>
-            {user && (
-              <div className="flex items-center gap-2.5 border-t border-border px-6 py-3.5">
-                <Checkbox
-                  id="private-trace"
-                  checked={privateTrace}
-                  onCheckedChange={(checked) => setPrivateTrace(checked === true)}
+          ) : (
+            <Textarea
+              id="story-input"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              onPaste={pasteImage}
+              disabled={loading}
+              required={!image}
+              rows={4}
+              placeholder="Paste a headline, claim, article, public link, or image…"
+              className="composer-input"
+            />
+          )}
+          <div className="composer-bar">
+            <div className="flex min-w-0 items-center gap-3">
+              <Button
+                render={
+                  <label htmlFor="trace-image" className="cursor-pointer" aria-label="Add image" />
+                }
+                variant="ghost"
+                size="icon-sm"
+                className="text-ink-faint hover:text-foreground"
+              >
+                <ImagePlus />
+                <input
+                  id="trace-image"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={selectImage}
                   disabled={loading}
                 />
-                <Label htmlFor="private-trace" className="text-xs text-muted-foreground">
-                  Keep this trace private
-                </Label>
-              </div>
-            )}
-          </form>
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            Links are detected automatically. Images up to 5 MB.
-          </p>
+              </Button>
+              {user && (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="private-trace"
+                    checked={privateTrace}
+                    onCheckedChange={(checked) => setPrivateTrace(checked === true)}
+                    disabled={loading}
+                  />
+                  <Label htmlFor="private-trace" className="text-xs font-normal text-ink-faint">
+                    Keep private
+                  </Label>
+                </div>
+              )}
+            </div>
+            <Button
+              type="submit"
+              variant="brand"
+              className="rounded-full px-5"
+              disabled={loading || isAuthLoading || (!text.trim() && !image)}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" /> Tracing evidence
+                </>
+              ) : (
+                "Analyze"
+              )}
+            </Button>
+          </div>
+        </form>
 
-          {loading && <TraceProgress progress={progress} />}
-          {error && (
-            <Alert variant="destructive" className="mt-6">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </section>
+        {!result && !loading && !text && !image && (
+          <div className="starters">
+            <button type="button" className="starter" onClick={() => setText(example)}>
+              <Sparkles />
+              Try an example claim
+            </button>
+            <label htmlFor="trace-image" className="starter">
+              <ImagePlus />
+              Upload a screenshot
+            </label>
+            <Link href="/hub" className="starter">
+              <Newspaper />
+              Browse traces others have run
+            </Link>
+          </div>
+        )}
+
+        {(text || image) && !result && !loading && (
+          <p className="composer-note">Links are detected automatically. Images up to 5 MB.</p>
+        )}
+
+        {loading && <TraceProgress progress={progress} />}
+        {error && (
+          <Alert variant="destructive" className="mt-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {result && (
-          <section className="pb-20">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
+          <section className="pb-20 pt-10">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
               <p className="flex items-center gap-2.5 text-sm font-semibold">
                 <Check className="size-4 text-brand-lime-ink" />
                 Evidence trail assembled

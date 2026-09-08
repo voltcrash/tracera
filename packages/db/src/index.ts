@@ -553,15 +553,26 @@ function toCheckSummary(row: CheckSummaryRow) {
   };
 }
 
-export async function listChecks(page: number, pageSize: number, query = "", ownerUserId?: string) {
+export async function listChecks(
+  page: number,
+  pageSize: number,
+  query = "",
+  ownerUserId?: string,
+  ownedOnly = false,
+) {
   const offset = (page - 1) * pageSize;
   const search = query.trim();
+  /* Personal history is every trace this user ran, private ones included; the
+   * archive is everything public plus their own. */
+  const visibilityPredicate = ownedOnly
+    ? "item.owner_user_id = $OWNER AND $OWNER IS NOT NULL"
+    : "(item.visibility = 'public' OR item.owner_user_id = $OWNER)";
   const [items, total] = await Promise.all([
     pool.query<CheckSummaryRow>(
       `SELECT ${CHECK_SUMMARY_COLUMNS}
        FROM checks item
        WHERE ${CHECK_SEARCH_PREDICATE}
-         AND (item.visibility = 'public' OR item.owner_user_id = $4)
+         AND ${visibilityPredicate.replaceAll("$OWNER", "$4")}
        ORDER BY ${CHECK_SEARCH_RANK},
          item.created_at DESC
        LIMIT $2 OFFSET $3`,
@@ -570,7 +581,7 @@ export async function listChecks(page: number, pageSize: number, query = "", own
     pool.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM checks item
         WHERE ${CHECK_SEARCH_PREDICATE}
-          AND (item.visibility = 'public' OR item.owner_user_id = $2)`,
+          AND ${visibilityPredicate.replaceAll("$OWNER", "$2")}`,
       [search, ownerUserId ?? null],
     ),
   ]);
