@@ -83,7 +83,6 @@ export default function LandingPage() {
     googleCta.classList.remove("google-cta-highlight");
     void googleCta.offsetWidth;
     googleCta.classList.add("google-cta-highlight");
-    googleCta.querySelector("button")?.focus({ preventScroll: true });
   }
 
   return (
