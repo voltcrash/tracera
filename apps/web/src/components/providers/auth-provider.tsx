@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
 export type AuthUser = {
@@ -20,6 +21,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const session = authClient.useSession();
+  const pathname = usePathname();
+  const router = useRouter();
   const apiFetch = useCallback(
     (input: string, init: RequestInit = {}) => fetch(input, { ...init, credentials: "include" }),
     [],
@@ -44,7 +47,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [apiFetch, session.isPending, user],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  useEffect(() => {
+    if (!session.isPending && !user && pathname !== "/") router.replace("/");
+  }, [pathname, router, session.isPending, user]);
+
+  const canRender = pathname === "/" || Boolean(user);
+
+  return <AuthContext.Provider value={value}>{canRender ? children : null}</AuthContext.Provider>;
 }
 
 export function useAuth() {
