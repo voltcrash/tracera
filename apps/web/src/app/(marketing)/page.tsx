@@ -92,8 +92,8 @@ export default function LandingPage() {
           <Link href="/" aria-label="Tracera home">
             <BrandLockup />
           </Link>
-          <div className="flex items-center gap-5">
-            <nav className="hidden items-center gap-5 text-sm text-ink-soft sm:flex">
+          <div className="flex h-10 items-center gap-5">
+            <nav className="hidden h-10 items-center gap-5 text-sm text-ink-soft sm:flex">
               <a href="#trail" className="hover:text-foreground">
                 Where a story starts
               </a>
