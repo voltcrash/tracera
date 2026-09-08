@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import type { CSSProperties } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -96,13 +97,10 @@ export default function LandingPage() {
                 Traces
               </Link>
             </nav>
-            <Button
-              render={<Link href="/login" />}
-              variant="outline"
+            <GoogleSignInButton
+              expandable
               className="color-sweep-button login-cta rounded-full px-5"
-            >
-              Log in
-            </Button>
+            />
           </div>
         </div>
       </header>

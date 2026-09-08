@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { AnalysisResult } from "@/components/analysis/analysis-result";
 import { GroundZeroCard } from "@/components/analysis/ground-zero-card";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { AppHeader } from "@/components/navigation/app-header";
 import { useAuth } from "@/components/providers/auth-provider";
 import { apiUrl } from "@/lib/api";
@@ -246,11 +247,9 @@ export default function Home() {
               <Check />
               <AlertTitle>Sign in to start this fact-check.</AlertTitle>
               <AlertDescription>
-                <p>Log in or create an account to trace it against the evidence.</p>
+                <p>Sign in or create an account to trace it against the evidence.</p>
                 <div className="mt-3 flex gap-2">
-                  <Button render={<Link href="/login" />} size="sm">
-                    Log in
-                  </Button>
+                  <GoogleSignInButton size="sm" variant="default" />
                   <Button render={<Link href="/signup" />} size="sm" variant="outline">
                     Create account
                   </Button>

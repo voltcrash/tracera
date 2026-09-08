@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function AccountRequired({ feature }: { feature: string }) {
@@ -10,13 +11,11 @@ export function AccountRequired({ feature }: { feature: string }) {
           Sign in to open {feature}
         </CardTitle>
         <CardDescription className="mt-2 leading-relaxed">
-          Log in or create an account to revisit checks and follow their evidence trails.
+          Sign in or create an account to revisit checks and follow their evidence trails.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex justify-center gap-3">
-        <Button render={<Link href="/login" />} size="lg">
-          Log in
-        </Button>
+        <GoogleSignInButton size="lg" variant="default" />
         <Button render={<Link href="/signup" />} size="lg" variant="secondary">
           Create account
         </Button>

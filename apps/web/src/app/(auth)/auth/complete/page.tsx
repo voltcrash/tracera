@@ -14,7 +14,7 @@ export default function AuthCompletePage() {
     if (isLoading || hasStarted.current) return;
 
     if (!user) {
-      router.replace("/login");
+      router.replace("/");
       return;
     }
 

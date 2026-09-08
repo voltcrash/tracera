@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const ERROR_MESSAGES = new Map<string, string>(
@@ -34,7 +35,7 @@ export default function AuthErrorPage() {
 function AuthError() {
   const params = useSearchParams();
   const errorCode = params.get("error") ?? "unknown";
-  const retryURL = params.get("flow") === "signup" ? "/signup" : "/login";
+  const isSignup = params.get("flow") === "signup";
   const message =
     ERROR_MESSAGES.get(errorCode) ?? "We could not complete sign-in. Please try again shortly.";
 
@@ -51,9 +52,13 @@ function AuthError() {
           <CardDescription className="mt-2 leading-relaxed">{message}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row">
-          <Button render={<Link href={retryURL} />} size="lg" className="flex-1">
-            Try again
-          </Button>
+          {isSignup ? (
+            <Button render={<Link href="/signup" />} size="lg" className="flex-1">
+              Try again
+            </Button>
+          ) : (
+            <GoogleSignInButton size="lg" variant="default" className="flex-1" />
+          )}
           <Button render={<Link href="/" />} size="lg" variant="outline" className="flex-1">
             Return home
           </Button>
