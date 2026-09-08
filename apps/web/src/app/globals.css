@@ -310,15 +310,6 @@
 
 /* The source asset is still two-tone teal, so both themes flatten it to a
    monochrome lockup, keeping lime reserved for live signal. */
-.brand-wordmark {
-  filter: brightness(0) opacity(0.9);
-  transition: filter 200ms ease;
-}
-
-.dark .brand-wordmark {
-  filter: brightness(0) invert(1) opacity(0.92);
-}
-
 .theme-toggle-icons {
   position: relative;
   display: grid;

@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { LogOut, ScanSearch, Newspaper } from "lucide-react";
+import { BrandLockup } from "@/components/brand/brand-lockup";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,14 +42,7 @@ export function AppHeader({ active }: { active?: AppScreen }) {
         className="col-start-1 row-start-1 block w-fit rounded-lg transition hover:-translate-y-0.5"
         aria-label="Tracera analysis home"
       >
-        <Image
-          src="/brand/tracera-wordmark-cropped.png"
-          alt="Tracera"
-          width={148}
-          height={34}
-          priority
-          className="brand-wordmark h-7 w-auto sm:h-8"
-        />
+        <BrandLockup markClassName="h-7 w-7 sm:h-8 sm:w-8" />
       </Link>
 
       <nav

@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
+import { BrandLockup } from "@/components/brand/brand-lockup";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -90,14 +90,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-line bg-background/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Link href="/" aria-label="Tracera home">
-            <Image
-              src="/brand/tracera-wordmark-cropped.png"
-              alt="Tracera"
-              width={148}
-              height={34}
-              priority
-              className="brand-wordmark h-7 w-auto"
-            />
+            <BrandLockup />
           </Link>
           <div className="flex items-center gap-5">
             <nav className="hidden items-center gap-5 text-sm text-ink-soft sm:flex">
