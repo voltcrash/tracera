@@ -424,6 +424,20 @@
   --button-sweep-foreground: var(--login-cta-sweep-foreground);
 }
 
+.google-story-cta {
+  --button-base: var(--brand-lime);
+  --button-base-foreground: var(--brand-ink);
+  --button-sweep: var(--brand-ink);
+  --button-sweep-foreground: var(--brand-lime);
+}
+
+.dark .google-story-cta {
+  --button-base: var(--story-cta-base);
+  --button-base-foreground: var(--story-cta-base-foreground);
+  --button-sweep: var(--story-cta-sweep);
+  --button-sweep-foreground: var(--story-cta-sweep-foreground);
+}
+
 .dark .theme-primary-cta {
   --button-base: var(--login-cta-base);
   --button-base-foreground: var(--login-cta-base-foreground);

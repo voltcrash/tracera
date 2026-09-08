@@ -163,7 +163,7 @@ export default function LandingPage() {
                   showGoogleMark
                   variant="brand"
                   size="lg"
-                  className="color-sweep-button"
+                  className="color-sweep-button google-story-cta"
                 />
               </div>
             </div>
