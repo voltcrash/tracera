@@ -70,8 +70,8 @@ export default function SettingsPage() {
                 {isLoading || !user
                   ? "Loading"
                   : user.name.trim()
-                    ? `Showing ${user.name.trim()}`
-                    : "Showing your email address"}
+                    ? "currently active"
+                    : "currently inactive"}
               </span>
             </div>
 
@@ -168,9 +168,7 @@ function AccountRow() {
         <span className="settings-margin-name" id="settings-account">
           Account
         </span>
-        <span className="settings-margin-state">
-          {pending ? "Loading" : google ? "Signed in with Google" : "Signed in by email"}
-        </span>
+        <span className="settings-margin-state">Manage how you sign in</span>
       </div>
 
       <div>
@@ -252,18 +250,13 @@ function AvatarRow() {
         <span className="settings-margin-name" id="settings-avatar">
           Avatar
         </span>
-        <span className="settings-margin-state">
-          {pending ? "Loading" : "One of thirty-two marks"}
-        </span>
+        <span className="settings-margin-state">Customize your appearance</span>
       </div>
 
       <div className="avatar-row">
         <div>
           <p className="settings-ask">How should you show up?</p>
-          <p className="settings-note">
-            Your mark was drawn when you signed up. Every one is built from the Tracera logo: one
-            source, a few branches. Shuffle until another fits better.
-          </p>
+          <p className="settings-note">Click the avatar to shuffle and select a new one</p>
           {error && (
             <Alert variant="destructive" className="settings-field">
               <AlertDescription>{error}</AlertDescription>
