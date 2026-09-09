@@ -36,7 +36,9 @@ vp check
 vp test --run
 ```
 
-Environment variables are documented in [docs/environment.md](docs/environment.md).
+Copy `.env.example` to `.env` at the repository root. This is the only local
+environment file used by the web app, database tooling, and AI scripts. The
+variables are documented in [docs/environment.md](docs/environment.md).
 
 The website uses the Next.js CLI, so its workspace commands run through Vite Task rather than Vite's built-in app commands:
 

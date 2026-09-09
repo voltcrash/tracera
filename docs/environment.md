@@ -1,8 +1,10 @@
 # Environment configuration
 
-The web app needs six values. All environment configuration is server-only;
-the browser bundle does not require environment variables. Start with
-`apps/web/.env.example` and add an optional value only when enabling its feature.
+Tracera uses one local environment file at the repository root. Copy
+`.env.example` to `.env`, then add an optional value only when enabling its
+feature. The web app, database tooling, and AI scripts all load this root file.
+All environment configuration is server-only; the browser bundle does not
+require environment variables.
 
 ## Core values
 

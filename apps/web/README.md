@@ -10,8 +10,9 @@ From the repository root:
 vp run --filter web dev
 ```
 
-Copy `.env.example` to `.env` and fill in the database, auth, and AI provider
-values before running the server routes.
+Copy the repository root `.env.example` to `.env` in that same root directory,
+then fill in the database, auth, and AI provider values before running the
+server routes.
 
 ## Structure
 

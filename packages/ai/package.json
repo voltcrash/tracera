@@ -8,9 +8,9 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test:live": "tsx scripts/live-test.ts",
-    "test:pipeline": "tsx scripts/pipeline-live-test.ts",
-    "validate:model": "tsx scripts/model-validation.ts"
+    "test:live": "node --env-file-if-exists=../../.env --import tsx scripts/live-test.ts",
+    "test:pipeline": "node --env-file-if-exists=../../.env --import tsx scripts/pipeline-live-test.ts",
+    "validate:model": "node --env-file-if-exists=../../.env --import tsx scripts/model-validation.ts"
   },
   "dependencies": {
     "@repo/contracts": "workspace:*",
