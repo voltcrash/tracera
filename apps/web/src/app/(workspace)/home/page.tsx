@@ -158,6 +158,7 @@ export default function Home() {
                 render={
                   <label htmlFor="trace-image" className="cursor-pointer" aria-label="Add image" />
                 }
+                nativeButton={false}
                 variant="ghost"
                 size="icon-sm"
                 className="text-ink-faint hover:text-foreground"
