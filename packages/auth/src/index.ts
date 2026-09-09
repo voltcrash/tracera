@@ -3,11 +3,16 @@ import { db } from "@repo/db";
 import * as databaseSchema from "@repo/db/schema";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { devAuthBypass, devAuthBypassEnabled } from "./dev-auth-bypass.js";
-
-export { DEV_AUTH_BYPASS_PATH, devAuthBypassEnabled } from "./dev-auth-bypass.js";
+import { createAuthEndpoint } from "better-auth/api";
+import { setSessionCookie } from "better-auth/cookies";
 
 export const TRACERA_AUTH_BASE_PATH = "/api/auth";
+export const DEV_AUTH_BYPASS_PATH = "/dev-login";
+
+const DEV_USER = {
+  email: "developer@tracera.local",
+  name: "Tracera Developer",
+} as const;
 
 export type AuthRuntimeEnv = {
   NODE_ENV?: string;
@@ -17,6 +22,10 @@ export type AuthRuntimeEnv = {
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
 };
+
+export function devAuthBypassEnabled(env: Pick<AuthRuntimeEnv, "NODE_ENV" | "DEV_AUTH_BYPASS">) {
+  return env.NODE_ENV === "development" && env.DEV_AUTH_BYPASS === "true";
+}
 
 export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
   const secret = required(env.BETTER_AUTH_SECRET, "BETTER_AUTH_SECRET");
@@ -78,6 +87,50 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
 function required(value: string | undefined, name: string) {
   if (!value) throw new Error(`${name} must be configured.`);
   return value;
+}
+
+function devAuthBypass() {
+  return {
+    id: "tracera-dev-auth-bypass",
+    endpoints: {
+      devLogin: createAuthEndpoint(
+        DEV_AUTH_BYPASS_PATH,
+        { method: "GET", metadata: { scope: "server" } },
+        async (context) => {
+          const request = context.request;
+          if (!request || !isLoopbackHostname(new URL(request.url).hostname)) {
+            throw context.error("NOT_FOUND");
+          }
+
+          const adapter = context.context.internalAdapter;
+          const existingUser = await adapter.findUserByEmail(DEV_USER.email);
+          let user = existingUser?.user;
+          if (!user) {
+            try {
+              user = await adapter.createUser(
+                {
+                  ...DEV_USER,
+                  emailVerified: true,
+                },
+                { method: "dev-auth-bypass" },
+              );
+            } catch (error) {
+              user = (await adapter.findUserByEmail(DEV_USER.email))?.user;
+              if (!user) throw error;
+            }
+          }
+          const session = await adapter.createSession(user.id);
+
+          await setSessionCookie(context, { session, user });
+          throw context.redirect(new URL("/home", request.url).toString());
+        },
+      ),
+    },
+  };
+}
+
+function isLoopbackHostname(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
 export type TraceraAuth = ReturnType<typeof createAuth>;
