@@ -11,9 +11,44 @@ require environment variables.
 - `DATABASE_URL` — Neon/PostgreSQL connection string.
 - `BETTER_AUTH_SECRET` — secret used to sign Better Auth sessions.
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` — Google OAuth credentials.
+- `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` — credentials from the Tracera
+  GitHub App. Use a GitHub App, not a GitHub OAuth App.
 - `AI_PROVIDER` — `gemini`, `openai`, `openrouter`, `anthropic`, or
   `openai-compatible`.
 - `AI_API_KEY` — key for the selected generation provider.
+
+## GitHub authentication
+
+Create a GitHub App under the owning account's developer settings with these
+values:
+
+- GitHub App name: `Tracera` (or another globally unique Tracera name).
+- Homepage URL: `https://tracera.voltcrash.com`.
+- Callback URLs:
+  - `http://localhost:3000/api/auth/callback/github`
+  - `https://tracera.voltcrash.com/api/auth/callback/github`
+- Wildcard matching for both callback URLs: disabled.
+- Webhooks: inactive.
+- Request user authorization during installation: disabled.
+- Device flow: disabled; setup URL: blank.
+- Account permissions: **Email addresses — Read-only**.
+- Repository and organization permissions: none.
+- Installation availability: **Any account**.
+
+No installation flow, private key, or installation token is used. Copy the
+GitHub App's client ID and generate one client secret. Store them only as
+`GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in the root `.env` for local
+development and as encrypted environment variables in the Vercel project for
+production. Never commit their real values.
+
+Both GitHub variables must be set together. Until they are present, Google
+authentication continues to work and GitHub attempts use the normal
+provider-unavailable error flow.
+
+Better Auth requests GitHub's user and email scopes and stores GitHub's stable
+numeric user ID as the provider account ID. Account linking requires the same
+verified email address; mutable GitHub usernames and email addresses are not
+used as provider identity keys.
 
 ## Development authentication
 

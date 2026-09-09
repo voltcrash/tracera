@@ -2,42 +2,48 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
+import { GitHubMark } from "@/components/brand/github-mark";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { authClient } from "@/lib/auth-client";
 
-type GoogleSignInButtonProps = {
+export type SocialProvider = "github" | "google";
+
+type SocialSignInButtonProps = {
+  provider: SocialProvider;
   className?: string;
-  expandable?: boolean;
   label?: string;
-  showGoogleMark?: boolean;
   size?: "sm" | "default" | "lg";
   variant?: "default" | "brand" | "lime" | "outline";
 };
 
-export function GoogleSignInButton({
+const PROVIDER_NAMES: Record<SocialProvider, string> = {
+  github: "GitHub",
+  google: "Google",
+};
+
+export function SocialSignInButton({
+  provider,
   className,
-  expandable = false,
   label,
-  showGoogleMark = false,
   size = "default",
   variant = "outline",
-}: GoogleSignInButtonProps) {
+}: SocialSignInButtonProps) {
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const providerName = PROVIDER_NAMES[provider];
 
-  async function signInWithGoogle() {
+  async function signIn() {
     setIsStarting(true);
     setError(null);
 
     const result = await authClient.signIn.social({
-      provider: "google",
+      provider,
       callbackURL: "/home",
-      errorCallbackURL: "/auth/error?flow=login&provider=google",
+      errorCallbackURL: `/auth/error?flow=login&provider=${provider}`,
     });
 
     if (result.error) {
-      setError(result.error.message ?? "Google sign-in could not start.");
+      setError(result.error.message ?? `${providerName} sign-in could not start.`);
       setIsStarting(false);
     }
   }
@@ -48,29 +54,25 @@ export function GoogleSignInButton({
         type="button"
         variant={variant}
         size={size}
-        className={cn(expandable && "google-sign-in-button", className)}
+        className={className}
         disabled={isStarting}
-        aria-label={isStarting ? "Opening Google sign-in" : (label ?? "Sign in with Google")}
-        onClick={() => void signInWithGoogle()}
+        aria-label={
+          isStarting
+            ? `Opening ${providerName} sign-in`
+            : (label ?? `Continue with ${providerName}`)
+        }
+        onClick={() => void signIn()}
       >
         {isStarting ? (
           <>
             <Loader2 className="animate-spin" />
-            <span>Opening Google…</span>
-          </>
-        ) : label ? (
-          <>
-            {showGoogleMark ? <GoogleMark /> : null}
-            <span>{label}</span>
+            <span>Opening {providerName}…</span>
           </>
         ) : (
-          <span className="flex items-center">
-            <span>Sign in</span>
-            <span className={cn("flex items-center gap-2", expandable && "google-sign-in-more")}>
-              <span>&nbsp;with</span>
-              <GoogleMark />
-            </span>
-          </span>
+          <>
+            <ProviderMark provider={provider} />
+            <span>{label ?? `Continue with ${providerName}`}</span>
+          </>
         )}
       </Button>
       <span className="sr-only" role="status" aria-live="polite">
@@ -78,6 +80,10 @@ export function GoogleSignInButton({
       </span>
     </>
   );
+}
+
+function ProviderMark({ provider }: { provider: SocialProvider }) {
+  return provider === "github" ? <GitHubMark className="size-5" /> : <GoogleMark />;
 }
 
 export function GoogleMark() {

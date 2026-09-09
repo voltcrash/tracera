@@ -22,6 +22,8 @@ export type AuthRuntimeEnv = {
   BETTER_AUTH_API_KEY?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
 };
 
 export function devAuthBypassEnabled(env: Pick<AuthRuntimeEnv, "NODE_ENV" | "DEV_AUTH_BYPASS">) {
@@ -32,6 +34,11 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
   const secret = required(env.BETTER_AUTH_SECRET, "BETTER_AUTH_SECRET");
   const googleClientId = required(env.GOOGLE_CLIENT_ID, "GOOGLE_CLIENT_ID");
   const googleClientSecret = required(env.GOOGLE_CLIENT_SECRET, "GOOGLE_CLIENT_SECRET");
+  const githubCredentials = optionalCredentials(
+    env.GITHUB_CLIENT_ID,
+    env.GITHUB_CLIENT_SECRET,
+    "GitHub",
+  );
   const baseURL = new URL(requestUrl).origin;
 
   return betterAuth({
@@ -54,7 +61,10 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
       modelName: "sessions",
       cookieCache: { enabled: true, maxAge: 5 * 60 },
     },
-    account: { modelName: "accounts" },
+    account: {
+      modelName: "accounts",
+      accountLinking: { enabled: true, allowDifferentEmails: false },
+    },
     verification: { modelName: "verifications" },
     emailAndPassword: { enabled: false },
     databaseHooks: {
@@ -71,6 +81,14 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
         clientSecret: googleClientSecret,
         scope: ["openid", "email", "profile"],
       },
+      ...(githubCredentials
+        ? {
+            github: {
+              clientId: githubCredentials.clientId,
+              clientSecret: githubCredentials.clientSecret,
+            },
+          }
+        : {}),
     },
     trustedOrigins: [
       baseURL,
@@ -98,6 +116,17 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
 function required(value: string | undefined, name: string) {
   if (!value) throw new Error(`${name} must be configured.`);
   return value;
+}
+
+function optionalCredentials(
+  clientId: string | undefined,
+  clientSecret: string | undefined,
+  provider: string,
+) {
+  if (Boolean(clientId) !== Boolean(clientSecret)) {
+    throw new Error(`${provider} client ID and client secret must be configured together.`);
+  }
+  return clientId && clientSecret ? { clientId, clientSecret } : null;
 }
 
 function devAuthBypass() {

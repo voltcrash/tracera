@@ -16,6 +16,14 @@ test("the landing page remains public", () => {
   assert.equal(getRedirectUrl(response), null);
 });
 
+test("the authentication error page remains public", () => {
+  const response = proxy(
+    new NextRequest("https://tracera.voltcrash.com/auth/error?error=access_denied&provider=github"),
+  );
+
+  assert.equal(getRedirectUrl(response), null);
+});
+
 test("a session cookie does not redirect the landing page before client validation", () => {
   const response = proxy(
     new NextRequest("https://tracera.voltcrash.com/", {

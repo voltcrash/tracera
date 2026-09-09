@@ -23,7 +23,7 @@ Tracera also preserves verified claims for deduplication, related-context retrie
 - **Website:** Next.js with Hono API routes
 - **Data:** Neon Postgres, pgvector, PostgreSQL full-text search, Drizzle ORM
 - **Hosting:** One Vercel project serving the website and its server routes
-- **Authentication:** Better Auth with Google OAuth, Drizzle, and Neon Postgres
+- **Authentication:** Better Auth with Google and GitHub, Drizzle, and Neon Postgres
 - **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible APIs
 
 ## Development
@@ -55,7 +55,7 @@ Tracera is deployed as a single Next.js application on Vercel at `tracera.voltcr
 
 The server connects to Neon Postgres for application data, full-text search, claim embeddings, vector retrieval, and reusable analysis results. Analysis runs on demand: there is no scheduled re-analysis.
 
-Better Auth is mounted at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google is the only enabled identity provider. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit OAuth redirect leaves the site for Google's account flow.
+Better Auth is mounted at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google and GitHub are enabled identity providers. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit authorization redirects leave the site for the providers' account flows.
 
 The server calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
 

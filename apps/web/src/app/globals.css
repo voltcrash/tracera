@@ -418,14 +418,14 @@
   --button-sweep-foreground: var(--login-cta-sweep-foreground);
 }
 
-.google-story-cta {
+.story-auth-cta {
   --button-base: var(--brand-lime);
   --button-base-foreground: var(--brand-ink);
   --button-sweep: var(--brand-ink);
   --button-sweep-foreground: var(--brand-lime);
 }
 
-.dark .google-story-cta {
+.dark .story-auth-cta {
   --button-base: var(--story-cta-base);
   --button-base-foreground: var(--story-cta-base-foreground);
   --button-sweep: var(--story-cta-sweep);
@@ -439,45 +439,15 @@
   --button-sweep-foreground: var(--login-cta-sweep-foreground);
 }
 
-.google-cta-highlight .color-sweep-button {
-  animation: google-cta-highlight 1.8s cubic-bezier(0.22, 1, 0.36, 1);
+.auth-cta-highlight .color-sweep-button {
+  animation: auth-cta-highlight 1.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@keyframes google-cta-highlight {
+@keyframes auth-cta-highlight {
   20%,
   70% {
     background-size: 100% 100%;
     color: var(--button-sweep-foreground);
-  }
-}
-
-.google-sign-in-button {
-  overflow: hidden;
-}
-
-.google-sign-in-more {
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  transform: translateX(-0.25rem);
-  transition:
-    max-width 160ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 100ms ease-out,
-    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.google-sign-in-button:hover .google-sign-in-more,
-.google-sign-in-button:focus-visible .google-sign-in-more {
-  max-width: 5rem;
-  opacity: 1;
-  transform: translateX(0);
-}
-
-@media (hover: none), (max-width: 639px) {
-  .google-sign-in-more {
-    max-width: 5rem;
-    opacity: 1;
-    transform: translateX(0);
   }
 }
 
@@ -583,7 +553,7 @@
     opacity: 1;
   }
 
-  .google-cta-highlight .color-sweep-button {
+  .auth-cta-highlight .color-sweep-button {
     animation: none;
   }
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import { BrandLockup } from "@/components/brand/brand-lockup";
-import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { SocialSignInButton } from "@/components/auth/social-sign-in-button";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -66,23 +66,23 @@ function scoreTone(value: number) {
 export default function LandingPage() {
   const { isLoading, user } = useAuth();
   const router = useRouter();
-  const googleCtaRef = useRef<HTMLDivElement>(null);
+  const authCtaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (user) router.replace("/home");
   }, [router, user]);
 
-  function showGoogleSignIn() {
-    const googleCta = googleCtaRef.current;
-    if (!googleCta) return;
+  function showSignInOptions() {
+    const authCta = authCtaRef.current;
+    if (!authCta) return;
 
-    googleCta.scrollIntoView({
+    authCta.scrollIntoView({
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       block: "center",
     });
-    googleCta.classList.remove("google-cta-highlight");
-    void googleCta.offsetWidth;
-    googleCta.classList.add("google-cta-highlight");
+    authCta.classList.remove("auth-cta-highlight");
+    void authCta.offsetWidth;
+    authCta.classList.add("auth-cta-highlight");
   }
 
   if (isLoading || user) return null;
@@ -107,7 +107,7 @@ export default function LandingPage() {
               type="button"
               variant="outline"
               className="color-sweep-button theme-primary-cta rounded-full px-5"
-              onClick={showGoogleSignIn}
+              onClick={showSignInOptions}
             >
               Try Tracera
             </Button>
@@ -159,13 +159,22 @@ export default function LandingPage() {
               <p className="mt-10 text-sm text-ink-faint">
                 Paste the text, drop the link, or upload a screenshot.
               </p>
-              <div id="try-tracera" ref={googleCtaRef} className="mt-5 inline-flex rounded-2xl">
-                <GoogleSignInButton
-                  label="Continue with Google"
-                  showGoogleMark
+              <div
+                id="try-tracera"
+                ref={authCtaRef}
+                className="mt-5 flex max-w-sm flex-col gap-3 rounded-2xl sm:max-w-none sm:flex-row"
+              >
+                <SocialSignInButton
+                  provider="google"
                   variant="brand"
                   size="lg"
-                  className="color-sweep-button google-story-cta"
+                  className="color-sweep-button story-auth-cta"
+                />
+                <SocialSignInButton
+                  provider="github"
+                  variant="brand"
+                  size="lg"
+                  className="color-sweep-button story-auth-cta"
                 />
               </div>
             </div>
@@ -266,7 +275,7 @@ export default function LandingPage() {
               type="button"
               variant="outline"
               className="color-sweep-button login-cta rounded-full px-5"
-              onClick={showGoogleSignIn}
+              onClick={showSignInOptions}
             >
               Try Tracera
             </Button>

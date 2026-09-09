@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Check, Loader2, Shuffle } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { authClient } from "@/lib/auth-client";
-import { GoogleMark } from "@/components/auth/google-sign-in-button";
+import { GoogleMark } from "@/components/auth/social-sign-in-button";
 import { GitHubMark } from "@/components/brand/github-mark";
 import { shuffleAvatarId } from "@repo/contracts/avatar";
 import { TraceAvatar } from "@/components/brand/trace-avatar";
@@ -160,6 +160,7 @@ function AccountRow() {
   }, [user]);
 
   const google = accounts?.find((account) => account.providerId === "google") ?? null;
+  const github = accounts?.find((account) => account.providerId === "github") ?? null;
   const pending = isLoading || !user || accounts === null;
 
   return (
@@ -198,15 +199,19 @@ function AccountRow() {
             </span>
             <span className="method-state">{google ? "In use" : "Not in use"}</span>
           </li>
-          <li className="method" data-state="soon">
+          <li className="method" data-state={github ? "linked" : "absent"}>
             <GitHubMark className="size-4" />
             <span className="method-body">
               <span className="method-name">GitHub</span>
               <span className="method-detail">
-                Sign in with GitHub is on the way. Your traces will follow you across both.
+                {pending
+                  ? "Checking"
+                  : github
+                    ? `Linked ${longDate(github.createdAt)}`
+                    : "Not linked to this account"}
               </span>
             </span>
-            <span className="method-state">Coming soon</span>
+            <span className="method-state">{github ? "In use" : "Not in use"}</span>
           </li>
         </ul>
       </div>

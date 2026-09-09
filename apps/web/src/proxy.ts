@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 export function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request, { cookiePrefix: "tracera" });
 
-  if (request.nextUrl.pathname === "/") {
+  if (request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/auth/error") {
     return NextResponse.next();
   }
 
