@@ -1,5 +1,6 @@
 import { createAuth, type AuthRuntimeEnv } from "@repo/auth";
 import type { AuthUser } from "@repo/db";
+import { logServerWarning } from "./error-handling";
 
 export type AuthBindings = AuthRuntimeEnv;
 
@@ -26,7 +27,7 @@ export async function authenticatedUser(
       createdAt: session.user.createdAt.toISOString(),
     };
   } catch (error) {
-    console.warn("Session verification failed", error);
+    logServerWarning("Session verification failed", error, request);
     return null;
   }
 }

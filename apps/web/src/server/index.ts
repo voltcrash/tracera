@@ -44,6 +44,16 @@ import { authenticatedUser, type AuthBindings } from "./auth";
 import { AnalysisError, publicAnalysisError } from "./analysis-errors";
 import { apiRelativePath } from "./base-path";
 import { allowedCorsOrigin } from "./cors-origin";
+import {
+  healthErrorResponse,
+  internalErrorResponse,
+  logServerWarning,
+  requestIdForContext,
+  requestIdMiddleware,
+  serviceUnavailableResponse,
+  logServerError,
+  REQUEST_ID_HEADER,
+} from "./error-handling";
 import { reanalysisPolicy } from "./reanalysis-policy";
 import { parseFirstPartyAnalysisInput } from "./analysis-input";
 
@@ -54,6 +64,11 @@ export type Bindings = AuthBindings & {
 
 export const app = new Hono<{ Bindings: Bindings }>();
 const currentUserByRequest = new WeakMap<Request, ReturnType<typeof authenticatedUser>>();
+
+app.use("*", requestIdMiddleware);
+app.onError((error, context) =>
+  internalErrorResponse(context, error, "Unhandled Tracera API error"),
+);
 
 app.use("*", async (context, next) => {
   if (apiRelativePath(context.req.path) !== "/") {
@@ -66,6 +81,7 @@ app.use("/*", async (context, next) =>
     origin: (origin) => allowedCorsOrigin(origin, context.req.url),
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type"],
+    exposeHeaders: [REQUEST_ID_HEADER],
     credentials: true,
   })(context, next),
 );
@@ -83,13 +99,7 @@ app.get("/health", async (context) => {
 
     return context.json({ status: "ok", services: { database } });
   } catch (error) {
-    return context.json(
-      {
-        status: "error",
-        message: error instanceof Error ? error.message : "Health check failed",
-      },
-      503,
-    );
+    return healthErrorResponse(context, error);
   }
 });
 
@@ -190,6 +200,7 @@ app.post("/analyze/stream", async (context) => {
           emit("error", {
             error: failure.message,
             code: failure.code,
+            requestId: requestIdForContext(context),
           });
           if (!cancelled) controller.close();
         })
@@ -387,7 +398,9 @@ async function runAnalysis(
         context.env.DOMAIN_TRUST_AUTO_REFINE ?? process.env.DOMAIN_TRUST_AUTO_REFINE,
         false,
       ),
-    }).catch((error) => console.warn("Could not record domain outcome signals", error));
+    }).catch((error) =>
+      logServerWarning("Could not record domain outcome signals", error, context.req.raw),
+    );
 
     emit({
       stage: "persisted",
@@ -413,10 +426,13 @@ async function runAnalysis(
     };
   } catch (error) {
     if (signal.aborted) throw signal.reason ?? error;
-    console.error("Analysis failed", error);
     const failure = publicAnalysisError(error);
+    const requestId = requestIdForContext(context);
+    if (failure.code === "analysis_unavailable") {
+      logServerError("Analysis failed", error, context.req.raw);
+    }
     return {
-      payload: { error: failure.message, code: failure.code },
+      payload: { error: failure.message, code: failure.code, requestId },
       status: failure.status,
     };
   }
@@ -458,12 +474,11 @@ app.get("/checks", async (context) => {
       },
     });
   } catch (error) {
-    console.error("Could not list checks", error);
-    return context.json(
-      {
-        error: error instanceof Error ? error.message : "Could not list checks.",
-      },
-      503,
+    return serviceUnavailableResponse(
+      context,
+      error,
+      "Could not list checks.",
+      "Could not list checks",
     );
   }
 });
@@ -481,12 +496,11 @@ app.get("/checks/:id", async (context) => {
       check: { ...checkDetails, rawInput: displayInput },
     });
   } catch (error) {
-    console.error("Could not retrieve check", error);
-    return context.json(
-      {
-        error: error instanceof Error ? error.message : "Could not retrieve check.",
-      },
-      503,
+    return serviceUnavailableResponse(
+      context,
+      error,
+      "Could not retrieve check.",
+      "Could not retrieve check",
     );
   }
 });
