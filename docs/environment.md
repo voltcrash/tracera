@@ -17,6 +17,18 @@ require environment variables.
   `openai-compatible`.
 - `AI_API_KEY` — key for the selected generation provider.
 
+## OAuth token storage
+
+Tracera uses provider tokens only while completing an OAuth callback. Better
+Auth encryption remains enabled as defense in depth, while account hooks drop
+access, refresh, and ID tokens before an account is written or updated. Apply
+the database migrations with `vp run --filter @repo/db db:migrate`; migration
+`0020_clear_oauth_tokens.sql` removes token material created before this policy.
+
+If a previous database, backup, or log may have exposed provider tokens, revoke
+the old Google and GitHub grants in their provider consoles. Clearing the
+database cannot invalidate a token that was copied elsewhere.
+
 ## GitHub authentication
 
 Create a GitHub App under the owning account's developer settings with these
