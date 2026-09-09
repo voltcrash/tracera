@@ -1333,16 +1333,8 @@
   letter-spacing: -0.02em;
 }
 
-.settings-say {
-  max-width: 52ch;
-  margin-top: 0.6rem;
-  font-size: 0.9375rem;
-  line-height: 1.7;
-  color: var(--ink-soft);
-}
-
 .settings-rows {
-  margin-top: 2.75rem;
+  margin-top: 2.25rem;
 }
 
 .settings-row {
