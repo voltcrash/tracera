@@ -6,9 +6,7 @@ export function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request, { cookiePrefix: "tracera" });
 
   if (request.nextUrl.pathname === "/") {
-    return sessionCookie
-      ? NextResponse.redirect(new URL("/home", request.url))
-      : NextResponse.next();
+    return NextResponse.next();
   }
 
   if (sessionCookie) {

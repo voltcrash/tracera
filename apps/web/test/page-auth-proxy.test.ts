@@ -16,14 +16,14 @@ test("the landing page remains public", () => {
   assert.equal(getRedirectUrl(response), null);
 });
 
-test("a session cookie redirects the landing page to the workspace", () => {
+test("a session cookie does not redirect the landing page before client validation", () => {
   const response = proxy(
     new NextRequest("https://tracera.voltcrash.com/", {
       headers: { cookie: "__Secure-tracera.session_token=test-session" },
     }),
   );
 
-  assert.equal(getRedirectUrl(response), "https://tracera.voltcrash.com/home");
+  assert.equal(getRedirectUrl(response), null);
 });
 
 test("a session cookie allows a page request to continue", () => {
