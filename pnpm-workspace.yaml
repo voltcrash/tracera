@@ -16,6 +16,7 @@ catalog:
   vite-plus: 0.3.1
 overrides:
   vite: "catalog:"
+  "@esbuild-kit/core-utils>esbuild": 0.28.2
 peerDependencyRules:
   allowAny:
     - vite
