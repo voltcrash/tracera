@@ -421,7 +421,7 @@ async function runAnalysis(
       aiConfiguration,
       controlConfig,
     );
-    const normalized = await normalizeWithStoredFallback(body, provider, signal);
+    const normalized = await normalizeWithStoredFallback(body, provider, signal, user?.id);
     emit({
       stage: "embedding",
       message: "Checking for recent and related traces.",
@@ -484,7 +484,7 @@ async function runAnalysis(
     }
 
     const auditLog: Array<{ stage: string; prompt: string }> = [];
-    const result = await analyzeText(normalized, provider, auditLog, emit, signal);
+    const result = await analyzeText(normalized, provider, auditLog, emit, signal, user?.id);
     signal.throwIfAborted();
     const submittedSource: EvidenceSource[] =
       normalized.sourceUrl && normalized.publishedAt
@@ -697,6 +697,7 @@ async function analyzeText(
   auditLog: Array<{ stage: string; prompt: string }>,
   emit: ProgressEmitter = () => undefined,
   signal?: AbortSignal,
+  ownerUserId?: string,
 ): Promise<{
   claims: ClaimVerdict[];
   claimEmbeddings: number[][];
@@ -743,6 +744,7 @@ async function analyzeText(
     const sources = await retrieveSources(claim, {
       provider,
       signal,
+      ownerUserId,
       factCheckApiKey: process.env.GOOGLE_FACT_CHECK_API_KEY,
       corpusSimilarityThreshold: CORPUS_SIMILARITY,
       newsApiKey: process.env.NEWS_API_KEY,
@@ -988,6 +990,7 @@ async function normalizeWithStoredFallback(
   body: unknown,
   provider: AiProvider,
   signal?: AbortSignal,
+  ownerUserId?: string,
 ) {
   const input =
     body && typeof body === "object"
@@ -1011,7 +1014,7 @@ async function normalizeWithStoredFallback(
         : undefined);
     if (!candidate) throw error;
     await assertPublicHttpUrl(candidate);
-    const prior = await findLatestCheckByRawInput(candidate);
+    const prior = await findLatestCheckByRawInput(candidate, ownerUserId);
     const claimText = (prior?.claims ?? [])
       .flatMap((item) => {
         if (!item || typeof item !== "object") return [];
