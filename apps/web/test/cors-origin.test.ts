@@ -33,6 +33,20 @@ test("allows loopback web development origins", () => {
   }
 });
 
+test("rejects loopback origins for hosted requests", () => {
+  for (const origin of [
+    "http://localhost:3000",
+    "https://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://[::1]:3000",
+  ]) {
+    assert.equal(
+      allowedCorsOrigin(origin, "https://tracera.voltcrash.com/api/tracera/analyze"),
+      undefined,
+    );
+  }
+});
+
 test("rejects lookalike and unrelated origins", () => {
   for (const origin of [
     "https://tracera.voltcrash.com.attacker.example",

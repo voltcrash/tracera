@@ -4,5 +4,8 @@ export function allowedCorsOrigin(origin: string | undefined, requestUrl: string
   if (!origin) return undefined;
   const requestOrigin = new URL(requestUrl).origin;
   const normalizedOrigin = origin.replace(/\/$/, "");
-  return normalizedOrigin === requestOrigin || localWebOrigin.test(origin) ? origin : undefined;
+  if (normalizedOrigin === requestOrigin) return origin;
+  return localWebOrigin.test(requestOrigin) && localWebOrigin.test(normalizedOrigin)
+    ? origin
+    : undefined;
 }
