@@ -1,4 +1,3 @@
-import { dash } from "@better-auth/infra";
 import { randomAvatarId } from "@repo/contracts/avatar";
 import { db } from "@repo/db";
 import * as databaseSchema from "@repo/db/schema";
@@ -21,7 +20,6 @@ export type AuthRuntimeEnv = {
   NODE_ENV?: string;
   DEV_AUTH_BYPASS?: string;
   BETTER_AUTH_SECRET?: string;
-  BETTER_AUTH_API_KEY?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   GITHUB_CLIENT_ID?: string;
@@ -93,11 +91,7 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
           }
         : {}),
     },
-    trustedOrigins: [
-      baseURL,
-      "https://dash.better-auth.com",
-      ...(env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
-    ],
+    trustedOrigins: [baseURL, ...(env.NODE_ENV === "development" ? ["http://localhost:3000"] : [])],
     onAPIError: {
       errorURL: "/auth/error",
     },
@@ -109,10 +103,7 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
       cookiePrefix: "tracera",
       useSecureCookies: true,
     },
-    plugins: [
-      ...(env.BETTER_AUTH_API_KEY ? [dash({ apiKey: env.BETTER_AUTH_API_KEY })] : []),
-      ...(devAuthBypassEnabled(env) ? [devAuthBypass()] : []),
-    ],
+    plugins: devAuthBypassEnabled(env) ? [devAuthBypass()] : [],
   });
 }
 

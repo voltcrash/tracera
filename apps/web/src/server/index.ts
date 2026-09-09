@@ -887,7 +887,6 @@ function currentUser(context: Context<{ Bindings: Bindings }>) {
   if (cached) return cached;
   const user = authenticatedUser(request, {
     BETTER_AUTH_SECRET: context.env.BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
-    BETTER_AUTH_API_KEY: context.env.BETTER_AUTH_API_KEY ?? process.env.BETTER_AUTH_API_KEY,
     GOOGLE_CLIENT_ID: context.env.GOOGLE_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: context.env.GOOGLE_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
     GITHUB_CLIENT_ID: context.env.GITHUB_CLIENT_ID ?? process.env.GITHUB_CLIENT_ID,
