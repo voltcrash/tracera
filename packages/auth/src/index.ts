@@ -50,7 +50,10 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
       },
     }),
     user: { modelName: "users" },
-    session: { modelName: "sessions" },
+    session: {
+      modelName: "sessions",
+      cookieCache: { enabled: true, maxAge: 5 * 60 },
+    },
     account: { modelName: "accounts" },
     verification: { modelName: "verifications" },
     emailAndPassword: { enabled: false },
@@ -67,7 +70,6 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
         clientId: googleClientId,
         clientSecret: googleClientSecret,
         scope: ["openid", "email", "profile"],
-        prompt: "select_account",
       },
     },
     trustedOrigins: [

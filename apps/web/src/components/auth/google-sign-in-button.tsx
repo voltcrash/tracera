@@ -32,7 +32,7 @@ export function GoogleSignInButton({
 
     const result = await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/auth/complete",
+      callbackURL: "/home",
       errorCallbackURL: "/auth/error?flow=login&provider=google",
     });
 

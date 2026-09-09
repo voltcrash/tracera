@@ -2,9 +2,9 @@
 
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
 import type { AnalysisResponse, AnalysisReuse, ImageMetadata } from "@repo/contracts";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { Check, ExternalLink, ImagePlus, Loader2, Newspaper, Sparkles, Trash2 } from "lucide-react";
-import { TraceAside, TraceReport } from "@/components/analysis/trace-report";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { apiUrl } from "@/lib/api";
@@ -16,6 +16,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+
+const TraceReport = dynamic(() =>
+  import("@/components/analysis/trace-report").then((module) => module.TraceReport),
+);
+const TraceAside = dynamic(() =>
+  import("@/components/analysis/trace-report").then((module) => module.TraceAside),
+);
 
 const example =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
@@ -117,7 +124,7 @@ export default function Home() {
       <div className={cn("home-inner", (result || loading) && "home-inner-working")}>
         {!result && !loading && <h1 className="home-headline">What did you see?</h1>}
 
-        <form onSubmit={analyze} className="composer app-enter">
+        <form onSubmit={analyze} className="composer">
           <label className="sr-only" htmlFor="story-input">
             Story or claim to analyze
           </label>
