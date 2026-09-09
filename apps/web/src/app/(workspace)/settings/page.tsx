@@ -94,7 +94,8 @@ export default function SettingsPage() {
                     }}
                     maxLength={MAX_DISPLAY_NAME}
                     placeholder={user.email}
-                    autoComplete="name"
+                    autoComplete="off"
+                    data-bwignore="true"
                     disabled={saving}
                   />
                   <p className="settings-note">
