@@ -162,6 +162,13 @@
       "when": 1788795693222,
       "tag": "0023_private_default_submissions",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788795793222,
+      "tag": "0024_least_privileged_runtime_role",
+      "breakpoints": true
     }
   ]
 }

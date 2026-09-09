@@ -8,7 +8,12 @@ require environment variables.
 
 ## Core values
 
-- `DATABASE_URL` — Neon/PostgreSQL connection string.
+- `DATABASE_URL` — Neon/PostgreSQL connection string for the least-privileged
+  `tracera_runtime` role. This is the only database URL the web app should
+  receive.
+- `DATABASE_MIGRATOR_URL` — owner-role connection string used only by Drizzle
+  migrations. Keep it out of Vercel runtime environment variables and store it
+  only in the operator's migration environment.
 - `BETTER_AUTH_SECRET` — secret used to sign Better Auth sessions.
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` — Google OAuth credentials.
 - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` — credentials from the Tracera
@@ -132,3 +137,37 @@ Analysis thresholds, story-reuse policy, embedding dimensions, site origins,
 and model-evaluation thresholds are application behavior rather than deployment
 configuration. They are defined in code. Model-evaluation overrides are passed
 as command-line options documented in `packages/ai/evaluation/README.md`.
+
+## Database roles and row-level security
+
+Migration `0020_least_privileged_runtime_role.sql` creates a non-owner,
+`NOBYPASSRLS` login role named `tracera_runtime`. It removes public and runtime
+access to the schema, tables, sequences, and future table/sequence objects,
+then grants only the operations currently required by the web app:
+
+- Better Auth tables: `SELECT`, `INSERT`, `UPDATE`, and `DELETE`.
+- `checks`, `claims`, and `trace_appearances`: `SELECT` and `INSERT`.
+- `domains`: `SELECT`, `INSERT`, and `UPDATE`.
+- `domain_trust_events`: `SELECT` and `INSERT`.
+
+The runtime role has no access grant for the unused `alert_subscriptions`,
+`decay_events`, or migration metadata tables. Set its password through the
+database provider or a secret manager; passwords must not be added to the
+migration file.
+
+Run migrations with the owner URL, for example:
+
+```sh
+DATABASE_MIGRATOR_URL=... vp run --filter @repo/db db:migrate
+```
+
+Forced row-level security was evaluated for `checks` and its user-owned child
+data. It is not enabled by this migration because the current server passes the
+authenticated user ID as a SQL parameter while using a shared, stateless Neon
+pool; it does not establish a transaction-local database identity. Enabling
+`FORCE ROW LEVEL SECURITY` without that identity bridge would make private
+checks inaccessible or risk stale pooled identity state. A future RLS change
+must add fail-closed policies for every table containing user-owned data,
+bind `app.user_id` with `set_config(..., true)` inside each transaction, and
+prove that public reads, anonymous rows, Better Auth, and multi-statement
+transactions all behave correctly before enabling `FORCE`.
