@@ -39,7 +39,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("Preparing the evidence trace.");
-  const [privateTrace, setPrivateTrace] = useState(false);
+  const [publishPublicly, setPublishPublicly] = useState(false);
   const refreshHistory = useHistoryRefresh();
 
   async function analyze(event?: FormEvent<HTMLFormElement>, forceReanalysis = false) {
@@ -63,7 +63,8 @@ export default function Home() {
         body: JSON.stringify({
           ...request,
           ...(forceReanalysis ? { forceReanalysis: true } : {}),
-          ...(privateTrace ? { visibility: "private" } : {}),
+          visibility: publishPublicly ? "public" : "private",
+          ...(publishPublicly ? { publishConsent: true } : {}),
         }),
       });
       if (!response.ok) throw new Error("Unable to start this analysis.");
@@ -182,16 +183,23 @@ export default function Home() {
                 />
               </Button>
               {user && (
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-start gap-2">
                   <Checkbox
-                    id="private-trace"
-                    checked={privateTrace}
-                    onCheckedChange={(checked) => setPrivateTrace(checked === true)}
+                    id="publish-trace"
+                    checked={publishPublicly}
+                    onCheckedChange={(checked) => setPublishPublicly(checked === true)}
                     disabled={loading}
+                    aria-describedby="publish-consent-note"
                   />
-                  <Label htmlFor="private-trace" className="text-xs font-normal text-ink-faint">
-                    Keep private
-                  </Label>
+                  <div className="min-w-0">
+                    <Label htmlFor="publish-trace" className="text-xs font-semibold leading-5">
+                      Publish this analysis publicly (optional)
+                    </Label>
+                    <p id="publish-consent-note" className="text-[11px] leading-4 text-ink-faint">
+                      Analyses are private by default. I agree to publish the submitted text,
+                      images, metadata, and analysis results publicly.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

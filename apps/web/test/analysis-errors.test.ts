@@ -25,3 +25,12 @@ test("internal failure details are replaced with a stable unavailable response",
   });
   assert.doesNotMatch(JSON.stringify(failure), /admin|secret|private-db/);
 });
+
+test("public publishing requires explicit consent", () => {
+  assert.deepEqual(publicAnalysisError(new AnalysisError("publication_consent_required")), {
+    code: "publication_consent_required",
+    message:
+      "Publishing requires your explicit consent to make the submitted text, images, metadata, and analysis results public.",
+    status: 400,
+  });
+});
