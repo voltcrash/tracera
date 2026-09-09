@@ -61,6 +61,7 @@ import {
   spendLimitedAiProvider,
   type AnalysisControlConfig,
 } from "./analysis-controls";
+import { requestedVisibility } from "./submission-visibility";
 
 export type Bindings = AuthBindings & {
   DATABASE_URL?: string;
@@ -164,7 +165,7 @@ type AnalysisPreparation =
     };
 type ManagedAnalysisResult = {
   payload: AnalysisResponse | AnalysisErrorResponse | ReturnType<typeof analysisControlPayload>;
-  status: 200 | 201 | 409 | 422 | 429 | 503;
+  status: 200 | 201 | 400 | 409 | 422 | 429 | 503;
 };
 
 const MAX_ANALYSIS_BODY_BYTES = 7_100_000;
@@ -405,7 +406,7 @@ async function runAnalysis(
   controlConfig: AnalysisControlConfig = analysisControlConfig(context.env),
 ): Promise<
   | { payload: AnalysisResponse; status: 200 | 201 }
-  | { payload: AnalysisErrorResponse; status: 422 | 503 }
+  | { payload: AnalysisErrorResponse; status: 400 | 422 | 503 }
 > {
   try {
     signal.throwIfAborted();
@@ -444,8 +445,9 @@ async function runAnalysis(
             cacheHours,
             IMAGE_DEDUP_SIMILARITY,
             user?.id,
+            visibility,
           )
-        : await findReusableExactCheck(normalized.rawInput, cacheHours, user?.id);
+        : await findReusableExactCheck(normalized.rawInput, cacheHours, user?.id, visibility);
 
     // A previous version stored empty analyses when a URL was sent as text.
     // Never serve an incomplete cache entry. Image checks may validly finish
@@ -511,6 +513,7 @@ async function runAnalysis(
         ...groundZeroSources.map((source) => source.canonicalUrl ?? source.url),
       ].filter((url): url is string => Boolean(url)),
       user?.id,
+      visibility,
     );
     const archiveHistory = await retrieveArchiveHistory(groundZeroSources, signal);
     signal.throwIfAborted();
@@ -566,6 +569,7 @@ async function runAnalysis(
       ],
       ownerUserId: user?.id,
       visibility,
+      publishConsent: hasPublicationConsent(body),
       supersedesCheckId: relatedStory?.id,
       lineageReason: relatedStory ? "related_story" : "first_check",
     });
@@ -1034,20 +1038,12 @@ async function normalizeWithStoredFallback(
   }
 }
 
-function requestedVisibility(
-  body: unknown,
-  userId: string | undefined,
-  inherited?: "public" | "private",
-): "public" | "private" {
-  if (inherited) return inherited;
-  const requested =
-    body && typeof body === "object" && (body as { visibility?: unknown }).visibility === "private"
-      ? "private"
-      : "public";
-  if (requested === "private" && !userId) {
-    throw new Error("Sign in before saving a private trace.");
-  }
-  return requested;
+function hasPublicationConsent(body: unknown) {
+  return Boolean(
+    body &&
+    typeof body === "object" &&
+    (body as { publishConsent?: unknown }).publishConsent === true,
+  );
 }
 
 function environmentBoolean(rawValue: string | undefined, fallback: boolean) {

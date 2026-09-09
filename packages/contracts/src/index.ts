@@ -143,5 +143,5 @@ export interface AnalysisResponse {
 
 export interface AnalysisErrorResponse {
   error: string;
-  code: "no_checkable_claims" | "analysis_unavailable";
+  code: "no_checkable_claims" | "publication_consent_required" | "analysis_unavailable";
 }
