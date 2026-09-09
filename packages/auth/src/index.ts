@@ -66,6 +66,9 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
     },
     account: {
       modelName: "accounts",
+      encryptOAuthTokens: true,
+      updateAccountOnSignIn: false,
+      storeAccountCookie: false,
       accountLinking: { enabled: true, allowDifferentEmails: false },
     },
     verification: { modelName: "verifications" },
@@ -76,6 +79,10 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
           /* Avatars are Tracera's own marks, so a provider photo never applies. */
           before: async (user) => ({ data: { ...user, image: randomAvatarId() } }),
         },
+      },
+      account: {
+        create: { before: async () => discardOAuthTokenMaterial() },
+        update: { before: async () => discardOAuthTokenMaterial() },
       },
     },
     socialProviders: {
@@ -130,6 +137,18 @@ function optionalCredentials(
     throw new Error(`${provider} client ID and client secret must be configured together.`);
   }
   return clientId && clientSecret ? { clientId, clientSecret } : null;
+}
+
+function discardOAuthTokenMaterial() {
+  return {
+    data: {
+      accessToken: null,
+      refreshToken: null,
+      idToken: null,
+      accessTokenExpiresAt: null,
+      refreshTokenExpiresAt: null,
+    },
+  };
 }
 
 function devAuthBypass() {
