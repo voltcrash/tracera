@@ -186,10 +186,11 @@ const RELATED_STORY_MAX_AGE_HOURS = 24 * 90;
 const CORPUS_SIMILARITY = 0.78;
 
 app.post("/analyze", async (context) => {
-  if (requestBodyIsTooLarge(context)) {
+  const requestBody = await readAnalysisRequestBody(context);
+  if (requestBody.tooLarge) {
     return context.json({ error: "Request body is too large." }, 413);
   }
-  const parsed = parseFirstPartyAnalysisInput(await context.req.json().catch(() => null));
+  const parsed = parseFirstPartyAnalysisInput(requestBody.body);
   if (!parsed.success) return context.json({ error: parsed.error }, 400);
   const body = parsed.data;
   const prepared = await prepareAnalysis(context, body, "/analyze");
@@ -206,10 +207,11 @@ app.post("/analyze", async (context) => {
 });
 
 app.post("/analyze/stream", async (context) => {
-  if (requestBodyIsTooLarge(context)) {
+  const requestBody = await readAnalysisRequestBody(context);
+  if (requestBody.tooLarge) {
     return context.json({ error: "Request body is too large." }, 413);
   }
-  const parsed = parseFirstPartyAnalysisInput(await context.req.json().catch(() => null));
+  const parsed = parseFirstPartyAnalysisInput(requestBody.body);
   if (!parsed.success) return context.json({ error: parsed.error }, 400);
   const body = parsed.data;
   const prepared = await prepareAnalysis(context, body, "/analyze/stream");
@@ -998,6 +1000,46 @@ function aiProviderName(value: string | undefined): AiProviderName {
 function requestBodyIsTooLarge(context: Context<{ Bindings: Bindings }>) {
   const contentLength = Number(context.req.header("content-length"));
   return Number.isFinite(contentLength) && contentLength > MAX_ANALYSIS_BODY_BYTES;
+}
+
+async function readAnalysisRequestBody(
+  context: Context<{ Bindings: Bindings }>,
+): Promise<{ tooLarge: true } | { tooLarge: false; body: unknown }> {
+  if (requestBodyIsTooLarge(context)) return { tooLarge: true };
+
+  const stream = context.req.raw.body;
+  if (!stream) return { tooLarge: false, body: null };
+
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_ANALYSIS_BODY_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        return { tooLarge: true };
+      }
+      chunks.push(value);
+    }
+
+    const bytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { tooLarge: false, body: JSON.parse(new TextDecoder().decode(bytes)) };
+  } catch {
+    return { tooLarge: false, body: null };
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 function analysisResponse(payload: AnalysisResponse) {
