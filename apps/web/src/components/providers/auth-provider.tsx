@@ -7,13 +7,20 @@ import { authClient } from "@/lib/auth-client";
 export type AuthUser = {
   id: string;
   email: string;
+  name: string;
   createdAt: string;
 };
+
+/** The display name replaces the email everywhere the account is shown. */
+export function accountLabel(user: AuthUser) {
+  return user.name.trim() || user.email;
+}
 
 type AuthContextValue = {
   user: AuthUser | null;
   isLoading: boolean;
   apiFetch: (input: string, init?: RequestInit) => Promise<Response>;
+  refreshUser: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -21,6 +28,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const session = authClient.useSession();
+  const { refetch } = session;
   const pathname = usePathname();
   const router = useRouter();
   const apiFetch = useCallback(
@@ -32,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return {
       id: session.data.user.id,
       email: session.data.user.email,
+      name: session.data.user.name ?? "",
       createdAt: new Date(session.data.user.createdAt).toISOString(),
     };
   }, [session.data?.user]);
@@ -40,11 +49,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isLoading: session.isPending,
       apiFetch,
+      refreshUser: async () => {
+        await refetch();
+      },
       signOut: async () => {
         await authClient.signOut();
       },
     }),
-    [apiFetch, session.isPending, user],
+    [apiFetch, refetch, session.isPending, user],
   );
 
   useEffect(() => {

@@ -1306,6 +1306,126 @@
 }
 
 /*
+ * Settings borrow the report's margin: the column holds the control being set,
+ * the margin names the setting and says what it is set to right now.
+ */
+.settings {
+  display: flex;
+  min-height: 100dvh;
+}
+
+.settings-inner {
+  width: 100%;
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 6rem;
+}
+
+.settings-headline {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.settings-say {
+  max-width: 52ch;
+  margin-top: 0.6rem;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+.settings-rows {
+  margin-top: 2.75rem;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr);
+  gap: 0 2.5rem;
+  border-top: 1px solid var(--line);
+  padding: 2rem 0;
+}
+
+.settings-margin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: flex-start;
+}
+
+.settings-margin-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.settings-margin-state {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+.settings-ask {
+  max-width: 24ch;
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+}
+
+.settings-field {
+  max-width: 24rem;
+  margin-top: 1.25rem;
+}
+
+.settings-note {
+  max-width: 56ch;
+  margin-top: 0.6rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.settings-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  color: var(--lime-ink);
+}
+
+.settings-saved svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+@media (max-width: 47.9375rem) {
+  .settings-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.9rem;
+  }
+
+  .settings-margin {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .settings-margin-state {
+    flex-basis: 100%;
+  }
+}
+
+/*
  * The trace report. A result is a document with a working margin: the reading
  * column holds the words being checked, the margin holds Tracera's marks on
  * them. Structure comes from hairlines and the margin, never from cards.

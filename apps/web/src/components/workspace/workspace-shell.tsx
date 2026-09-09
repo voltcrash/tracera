@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Menu, Newspaper, PenLine, Settings, X } from "lucide-react";
 import type { TraceSummary } from "@/app/(workspace)/hub/_components/trace-library";
 import { BrandLockup } from "@/components/brand/brand-lockup";
-import { useAuth } from "@/components/providers/auth-provider";
+import { accountLabel, useAuth } from "@/components/providers/auth-provider";
 import { ThemeToggle } from "@/components/navigation/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -207,9 +207,9 @@ function RailAccount() {
             }
           >
             <Avatar className="size-7">
-              <AvatarFallback>{user.email.slice(0, 2)}</AvatarFallback>
+              <AvatarFallback>{accountLabel(user).slice(0, 2)}</AvatarFallback>
             </Avatar>
-            <span className="truncate">{user.email}</span>
+            <span className="truncate">{accountLabel(user)}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
@@ -220,13 +220,15 @@ function RailAccount() {
             <DropdownMenuGroup>
               <DropdownMenuLabel className="flex items-center gap-2.5 px-2 py-2">
                 <Avatar className="size-8">
-                  <AvatarFallback>{user.email.slice(0, 2)}</AvatarFallback>
+                  <AvatarFallback>{accountLabel(user).slice(0, 2)}</AvatarFallback>
                 </Avatar>
-                <span className="truncate text-sm text-popover-foreground">{user.email}</span>
+                <span className="truncate text-sm text-popover-foreground">
+                  {accountLabel(user)}
+                </span>
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem render={<Link href="/settings" />}>
               <Settings />
               Settings
             </DropdownMenuItem>
