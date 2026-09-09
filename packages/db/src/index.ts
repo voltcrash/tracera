@@ -1269,20 +1269,22 @@ async function updateIdempotencyLease(
     userId: string;
     endpoint: string;
     idempotencyKey: string;
+    requestHash: string;
     limits: AnalysisControlLimits;
   },
   leaseId: string,
 ) {
   await client.query(
     `UPDATE analysis_idempotency_keys
-        SET request_status = 'in_progress', response_body = NULL,
-            response_status = NULL, lease_id = $4,
-            expires_at = NOW() + ($5 * INTERVAL '1 second'), updated_at = NOW()
+        SET request_hash = $4, request_status = 'in_progress',
+            response_body = NULL, response_status = NULL, lease_id = $5,
+            expires_at = NOW() + ($6 * INTERVAL '1 second'), updated_at = NOW()
       WHERE user_id = $1 AND endpoint = $2 AND idempotency_key = $3`,
     [
       input.userId,
       input.endpoint,
       input.idempotencyKey,
+      input.requestHash,
       leaseId,
       input.limits.idempotencyTtlSeconds,
     ],

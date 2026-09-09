@@ -59,14 +59,22 @@ export default function Home() {
           : { text: value };
       const response = await apiFetch(`${apiUrl}/analyze/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": crypto.randomUUID(),
+        },
         body: JSON.stringify({
           ...request,
           ...(forceReanalysis ? { forceReanalysis: true } : {}),
           ...(privateTrace ? { visibility: "private" } : {}),
         }),
       });
-      if (!response.ok) throw new Error("Unable to start this analysis.");
+      if (!response.ok) {
+        const failure = (await response.json().catch(() => null)) as { error?: unknown } | null;
+        throw new Error(
+          typeof failure?.error === "string" ? failure.error : "Unable to start this analysis.",
+        );
+      }
       setResult(await readAnalysisStream(response, setProgress));
       refreshHistory();
     } catch (requestError) {
