@@ -19,6 +19,7 @@ type BudgetedEvidenceFetch = EvidenceFetch & { remaining: () => number };
 interface RetrieveSourcesOptions {
   provider: AiProvider;
   signal?: AbortSignal;
+  ownerUserId?: string;
   factCheckApiKey?: string;
   corpusSimilarityThreshold?: number;
   corpusLimit?: number;
@@ -67,6 +68,7 @@ export async function retrieveSources(
       options.claimEmbedding,
       options.corpusSimilarityThreshold ?? 0.78,
       options.corpusLimit ?? 5,
+      options.ownerUserId,
       options.signal,
     ),
   );
@@ -185,6 +187,7 @@ async function retrieveCorpusSources(
   suppliedEmbedding: number[] | undefined,
   threshold: number,
   limit: number,
+  ownerUserId?: string,
   signal?: AbortSignal,
 ): Promise<EvidenceSource[]> {
   const embedding = suppliedEmbedding ?? (await provider.embed(claim.claimText, { signal }));
@@ -193,7 +196,7 @@ async function retrieveCorpusSources(
     throw new Error(`Corpus embeddings must have 1024 dimensions; received ${embedding.length}.`);
   }
 
-  const matches = await findRelatedClaimsByEmbedding(embedding, threshold, limit);
+  const matches = await findRelatedClaimsByEmbedding(embedding, threshold, limit, ownerUserId);
   return matches.map((row) => ({
     id: `corpus:${row.id}`,
     type: "corpus",

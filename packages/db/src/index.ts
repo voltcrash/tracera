@@ -142,6 +142,7 @@ export async function findRelatedClaimsByEmbedding(
   embedding: number[],
   similarityThreshold: number,
   limit: number,
+  ownerUserId?: string,
 ): Promise<RelatedClaim[]> {
   if (similarityThreshold < 0 || similarityThreshold > 1) {
     throw new Error("Related-claim similarity threshold must be between 0 and 1.");
@@ -172,9 +173,10 @@ export async function findRelatedClaimsByEmbedding(
         AND c.confidence >= 0.6
         AND c.evidence_quality >= 0.55
         AND 1 - (c.embedding <=> $1::vector) >= $2
+        AND (checks.visibility = 'public' OR checks.owner_user_id = $4)
       ORDER BY c.embedding <=> $1::vector
       LIMIT $3`,
-    [toVector(embedding), similarityThreshold, limit],
+    [toVector(embedding), similarityThreshold, limit, ownerUserId ?? null],
   );
 
   return result.rows.map((row) => ({
@@ -647,10 +649,15 @@ export async function getCheckById(id: string, ownerUserId?: string, allowPrivat
 
 /** Used only to refresh a previously analyzed link when the publisher later
  * blocks server-side fetching. Raw input must match exactly. */
-export async function findLatestCheckByRawInput(rawInput: string) {
+export async function findLatestCheckByRawInput(rawInput: string, ownerUserId?: string) {
   const result = await pool.query<{ analysis: StoredAnalysis }>(
-    `SELECT analysis FROM checks WHERE raw_input = $1 ORDER BY created_at DESC LIMIT 1`,
-    [rawInput],
+    `SELECT analysis
+       FROM checks
+      WHERE raw_input = $1
+        AND (visibility = 'public' OR owner_user_id = $2)
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [rawInput, ownerUserId ?? null],
   );
   return result.rows[0]?.analysis ?? null;
 }

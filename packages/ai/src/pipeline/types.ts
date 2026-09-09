@@ -29,6 +29,7 @@ export interface NormalizedInput {
 export interface VerifyTextOptions {
   provider: import("../provider").AiProvider;
   signal?: AbortSignal;
+  ownerUserId?: string;
   factCheckApiKey?: string;
   corpusSimilarityThreshold?: number;
   newsApiKey?: string;
