@@ -10,6 +10,8 @@ import { setSessionCookie } from "better-auth/cookies";
 export const TRACERA_AUTH_BASE_PATH = "/api/auth";
 export const DEV_AUTH_BYPASS_PATH = "/dev-login";
 
+const TRACERA_PRODUCTION_ORIGIN = "https://tracera.voltcrash.com";
+
 const DEV_USER = {
   email: "developer@tracera.local",
   name: "Tracera Developer",
@@ -39,7 +41,8 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
     env.GITHUB_CLIENT_SECRET,
     "GitHub",
   );
-  const baseURL = new URL(requestUrl).origin;
+  const baseURL =
+    env.NODE_ENV === "development" ? new URL(requestUrl).origin : TRACERA_PRODUCTION_ORIGIN;
 
   return betterAuth({
     appName: "Tracera",
@@ -93,7 +96,7 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
     trustedOrigins: [
       baseURL,
       "https://dash.better-auth.com",
-      ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
+      ...(env.NODE_ENV === "development" ? ["http://localhost:3000"] : []),
     ],
     onAPIError: {
       errorURL: "/auth/error",

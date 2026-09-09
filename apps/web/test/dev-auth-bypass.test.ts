@@ -15,6 +15,15 @@ test("the development auth bypass requires both exact environment gates", () => 
   assert.equal(devAuthBypassEnabled({ NODE_ENV: "development" }), false);
 });
 
+test("production auth uses the hosted origin behind an internal loopback URL", () => {
+  const auth = createAuth(
+    { ...authEnv, NODE_ENV: "production" },
+    "http://localhost:3000/api/auth/sign-in/social",
+  );
+
+  assert.equal(auth.options.baseURL, "https://tracera.voltcrash.com");
+});
+
 test("the development login endpoint is not registered in production", async () => {
   const auth = createAuth(
     { ...authEnv, NODE_ENV: "production", DEV_AUTH_BYPASS: "true" },
