@@ -1,13 +1,11 @@
-import { resolve4, resolve6 } from "node:dns/promises";
-import { isIP } from "node:net";
 import { z } from "zod";
 import type { AiProvider, AiRequestOptions } from "../provider";
+import { safeFetch } from "../safe-fetch";
 import type { NormalizedInput } from "./types";
 import { extractExifMetadata } from "./image-metadata";
 
 const ARTICLE_FETCH_TIMEOUT_MS = 15_000;
 const MAX_ARTICLE_BYTES = 2_000_000;
-const MAX_REDIRECTS = 5;
 const MIN_READER_ARTICLE_CHARACTERS = 160;
 const MIN_READER_ARTICLE_WORDS = 20;
 
@@ -204,84 +202,11 @@ function readerField(markdown: string, name: string) {
   return match?.[1]?.trim() || undefined;
 }
 
-/**
- * Fetches only public HTTP(S) documents, validating every redirect target.
- * This blocks loopback, RFC1918, and cloud-link-local SSRF routes before they
- * can be fetched by the API Worker.
- */
 async function fetchPublicDocument(initialUrl: URL, signal?: AbortSignal): Promise<Response> {
-  let currentUrl = initialUrl;
-  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
-    await assertPublicHttpUrl(currentUrl);
-    const response = await fetch(currentUrl, {
-      headers: { "user-agent": "Tracera/1.0 (+news verification)" },
-      redirect: "manual",
-      signal: signalWithTimeout(signal, ARTICLE_FETCH_TIMEOUT_MS),
-    });
-
-    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
-    const location = response.headers.get("location");
-    if (!location) throw new Error("The link redirected without a destination.");
-    currentUrl = new URL(location, currentUrl);
-  }
-  throw new Error("The link redirected too many times.");
-}
-
-async function assertPublicHttpUrl(url: URL) {
-  if (!/^https?:$/.test(url.protocol)) throw new Error("Only HTTP(S) links are supported.");
-  if (url.username || url.password)
-    throw new Error("Links with embedded credentials are not supported.");
-
-  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (hostname.endsWith(".local")) {
-    throw new Error("Links to local network hosts are not supported.");
-  }
-
-  const addresses = isIP(hostname) ? [hostname] : await resolveHostAddresses(hostname);
-  if (!addresses.length || addresses.some((address) => isPrivateAddress(address))) {
-    throw new Error("Links to private network hosts are not supported.");
-  }
-}
-
-async function resolveHostAddresses(hostname: string) {
-  // `dns.lookup` is not implemented by the Workers Node compatibility layer.
-  // Resolve both address families explicitly so the SSRF guard behaves the
-  // same in local Node development and in the deployed Worker.
-  const results = await Promise.allSettled([resolve4(hostname), resolve6(hostname)]);
-  const addresses = results.flatMap((result) =>
-    result.status === "fulfilled" ? result.value : [],
-  );
-  if (!addresses.length) throw new Error("Could not resolve the link host.");
-  return addresses;
-}
-
-function isPrivateAddress(address: string) {
-  if (address.includes(":")) {
-    const normalized = address.toLowerCase();
-    return (
-      normalized === ":" + ":1" ||
-      normalized.startsWith("fc") ||
-      normalized.startsWith("fd") ||
-      normalized.startsWith("fe8") ||
-      normalized.startsWith("fe9") ||
-      normalized.startsWith("fea") ||
-      normalized.startsWith("feb") ||
-      normalized.startsWith("::ffff:127.") ||
-      normalized.startsWith("::ffff:10.") ||
-      normalized.startsWith("::ffff:192.168.") ||
-      /^::ffff:172\.(1[6-9]|2\d|3[01])\./.test(normalized)
-    );
-  }
-  const octets = address.split(".").map(Number);
-  const [first, second] = octets;
-  return (
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second !== undefined && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168)
-  );
+  return safeFetch(initialUrl, {
+    headers: { "user-agent": "Tracera/1.0 (+news verification)" },
+    signal: signalWithTimeout(signal, ARTICLE_FETCH_TIMEOUT_MS),
+  });
 }
 
 async function readTextWithLimit(response: Response, maximumBytes: number) {

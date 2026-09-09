@@ -1,4 +1,5 @@
 import type { AiRequestOptions, GenerateOptions, ImageInput, JsonSchema } from "../provider";
+import { safeFetch } from "../safe-fetch";
 import { StructuredOutputProvider } from "../provider";
 
 export interface GeminiProviderOptions {
@@ -118,7 +119,7 @@ export class GeminiProvider extends StructuredOutputProvider {
     body: unknown,
     signal?: AbortSignal,
   ): Promise<TResponse> {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${path}`, {
+    const response = await safeFetch(`https://generativelanguage.googleapis.com/v1beta/${path}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",

@@ -1,4 +1,5 @@
 import type { AiRequestOptions, GenerateOptions, ImageInput, JsonSchema } from "../provider";
+import { safeFetch } from "../safe-fetch";
 import { StructuredOutputProvider } from "../provider";
 
 export interface OpenAiCompatibleProviderOptions {
@@ -132,7 +133,7 @@ export class OpenAiCompatibleProvider extends StructuredOutputProvider {
     body: unknown,
     signal?: AbortSignal,
   ): Promise<TResponse> {
-    const response = await fetch(`${this.baseUrl}/${path}`, {
+    const response = await safeFetch(`${this.baseUrl}/${path}`, {
       method: "POST",
       headers: {
         authorization: `Bearer ${this.apiKey}`,

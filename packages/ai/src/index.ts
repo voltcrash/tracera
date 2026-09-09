@@ -16,6 +16,14 @@ export {
 } from "./providers/openai-compatible";
 export { CompositeAiProvider } from "./composite-provider";
 export {
+  assertPublicHttpUrl,
+  createSafeFetch,
+  isBlockedAddress,
+  safeFetch,
+  type HostAddressResolver,
+  type SafeFetchOptions,
+} from "./safe-fetch";
+export {
   createAiProvider,
   type AiProviderConfig,
   type AiProviderName,

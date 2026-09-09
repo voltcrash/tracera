@@ -22,6 +22,7 @@ import {
 import {
   aggregateScore,
   analyzeFraming,
+  assertPublicHttpUrl,
   createAiProvider,
   extractClaims,
   retrieveSources,
@@ -819,6 +820,7 @@ async function normalizeWithStoredFallback(
         ? input.text.trim()
         : undefined);
     if (!candidate) throw error;
+    await assertPublicHttpUrl(candidate);
     const prior = await findLatestCheckByRawInput(candidate);
     const claimText = (prior?.claims ?? [])
       .flatMap((item) => {

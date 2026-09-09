@@ -1,4 +1,5 @@
 import type { EvidenceSource, GroundZeroResult } from "./types";
+import { safeFetch } from "../safe-fetch";
 type CorpusHistory = GroundZeroResult["corpusHistory"];
 type ArchiveHistory = GroundZeroResult["archiveHistory"];
 type GroundZeroRelationship = GroundZeroResult["relationships"][number];
@@ -183,7 +184,7 @@ export async function retrieveArchiveHistory(
         endpoint.searchParams.set("fl", "timestamp,original");
         endpoint.searchParams.set("limit", "1");
         endpoint.searchParams.set("from", "1996");
-        const response = await fetch(endpoint, {
+        const response = await safeFetch(endpoint, {
           headers: { "user-agent": "Tracera/1.0 (+origin verification)" },
           signal: signal
             ? AbortSignal.any([signal, AbortSignal.timeout(5_000)])

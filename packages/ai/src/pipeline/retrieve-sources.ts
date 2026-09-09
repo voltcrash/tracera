@@ -1,5 +1,6 @@
 import { findRelatedClaimsByEmbedding, getDomainTrustScores } from "@repo/db";
 import type { AiProvider } from "../provider";
+import { safeFetch } from "../safe-fetch";
 import type { EvidenceSource, ExtractedClaim } from "./types";
 
 const MAX_EVIDENCE_SOURCES = 5;
@@ -896,7 +897,7 @@ function limitedFetch(limit: number, signal?: AbortSignal): BudgetedEvidenceFetc
         ? AbortSignal.any([signal, init.signal])
         : init.signal
       : signal;
-    return fetch(input, { ...init, signal: requestSignal });
+    return safeFetch(input, { ...init, signal: requestSignal });
   };
   budgetedFetch.remaining = () => remaining;
   return budgetedFetch;
