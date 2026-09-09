@@ -172,6 +172,7 @@ export default function HubPage() {
                   </p>
                   <Button
                     render={<Link href="/home" />}
+                    nativeButton={false}
                     variant="lime"
                     size="lg"
                     className="mt-7 rounded-full"

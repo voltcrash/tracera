@@ -201,6 +201,7 @@ function OpenTraceButton({ id }: { id: string }) {
   return (
     <Button
       render={<Link href={`/hub/${id}`} />}
+      nativeButton={false}
       size="icon-sm"
       className="rounded-full transition group-hover:translate-x-1"
       aria-label="Open trace"
