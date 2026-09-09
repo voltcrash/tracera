@@ -8,6 +8,7 @@ export type AuthUser = {
   id: string;
   email: string;
   name: string;
+  image: string | null;
   createdAt: string;
 };
 
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: session.data.user.id,
       email: session.data.user.email,
       name: session.data.user.name ?? "",
+      image: session.data.user.image ?? null,
       createdAt: new Date(session.data.user.createdAt).toISOString(),
     };
   }, [session.data?.user]);

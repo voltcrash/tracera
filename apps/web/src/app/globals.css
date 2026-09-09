@@ -1412,6 +1412,181 @@
   height: 0.9rem;
 }
 
+/*
+ * The account row states a fact rather than asking a question, so the address
+ * itself carries the serif weight the other rows spend on their question.
+ */
+.settings-identity {
+  font-family: var(--font-serif);
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+.methods {
+  margin-top: 1.5rem;
+  max-width: 30rem;
+}
+
+.method {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 0.85rem;
+  border-top: 1px solid var(--line-weak);
+  padding: 0.9rem 0;
+}
+
+.method > svg:first-child {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.1rem;
+}
+
+.method[data-state="soon"] > svg:first-child {
+  opacity: 0.4;
+}
+
+.method-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.method-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.method-detail {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+.method-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.method-state::before {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+}
+
+.method[data-state="linked"] .method-state {
+  color: var(--lime-ink);
+}
+
+.method[data-state="linked"] .method-state::before {
+  border-color: var(--lime-ink);
+  background: var(--lime-ink);
+}
+
+.avatar-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.avatar-picker {
+  position: relative;
+  flex: none;
+  margin-top: 0.35rem;
+}
+
+.avatar-shuffle {
+  position: relative;
+  display: block;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.avatar-shuffle-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-ink) 62%, transparent);
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.avatar-shuffle-hint svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.avatar-shuffle:hover .avatar-shuffle-hint,
+.avatar-shuffle:focus-visible .avatar-shuffle-hint {
+  opacity: 1;
+}
+
+.avatar-clear {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    color 140ms ease;
+}
+
+.avatar-clear svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.avatar-picker:hover .avatar-clear,
+.avatar-picker:focus-within .avatar-clear {
+  opacity: 1;
+}
+
+.avatar-clear:hover {
+  color: var(--foreground);
+}
+
+/* The mark redraws itself when it changes, so a shuffle is visibly a new trace. */
+.avatar-shuffle .trace-burst {
+  animation: trace-burst-in 260ms ease-out;
+}
+
+@keyframes trace-burst-in {
+  from {
+    transform: rotate(-24deg) scale(0.9);
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar-shuffle .trace-burst {
+    animation: none;
+  }
+}
+
 @media (max-width: 47.9375rem) {
   .settings-row {
     grid-template-columns: minmax(0, 1fr);
@@ -1427,6 +1602,30 @@
 
   .settings-margin-state {
     flex-basis: 100%;
+  }
+}
+
+@media (max-width: 33.75rem) {
+  .method {
+    grid-template-columns: 1rem minmax(0, 1fr);
+  }
+
+  .method-state {
+    grid-column: 2;
+    margin-top: 0.35rem;
+  }
+
+  .avatar-row {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+}
+
+/* Without hover there is nothing to reveal the clear control, so it stays out. */
+@media (hover: none) {
+  .avatar-clear {
+    opacity: 1;
   }
 }
 

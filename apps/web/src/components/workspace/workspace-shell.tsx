@@ -8,7 +8,7 @@ import type { TraceSummary } from "@/app/(workspace)/hub/_components/trace-libra
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { accountLabel, useAuth } from "@/components/providers/auth-provider";
 import { ThemeToggle } from "@/components/navigation/theme-toggle";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { TraceAvatar } from "@/components/brand/trace-avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -206,9 +206,7 @@ function RailAccount() {
               <button type="button" className="rail-account" aria-label="Open account menu" />
             }
           >
-            <Avatar className="size-7">
-              <AvatarFallback>{accountLabel(user).slice(0, 2)}</AvatarFallback>
-            </Avatar>
+            <TraceAvatar image={user.image} label={accountLabel(user)} className="size-7" />
             <span className="truncate">{accountLabel(user)}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -219,9 +217,7 @@ function RailAccount() {
           >
             <DropdownMenuGroup>
               <DropdownMenuLabel className="flex items-center gap-2.5 px-2 py-2">
-                <Avatar className="size-8">
-                  <AvatarFallback>{accountLabel(user).slice(0, 2)}</AvatarFallback>
-                </Avatar>
+                <TraceAvatar image={user.image} label={accountLabel(user)} className="size-8" />
                 <span className="truncate text-sm text-popover-foreground">
                   {accountLabel(user)}
                 </span>

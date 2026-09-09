@@ -1,10 +1,13 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { Check, Loader2, Monitor, Moon, Sun } from "lucide-react";
-import { useAuth } from "@/components/providers/auth-provider";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { Check, Loader2, Monitor, Moon, Shuffle, Sun, X } from "lucide-react";
+import { accountLabel, useAuth } from "@/components/providers/auth-provider";
 import { useTheme, type ThemePreference } from "@/components/providers/theme-provider";
 import { authClient } from "@/lib/auth-client";
+import { GoogleMark } from "@/components/auth/google-sign-in-button";
+import { GitHubMark } from "@/components/brand/github-mark";
+import { isPhotoUrl, shuffleAvatarId, TraceAvatar } from "@/components/brand/trace-avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,9 +70,14 @@ export default function SettingsPage() {
     <main className="settings">
       <div className="settings-inner">
         <h1 className="settings-headline">Settings</h1>
-        <p className="settings-say">What Tracera calls you, and how it looks while you read.</p>
+        <p className="settings-say">
+          Who Tracera has you down as, and how it looks while you read.
+        </p>
 
         <div className="settings-rows">
+          <AccountRow />
+          <AvatarRow />
+
           <section className="settings-row" aria-labelledby="settings-name">
             <div className="settings-margin">
               <span className="settings-margin-name" id="settings-name">
@@ -175,4 +183,182 @@ export default function SettingsPage() {
       </div>
     </main>
   );
+}
+
+type LinkedAccount = { providerId: string; createdAt: string };
+
+function AccountRow() {
+  const { isLoading, user } = useAuth();
+  const [accounts, setAccounts] = useState<LinkedAccount[] | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const controller = new AbortController();
+    fetch("/api/auth/list-accounts", { credentials: "include", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Unable to load your sign-in methods.");
+        setAccounts((await response.json()) as LinkedAccount[]);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setAccounts([]);
+      });
+    return () => controller.abort();
+  }, [user]);
+
+  const google = accounts?.find((account) => account.providerId === "google") ?? null;
+  const pending = isLoading || !user || accounts === null;
+
+  return (
+    <section className="settings-row" aria-labelledby="settings-account">
+      <div className="settings-margin">
+        <span className="settings-margin-name" id="settings-account">
+          Account
+        </span>
+        <span className="settings-margin-state">
+          {pending ? "Loading" : google ? "Signed in with Google" : "Signed in by email"}
+        </span>
+      </div>
+
+      <div>
+        {pending ? (
+          <Skeleton className="h-8 max-w-80 rounded-lg" aria-label="Loading your account" />
+        ) : (
+          <p className="settings-identity">{user.email}</p>
+        )}
+        <p className="settings-note">
+          {pending
+            ? "Reading your sign-in methods."
+            : `You have been tracing claims here since ${longDate(user.createdAt)}.`}
+        </p>
+
+        <ul className="methods">
+          <li className="method" data-state={google ? "linked" : "absent"}>
+            <GoogleMark />
+            <span className="method-body">
+              <span className="method-name">Google</span>
+              <span className="method-detail">
+                {pending
+                  ? "Checking"
+                  : google
+                    ? `Linked ${longDate(google.createdAt)}`
+                    : "Not linked to this account"}
+              </span>
+            </span>
+            <span className="method-state">{google ? "In use" : "Not in use"}</span>
+          </li>
+          <li className="method" data-state="soon">
+            <GitHubMark className="size-4" />
+            <span className="method-body">
+              <span className="method-name">GitHub</span>
+              <span className="method-detail">
+                Sign in with GitHub is on the way. Your traces will follow you across both.
+              </span>
+            </span>
+            <span className="method-state">Coming soon</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function AvatarRow() {
+  const { isLoading, refreshUser, user } = useAuth();
+  const [image, setImage] = useState<string | null>(null);
+  const [syncedImage, setSyncedImage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef(0);
+
+  if (user && user.image !== syncedImage) {
+    setSyncedImage(user.image);
+    setImage(user.image);
+  }
+
+  async function saveImage(next: string | null) {
+    if (!user) return;
+    const request = ++requestRef.current;
+    const previous = image;
+    setImage(next);
+    setError(null);
+    const { error: updateError } = await authClient.updateUser({ image: next });
+    if (request !== requestRef.current) return;
+    if (updateError) {
+      setImage(previous);
+      setError(updateError.message ?? "Unable to save your avatar.");
+      return;
+    }
+    await refreshUser();
+  }
+
+  const pending = isLoading || !user;
+
+  return (
+    <section className="settings-row" aria-labelledby="settings-avatar">
+      <div className="settings-margin">
+        <span className="settings-margin-name" id="settings-avatar">
+          Avatar
+        </span>
+        <span className="settings-margin-state">
+          {pending
+            ? "Loading"
+            : isPhotoUrl(image)
+              ? "Your Google picture"
+              : image
+                ? "A trace mark"
+                : "Your initials"}
+        </span>
+      </div>
+
+      <div className="avatar-row">
+        <div>
+          <p className="settings-ask">How should you show up?</p>
+          <p className="settings-note">
+            Every mark is built from the Tracera logo: one source, a few branches. Shuffle until one
+            fits, or clear it to go back to your initials.
+          </p>
+          {error && (
+            <Alert variant="destructive" className="settings-field">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        {pending ? (
+          <Skeleton className="size-18 shrink-0 rounded-full" aria-label="Loading your avatar" />
+        ) : (
+          <div className="avatar-picker">
+            <button
+              type="button"
+              className="avatar-shuffle"
+              onClick={() => void saveImage(shuffleAvatarId(image))}
+              aria-label={image ? "Shuffle to a different avatar" : "Pick an avatar"}
+            >
+              <TraceAvatar image={image} label={accountLabel(user)} className="size-18" />
+              <span className="avatar-shuffle-hint" aria-hidden="true">
+                <Shuffle />
+              </span>
+            </button>
+            {image && (
+              <button
+                type="button"
+                className="avatar-clear"
+                onClick={() => void saveImage(null)}
+                aria-label="Clear avatar"
+              >
+                <X />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function longDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
