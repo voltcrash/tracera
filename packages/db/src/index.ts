@@ -735,7 +735,7 @@ export async function beginAnalysisAdmission(input: {
     await client.query("BEGIN");
     transactionOpen = true;
     const clock = await client.query<{ now: string; next_day: string }>(
-      "SELECT NOW()::text AS now, ((CURRENT_DATE + 1)::timestamp AT TIME ZONE 'UTC')::text AS next_day",
+      "SELECT NOW()::text AS now, ((((NOW() AT TIME ZONE 'UTC')::date + 1)::timestamp) AT TIME ZONE 'UTC')::text AS next_day",
     );
     const now = new Date(clock.rows[0]?.now ?? Date.now());
     const nextDay = clock.rows[0]?.next_day ?? new Date(now.getTime() + 86_400_000).toISOString();
@@ -844,14 +844,14 @@ export async function beginAnalysisAdmission(input: {
 
     await client.query(
       `INSERT INTO analysis_daily_quotas (user_id, period_start, request_count)
-       VALUES ($1, CURRENT_DATE, 0)
+       VALUES ($1, (NOW() AT TIME ZONE 'UTC')::date, 0)
        ON CONFLICT (user_id, period_start) DO NOTHING`,
       [input.userId],
     );
     const quota = await client.query<{ request_count: number }>(
       `SELECT request_count
          FROM analysis_daily_quotas
-        WHERE user_id = $1 AND period_start = CURRENT_DATE
+        WHERE user_id = $1 AND period_start = (NOW() AT TIME ZONE 'UTC')::date
         FOR UPDATE`,
       [input.userId],
     );
@@ -952,7 +952,7 @@ export async function beginAnalysisAdmission(input: {
     await client.query(
       `UPDATE analysis_daily_quotas
           SET request_count = request_count + 1
-        WHERE user_id = $1 AND period_start = CURRENT_DATE`,
+        WHERE user_id = $1 AND period_start = (NOW() AT TIME ZONE 'UTC')::date`,
       [input.userId],
     );
     await updateIdempotencyLease(client, input, leaseRow.id);
@@ -1045,8 +1045,8 @@ export async function reserveProviderSpend(input: {
     transactionOpen = true;
     const clock = await client.query<{ now: string; period_start: string; reset_at: string }>(
       `SELECT NOW()::text AS now,
-              CURRENT_DATE::text AS period_start,
-              ((CURRENT_DATE + 1)::timestamp AT TIME ZONE 'UTC')::text AS reset_at`,
+              (NOW() AT TIME ZONE 'UTC')::date::text AS period_start,
+              (((((NOW() AT TIME ZONE 'UTC')::date + 1)::timestamp) AT TIME ZONE 'UTC'))::text AS reset_at`,
     );
     const current = clock.rows[0];
     if (!current) throw new Error("Provider spend clock returned no row.");
