@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import {
   applyEditorialDomainTrustReview,
+  finishAnalysisAdmission,
   checkDatabase,
   configureDatabase,
   findGroundZeroCorpusHistory,
@@ -17,6 +18,7 @@ import {
   persistCheck,
   recordTraceAppearance,
   recordDomainOutcomeSignals,
+  type AnalysisAdmission,
   EMBEDDING_DIMENSIONS,
 } from "@repo/db";
 import {
@@ -46,6 +48,19 @@ import { apiRelativePath } from "./base-path";
 import { allowedCorsOrigin } from "./cors-origin";
 import { reanalysisPolicy } from "./reanalysis-policy";
 import { parseFirstPartyAnalysisInput } from "./analysis-input";
+import {
+  AnalysisControlError,
+  admitAnalysis,
+  analysisAdmissionError,
+  analysisControlConfig,
+  analysisControlHeaders,
+  analysisControlPayload,
+  analysisControlStatus,
+  analysisRateHeaders,
+  readIdempotencyKey,
+  spendLimitedAiProvider,
+  type AnalysisControlConfig,
+} from "./analysis-controls";
 
 export type Bindings = AuthBindings & {
   DATABASE_URL?: string;
@@ -65,7 +80,14 @@ app.use("/*", async (context, next) =>
   cors({
     origin: (origin) => allowedCorsOrigin(origin, context.req.url),
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type"],
+    allowHeaders: ["Content-Type", "Idempotency-Key"],
+    exposeHeaders: [
+      "Retry-After",
+      "X-Idempotency-Replayed",
+      "X-RateLimit-Limit",
+      "X-RateLimit-Remaining",
+      "X-RateLimit-Reset",
+    ],
     credentials: true,
   })(context, next),
 );
@@ -128,6 +150,22 @@ type AnalysisProgress = {
   claimCount?: number;
 };
 type ProgressEmitter = (progress: AnalysisProgress) => void;
+type AdmittedAnalysis = Extract<AnalysisAdmission, { kind: "admitted" }>;
+type AnalysisPreparation =
+  | { kind: "response"; response: Response }
+  | { kind: "replay"; admission: Extract<AnalysisAdmission, { kind: "replay" }> }
+  | {
+      kind: "admitted";
+      admission: AdmittedAnalysis;
+      userId: string;
+      endpoint: string;
+      idempotencyKey: string;
+      config: AnalysisControlConfig;
+    };
+type ManagedAnalysisResult = {
+  payload: AnalysisResponse | AnalysisErrorResponse | ReturnType<typeof analysisControlPayload>;
+  status: 200 | 201 | 409 | 422 | 429 | 503;
+};
 
 const MAX_ANALYSIS_BODY_BYTES = 7_100_000;
 const DEDUP_SAFETY_CAP_HOURS = 24;
@@ -143,11 +181,17 @@ app.post("/analyze", async (context) => {
   const parsed = parseFirstPartyAnalysisInput(await context.req.json().catch(() => null));
   if (!parsed.success) return context.json({ error: parsed.error }, 400);
   const body = parsed.data;
-  if (!(await canRunAnalysis(context, body))) {
-    return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
+  const prepared = await prepareAnalysis(context, body, "/analyze");
+  if (prepared.kind === "response") return prepared.response;
+  if (prepared.kind === "replay") {
+    return context.json(
+      prepared.admission.responseBody as Record<string, unknown>,
+      prepared.admission.responseStatus as 200 | 201 | 422 | 503,
+      { "x-idempotency-replayed": "true" },
+    );
   }
-  const result = await runAnalysis(context, body);
-  return context.json(result.payload, result.status);
+  const result = await runManagedAnalysis(context, body, prepared);
+  return context.json(result.payload, result.status, analysisRateHeaders(prepared.admission));
 });
 
 app.post("/analyze/stream", async (context) => {
@@ -157,8 +201,13 @@ app.post("/analyze/stream", async (context) => {
   const parsed = parseFirstPartyAnalysisInput(await context.req.json().catch(() => null));
   if (!parsed.success) return context.json({ error: parsed.error }, 400);
   const body = parsed.data;
-  if (!(await canRunAnalysis(context, body))) {
-    return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
+  const prepared = await prepareAnalysis(context, body, "/analyze/stream");
+  if (prepared.kind === "response") return prepared.response;
+  if (prepared.kind === "replay") {
+    return replayedAnalysisStream(
+      prepared.admission.responseBody,
+      prepared.admission.responseStatus,
+    );
   }
   const encoder = new TextEncoder();
   let cancelled = false;
@@ -176,8 +225,18 @@ app.post("/analyze/stream", async (context) => {
         message: "Trace accepted for analysis.",
       });
       heartbeat = setInterval(() => emit("heartbeat", { timestamp: Date.now() }), 15_000);
-      void runAnalysis(context, body, (progress) => emit("progress", progress), analysisSignal)
+      void runManagedAnalysis(
+        context,
+        body,
+        prepared,
+        (progress) => emit("progress", progress),
+        analysisSignal,
+      )
         .then((result) => {
+          if (analysisSignal.aborted) {
+            cancelled = true;
+            return;
+          }
           emit(result.status < 400 ? "complete" : "error", result.payload);
           if (!cancelled) controller.close();
         })
@@ -209,15 +268,141 @@ app.post("/analyze/stream", async (context) => {
       "cache-control": "no-cache, no-transform",
       connection: "keep-alive",
       "x-accel-buffering": "no",
+      ...analysisRateHeaders(prepared.admission),
     },
   });
 });
+
+async function prepareAnalysis(
+  context: Context<{ Bindings: Bindings }>,
+  body: unknown,
+  endpoint: string,
+): Promise<AnalysisPreparation> {
+  const user = await currentUser(context);
+  if (!user) {
+    return {
+      kind: "response",
+      response: context.json({ error: "Sign in or create an account to start a fact-check." }, 401),
+    };
+  }
+  const idempotency = readIdempotencyKey(context.req.raw);
+  if (!idempotency.valid) {
+    return {
+      kind: "response",
+      response: context.json({ error: idempotency.message, code: "idempotency_key_required" }, 400),
+    };
+  }
+  const config = analysisControlConfig(context.env);
+  try {
+    const admission = await admitAnalysis({
+      userId: user.id,
+      request: context.req.raw,
+      endpoint,
+      body,
+      idempotencyKey: idempotency.value,
+      forceReanalysis:
+        body !== null &&
+        typeof body === "object" &&
+        (body as { forceReanalysis?: unknown }).forceReanalysis === true,
+      config,
+      secret: context.env.BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
+    });
+    if (admission.kind === "rejected") {
+      return {
+        kind: "response",
+        response: controlResponse(context, analysisAdmissionError(admission)),
+      };
+    }
+    if (admission.kind === "replay") return { kind: "replay", admission };
+    return {
+      kind: "admitted",
+      admission,
+      userId: user.id,
+      endpoint,
+      idempotencyKey: idempotency.value,
+      config,
+    };
+  } catch (error) {
+    const failure =
+      error instanceof AnalysisControlError
+        ? error
+        : new AnalysisControlError("analysis_controls_unavailable");
+    return { kind: "response", response: controlResponse(context, failure) };
+  }
+}
+
+function controlResponse(context: Context<{ Bindings: Bindings }>, error: AnalysisControlError) {
+  return context.json(
+    analysisControlPayload(error),
+    analysisControlStatus(error.code),
+    analysisControlHeaders(error),
+  );
+}
+
+async function runManagedAnalysis(
+  context: Context<{ Bindings: Bindings }>,
+  body: unknown,
+  preparation: Extract<AnalysisPreparation, { kind: "admitted" }>,
+  emit: ProgressEmitter = () => undefined,
+  signal: AbortSignal = context.req.raw.signal,
+): Promise<ManagedAnalysisResult> {
+  let result: ManagedAnalysisResult;
+  try {
+    result = await runAnalysis(context, body, emit, signal, preparation.config);
+  } catch (error) {
+    if (error instanceof AnalysisControlError) {
+      result = {
+        payload: analysisControlPayload(error),
+        status: analysisControlStatus(error.code),
+      };
+    } else {
+      const failure = publicAnalysisError(error);
+      result = {
+        payload: { error: failure.message, code: failure.code },
+        status: failure.status,
+      };
+    }
+  }
+  try {
+    await finishAnalysisAdmission({
+      userId: preparation.userId,
+      endpoint: preparation.endpoint,
+      idempotencyKey: preparation.idempotencyKey,
+      leaseId: preparation.admission.leaseId,
+      responseBody: result.payload,
+      responseStatus: result.status,
+      idempotencyTtlSeconds: preparation.config.idempotencyTtlSeconds,
+    });
+  } catch (error) {
+    console.error("Could not finalize analysis controls", error);
+  }
+  return result;
+}
+
+function replayedAnalysisStream(payload: unknown, status: number) {
+  const encoder = new TextEncoder();
+  const event = status < 400 ? "complete" : "error";
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      "x-idempotency-replayed": "true",
+    },
+  });
+}
 
 async function runAnalysis(
   context: Context<{ Bindings: Bindings }>,
   body: unknown,
   emit: ProgressEmitter = () => undefined,
   signal: AbortSignal = context.req.raw.signal,
+  controlConfig: AnalysisControlConfig = analysisControlConfig(context.env),
 ): Promise<
   | { payload: AnalysisResponse; status: 200 | 201 }
   | { payload: AnalysisErrorResponse; status: 422 | 503 }
@@ -231,7 +416,11 @@ async function runAnalysis(
     const user = await currentUser(context);
     const visibility = requestedVisibility(body, user?.id);
     const aiConfiguration = configuredAiConfiguration();
-    const provider = createAiProvider(aiConfiguration);
+    const provider = spendLimitedAiProvider(
+      createAiProvider(aiConfiguration),
+      aiConfiguration,
+      controlConfig,
+    );
     const normalized = await normalizeWithStoredFallback(body, provider, signal);
     emit({
       stage: "embedding",
@@ -412,6 +601,7 @@ async function runAnalysis(
       }),
     };
   } catch (error) {
+    if (error instanceof AnalysisControlError) throw error;
     if (signal.aborted) throw signal.reason ?? error;
     console.error("Analysis failed", error);
     const failure = publicAnalysisError(error);
@@ -839,10 +1029,6 @@ async function normalizeWithStoredFallback(
       sourceDomain: url.hostname.replace(/^www\./, ""),
     };
   }
-}
-
-async function canRunAnalysis(context: Context<{ Bindings: Bindings }>, body: unknown) {
-  return Boolean(body && (await currentUser(context)));
 }
 
 function requestedVisibility(

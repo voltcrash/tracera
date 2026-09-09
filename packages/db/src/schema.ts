@@ -2,10 +2,13 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   index,
   jsonb,
+  integer,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -45,6 +48,110 @@ export const sessions = pgTable(
     index("sessions_expires_at_idx").on(table.expiresAt),
   ],
 );
+
+export const analysisRateLimits = pgTable(
+  "analysis_rate_limits",
+  {
+    scopeType: varchar("scope_type", { length: 8 }).notNull(),
+    scopeKey: text("scope_key").notNull(),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+    requestCount: integer("request_count").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.scopeType, table.scopeKey] })],
+);
+
+export const analysisLeases = pgTable(
+  "analysis_leases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    ipHash: text("ip_hash").notNull(),
+    endpoint: varchar("endpoint", { length: 64 }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("analysis_leases_user_active_idx").on(table.userId, table.releasedAt, table.expiresAt),
+    index("analysis_leases_ip_active_idx").on(table.ipHash, table.releasedAt, table.expiresAt),
+  ],
+);
+
+export const analysisIdempotencyKeys = pgTable(
+  "analysis_idempotency_keys",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: varchar("endpoint", { length: 64 }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),
+    requestHash: varchar("request_hash", { length: 64 }).notNull(),
+    requestStatus: varchar("request_status", { length: 16 }).notNull(),
+    responseBody: jsonb("response_body"),
+    responseStatus: integer("response_status"),
+    leaseId: uuid("lease_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.endpoint, table.idempotencyKey] }),
+    index("analysis_idempotency_expires_idx").on(table.expiresAt),
+  ],
+);
+
+export const analysisDailyQuotas = pgTable(
+  "analysis_daily_quotas",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    periodStart: date("period_start").notNull(),
+    requestCount: integer("request_count").notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.periodStart] })],
+);
+
+export const analysisForceCooldowns = pgTable(
+  "analysis_force_cooldowns",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    inputHash: varchar("input_hash", { length: 64 }).notNull(),
+    cooldownUntil: timestamp("cooldown_until", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.inputHash] })],
+);
+
+export const aiProviderSpend = pgTable(
+  "ai_provider_spend",
+  {
+    providerKey: varchar("provider_key", { length: 128 }).notNull(),
+    periodStart: date("period_start").notNull(),
+    budgetUsd: numeric("budget_usd", { precision: 12, scale: 6 }).notNull(),
+    reservedUsd: numeric("reserved_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    actualUsd: numeric("actual_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    openUntil: timestamp("open_until", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.providerKey, table.periodStart] })],
+);
+
+export const aiSpendReservations = pgTable("ai_spend_reservations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  providerKey: varchar("provider_key", { length: 128 }).notNull(),
+  periodStart: date("period_start").notNull(),
+  estimatedUsd: numeric("estimated_usd", { precision: 12, scale: 6 }).notNull(),
+  actualUsd: numeric("actual_usd", { precision: 12, scale: 6 }),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const accounts = pgTable(
   "accounts",

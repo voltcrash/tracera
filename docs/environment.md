@@ -89,6 +89,38 @@ what is needed:
 - `GOOGLE_FACT_CHECK_API_KEY` and `NEWS_API_KEY` — additional evidence
   retrieval providers.
 
+## Analysis safeguards
+
+Both `/api/tracera/analyze` and `/api/tracera/analyze/stream` require an
+`Idempotency-Key` header. Reusing a key with the same request replays the
+stored response; reusing it for a different request is rejected. The browser
+client creates a key for each submission.
+
+Analysis admission is coordinated in Postgres, so limits apply across all
+serverless instances. The defaults are 30 requests per user and 60 per IP per
+hour, two concurrent analyses per user, four per IP, and 100 admitted requests
+per user per UTC day. Forced reanalysis of the same submission has a one-hour
+cooldown. Leases expire after ten minutes so abandoned requests cannot hold a
+concurrency slot forever.
+
+These settings can be overridden in the server environment:
+
+- `ANALYSIS_USER_RATE_LIMIT`, `ANALYSIS_IP_RATE_LIMIT`, and
+  `ANALYSIS_RATE_WINDOW_SECONDS` control the distributed fixed-window rates.
+- `ANALYSIS_USER_CONCURRENCY_LIMIT`, `ANALYSIS_IP_CONCURRENCY_LIMIT`, and
+  `ANALYSIS_LEASE_SECONDS` control distributed in-flight leases.
+- `ANALYSIS_DAILY_QUOTA` and
+  `ANALYSIS_FORCE_REANALYSIS_COOLDOWN_SECONDS` control per-user daily usage and
+  forced reanalysis.
+- `ANALYSIS_IDEMPOTENCY_TTL_SECONDS` controls how long completed responses are
+  replayable.
+- `AI_DAILY_SPEND_LIMIT_USD` opens a per-provider daily spend circuit. Since
+  provider adapters do not all return billable token usage, the circuit uses
+  conservative per-request estimates configured with
+  `AI_ESTIMATED_GENERATION_COST_USD`, `AI_ESTIMATED_IMAGE_COST_USD`, and
+  `AI_ESTIMATED_EMBEDDING_COST_USD`. Reservations are settled even when a
+  provider call fails.
+
 ## Operational settings
 
 These are only needed for administration:
