@@ -81,7 +81,6 @@ what is needed:
 
 These are only needed for administration:
 
-- `BETTER_AUTH_API_KEY` — optional Better Auth dashboard integration.
 - `DOMAIN_TRUST_AUTO_REFINE` and `DOMAIN_TRUST_ADMIN_TOKEN` — domain trust
   review controls.
 
