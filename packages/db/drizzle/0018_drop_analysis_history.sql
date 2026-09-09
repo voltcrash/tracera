@@ -1,1 +1,1 @@
-DROP TABLE "analysis_history";
+DROP TABLE IF EXISTS "analysis_history";
