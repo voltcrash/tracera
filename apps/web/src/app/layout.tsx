@@ -60,14 +60,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`}
+    >
       <head>
         <meta name="darkreader-lock" />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} font-sans`}
-      >
+      <body className="font-sans">
         <ThemeProvider>
           <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>
