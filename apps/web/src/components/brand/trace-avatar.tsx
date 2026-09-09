@@ -1,81 +1,24 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { avatarDesign, type AvatarDesign } from "@repo/contracts/avatar";
+
+import { Avatar } from "@/components/ui/avatar";
 
 /*
- * Avatars are generated from the Tracera mark rather than uploaded: one source
- * node, one straight trunk, and curved branches ending in terminal nodes. A
- * choice is stored on the user as the token `trace:<n>`, so nothing is hosted.
+ * A mark is the Tracera logo generalised: one source node, one straight trunk,
+ * and curved branches ending in terminal nodes. Which one you get is decided
+ * when your account is created and only changes when you shuffle it.
  */
-const AVATAR_PREFIX = "trace:";
-
-const discs = [
-  { disc: "#89f336", mark: "#14210a" },
-  { disc: "#7f9c62", mark: "#f4f6f0" },
-  { disc: "#c47f95", mark: "#fbf2f4" },
-  { disc: "#e9e1d6", mark: "#b0657f" },
-  { disc: "#7d8ba1", mark: "#f2f5f9" },
-  { disc: "#9a86bd", mark: "#f7f4fc" },
-  { disc: "#d9a441", mark: "#241703" },
-  { disc: "#6aa8a2", mark: "#f0f8f7" },
-];
-
-const shapes = [
-  { branches: 5, rotation: -90, curve: 0.9 },
-  { branches: 6, rotation: -60, curve: -0.7 },
-  { branches: 7, rotation: -90, curve: 0.55 },
-  { branches: 8, rotation: -67.5, curve: -0.45 },
-];
-
-export const AVATAR_COUNT = discs.length * shapes.length;
-
-type AvatarDesign = {
-  id: string;
-  disc: string;
-  mark: string;
-  branches: number;
-  rotation: number;
-  curve: number;
-};
-
-export function parseAvatarId(image: string | null | undefined): AvatarDesign | null {
-  if (!image?.startsWith(AVATAR_PREFIX)) return null;
-  const index = Number(image.slice(AVATAR_PREFIX.length));
-  if (!Number.isInteger(index) || index < 0 || index >= AVATAR_COUNT) return null;
-  const palette = discs[index % discs.length]!;
-  const shape = shapes[Math.floor(index / discs.length)]!;
-  return { id: image, ...palette, ...shape };
-}
-
-/** Shuffling never lands on the mark already showing. */
-export function shuffleAvatarId(current: string | null) {
-  const currentIndex = parseAvatarId(current) ? Number(current!.slice(AVATAR_PREFIX.length)) : null;
-  const span = currentIndex === null ? AVATAR_COUNT : AVATAR_COUNT - 1;
-  let next = Math.floor(Math.random() * span);
-  if (currentIndex !== null && next >= currentIndex) next += 1;
-  return `${AVATAR_PREFIX}${next}`;
-}
-
-/** Google hands back a hosted photo, which stands in until a mark is picked. */
-export function isPhotoUrl(image: string | null | undefined) {
-  return Boolean(image?.startsWith("http"));
-}
-
 export function TraceAvatar({
   className,
   image,
-  label,
+  seed,
 }: {
   className?: string;
   image: string | null;
-  label: string;
+  seed: string;
 }) {
-  const design = parseAvatarId(image);
   return (
     <Avatar className={className}>
-      {design ? <TraceBurst design={design} /> : null}
-      {!design && isPhotoUrl(image) ? (
-        <AvatarImage src={image!} alt="" referrerPolicy="no-referrer" />
-      ) : null}
-      {!design ? <AvatarFallback>{label.slice(0, 2)}</AvatarFallback> : null}
+      <TraceBurst design={avatarDesign(image ?? "", seed)} />
     </Avatar>
   );
 }

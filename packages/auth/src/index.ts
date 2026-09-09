@@ -1,4 +1,5 @@
 import { dash } from "@better-auth/infra";
+import { randomAvatarId } from "@repo/contracts/avatar";
 import { db } from "@repo/db";
 import * as databaseSchema from "@repo/db/schema";
 import { betterAuth } from "better-auth/minimal";
@@ -53,6 +54,14 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
     account: { modelName: "accounts" },
     verification: { modelName: "verifications" },
     emailAndPassword: { enabled: false },
+    databaseHooks: {
+      user: {
+        create: {
+          /* Avatars are Tracera's own marks, so a provider photo never applies. */
+          before: async (user) => ({ data: { ...user, image: randomAvatarId() } }),
+        },
+      },
+    },
     socialProviders: {
       google: {
         clientId: googleClientId,

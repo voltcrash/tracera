@@ -206,7 +206,7 @@ function RailAccount() {
               <button type="button" className="rail-account" aria-label="Open account menu" />
             }
           >
-            <TraceAvatar image={user.image} label={accountLabel(user)} className="size-7" />
+            <TraceAvatar image={user.image} seed={user.id} className="size-7" />
             <span className="truncate">{accountLabel(user)}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -217,7 +217,7 @@ function RailAccount() {
           >
             <DropdownMenuGroup>
               <DropdownMenuLabel className="flex items-center gap-2.5 px-2 py-2">
-                <TraceAvatar image={user.image} label={accountLabel(user)} className="size-8" />
+                <TraceAvatar image={user.image} seed={user.id} className="size-8" />
                 <span className="truncate text-sm text-popover-foreground">
                   {accountLabel(user)}
                 </span>

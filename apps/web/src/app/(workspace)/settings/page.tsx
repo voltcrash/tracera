@@ -1,13 +1,14 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Check, Loader2, Monitor, Moon, Shuffle, Sun, X } from "lucide-react";
-import { accountLabel, useAuth } from "@/components/providers/auth-provider";
+import { Check, Loader2, Monitor, Moon, Shuffle, Sun } from "lucide-react";
+import { useAuth } from "@/components/providers/auth-provider";
 import { useTheme, type ThemePreference } from "@/components/providers/theme-provider";
 import { authClient } from "@/lib/auth-client";
 import { GoogleMark } from "@/components/auth/google-sign-in-button";
 import { GitHubMark } from "@/components/brand/github-mark";
-import { isPhotoUrl, shuffleAvatarId, TraceAvatar } from "@/components/brand/trace-avatar";
+import { shuffleAvatarId } from "@repo/contracts/avatar";
+import { TraceAvatar } from "@/components/brand/trace-avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -274,7 +275,7 @@ function AvatarRow() {
     setImage(user.image);
   }
 
-  async function saveImage(next: string | null) {
+  async function saveImage(next: string) {
     if (!user) return;
     const request = ++requestRef.current;
     const previous = image;
@@ -299,13 +300,7 @@ function AvatarRow() {
           Avatar
         </span>
         <span className="settings-margin-state">
-          {pending
-            ? "Loading"
-            : isPhotoUrl(image)
-              ? "Your Google picture"
-              : image
-                ? "A trace mark"
-                : "Your initials"}
+          {pending ? "Loading" : "One of thirty-two marks"}
         </span>
       </div>
 
@@ -313,8 +308,8 @@ function AvatarRow() {
         <div>
           <p className="settings-ask">How should you show up?</p>
           <p className="settings-note">
-            Every mark is built from the Tracera logo: one source, a few branches. Shuffle until one
-            fits, or clear it to go back to your initials.
+            Your mark was drawn when you signed up. Every one is built from the Tracera logo: one
+            source, a few branches. Shuffle until another fits better.
           </p>
           {error && (
             <Alert variant="destructive" className="settings-field">
@@ -326,29 +321,17 @@ function AvatarRow() {
         {pending ? (
           <Skeleton className="size-18 shrink-0 rounded-full" aria-label="Loading your avatar" />
         ) : (
-          <div className="avatar-picker">
-            <button
-              type="button"
-              className="avatar-shuffle"
-              onClick={() => void saveImage(shuffleAvatarId(image))}
-              aria-label={image ? "Shuffle to a different avatar" : "Pick an avatar"}
-            >
-              <TraceAvatar image={image} label={accountLabel(user)} className="size-18" />
-              <span className="avatar-shuffle-hint" aria-hidden="true">
-                <Shuffle />
-              </span>
-            </button>
-            {image && (
-              <button
-                type="button"
-                className="avatar-clear"
-                onClick={() => void saveImage(null)}
-                aria-label="Clear avatar"
-              >
-                <X />
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            className="avatar-shuffle"
+            onClick={() => void saveImage(shuffleAvatarId(image))}
+            aria-label="Shuffle to a different mark"
+          >
+            <TraceAvatar image={image} seed={user.id} className="size-18" />
+            <span className="avatar-shuffle-hint" aria-hidden="true">
+              <Shuffle />
+            </span>
+          </button>
         )}
       </div>
     </section>

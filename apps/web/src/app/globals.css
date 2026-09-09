@@ -1499,15 +1499,11 @@
   gap: 2rem;
 }
 
-.avatar-picker {
-  position: relative;
-  flex: none;
-  margin-top: 0.35rem;
-}
-
 .avatar-shuffle {
   position: relative;
   display: block;
+  flex: none;
+  margin-top: 0.35rem;
   border-radius: 999px;
   cursor: pointer;
 }
@@ -1533,40 +1529,6 @@
 .avatar-shuffle:hover .avatar-shuffle-hint,
 .avatar-shuffle:focus-visible .avatar-shuffle-hint {
   opacity: 1;
-}
-
-.avatar-clear {
-  position: absolute;
-  top: -0.35rem;
-  right: -0.35rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.4rem;
-  height: 1.4rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink-soft);
-  cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity 140ms ease,
-    color 140ms ease;
-}
-
-.avatar-clear svg {
-  width: 0.75rem;
-  height: 0.75rem;
-}
-
-.avatar-picker:hover .avatar-clear,
-.avatar-picker:focus-within .avatar-clear {
-  opacity: 1;
-}
-
-.avatar-clear:hover {
-  color: var(--foreground);
 }
 
 /* The mark redraws itself when it changes, so a shuffle is visibly a new trace. */
@@ -1619,13 +1581,6 @@
     flex-direction: column-reverse;
     align-items: flex-start;
     gap: 1.25rem;
-  }
-}
-
-/* Without hover there is nothing to reveal the clear control, so it stays out. */
-@media (hover: none) {
-  .avatar-clear {
-    opacity: 1;
   }
 }
 
