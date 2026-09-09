@@ -1,10 +1,14 @@
 export {
   type AiProvider,
+  type AiProviderCall,
+  type AiProviderCallKind,
+  type AiProviderHooks,
   type AiRequestOptions,
   type GenerateOptions,
   type ImageInput,
   type JsonSchema,
   type StructuredOutputAttempt,
+  InstrumentedAiProvider,
   StructuredOutputError,
   StructuredOutputProvider,
 } from "./provider";

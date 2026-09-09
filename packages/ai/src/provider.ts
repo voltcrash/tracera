@@ -45,6 +45,53 @@ export interface AiProvider {
   embed(text: string, options?: AiRequestOptions): Promise<number[]>;
 }
 
+export type AiProviderCallKind = "generate" | "generate_image" | "embed";
+
+export interface AiProviderCall {
+  kind: AiProviderCallKind;
+  inputLength: number;
+}
+
+export interface AiProviderHooks {
+  onCall<T>(call: AiProviderCall, operation: () => Promise<T>): Promise<T>;
+}
+
+/** Adds request-level policy around any provider, including composite providers. */
+export class InstrumentedAiProvider implements AiProvider {
+  constructor(
+    private readonly provider: AiProvider,
+    private readonly hooks: AiProviderHooks,
+  ) {}
+
+  generate<TSchema extends z.ZodType>(
+    prompt: string,
+    schema: TSchema,
+    options?: GenerateOptions,
+  ): Promise<z.output<TSchema>> {
+    return this.hooks.onCall({ kind: "generate", inputLength: prompt.length }, () =>
+      this.provider.generate(prompt, schema, options),
+    );
+  }
+
+  generateFromImage<TSchema extends z.ZodType>(
+    prompt: string,
+    image: ImageInput,
+    schema: TSchema,
+    options?: GenerateOptions,
+  ): Promise<z.output<TSchema>> {
+    return this.hooks.onCall(
+      { kind: "generate_image", inputLength: prompt.length + image.data.length },
+      () => this.provider.generateFromImage(prompt, image, schema, options),
+    );
+  }
+
+  embed(text: string, options?: AiRequestOptions): Promise<number[]> {
+    return this.hooks.onCall({ kind: "embed", inputLength: text.length }, () =>
+      this.provider.embed(text, options),
+    );
+  }
+}
+
 export class StructuredOutputError extends Error {
   constructor(
     readonly provider: string,
