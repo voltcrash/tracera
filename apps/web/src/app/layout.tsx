@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Newsreader } from "next/font/google";
 import localFont from "next/font/local";
+import { headers } from "next/headers";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { ThemeProvider, themeBootstrapScript } from "@/components/providers/theme-provider";
 import "./globals.css";
@@ -54,11 +55,13 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
@@ -67,7 +70,7 @@ export default function RootLayout({
     >
       <head>
         <meta name="darkreader-lock" />
-        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body className="font-sans">
         <ThemeProvider>
