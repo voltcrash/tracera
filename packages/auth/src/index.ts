@@ -62,7 +62,7 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
     user: { modelName: "users" },
     session: {
       modelName: "sessions",
-      cookieCache: { enabled: true, maxAge: 5 * 60 },
+      cookieCache: { enabled: false },
     },
     account: {
       modelName: "accounts",
