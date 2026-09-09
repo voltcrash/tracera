@@ -3,10 +3,15 @@ import { db } from "@repo/db";
 import * as databaseSchema from "@repo/db/schema";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { devAuthBypass, devAuthBypassEnabled } from "./dev-auth-bypass.js";
+
+export { DEV_AUTH_BYPASS_PATH, devAuthBypassEnabled } from "./dev-auth-bypass.js";
 
 export const TRACERA_AUTH_BASE_PATH = "/api/auth";
 
 export type AuthRuntimeEnv = {
+  NODE_ENV?: string;
+  DEV_AUTH_BYPASS?: string;
   BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_API_KEY?: string;
   GOOGLE_CLIENT_ID?: string;
@@ -63,7 +68,10 @@ export function createAuth(env: AuthRuntimeEnv, requestUrl: string | URL) {
       cookiePrefix: "tracera",
       useSecureCookies: true,
     },
-    plugins: env.BETTER_AUTH_API_KEY ? [dash({ apiKey: env.BETTER_AUTH_API_KEY })] : [],
+    plugins: [
+      ...(env.BETTER_AUTH_API_KEY ? [dash({ apiKey: env.BETTER_AUTH_API_KEY })] : []),
+      ...(devAuthBypassEnabled(env) ? [devAuthBypass()] : []),
+    ],
   });
 }
 

@@ -15,6 +15,14 @@ require environment variables.
   `openai-compatible`.
 - `AI_API_KEY` — key for the selected generation provider.
 
+## Development authentication
+
+- `DEV_AUTH_BYPASS` — set to exactly `true` to enable
+  `GET /api/auth/dev-login` while `NODE_ENV=development`. On a loopback host,
+  the endpoint creates or loads `developer@tracera.local`, creates a real
+  database-backed Better Auth session, sets its normal session cookie, and
+  redirects to `/home`. The route is not registered in any other environment.
+
 ## AI provider overrides
 
 Gemini uses built-in generation and embedding defaults. Tracera stores
