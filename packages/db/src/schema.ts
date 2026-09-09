@@ -146,7 +146,7 @@ export const traceAppearances = pgTable(
   (table) => [
     check(
       "trace_appearances_occurrence_type_check",
-      sql`${table.occurrenceType} IN ('exact_resubmission', 'related_story')`,
+      sql`${table.occurrenceType} IN ('first_check', 'exact_resubmission', 'related_story', 'scheduled_recheck')`,
     ),
   ],
 );

@@ -15,7 +15,7 @@ ALTER TABLE "checks"
 
 ALTER TABLE "trace_appearances"
   ADD CONSTRAINT "trace_appearances_occurrence_type_check"
-    CHECK ("occurrence_type" IN ('exact_resubmission', 'related_story'));
+    CHECK ("occurrence_type" IN ('first_check', 'exact_resubmission', 'related_story', 'scheduled_recheck'));
 
 ALTER TABLE "claims"
   ADD CONSTRAINT "claims_claim_type_check"
