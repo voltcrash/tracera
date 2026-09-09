@@ -44,6 +44,34 @@ for (const path of ["/analyze", "/analyze/stream"]) {
     assert.equal(response.status, 413);
     assert.deepEqual(await response.json(), { error: "Request body is too large." });
   });
+
+  for (const [label, contentLength] of [
+    ["without Content-Length", undefined],
+    ["with an undersized Content-Length", "1"],
+  ] as const) {
+    test(`${path} rejects oversized streamed bodies ${label}`, async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(7_100_000));
+          controller.enqueue(new Uint8Array(1));
+          controller.close();
+        },
+      });
+      const headers = new Headers({ "content-type": "application/json" });
+      if (contentLength) headers.set("content-length", contentLength);
+      const requestInit = {
+        method: "POST",
+        headers,
+        body,
+        duplex: "half",
+      } as RequestInit;
+
+      const response = await app.request(path, requestInit, env);
+
+      assert.equal(response.status, 413);
+      assert.deepEqual(await response.json(), { error: "Request body is too large." });
+    });
+  }
 }
 
 for (const path of ["/checks", "/checks/00000000-0000-4000-8000-000000000000"]) {
