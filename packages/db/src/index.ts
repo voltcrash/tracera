@@ -91,7 +91,6 @@ export interface GroundZeroCorpusHistoryItem {
 export async function findGroundZeroCorpusHistory(
   urls: string[],
   ownerUserId?: string,
-  visibility: "public" | "private" = "private",
 ): Promise<GroundZeroCorpusHistoryItem[]> {
   const uniqueUrls = [...new Set(urls.filter(Boolean))];
   if (!uniqueUrls.length) return [];
@@ -105,13 +104,10 @@ export async function findGroundZeroCorpusHistory(
     `SELECT id, source_url, source_domain, published_at, created_at
        FROM checks
       WHERE (source_url = ANY($1::text[]) OR raw_input = ANY($1::text[]))
-        AND (
-          ($3 = 'public' AND visibility = 'public')
-          OR ($3 = 'private' AND (visibility = 'public' OR owner_user_id = $2))
-        )
+        AND owner_user_id = $2
       ORDER BY created_at ASC
       LIMIT 20`,
-    [uniqueUrls, ownerUserId ?? null, visibility],
+    [uniqueUrls, ownerUserId ?? null],
   );
   return result.rows.map((row) => ({
     checkId: row.id,
@@ -196,7 +192,7 @@ export async function findRelatedClaimsByEmbedding(
         AND c.confidence >= 0.6
         AND c.evidence_quality >= 0.55
         AND 1 - (c.embedding <=> $1::vector) >= $2
-        AND (checks.visibility = 'public' OR checks.owner_user_id = $4)
+        AND checks.owner_user_id = $4
       ORDER BY c.embedding <=> $1::vector
       LIMIT $3`,
     [toVector(embedding), similarityThreshold, limit, ownerUserId ?? null],
@@ -220,7 +216,6 @@ export async function findReusableExactCheck(
   rawInput: string,
   maxAgeHours: number,
   ownerUserId?: string,
-  visibility: "public" | "private" = "private",
 ): Promise<CachedCheck | null> {
   const normalized = rawInput.replace(/\s+/g, " ").trim().toLowerCase();
   const result = await pool.query<{
@@ -237,13 +232,10 @@ export async function findReusableExactCheck(
        FROM checks
       WHERE created_at >= NOW() - ($2 * INTERVAL '1 hour')
         AND lower(regexp_replace(trim(raw_input), '\\s+', ' ', 'g')) = $1
-        AND (
-          ($4 = 'public' AND visibility = 'public')
-          OR ($4 = 'private' AND visibility = 'private' AND owner_user_id = $3)
-        )
+        AND owner_user_id = $3
       ORDER BY created_at DESC
       LIMIT 1`,
-    [normalized, maxAgeHours, ownerUserId ?? null, visibility],
+    [normalized, maxAgeHours, ownerUserId ?? null],
   );
   const row = result.rows[0];
   return row
@@ -269,7 +261,6 @@ export async function findReusableImageCheck(
   maxAgeHours: number,
   similarityThreshold: number,
   ownerUserId?: string,
-  visibility: "public" | "private" = "private",
 ): Promise<CachedCheck | null> {
   const result = await pool.query<{
     id: string;
@@ -289,16 +280,13 @@ export async function findReusableImageCheck(
        FROM checks
       WHERE input_type = 'image'
         AND created_at >= NOW() - ($3 * INTERVAL '1 hour')
-        AND (
-          ($5 = 'public' AND visibility = 'public')
-          OR ($5 = 'private' AND visibility = 'private' AND owner_user_id = $4)
-        )
+        AND owner_user_id = $4
       ORDER BY CASE WHEN raw_input = $1 THEN 0
                     ELSE embedding <=> $2::vector
                 END,
                created_at DESC
       LIMIT 1`,
-    [rawInput, toVector(embedding), maxAgeHours, ownerUserId ?? null, visibility],
+    [rawInput, toVector(embedding), maxAgeHours, ownerUserId ?? null],
   );
   const row = result.rows[0];
   const similarity = Number(row?.similarity);
@@ -328,7 +316,6 @@ export async function findRelatedStoryCheck(
   embedding: number[],
   similarityThreshold: number,
   maxAgeHours: number,
-  visibility: "public" | "private",
   ownerUserId?: string,
 ) {
   const result = await pool.query<{ id: string; similarity: number }>(
@@ -336,11 +323,10 @@ export async function findRelatedStoryCheck(
        FROM checks
       WHERE created_at >= NOW() - ($2 * INTERVAL '1 hour')
         AND 1 - (embedding <=> $1::vector) >= $3
-        AND visibility = $4
-        AND ($4 = 'public' OR owner_user_id = $5)
+        AND owner_user_id = $4
       ORDER BY embedding <=> $1::vector, created_at DESC
       LIMIT 1`,
-    [toVector(embedding), maxAgeHours, similarityThreshold, visibility, ownerUserId ?? null],
+    [toVector(embedding), maxAgeHours, similarityThreshold, ownerUserId ?? null],
   );
   const row = result.rows[0];
   return row ? { id: row.id, similarity: Number(row.similarity) } : null;
@@ -375,14 +361,9 @@ export async function persistCheck(input: {
   groundZero?: unknown;
   prompts?: unknown[];
   ownerUserId?: string;
-  visibility?: "public" | "private";
-  publishConsent?: boolean;
   supersedesCheckId?: string;
   lineageReason?: "first_check" | "related_story" | "scheduled_recheck";
 }): Promise<{ id: string; createdAt: string }> {
-  if (input.visibility === "public" && input.publishConsent !== true) {
-    throw new Error("Public checks require explicit publication consent.");
-  }
   const client = await pool.connect();
 
   try {
@@ -406,7 +387,7 @@ export async function persistCheck(input: {
         JSON.stringify(input.groundZero ?? null),
         JSON.stringify(input.prompts ?? []),
         input.ownerUserId ?? null,
-        input.visibility ?? "private",
+        "private",
         input.supersedesCheckId ?? null,
         input.lineageReason ?? "first_check",
         input.headline?.trim() || null,
@@ -466,14 +447,14 @@ export async function getTraceTimeline(id: string, ownerUserId?: string) {
          SELECT id, supersedes_check_id, tracera_score, created_at,
                 source_url, source_domain, lineage_reason
            FROM checks
-          WHERE id = $1 AND (visibility = 'public' OR owner_user_id = $2)
+          WHERE id = $1 AND owner_user_id = $2
          UNION ALL
          SELECT parent.id, parent.supersedes_check_id, parent.tracera_score,
                 parent.created_at, parent.source_url, parent.source_domain,
                 parent.lineage_reason
            FROM checks AS parent
            JOIN ancestors AS child ON child.supersedes_check_id = parent.id
-          WHERE parent.visibility = 'public' OR parent.owner_user_id = $2
+          WHERE parent.owner_user_id = $2
        ),
        root AS (
          SELECT id, supersedes_check_id, tracera_score, created_at,
@@ -490,7 +471,7 @@ export async function getTraceTimeline(id: string, ownerUserId?: string) {
                 child.lineage_reason
            FROM checks AS child
            JOIN descendants AS parent ON child.supersedes_check_id = parent.id
-          WHERE child.visibility = 'public' OR child.owner_user_id = $2
+          WHERE child.owner_user_id = $2
        )
      SELECT * FROM descendants ORDER BY created_at`,
     [id, ownerUserId ?? null],
@@ -502,11 +483,11 @@ export async function getTraceAppearances(id: string, ownerUserId?: string) {
   const result = await pool.query(
     `WITH RECURSIVE ancestors AS (
        SELECT id, supersedes_check_id FROM checks
-        WHERE id = $1 AND (visibility = 'public' OR owner_user_id = $2)
+        WHERE id = $1 AND owner_user_id = $2
        UNION ALL
        SELECT parent.id, parent.supersedes_check_id
          FROM checks parent JOIN ancestors child ON child.supersedes_check_id = parent.id
-        WHERE parent.visibility = 'public' OR parent.owner_user_id = $2
+        WHERE parent.owner_user_id = $2
      ), root AS (
        SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
      ), descendants AS (
@@ -514,7 +495,7 @@ export async function getTraceAppearances(id: string, ownerUserId?: string) {
        UNION ALL
        SELECT child.id FROM checks child
          JOIN descendants parent ON child.supersedes_check_id = parent.id
-        WHERE child.visibility = 'public' OR child.owner_user_id = $2
+        WHERE child.owner_user_id = $2
      )
      SELECT appearance.id, appearance.check_id, appearance.source_url,
             appearance.source_domain, appearance.occurrence_type,
@@ -537,11 +518,9 @@ interface CheckSummaryRow {
   source_domain: string | null;
   source_url: string | null;
   published_at: string | null;
-  visibility: "public" | "private";
-  appearance_count: string;
 }
 
-/** The listing projection shared by the News Hub and a personal history. */
+/** The listing projection used by a personal history. */
 const CHECK_SUMMARY_BASE_COLUMNS = `item.id, item.input_type, item.raw_input, item.headline,
        COALESCE(
          item.analysis #>> '{claims,0,claim,claimText}',
@@ -551,23 +530,7 @@ const CHECK_SUMMARY_BASE_COLUMNS = `item.id, item.input_type, item.raw_input, it
            LIMIT 1)
        ) AS primary_claim,
        item.tracera_score, item.created_at,
-       item.source_domain, item.source_url, item.published_at, item.visibility`;
-
-const CHECK_APPEARANCE_COUNT = `(WITH RECURSIVE ancestors AS (
-          SELECT id, supersedes_check_id FROM checks WHERE id = item.id
-          UNION ALL
-          SELECT parent.id, parent.supersedes_check_id FROM checks parent
-            JOIN ancestors child ON child.supersedes_check_id = parent.id
-        ), root AS (
-          SELECT id FROM ancestors WHERE supersedes_check_id IS NULL LIMIT 1
-        ), descendants AS (
-          SELECT id FROM root
-          UNION ALL
-          SELECT child.id FROM checks child
-            JOIN descendants parent ON child.supersedes_check_id = parent.id
-        )
-        SELECT COUNT(*)::text FROM trace_appearances
-         WHERE check_id IN (SELECT id FROM descendants))`;
+       item.source_domain, item.source_url, item.published_at`;
 
 /** Full-text predicate over a check and its claims. Always bound to $1. */
 const CHECK_SEARCH_PREDICATE = `(
@@ -596,57 +559,41 @@ function toCheckSummary(row: CheckSummaryRow) {
     sourceDomain: row.source_domain,
     sourceUrl: row.source_url,
     publishedAt: row.published_at,
-    visibility: row.visibility,
-    appearanceCount: Number(row.appearance_count),
   };
 }
 
-export async function listChecks(
-  page: number,
-  pageSize: number,
-  query = "",
-  ownerUserId?: string,
-  ownedOnly = false,
-  includeAppearanceCount = true,
-  includeTotal = true,
-) {
+export async function listChecks(page: number, pageSize: number, query = "", ownerUserId?: string) {
   const offset = (page - 1) * pageSize;
   const search = query.trim();
-  /* Personal history is every trace this user ran, private ones included; the
-   * archive is everything public plus their own. */
-  const visibilityPredicate = ownedOnly
-    ? "item.owner_user_id = $OWNER AND $OWNER IS NOT NULL"
-    : "(item.visibility = 'public' OR item.owner_user_id = $OWNER)";
-  const appearanceCount = includeAppearanceCount ? CHECK_APPEARANCE_COUNT : "0::text";
+  /* A history only ever holds the traces this user ran. */
+  const ownerPredicate = "item.owner_user_id = $OWNER AND $OWNER IS NOT NULL";
   const [items, total] = await Promise.all([
     pool.query<CheckSummaryRow>(
-      `SELECT ${CHECK_SUMMARY_BASE_COLUMNS}, ${appearanceCount} AS appearance_count
+      `SELECT ${CHECK_SUMMARY_BASE_COLUMNS}
        FROM checks item
        WHERE ${CHECK_SEARCH_PREDICATE}
-         AND ${visibilityPredicate.replaceAll("$OWNER", "$4")}
+         AND ${ownerPredicate.replaceAll("$OWNER", "$4")}
        ORDER BY ${CHECK_SEARCH_RANK},
          item.created_at DESC
        LIMIT $2 OFFSET $3`,
       [search, pageSize, offset, ownerUserId ?? null],
     ),
-    includeTotal
-      ? pool.query<{ count: string }>(
-          `SELECT COUNT(*)::text AS count FROM checks item
+    pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM checks item
         WHERE ${CHECK_SEARCH_PREDICATE}
-          AND ${visibilityPredicate.replaceAll("$OWNER", "$2")}`,
-          [search, ownerUserId ?? null],
-        )
-      : null,
+          AND ${ownerPredicate.replaceAll("$OWNER", "$2")}`,
+      [search, ownerUserId ?? null],
+    ),
   ]);
 
   return {
     checks: items.rows.map(toCheckSummary),
-    total: total ? Number(total.rows[0]?.count ?? 0) : items.rows.length,
+    total: Number(total.rows[0]?.count ?? 0),
   };
 }
 
 /** Returns a complete stored check, including the original input and structured analysis. */
-export async function getCheckById(id: string, ownerUserId?: string, allowPrivate = false) {
+export async function getCheckById(id: string, ownerUserId?: string) {
   const result = await pool.query<{
     id: string;
     input_type: string;
@@ -660,7 +607,6 @@ export async function getCheckById(id: string, ownerUserId?: string, allowPrivat
     source_url: string | null;
     published_at: string | null;
     ground_zero: unknown;
-    visibility: "public" | "private";
     owner_user_id: string | null;
   }>(
     `SELECT id, input_type, raw_input, headline,
@@ -672,11 +618,11 @@ export async function getCheckById(id: string, ownerUserId?: string, allowPrivat
                 LIMIT 1)
             ) AS primary_claim,
             tracera_score, analysis, created_at, source_domain, source_url,
-            published_at, ground_zero, visibility, owner_user_id
+            published_at, ground_zero, owner_user_id
      FROM checks
-     WHERE id = $1 AND ($3::boolean OR visibility = 'public' OR owner_user_id = $2)
+     WHERE id = $1 AND owner_user_id = $2
      LIMIT 1`,
-    [id, ownerUserId ?? null, allowPrivate],
+    [id, ownerUserId ?? null],
   );
   const row = result.rows[0];
 
@@ -694,7 +640,6 @@ export async function getCheckById(id: string, ownerUserId?: string, allowPrivat
         sourceUrl: row.source_url,
         publishedAt: row.published_at,
         groundZero: row.ground_zero,
-        visibility: row.visibility,
         ownerUserId: row.owner_user_id,
       }
     : null;
@@ -707,7 +652,7 @@ export async function findLatestCheckByRawInput(rawInput: string, ownerUserId?: 
     `SELECT analysis
        FROM checks
       WHERE raw_input = $1
-        AND (visibility = 'public' OR owner_user_id = $2)
+        AND owner_user_id = $2
       ORDER BY created_at DESC
       LIMIT 1`,
     [rawInput, ownerUserId ?? null],
