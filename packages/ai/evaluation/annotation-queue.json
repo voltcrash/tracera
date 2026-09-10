@@ -1,0 +1,20 @@
+{
+  "queueVersion": "1.0.0",
+  "status": "uncollected",
+  "claimsPerStoryTarget": 5,
+  "batches": [
+    { "id": "dev-01", "split": "development", "storySlots": 50, "claimSlots": 250 },
+    { "id": "dev-02", "split": "development", "storySlots": 50, "claimSlots": 250 },
+    { "id": "cal-01", "split": "calibration", "storySlots": 50, "claimSlots": 250 },
+    { "id": "cal-02", "split": "calibration", "storySlots": 50, "claimSlots": 250 },
+    { "id": "test-01", "split": "test", "storySlots": 50, "claimSlots": 250 },
+    { "id": "test-02", "split": "test", "storySlots": 50, "claimSlots": 250 }
+  ],
+  "totals": { "storySlots": 300, "claimSlots": 1500 },
+  "allocationRules": [
+    "Group all related events and source families into exactly one split.",
+    "Assign category and language quotas before a batch is collected.",
+    "Require two independent annotators and one recorded adjudication per claim.",
+    "Add the later temporal holdout after its cutoff and size are frozen; it is not part of the 1500 minimum."
+  ]
+}

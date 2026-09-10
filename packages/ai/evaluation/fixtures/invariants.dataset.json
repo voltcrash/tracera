@@ -1,0 +1,194 @@
+{
+  "schemaVersion": "1.0.0",
+  "datasetId": "core-invariants",
+  "datasetVersion": "1.0.0",
+  "license": {
+    "name": "Synthetic fixture; repository license",
+    "url": null,
+    "redistributionAllowed": true,
+    "notes": "All content is synthetic. Labels are not human gold."
+  },
+  "documents": [
+    {
+      "id": "doc-attribution",
+      "text": "The agency said the bridge opened in 2025.",
+      "contentHash": "sha256:c273f5f77f12ef20a6233fac8564d5f155cdd4977c41f490ac00581926e8eb69",
+      "language": "en",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "development",
+      "eventGroupId": "bridge-opening",
+      "sourceFamilyId": "synthetic-attribution"
+    },
+    {
+      "id": "doc-time",
+      "text": "The city recorded 10 millimetres of rain on 3 May 2024.",
+      "contentHash": "sha256:d51687a44ad2921bb48fea9b55813fb69aa6d720fdcb7c5f8b074e80ab3139d8",
+      "language": "en",
+      "asOfTime": "2024-06-01T00:00:00Z",
+      "acquiredAt": "2024-05-04T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "calibration",
+      "eventGroupId": "rainfall-2024",
+      "sourceFamilyId": "synthetic-weather"
+    },
+    {
+      "id": "doc-context",
+      "text": "The chart starts in 2020 and omits the earlier decline.",
+      "contentHash": "sha256:80cac7c7d10f1518fccc2ad12b353fd7750a842cccb338287b7c4bdced4a9d0d",
+      "language": "en",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "test",
+      "eventGroupId": "chart-context",
+      "sourceFamilyId": "synthetic-chart"
+    },
+    {
+      "id": "doc-conflict",
+      "text": "Witnesses gave conflicting dates for the launch.",
+      "contentHash": "sha256:b79544e14fcd74e9e36665837a947e1811121481b054c712ca9b97af980b7ecb",
+      "language": "en",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "temporal",
+      "eventGroupId": "launch-conflict",
+      "sourceFamilyId": "synthetic-witness"
+    },
+    {
+      "id": "doc-unanswerable",
+      "text": "No complete registry exists for private collections.",
+      "contentHash": "sha256:87e9542752398f56ade68588ff2d71e4650155a08627765453b92669c3c47d34",
+      "language": "en",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "development",
+      "eventGroupId": "private-registry",
+      "sourceFamilyId": "synthetic-registry"
+    }
+  ],
+  "evidenceDocuments": [
+    {
+      "id": "evidence-bridge",
+      "text": "The official notice states that the bridge opened in 2024.",
+      "contentHash": "sha256:d8405e007e40395682dc8e711d66c48c3677742f543b6472572428c1a24793a7",
+      "acquiredAt": "2025-12-02T00:00:00Z",
+      "publishedAt": "2024-01-02T00:00:00Z",
+      "sourceUrl": "https://example.test/bridge-notice",
+      "license": "Synthetic fixture"
+    },
+    {
+      "id": "evidence-rain",
+      "text": "The weather archive reports 10 millimetres on 3 May 2024.",
+      "contentHash": "sha256:23d750585740473fd51c145391a41f03940035ef28a534d65c019f3598916891",
+      "acquiredAt": "2024-05-05T00:00:00Z",
+      "publishedAt": "2024-05-04T00:00:00Z",
+      "sourceUrl": "https://example.test/weather",
+      "license": "Synthetic fixture"
+    },
+    {
+      "id": "evidence-context",
+      "text": "The full series fell before 2020, changing the chart interpretation.",
+      "contentHash": "sha256:c8ab8f999deffa867e5f620386c467dcb5c01099b65da5862a03901928b38ed4",
+      "acquiredAt": "2025-12-02T00:00:00Z",
+      "publishedAt": "2025-11-30T00:00:00Z",
+      "sourceUrl": "https://example.test/full-series",
+      "license": "Synthetic fixture"
+    }
+  ],
+  "excerpts": [
+    {
+      "id": "excerpt-bridge",
+      "evidenceDocumentId": "evidence-bridge",
+      "span": { "start": 0, "end": 58 },
+      "quote": "The official notice states that the bridge opened in 2024."
+    },
+    {
+      "id": "excerpt-rain",
+      "evidenceDocumentId": "evidence-rain",
+      "span": { "start": 0, "end": 57 },
+      "quote": "The weather archive reports 10 millimetres on 3 May 2024."
+    },
+    {
+      "id": "excerpt-context",
+      "evidenceDocumentId": "evidence-context",
+      "span": { "start": 0, "end": 68 },
+      "quote": "The full series fell before 2020, changing the chart interpretation."
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-attribution",
+      "documentId": "doc-attribution",
+      "text": "The agency said the bridge opened in 2025.",
+      "spans": [{ "start": 0, "end": 42 }],
+      "material": true,
+      "checkability": "checkable",
+      "label": "contradicted",
+      "evidenceExcerptIds": ["excerpt-bridge"],
+      "origin": "uncertain",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "claim-time",
+      "documentId": "doc-time",
+      "text": "The city recorded 10 millimetres of rain on 3 May 2024.",
+      "spans": [{ "start": 0, "end": 55 }],
+      "material": true,
+      "checkability": "checkable",
+      "label": "supported",
+      "evidenceExcerptIds": ["excerpt-rain"],
+      "origin": "known_root",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "claim-context",
+      "documentId": "doc-context",
+      "text": "The chart starts in 2020 and omits the earlier decline.",
+      "spans": [{ "start": 0, "end": 55 }],
+      "material": true,
+      "checkability": "checkable",
+      "label": "misleading",
+      "evidenceExcerptIds": ["excerpt-context"],
+      "origin": "multiple_roots",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "claim-conflict",
+      "documentId": "doc-conflict",
+      "text": "Witnesses gave conflicting dates for the launch.",
+      "spans": [{ "start": 0, "end": 48 }],
+      "material": true,
+      "checkability": "checkable",
+      "label": "mixed",
+      "evidenceExcerptIds": [],
+      "origin": "uncertain",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "claim-unanswerable",
+      "documentId": "doc-unanswerable",
+      "text": "No complete registry exists for private collections.",
+      "spans": [{ "start": 0, "end": 52 }],
+      "material": true,
+      "checkability": "unanswerable",
+      "label": "unverified",
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    }
+  ]
+}

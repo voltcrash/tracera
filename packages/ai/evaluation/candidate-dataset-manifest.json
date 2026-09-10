@@ -1,0 +1,47 @@
+{
+  "manifestVersion": "1.0.0",
+  "status": "candidate_collection_only",
+  "goldClaimsAvailable": 0,
+  "target": {
+    "claimInstances": 1500,
+    "stories": 300,
+    "partitions": {
+      "development": 500,
+      "calibration": 500,
+      "test": 500,
+      "temporalHoldout": "additional; size determined before collection freeze"
+    },
+    "annotationsPerClaim": 2,
+    "adjudicationRequired": true,
+    "minimumHeldOutPerAdvertisedCategory": 50
+  },
+  "requiredCoverage": [
+    "supported",
+    "contradicted",
+    "misleading",
+    "mixed",
+    "unverified",
+    "long_articles",
+    "primary_records",
+    "evolving_events",
+    "historical_claims",
+    "numerical_errors",
+    "copied_reporting",
+    "satire_and_quotation",
+    "entity_collisions",
+    "malicious_input",
+    "inaccessible_pages",
+    "images"
+  ],
+  "externalBenchmarks": [
+    {
+      "name": "AVeriTeC",
+      "status": "candidate_not_imported",
+      "requiredReview": ["license", "label_mapping", "temporal_leakage", "training_contamination"]
+    }
+  ],
+  "warnings": [
+    "No candidate story is gold until two independent human annotations and adjudication are stored.",
+    "Public benchmarks do not replace newly collected Tracera cases."
+  ]
+}
