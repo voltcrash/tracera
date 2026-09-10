@@ -149,6 +149,10 @@ importers:
         version: 7.0.2
 
   packages/contracts:
+    dependencies:
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*

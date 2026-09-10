@@ -7,6 +7,7 @@ export function createV1EvaluationAdapter(provider: AiProvider): EvaluationAdapt
   return {
     id: "tracera-v1",
     version: "1.0.0",
+    contractVersion: "legacy-v1",
     async evaluate(dataset, options) {
       if (options.mode !== "live") throw new Error("The v1 adapter only executes in live mode.");
       return evaluateV1(provider, dataset, options);

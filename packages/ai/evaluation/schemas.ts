@@ -1,13 +1,9 @@
+import { claimLabelSchema } from "@repo/contracts/core-v2";
 import { z } from "zod";
 
 export const splitIdSchema = z.enum(["development", "calibration", "test", "temporal"]);
-export const truthLabelSchema = z.enum([
-  "supported",
-  "contradicted",
-  "misleading",
-  "mixed",
-  "unverified",
-]);
+/** Truth labels are the frozen v2 claim labels; the harness never defines its own. */
+export const truthLabelSchema = claimLabelSchema;
 
 const halfOpenSpanSchema = z
   .object({ start: z.number().int().nonnegative(), end: z.number().int().positive() })
