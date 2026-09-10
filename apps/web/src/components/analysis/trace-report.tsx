@@ -102,32 +102,14 @@ export function TraceReport({
 
   return (
     <article className="trace">
-      <div className="trace-bar">
-        <div className="trace-bar-inner">
-          <p className="trace-bar-score">
-            <span data-tone={scoreTone(score.overall)}>{formatScore(score.overall)}</span>
-            {readingOf(score.overall)}
-          </p>
-          <nav className="trace-bar-nav" aria-label="Sections of this trace">
-            {sections.map((section) => (
-              <a
-                key={section.id}
-                href={`#${section.id}`}
-                aria-current={active === section.id ? "true" : undefined}
-              >
-                {section.label}
-              </a>
-            ))}
-          </nav>
-        </div>
-      </div>
-
       <Verdict
         headline={headline}
         statement={statement}
         checkedAt={checkedAt}
         claims={claims}
         score={score}
+        sections={sections}
+        active={active}
       />
 
       <Claims claims={claims} />
@@ -198,12 +180,16 @@ function Verdict({
   checkedAt,
   claims,
   score,
+  sections,
+  active,
 }: {
   headline?: string;
   statement?: string;
   checkedAt?: string;
   claims: ClaimResult[];
   score: TraceraScore;
+  sections: { id: string; label: string }[];
+  active: string | null;
 }) {
   const dimensions = [
     ["Factual accuracy", score.factualAccuracy],
@@ -217,7 +203,20 @@ function Verdict({
 
   return (
     <header className="trace-verdict" id="verdict">
-      {title && <h1 className="trace-headline">{title}</h1>}
+      <div className="trace-masthead">
+        {title && <h1 className="trace-headline">{title}</h1>}
+        <nav className="trace-nav" aria-label="Sections of this trace">
+          {sections.map((section) => (
+            <a
+              key={section.id}
+              href={`#${section.id}`}
+              aria-current={active === section.id ? "true" : undefined}
+            >
+              {section.label}
+            </a>
+          ))}
+        </nav>
+      </div>
 
       <div className="trace-dial-row" data-tone={scoreTone(score.overall)}>
         <div

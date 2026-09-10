@@ -1510,66 +1510,6 @@
   margin-inline: auto;
 }
 
-.trace-bar {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  margin-bottom: 2.75rem;
-  border-bottom: 1px solid var(--line-weak);
-  background: color-mix(in srgb, var(--background) 88%, transparent);
-  backdrop-filter: blur(12px);
-}
-
-.trace-bar-inner {
-  display: flex;
-  width: 100%;
-  max-width: 58rem;
-  align-items: center;
-  gap: 1.25rem;
-  margin-inline: auto;
-  padding: 0.75rem 0;
-}
-
-.trace-bar-nav a {
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-  transition: color 140ms ease;
-}
-
-.trace-bar-nav a:hover {
-  color: var(--foreground);
-}
-
-.trace-bar-score {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  min-width: 0;
-  margin-right: auto;
-  font-size: 0.8125rem;
-  color: var(--ink-faint);
-}
-
-.trace-bar-score > span {
-  font-family: var(--font-serif);
-  font-size: 1.15rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--tone-ink, var(--foreground));
-}
-
-.trace-bar-nav {
-  display: flex;
-  gap: 1.25rem;
-}
-
-/* The bar doubles as a position marker, so the current section is underlined. */
-.trace-bar-nav a[aria-current] {
-  color: var(--foreground);
-  box-shadow: inset 0 -2px 0 var(--lime-ink);
-}
-
 /* Tone is the one signal that travels: score bands, verdicts, and stances share it. */
 [data-tone="strong"] {
   --tone-ink: var(--lime-ink);
@@ -1597,7 +1537,42 @@
 
 /* The verdict: the one panel on the page, and the only place with a dial. */
 .trace-verdict {
-  scroll-margin-top: 4.5rem;
+  scroll-margin-top: 2rem;
+}
+
+/* The headline keeps the left column; the section jumps take the space beside it. */
+.trace-masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1.25rem 3rem;
+  padding-top: 3rem;
+}
+
+.trace-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.75rem;
+  /* Optical: drops the first link onto the headline's first line. */
+  padding-top: 0.6rem;
+  text-align: right;
+}
+
+.trace-nav a {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  transition: color 140ms ease;
+}
+
+.trace-nav a:hover {
+  color: var(--foreground);
+}
+
+/* The list doubles as a position marker, so the current section is underlined. */
+.trace-nav a[aria-current] {
+  color: var(--foreground);
+  box-shadow: inset 0 -2px 0 var(--lime-ink);
 }
 
 .trace-headline {
@@ -1749,7 +1724,7 @@
 /* Section chrome. The title, its count, and its lede sit on one rule. */
 .trace-section {
   margin-top: 4.5rem;
-  scroll-margin-top: 4.5rem;
+  scroll-margin-top: 2rem;
 }
 
 .trace-section-head {
@@ -2204,8 +2179,17 @@
 }
 
 @media (max-width: 47.9375rem) {
-  .trace-bar-nav {
-    display: none;
+  .trace-masthead {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trace-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 1.25rem;
+    padding-top: 0;
+    text-align: left;
   }
 
   .trace-dial-row {
@@ -2231,12 +2215,6 @@
 
   .trace-section-count {
     text-align: left;
-  }
-}
-
-@media (max-width: 63.9375rem) {
-  .trace-bar-inner {
-    padding-left: 3rem;
   }
 }
 
