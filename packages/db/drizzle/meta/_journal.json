@@ -183,6 +183,20 @@
       "when": 1788969600000,
       "tag": "0026_workspace_performance",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789025647788,
+      "tag": "0027_careless_boomerang",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789026642407,
+      "tag": "0028_same_ronan",
+      "breakpoints": true
     }
   ]
 }

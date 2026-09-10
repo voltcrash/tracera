@@ -11,7 +11,7 @@ if (!databaseUrl) throw new Error("DATABASE_MIGRATOR_URL is required for databas
 
 export default defineConfig({
   dialect: "postgresql",
-  schema: "./src/schema.ts",
+  schema: ["./src/schema.ts", "./src/core/schema.ts"],
   out: "./drizzle",
   dbCredentials: {
     url: databaseUrl,

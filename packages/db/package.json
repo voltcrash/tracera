@@ -5,15 +5,19 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./core": "./src/core/index.ts",
+    "./core/schema": "./src/core/schema.ts",
     "./schema": "./src/schema.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
-    "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts"
+    "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
+    "test:core-storage": "vp test --run test/core-storage.integration.test.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@repo/contracts": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
