@@ -1045,6 +1045,15 @@
   overscroll-behavior: contain;
 }
 
+/* Rides the gutter beside the rail so no page has to give up content width. */
+.canvas-back {
+  position: fixed;
+  top: 1rem;
+  left: calc(17.5rem + 0.75rem);
+  z-index: 40;
+  color: var(--ink-soft);
+}
+
 .home {
   display: flex;
   min-height: 100dvh;
@@ -1201,6 +1210,11 @@
 
   .workspace-canvas {
     position: relative;
+  }
+
+  .canvas-back {
+    top: 0.75rem;
+    left: 3.25rem;
   }
 
   .home-inner {
@@ -1518,26 +1532,12 @@
   padding: 0.75rem 0;
 }
 
-.trace-back,
 .trace-bar-nav a {
   color: var(--ink-soft);
   font-size: 0.8125rem;
   transition: color 140ms ease;
 }
 
-.trace-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex: none;
-}
-
-.trace-back svg {
-  width: 0.9rem;
-  height: 0.9rem;
-}
-
-.trace-back:hover,
 .trace-bar-nav a:hover {
   color: var(--foreground);
 }

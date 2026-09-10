@@ -8,8 +8,7 @@ import type {
   TraceraScore,
   Verdict as VerdictName,
 } from "@repo/contracts";
-import { ArrowLeft, ChevronDown, ExternalLink } from "lucide-react";
-import Link from "next/link";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type { ClaimResult, TraceraScore } from "@repo/contracts";
@@ -75,8 +74,6 @@ export function TraceReport({
   score,
   framing,
   groundZero,
-  backHref,
-  backLabel,
   children,
 }: {
   headline?: string;
@@ -88,8 +85,6 @@ export function TraceReport({
   score: TraceraScore;
   framing?: FramingAnalysis | null;
   groundZero?: GroundZeroTrace | null;
-  backHref?: string;
-  backLabel?: string;
   children?: React.ReactNode;
 }) {
   const sources = useMemo(
@@ -109,12 +104,6 @@ export function TraceReport({
     <article className="trace">
       <div className="trace-bar">
         <div className="trace-bar-inner">
-          {backHref && (
-            <Link href={backHref} className="trace-back">
-              <ArrowLeft />
-              {backLabel ?? "Back"}
-            </Link>
-          )}
           <p className="trace-bar-score">
             <span data-tone={scoreTone(score.overall)}>{formatScore(score.overall)}</span>
             {readingOf(score.overall)}

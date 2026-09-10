@@ -31,7 +31,7 @@ export function BackArrowMark({ className }: { className?: string }) {
         strokeWidth={3}
         strokeLinecap="round"
       />
-      <g className="fill-brand-paper">
+      <g className="fill-brand-ink dark:fill-brand-paper">
         <circle cx="14.8" cy="8.2" r="2.4" />
         <circle cx="14.8" cy="23.8" r="2.4" />
         <circle cx="6.5" cy="16" r="2.4" />
@@ -41,6 +41,7 @@ export function BackArrowMark({ className }: { className?: string }) {
   );
 }
 
+/** Sits in the canvas gutter, so the label stays assistive-only and never takes width. */
 export function BackButton({
   className,
   href,
@@ -56,18 +57,19 @@ export function BackButton({
   const content = (
     <>
       <BackArrowMark className="transition-transform group-hover/back:-translate-x-0.5" />
-      {label ? <span>{label}</span> : <span className="sr-only">{title}</span>}
+      <span className="sr-only">{title}</span>
     </>
   );
+  const classes = cn("canvas-back group/back rounded-full", className);
 
   if (href) {
     return (
       <Button
         render={<Link href={href} />}
         variant="ghost"
-        size={label ? "sm" : "icon-sm"}
+        size="icon-sm"
         title={title}
-        className={cn("group/back rounded-full text-muted-foreground", className)}
+        className={classes}
       >
         {content}
       </Button>
@@ -78,10 +80,10 @@ export function BackButton({
     <Button
       type="button"
       variant="ghost"
-      size={label ? "sm" : "icon-sm"}
+      size="icon-sm"
       title={title}
       onClick={() => router.back()}
-      className={cn("group/back rounded-full text-muted-foreground", className)}
+      className={classes}
     >
       {content}
     </Button>

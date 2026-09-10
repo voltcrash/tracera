@@ -6,6 +6,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { authClient } from "@/lib/auth-client";
 import { GoogleMark } from "@/components/auth/social-sign-in-button";
 import { GitHubMark } from "@/components/brand/github-mark";
+import { BackButton } from "@/components/navigation/back-button";
 import { shuffleAvatarId } from "@repo/contracts/avatar";
 import { TraceAvatar } from "@/components/brand/trace-avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -59,6 +60,7 @@ export default function SettingsPage() {
 
   return (
     <main className="settings">
+      <BackButton label="Back" />
       <div className="settings-inner">
         <h1 className="settings-headline">Settings</h1>
 
