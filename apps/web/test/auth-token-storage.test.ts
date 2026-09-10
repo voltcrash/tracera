@@ -12,6 +12,7 @@ test("OAuth account storage encrypts and discards provider token material", asyn
   const auth = createAuth(authEnv, "https://tracera.voltcrash.com/api/auth/callback/google");
   const before = auth.options.databaseHooks?.account?.create?.before;
 
+  assert.equal(auth.options.session?.cookieCache?.enabled, false);
   assert.equal(auth.options.account?.encryptOAuthTokens, true);
   assert.equal(auth.options.account?.updateAccountOnSignIn, false);
   assert.equal(auth.options.account?.storeAccountCookie, false);

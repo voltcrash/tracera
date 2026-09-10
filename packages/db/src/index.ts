@@ -23,10 +23,28 @@ export function configureDatabase(connectionString: string | undefined) {
   if (!connectionString) {
     throw new Error("DATABASE_URL must be configured for the Tracera server.");
   }
+  assertRuntimeDatabaseRole(connectionString);
   if (connectionString === activeConnectionString) return;
   activeConnectionString = connectionString;
   pool = new Pool({ connectionString });
   db = drizzle({ client: pool });
+}
+
+export function assertRuntimeDatabaseRole(
+  connectionString: string,
+  environment = process.env.NODE_ENV,
+) {
+  if (environment !== "production") return;
+
+  let username: string;
+  try {
+    username = decodeURIComponent(new URL(connectionString).username);
+  } catch {
+    throw new Error("DATABASE_URL must be a valid PostgreSQL connection string.");
+  }
+  if (username !== "tracera_runtime") {
+    throw new Error("Production DATABASE_URL must use the tracera_runtime role.");
+  }
 }
 
 export interface StoredClaim {
@@ -177,7 +195,6 @@ export async function findRelatedClaimsByEmbedding(
         AND c.verdict IN ('supported', 'contradicted', 'misleading', 'mixed')
         AND c.confidence >= 0.6
         AND c.evidence_quality >= 0.55
-        AND checks.visibility = 'public'
         AND 1 - (c.embedding <=> $1::vector) >= $2
         AND (checks.visibility = 'public' OR checks.owner_user_id = $4)
       ORDER BY c.embedding <=> $1::vector

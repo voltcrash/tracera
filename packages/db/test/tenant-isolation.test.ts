@@ -35,6 +35,7 @@ test("related claims include public and only the requesting user's private claim
   const result = await withPoolQuery(
     async (text, params = []) => {
       assert.match(text, /AND \(checks\.visibility = 'public' OR checks\.owner_user_id = \$4\)/);
+      assert.doesNotMatch(text, /AND checks\.visibility = 'public'\s+AND/);
       const ownerUserId = params[3];
       return {
         rows: records

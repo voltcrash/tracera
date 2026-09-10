@@ -140,7 +140,7 @@ as command-line options documented in `packages/ai/evaluation/README.md`.
 
 ## Database roles and row-level security
 
-Migration `0020_least_privileged_runtime_role.sql` creates a non-owner,
+Migration `0024_least_privileged_runtime_role.sql` creates a non-owner,
 `NOBYPASSRLS` login role named `tracera_runtime`. It removes public and runtime
 access to the schema, tables, sequences, and future table/sequence objects,
 then grants only the operations currently required by the web app:
