@@ -663,7 +663,15 @@ app.get("/checks", async (context) => {
 
   try {
     const user = await currentUser(context);
-    const result = await listChecks(page, pageSize, query, user?.id, ownedOnly);
+    const result = await listChecks(
+      page,
+      pageSize,
+      query,
+      user?.id,
+      ownedOnly,
+      !ownedOnly,
+      !ownedOnly,
+    );
     return context.json({
       checks: result.checks,
       pagination: {
@@ -694,6 +702,34 @@ app.get("/checks/:id", async (context) => {
     const { rawInput: _rawInput, displayInput, ...checkDetails } = check;
     return context.json({
       check: { ...checkDetails, rawInput: displayInput },
+    });
+  } catch (error) {
+    return serviceUnavailableResponse(
+      context,
+      error,
+      "Could not retrieve check.",
+      "Could not retrieve check",
+    );
+  }
+});
+
+app.get("/checks/:id/detail", async (context) => {
+  const id = context.req.param("id");
+  if (!isUuid(id)) return context.json({ error: "Check not found." }, 404);
+
+  try {
+    const user = await currentUser(context);
+    const [check, timeline, appearances] = await Promise.all([
+      getCheckById(id, user?.id),
+      getTraceTimeline(id, user?.id),
+      getTraceAppearances(id, user?.id),
+    ]);
+    if (!check) return context.json({ error: "Check not found." }, 404);
+    const { rawInput: _rawInput, displayInput, ...checkDetails } = check;
+    return context.json({
+      check: { ...checkDetails, rawInput: displayInput },
+      timeline,
+      appearances,
     });
   } catch (error) {
     return serviceUnavailableResponse(

@@ -13,11 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 
 const MAX_DISPLAY_NAME = 60;
+const ACCOUNT_CACHE_AGE = 10 * 60_000;
 
 export default function SettingsPage() {
-  const { isLoading, refreshUser, user } = useAuth();
+  const { isLoading, refreshUser, updateUser, user } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [syncedName, setSyncedName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -37,13 +39,16 @@ export default function SettingsPage() {
     setSaving(true);
     setSaved(false);
     setError(null);
+    const previousName = user.name;
+    updateUser({ name });
     try {
       const { error: updateError } = await authClient.updateUser({ name });
       if (updateError) throw new Error(updateError.message ?? "Unable to save your display name.");
-      await refreshUser();
+      void refreshUser();
       setDisplayName(name);
       setSaved(true);
     } catch (saveError) {
+      updateUser({ name: previousName });
       setError(
         saveError instanceof Error ? saveError.message : "Unable to save your display name.",
       );
@@ -148,13 +153,17 @@ function AccountRow() {
   useEffect(() => {
     if (!user) return;
     const controller = new AbortController();
+    const cached = readSessionCache<LinkedAccount[]>(user.id, "accounts", ACCOUNT_CACHE_AGE);
+    if (cached) queueMicrotask(() => setAccounts(cached));
     fetch("/api/auth/list-accounts", { credentials: "include", signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Unable to load your sign-in methods.");
-        setAccounts((await response.json()) as LinkedAccount[]);
+        const data = (await response.json()) as LinkedAccount[];
+        setAccounts(data);
+        writeSessionCache(user.id, "accounts", data);
       })
       .catch(() => {
-        if (!controller.signal.aborted) setAccounts([]);
+        if (!controller.signal.aborted && !cached) setAccounts([]);
       });
     return () => controller.abort();
   }, [user]);
@@ -220,31 +229,28 @@ function AccountRow() {
 }
 
 function AvatarRow() {
-  const { isLoading, refreshUser, user } = useAuth();
-  const [image, setImage] = useState<string | null>(null);
-  const [syncedImage, setSyncedImage] = useState<string | null>(null);
+  const { isLoading, refreshUser, updateUser, user } = useAuth();
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
-
-  if (user && user.image !== syncedImage) {
-    setSyncedImage(user.image);
-    setImage(user.image);
-  }
 
   async function saveImage(next: string) {
     if (!user) return;
     const request = ++requestRef.current;
-    const previous = image;
-    setImage(next);
+    const previous = user.image;
+    updateUser({ image: next });
+    setSaving(true);
     setError(null);
     const { error: updateError } = await authClient.updateUser({ image: next });
     if (request !== requestRef.current) return;
     if (updateError) {
-      setImage(previous);
+      updateUser({ image: previous });
       setError(updateError.message ?? "Unable to save your avatar.");
+      setSaving(false);
       return;
     }
-    await refreshUser();
+    setSaving(false);
+    void refreshUser();
   }
 
   const pending = isLoading || !user;
@@ -275,10 +281,11 @@ function AvatarRow() {
           <button
             type="button"
             className="avatar-shuffle"
-            onClick={() => void saveImage(shuffleAvatarId(image))}
+            onClick={() => void saveImage(shuffleAvatarId(user.image))}
+            disabled={saving}
             aria-label="Shuffle to a different mark"
           >
-            <TraceAvatar image={image} seed={user.id} className="size-18" />
+            <TraceAvatar image={user.image} seed={user.id} className="size-18" />
             <span className="avatar-shuffle-hint" aria-hidden="true">
               <Shuffle />
             </span>

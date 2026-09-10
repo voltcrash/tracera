@@ -525,7 +525,7 @@ interface CheckSummaryRow {
 }
 
 /** The listing projection shared by the News Hub and a personal history. */
-const CHECK_SUMMARY_COLUMNS = `item.id, item.input_type, item.raw_input, item.headline,
+const CHECK_SUMMARY_BASE_COLUMNS = `item.id, item.input_type, item.raw_input, item.headline,
        COALESCE(
          item.analysis #>> '{claims,0,claim,claimText}',
          (SELECT claim.claim_text FROM claims claim
@@ -534,8 +534,9 @@ const CHECK_SUMMARY_COLUMNS = `item.id, item.input_type, item.raw_input, item.he
            LIMIT 1)
        ) AS primary_claim,
        item.tracera_score, item.created_at,
-       item.source_domain, item.source_url, item.published_at, item.visibility,
-       (WITH RECURSIVE ancestors AS (
+       item.source_domain, item.source_url, item.published_at, item.visibility`;
+
+const CHECK_APPEARANCE_COUNT = `(WITH RECURSIVE ancestors AS (
           SELECT id, supersedes_check_id FROM checks WHERE id = item.id
           UNION ALL
           SELECT parent.id, parent.supersedes_check_id FROM checks parent
@@ -549,7 +550,7 @@ const CHECK_SUMMARY_COLUMNS = `item.id, item.input_type, item.raw_input, item.he
             JOIN descendants parent ON child.supersedes_check_id = parent.id
         )
         SELECT COUNT(*)::text FROM trace_appearances
-         WHERE check_id IN (SELECT id FROM descendants)) AS appearance_count`;
+         WHERE check_id IN (SELECT id FROM descendants))`;
 
 /** Full-text predicate over a check and its claims. Always bound to $1. */
 const CHECK_SEARCH_PREDICATE = `(
@@ -589,6 +590,8 @@ export async function listChecks(
   query = "",
   ownerUserId?: string,
   ownedOnly = false,
+  includeAppearanceCount = true,
+  includeTotal = true,
 ) {
   const offset = (page - 1) * pageSize;
   const search = query.trim();
@@ -597,9 +600,10 @@ export async function listChecks(
   const visibilityPredicate = ownedOnly
     ? "item.owner_user_id = $OWNER AND $OWNER IS NOT NULL"
     : "(item.visibility = 'public' OR item.owner_user_id = $OWNER)";
+  const appearanceCount = includeAppearanceCount ? CHECK_APPEARANCE_COUNT : "0::text";
   const [items, total] = await Promise.all([
     pool.query<CheckSummaryRow>(
-      `SELECT ${CHECK_SUMMARY_COLUMNS}
+      `SELECT ${CHECK_SUMMARY_BASE_COLUMNS}, ${appearanceCount} AS appearance_count
        FROM checks item
        WHERE ${CHECK_SEARCH_PREDICATE}
          AND ${visibilityPredicate.replaceAll("$OWNER", "$4")}
@@ -608,17 +612,19 @@ export async function listChecks(
        LIMIT $2 OFFSET $3`,
       [search, pageSize, offset, ownerUserId ?? null],
     ),
-    pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM checks item
+    includeTotal
+      ? pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM checks item
         WHERE ${CHECK_SEARCH_PREDICATE}
           AND ${visibilityPredicate.replaceAll("$OWNER", "$2")}`,
-      [search, ownerUserId ?? null],
-    ),
+          [search, ownerUserId ?? null],
+        )
+      : null,
   ]);
 
   return {
     checks: items.rows.map(toCheckSummary),
-    total: Number(total.rows[0]?.count ?? 0),
+    total: total ? Number(total.rows[0]?.count ?? 0) : items.rows.length,
   };
 }
 

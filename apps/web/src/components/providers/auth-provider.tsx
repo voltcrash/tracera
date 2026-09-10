@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { clearSessionCache } from "@/lib/session-cache";
 
 export type AuthUser = {
   id: string;
@@ -22,6 +23,7 @@ type AuthContextValue = {
   isLoading: boolean;
   apiFetch: (input: string, init?: RequestInit) => Promise<Response>;
   refreshUser: () => Promise<void>;
+  updateUser: (changes: Partial<Pick<AuthUser, "image" | "name">>) => void;
   signOut: () => Promise<void>;
 };
 
@@ -32,20 +34,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { refetch } = session;
   const pathname = usePathname();
   const router = useRouter();
+  const sessionDataUser = session.data?.user;
   const apiFetch = useCallback(
     (input: string, init: RequestInit = {}) => fetch(input, { ...init, credentials: "include" }),
     [],
   );
-  const user = useMemo<AuthUser | null>(() => {
-    if (!session.data?.user) return null;
+  const sessionUser = useMemo<AuthUser | null>(() => {
+    if (!sessionDataUser) return null;
     return {
-      id: session.data.user.id,
-      email: session.data.user.email,
-      name: session.data.user.name ?? "",
-      image: session.data.user.image ?? null,
-      createdAt: new Date(session.data.user.createdAt).toISOString(),
+      id: sessionDataUser.id,
+      email: sessionDataUser.email,
+      name: sessionDataUser.name ?? "",
+      image: sessionDataUser.image ?? null,
+      createdAt: new Date(sessionDataUser.createdAt).toISOString(),
     };
-  }, [session.data?.user]);
+  }, [sessionDataUser]);
+  const [optimisticUser, setOptimisticUser] = useState<AuthUser | null>(null);
+  const user = sessionUser ? (optimisticUser ?? sessionUser) : null;
+
+  const updateUser = useCallback(
+    (changes: Partial<Pick<AuthUser, "image" | "name">>) => {
+      setOptimisticUser((current) => {
+        const source = current ?? sessionUser;
+        return source ? { ...source, ...changes } : null;
+      });
+    },
+    [sessionUser],
+  );
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -53,12 +68,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       apiFetch,
       refreshUser: async () => {
         await refetch();
+        setOptimisticUser(null);
       },
+      updateUser,
       signOut: async () => {
         await authClient.signOut();
+        setOptimisticUser(null);
+        clearSessionCache();
       },
     }),
-    [apiFetch, refetch, session.isPending, user],
+    [apiFetch, refetch, session.isPending, updateUser, user],
   );
 
   useEffect(() => {

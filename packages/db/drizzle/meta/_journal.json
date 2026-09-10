@@ -176,6 +176,13 @@
       "when": 1788795893222,
       "tag": "0025_trace_headline",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788969600000,
+      "tag": "0026_workspace_performance",
+      "breakpoints": true
     }
   ]
 }

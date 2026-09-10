@@ -1,4 +1,4 @@
-import { getSessionCookie } from "better-auth/cookies";
+import { getCookieCache, getSessionCookie } from "better-auth/cookies";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
@@ -7,7 +7,7 @@ import {
   PRIVATE_NO_STORE_CACHE,
 } from "./security-headers";
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request, { cookiePrefix: "tracera" });
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const policy = contentSecurityPolicy({
@@ -22,8 +22,21 @@ export function proxy(request: NextRequest) {
   applySecurityHeaders(nextResponse, policy);
   if (sessionCookie) nextResponse.headers.set("Cache-Control", PRIVATE_NO_STORE_CACHE);
 
-  if (request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/auth/error") {
+  if (request.nextUrl.pathname === "/auth/error") {
     return nextResponse;
+  }
+
+  if (request.nextUrl.pathname === "/") {
+    if (!sessionCookie) return nextResponse;
+    const cachedSession = await getCookieCache(request, {
+      cookiePrefix: "tracera",
+      secret: process.env.BETTER_AUTH_SECRET,
+    }).catch(() => null);
+    if (!cachedSession) return nextResponse;
+    const redirect = NextResponse.redirect(new URL("/home", request.url));
+    applySecurityHeaders(redirect, policy);
+    redirect.headers.set("Cache-Control", PRIVATE_NO_STORE_CACHE);
+    return redirect;
   }
 
   if (sessionCookie) return nextResponse;

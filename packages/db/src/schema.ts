@@ -227,6 +227,9 @@ export const checks = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    index("checks_owner_created_idx").on(table.ownerUserId, table.createdAt),
+    index("checks_visibility_created_idx").on(table.visibility, table.createdAt),
+    index("checks_supersedes_idx").on(table.supersedesCheckId),
     check("checks_input_type_check", sql`${table.inputType} IN ('text', 'link', 'image')`),
     check("checks_visibility_check", sql`${table.visibility} IN ('public', 'private')`),
     check(
@@ -253,6 +256,7 @@ export const traceAppearances = pgTable(
     observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    index("trace_appearances_check_observed_idx").on(table.checkId, table.observedAt),
     check(
       "trace_appearances_occurrence_type_check",
       sql`${table.occurrenceType} IN ('first_check', 'exact_resubmission', 'related_story', 'scheduled_recheck')`,

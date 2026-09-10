@@ -21,6 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 
 type PrimaryFilter = "all" | "high" | "review" | "seen";
 type SortOrder = "newest" | "oldest" | "highest" | "lowest";
@@ -39,6 +40,7 @@ const sortOptions: TraceOption<SortOrder>[] = [
   { value: "highest", label: "Highest signal" },
   { value: "lowest", label: "Lowest signal" },
 ];
+const HUB_CACHE_AGE = 5 * 60_000;
 
 export default function HubPage() {
   const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
@@ -63,11 +65,11 @@ export default function HubPage() {
   useEffect(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem("tracera-hub-bookmarks") ?? "[]");
-      if (Array.isArray(saved)) setBookmarked(new Set(saved));
       const savedView = window.localStorage.getItem("tracera-hub-view");
-      if (savedView === "grid" || savedView === "list") {
-        setViewMode(savedView);
-      }
+      queueMicrotask(() => {
+        if (Array.isArray(saved)) setBookmarked(new Set(saved));
+        if (savedView === "grid" || savedView === "list") setViewMode(savedView);
+      });
     } catch {
       // A malformed browser preference should never block the archive.
     }
@@ -76,8 +78,22 @@ export default function HubPage() {
   useEffect(() => {
     if (isAuthLoading || !user) return;
     const controller = new AbortController();
-    const handle = setTimeout(() => {
-      setLoading(true);
+    const cacheKey = `hub:${page}:${query}`;
+    const cached = readSessionCache<{
+      checks: TraceSummary[];
+      pagination: { page: number; totalPages: number; total: number };
+    }>(user.id, cacheKey, HUB_CACHE_AGE);
+    if (cached) {
+      queueMicrotask(() => {
+        setChecks(cached.checks);
+        setPagination(cached.pagination);
+        setLoading(false);
+      });
+    } else {
+      queueMicrotask(() => setLoading(true));
+    }
+
+    const load = () => {
       setError(null);
       apiFetch(`${apiUrl}/checks?page=${page}&pageSize=20&q=${encodeURIComponent(query)}`, {
         signal: controller.signal,
@@ -87,18 +103,25 @@ export default function HubPage() {
           if (!response.ok) throw new Error(data.error ?? "Unable to load checks.");
           setChecks(data.checks);
           setPagination(data.pagination);
+          writeSessionCache(user.id, cacheKey, data);
         })
         .catch((requestError) => {
           if (controller.signal.aborted) return;
-          setError(requestError instanceof Error ? requestError.message : "Unable to load checks.");
+          if (!cached) {
+            setError(
+              requestError instanceof Error ? requestError.message : "Unable to load checks.",
+            );
+          }
         })
         .finally(() => {
           if (!controller.signal.aborted) setLoading(false);
         });
-    }, 250);
+    };
+    const handle = query ? setTimeout(load, 200) : undefined;
+    if (!query) load();
 
     return () => {
-      clearTimeout(handle);
+      if (handle) clearTimeout(handle);
       controller.abort();
     };
   }, [apiFetch, isAuthLoading, page, query, requestVersion, user]);
@@ -156,156 +179,153 @@ export default function HubPage() {
   return (
     <main className="hub-page min-h-screen text-foreground">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        {isAuthLoading && <TraceLoading />}
-        {!isAuthLoading && user && (
-          <section className="pb-16 pt-6 sm:pt-8 lg:pb-24">
-            <div className="grid gap-4 lg:grid-cols-[1fr_1fr] xl:gap-5">
-              <section className="hub-hero noise relative overflow-hidden rounded-[1.5rem] px-6 py-9 text-white sm:px-10 sm:py-11 lg:min-h-[25rem] lg:px-11">
-                <div className="relative z-10 flex h-full flex-col items-start justify-center">
-                  <h1 className="max-w-2xl text-[2.8rem] font-black leading-[.92] tracking-[-.07em] sm:text-6xl xl:text-[4.3rem]">
-                    The receipts
-                    <span className="block text-lime">stay attached.</span>
-                  </h1>
-                  <p className="mt-6 max-w-xl text-sm leading-relaxed text-white/70 sm:text-base">
-                    Every check is a living evidence trail—not a one-off verdict. Search the
-                    archive, reopen the sources, and return when the story changes.
-                  </p>
-                  <Button
-                    render={<Link href="/home" />}
-                    nativeButton={false}
-                    variant="lime"
-                    size="lg"
-                    className="mt-7 rounded-full"
-                  >
-                    Start a new trace <ArrowRight />
-                  </Button>
-                </div>
-              </section>
-
-              <div className="flex flex-col justify-center divide-y divide-border px-1 sm:px-2">
-                <TraceStat
-                  value={String(pagination.total || checks.length)}
-                  label="Checks in this archive"
-                  icon="archive"
-                />
-                <TraceStat value={`${average}/100`} label="Average signal score" icon="signal" />
-                <TraceStat value={String(reviewCount)} label="Need another look" icon="review" />
+        <section className="pb-16 pt-6 sm:pt-8 lg:pb-24">
+          <div className="grid gap-4 lg:grid-cols-[1fr_1fr] xl:gap-5">
+            <section className="hub-hero noise relative overflow-hidden rounded-[1.5rem] px-6 py-9 text-white sm:px-10 sm:py-11 lg:min-h-[25rem] lg:px-11">
+              <div className="relative z-10 flex h-full flex-col items-start justify-center">
+                <h1 className="max-w-2xl text-[2.8rem] font-black leading-[.92] tracking-[-.07em] sm:text-6xl xl:text-[4.3rem]">
+                  The receipts
+                  <span className="block text-lime">stay attached.</span>
+                </h1>
+                <p className="mt-6 max-w-xl text-sm leading-relaxed text-white/70 sm:text-base">
+                  Every check is a living evidence trail—not a one-off verdict. Search the archive,
+                  reopen the sources, and return when the story changes.
+                </p>
+                <Button
+                  render={<Link href="/home" />}
+                  nativeButton={false}
+                  variant="lime"
+                  size="lg"
+                  className="mt-7 rounded-full"
+                >
+                  Start a new trace <ArrowRight />
+                </Button>
               </div>
+            </section>
+
+            <div className="flex flex-col justify-center divide-y divide-border px-1 sm:px-2">
+              <TraceStat
+                value={String(pagination.total || checks.length)}
+                label="Checks in this archive"
+                icon="archive"
+              />
+              <TraceStat value={`${average}/100`} label="Average signal score" icon="signal" />
+              <TraceStat value={String(reviewCount)} label="Need another look" icon="review" />
             </div>
+          </div>
 
-            <TraceToolbar
-              filters={primaryFilters}
-              filter={filter}
-              onFilterChange={(value) => setFilter(value as PrimaryFilter)}
-              filtersLabel="Filter checks"
-              sortOptions={sortOptions}
-              sortOrder={sortOrder}
-              onSortChange={(value) => setSortOrder(value as SortOrder)}
-              viewMode={viewMode}
-              onViewModeChange={changeViewMode}
-              query={query}
-              onQueryChange={(value) => {
-                setQuery(value);
-                setPage(1);
-              }}
-              searchLabel="Search checked items"
-              searchPlaceholder="Search a claim, topic, or story…"
-              filtersOpen={filtersOpen}
-              onToggleFilters={() => setFiltersOpen((open) => !open)}
-              hasSecondaryFilters={hasSecondaryFilters}
-              secondaryFilters={
-                <>
-                  <TraceFilterGroup
-                    label="Visibility"
-                    value={privacy}
-                    onChange={(value) => setPrivacy(value as PrivacyFilter)}
-                    options={[
-                      { value: "all", label: "Any" },
-                      { value: "public", label: "Public" },
-                      { value: "private", label: "Private" },
-                    ]}
-                  />
-                  {hasSecondaryFilters && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground"
-                      onClick={() => setPrivacy("all")}
-                    >
-                      Clear filters
-                    </Button>
-                  )}
-                </>
-              }
-            />
-
-            {error && (
-              <Alert variant="destructive" className="mt-7">
-                <AlertDescription className="flex w-full items-center justify-between gap-4">
-                  <span>{error}</span>
+          <TraceToolbar
+            filters={primaryFilters}
+            filter={filter}
+            onFilterChange={(value) => setFilter(value as PrimaryFilter)}
+            filtersLabel="Filter checks"
+            sortOptions={sortOptions}
+            sortOrder={sortOrder}
+            onSortChange={(value) => setSortOrder(value as SortOrder)}
+            viewMode={viewMode}
+            onViewModeChange={changeViewMode}
+            query={query}
+            onQueryChange={(value) => {
+              setQuery(value);
+              setPage(1);
+            }}
+            searchLabel="Search checked items"
+            searchPlaceholder="Search a claim, topic, or story…"
+            filtersOpen={filtersOpen}
+            onToggleFilters={() => setFiltersOpen((open) => !open)}
+            hasSecondaryFilters={hasSecondaryFilters}
+            secondaryFilters={
+              <>
+                <TraceFilterGroup
+                  label="Visibility"
+                  value={privacy}
+                  onChange={(value) => setPrivacy(value as PrivacyFilter)}
+                  options={[
+                    { value: "all", label: "Any" },
+                    { value: "public", label: "Public" },
+                    { value: "private", label: "Private" },
+                  ]}
+                />
+                {hasSecondaryFilters && (
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={() => setRequestVersion((version) => version + 1)}
+                    className="text-muted-foreground"
+                    onClick={() => setPrivacy("all")}
                   >
-                    Try again
+                    Clear filters
                   </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="mt-8 flex flex-wrap items-center gap-3 sm:mt-10">
-              <h2 className="text-2xl font-black tracking-[-.045em] sm:text-[1.7rem]">
-                Trace Library
-              </h2>
-              {!loading && !error && (
-                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-muted-foreground">
-                  {visible.length === checks.length
-                    ? `${pagination.total} matching checks`
-                    : `${visible.length} shown on this page`}
-                </span>
-              )}
-            </div>
-
-            {loading && <TraceLoading compact viewMode={viewMode} />}
-            {!loading && !error && visible.length === 0 && (
-              <Card className="mt-5 gap-2 border-dashed px-5 py-14 text-center shadow-none">
-                <p className="font-black">No traces found.</p>
-                <p className="text-sm text-muted-foreground">
-                  Try a different search or clear one of your filters.
-                </p>
-              </Card>
-            )}
-
-            {!loading && !error && visible.length > 0 && (
-              <>
-                <TraceResults viewMode={viewMode}>
-                  {visible.map((check) => (
-                    <TraceCard
-                      key={check.id}
-                      trace={check}
-                      viewMode={viewMode}
-                      actions={
-                        <BookmarkButton
-                          bookmarked={bookmarked.has(check.id)}
-                          onToggleBookmark={() => toggleBookmark(check.id)}
-                        />
-                      }
-                    />
-                  ))}
-                </TraceResults>
-
-                <TracePagination
-                  page={pagination.page}
-                  totalPages={pagination.totalPages}
-                  onPageChange={setPage}
-                />
+                )}
               </>
+            }
+          />
+
+          {error && (
+            <Alert variant="destructive" className="mt-7">
+              <AlertDescription className="flex w-full items-center justify-between gap-4">
+                <span>{error}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRequestVersion((version) => version + 1)}
+                >
+                  Try again
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="mt-8 flex flex-wrap items-center gap-3 sm:mt-10">
+            <h2 className="text-2xl font-black tracking-[-.045em] sm:text-[1.7rem]">
+              Trace Library
+            </h2>
+            {!loading && !error && (
+              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-muted-foreground">
+                {visible.length === checks.length
+                  ? `${pagination.total} matching checks`
+                  : `${visible.length} shown on this page`}
+              </span>
             )}
-          </section>
-        )}
+          </div>
+
+          {loading && <TraceLoading compact viewMode={viewMode} />}
+          {!loading && !error && visible.length === 0 && (
+            <Card className="mt-5 gap-2 border-dashed px-5 py-14 text-center shadow-none">
+              <p className="font-black">No traces found.</p>
+              <p className="text-sm text-muted-foreground">
+                Try a different search or clear one of your filters.
+              </p>
+            </Card>
+          )}
+
+          {!loading && !error && visible.length > 0 && (
+            <>
+              <TraceResults viewMode={viewMode}>
+                {visible.map((check) => (
+                  <TraceCard
+                    key={check.id}
+                    trace={check}
+                    viewMode={viewMode}
+                    actions={
+                      <BookmarkButton
+                        bookmarked={bookmarked.has(check.id)}
+                        onToggleBookmark={() => toggleBookmark(check.id)}
+                      />
+                    }
+                  />
+                ))}
+              </TraceResults>
+
+              <TracePagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                onPageChange={setPage}
+              />
+            </>
+          )}
+        </section>
       </div>
     </main>
   );

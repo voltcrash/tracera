@@ -21,10 +21,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiUrl } from "@/lib/api";
+import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import { cn } from "@/lib/utils";
 
 /** Lets a screen tell the rail that the history it is showing is now stale. */
 const HistoryRefreshContext = createContext<() => void>(() => {});
+const HISTORY_CACHE_KEY = "history";
+const HISTORY_CACHE_AGE = 5 * 60_000;
 
 export function useHistoryRefresh() {
   return useContext(HistoryRefreshContext);
@@ -41,11 +44,14 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isAuthLoading || !user) return;
     const controller = new AbortController();
+    const cached = readSessionCache<TraceSummary[]>(user.id, HISTORY_CACHE_KEY, HISTORY_CACHE_AGE);
+    if (cached) queueMicrotask(() => setTraces(cached));
     apiFetch(`${apiUrl}/checks?scope=mine&page=1&pageSize=30`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Unable to load your traces.");
         const data = (await response.json()) as { checks: TraceSummary[] };
         setTraces(data.checks);
+        writeSessionCache(user.id, HISTORY_CACHE_KEY, data.checks);
       })
       .catch(() => {
         if (!controller.signal.aborted) setTraces([]);
@@ -195,6 +201,15 @@ function RailAccount() {
     router.refresh();
   }
 
+  function prefetchAccount() {
+    if (!user || readSessionCache(user.id, "accounts", 10 * 60_000)) return;
+    void fetch("/api/auth/list-accounts", { credentials: "include" })
+      .then(async (response) => {
+        if (response.ok) writeSessionCache(user.id, "accounts", await response.json());
+      })
+      .catch(() => undefined);
+  }
+
   return (
     <div className="rail-foot">
       {isLoading || !user ? (
@@ -205,6 +220,8 @@ function RailAccount() {
             render={
               <button type="button" className="rail-account" aria-label="Open account menu" />
             }
+            onPointerEnter={prefetchAccount}
+            onFocus={prefetchAccount}
           >
             <TraceAvatar image={user.image} seed={user.id} className="size-7" />
             <span className="truncate">{accountLabel(user)}</span>
