@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import type { ClaimResult, FramingAnalysis, TraceraScore } from "@repo/contracts";
 import { TraceAside, TraceReport, type GroundZeroTrace } from "@/components/analysis/trace-report";
-import { BackButton } from "@/components/navigation/back-button";
 import { useAuth } from "@/components/providers/auth-provider";
 import { apiUrl } from "@/lib/api";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
@@ -80,7 +79,6 @@ export function TraceDetail({ id }: { id: string }) {
   return (
     <main className="trace-page min-h-screen bg-background text-foreground">
       <>
-        <BackButton href="/hub" label="Back to News Hub" />
         {error && (
           <Alert variant="destructive" className="trace mt-10">
             <AlertDescription>{error}</AlertDescription>

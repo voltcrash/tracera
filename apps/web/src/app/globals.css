@@ -1045,38 +1045,6 @@
   overscroll-behavior: contain;
 }
 
-/*
- * Rides the gutter beside the content column, not the rail, so it reads as the
- * page's own mark. Sits on the headline's first line; the column width and
- * optical top come from the page that mounts it.
- */
-.canvas-back {
-  --canvas-back-size: 2.75rem;
-  --canvas-back-column: 58rem;
-  --canvas-back-top: 3.4rem;
-  position: fixed;
-  top: var(--canvas-back-top);
-  left: calc(
-    17.5rem +
-      max(
-        0.75rem,
-        (100vw - 17.5rem - var(--canvas-back-column)) / 2 - var(--canvas-back-size) - 0.75rem
-      )
-  );
-  z-index: 40;
-  inline-size: var(--canvas-back-size);
-  block-size: var(--canvas-back-size);
-  color: var(--ink-soft);
-}
-
-/* Once the gutter is thinner than the mark, it moves above the column instead. */
-@media (min-width: 64rem) and (max-width: 82.4375rem) {
-  .canvas-back {
-    top: 0.75rem;
-    left: calc(17.5rem + max(1.5rem, (100vw - 17.5rem - var(--canvas-back-column)) / 2));
-  }
-}
-
 .home {
   display: flex;
   min-height: 100dvh;
@@ -1235,12 +1203,6 @@
     position: relative;
   }
 
-  .canvas-back {
-    --canvas-back-size: 2.5rem;
-    top: 0.75rem;
-    left: 3.25rem;
-  }
-
   .home-inner {
     padding-top: 4rem;
   }
@@ -1259,11 +1221,6 @@
 .settings {
   display: flex;
   min-height: 100dvh;
-}
-
-.settings .canvas-back {
-  --canvas-back-column: 52rem;
-  --canvas-back-top: 3.6rem;
 }
 
 .settings-inner {
