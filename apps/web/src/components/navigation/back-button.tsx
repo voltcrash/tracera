@@ -10,7 +10,7 @@ export function BackArrowMark({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 32 32"
-      className={cn("size-5 shrink-0", className)}
+      className={cn("size-7 shrink-0", className)}
       aria-hidden="true"
       focusable="false"
     >
@@ -67,7 +67,7 @@ export function BackButton({
       <Button
         render={<Link href={href} />}
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         title={title}
         className={classes}
       >
@@ -80,7 +80,7 @@ export function BackButton({
     <Button
       type="button"
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       title={title}
       onClick={() => router.back()}
       className={classes}
