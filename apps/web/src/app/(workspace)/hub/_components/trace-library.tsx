@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 /** A listed check, as returned by both the News Hub and personal history. */
 export type TraceSummary = {
   id: string;
+  headline: string;
   rawInput: string;
   traceraScore: TraceraScore;
   createdAt: string;
@@ -119,7 +120,7 @@ export function TraceCard({
           href={`/hub/${trace.id}`}
           className="hub-list-title line-clamp-2 min-w-0 font-black leading-[1.3] tracking-[-.025em] outline-offset-4 transition group-hover:text-brand-lime-ink focus-visible:outline-2 focus-visible:outline-ring"
         >
-          {trace.rawInput}
+          {trace.headline}
         </Link>
 
         <div className="hub-list-state">
@@ -157,7 +158,7 @@ export function TraceCard({
         href={`/hub/${trace.id}`}
         className="mt-5 line-clamp-3 min-w-0 text-lg font-black leading-[1.28] tracking-[-.035em] outline-offset-4 transition group-hover:text-brand-lime-ink focus-visible:outline-2 focus-visible:outline-ring sm:text-xl"
       >
-        {trace.rawInput}
+        {trace.headline}
       </Link>
 
       <div className="mt-auto pt-7">

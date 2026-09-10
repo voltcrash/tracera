@@ -49,6 +49,7 @@ export interface StoredAnalysis {
 export interface CachedCheck {
   id: string;
   rawInput: string;
+  headline: string | null;
   traceraScore: unknown;
   analysis: StoredAnalysis;
   createdAt: string;
@@ -208,12 +209,13 @@ export async function findReusableExactCheck(
   const result = await pool.query<{
     id: string;
     raw_input: string;
+    headline: string | null;
     tracera_score: unknown;
     analysis: StoredAnalysis;
     created_at: string;
     expires_at: string;
   }>(
-    `SELECT id, raw_input, tracera_score, analysis, created_at,
+    `SELECT id, raw_input, headline, tracera_score, analysis, created_at,
        created_at + ($2 * INTERVAL '1 hour') AS expires_at
        FROM checks
       WHERE created_at >= NOW() - ($2 * INTERVAL '1 hour')
@@ -231,6 +233,7 @@ export async function findReusableExactCheck(
     ? {
         id: row.id,
         rawInput: row.raw_input,
+        headline: row.headline,
         traceraScore: row.tracera_score,
         analysis: row.analysis,
         createdAt: row.created_at,
@@ -254,6 +257,7 @@ export async function findReusableImageCheck(
   const result = await pool.query<{
     id: string;
     raw_input: string;
+    headline: string | null;
     tracera_score: unknown;
     analysis: StoredAnalysis;
     created_at: string;
@@ -261,7 +265,7 @@ export async function findReusableImageCheck(
     similarity: number;
     exact_match: boolean;
   }>(
-    `SELECT id, raw_input, tracera_score, analysis, created_at,
+    `SELECT id, raw_input, headline, tracera_score, analysis, created_at,
             created_at + ($3 * INTERVAL '1 hour') AS expires_at,
             raw_input = $1 AS exact_match,
             1 - (embedding <=> $2::vector) AS similarity
@@ -285,6 +289,7 @@ export async function findReusableImageCheck(
   return {
     id: row.id,
     rawInput: row.raw_input,
+    headline: row.headline,
     traceraScore: row.tracera_score,
     analysis: row.analysis,
     createdAt: row.created_at,
@@ -341,6 +346,7 @@ export async function recordTraceAppearance(input: {
 /** Saves a completed check and the normalized, individually embedded claims atomically. */
 export async function persistCheck(input: {
   rawInput: string;
+  headline?: string;
   inputEmbedding: number[];
   traceraScore: unknown;
   analysis: StoredAnalysis;
@@ -368,8 +374,8 @@ export async function persistCheck(input: {
       id: string;
       created_at: string;
     }>(
-      `INSERT INTO checks (input_type, raw_input, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, visibility, supersedes_check_id, lineage_reason)
-       VALUES ($1, $2, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14)
+      `INSERT INTO checks (input_type, raw_input, headline, source_url, source_domain, published_at, embedding, tracera_score, analysis, ground_zero, prompts, owner_user_id, visibility, supersedes_check_id, lineage_reason)
+       VALUES ($1, $2, $15, $3, $4, $5, $6::vector, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14)
        RETURNING id, created_at`,
       [
         input.inputType ?? "text",
@@ -386,6 +392,7 @@ export async function persistCheck(input: {
         input.visibility ?? "private",
         input.supersedesCheckId ?? null,
         input.lineageReason ?? "first_check",
+        input.headline?.trim() || null,
       ],
     );
     const storedCheck = check.rows[0];
@@ -506,6 +513,7 @@ interface CheckSummaryRow {
   id: string;
   input_type: string;
   raw_input: string;
+  headline: string | null;
   primary_claim: string | null;
   tracera_score: unknown;
   created_at: string;
@@ -517,7 +525,7 @@ interface CheckSummaryRow {
 }
 
 /** The listing projection shared by the News Hub and a personal history. */
-const CHECK_SUMMARY_COLUMNS = `item.id, item.input_type, item.raw_input,
+const CHECK_SUMMARY_COLUMNS = `item.id, item.input_type, item.raw_input, item.headline,
        COALESCE(
          item.analysis #>> '{claims,0,claim,claimText}',
          (SELECT claim.claim_text FROM claims claim
@@ -561,6 +569,9 @@ const CHECK_SEARCH_RANK = `CASE WHEN $1 = '' THEN 0
 function toCheckSummary(row: CheckSummaryRow) {
   return {
     id: row.id,
+    headline: snippet(
+      traceHeadline(row.headline, row.input_type, row.raw_input, row.primary_claim),
+    ),
     rawInput: snippet(displayInput(row.input_type, row.raw_input, row.primary_claim)),
     traceraScore: row.tracera_score,
     createdAt: row.created_at,
@@ -617,6 +628,7 @@ export async function getCheckById(id: string, ownerUserId?: string, allowPrivat
     id: string;
     input_type: string;
     raw_input: string;
+    headline: string | null;
     primary_claim: string | null;
     tracera_score: unknown;
     analysis: StoredAnalysis;
@@ -628,7 +640,7 @@ export async function getCheckById(id: string, ownerUserId?: string, allowPrivat
     visibility: "public" | "private";
     owner_user_id: string | null;
   }>(
-    `SELECT id, input_type, raw_input,
+    `SELECT id, input_type, raw_input, headline,
             COALESCE(
               analysis #>> '{claims,0,claim,claimText}',
               (SELECT claim.claim_text FROM claims claim
@@ -650,6 +662,7 @@ export async function getCheckById(id: string, ownerUserId?: string, allowPrivat
         id: row.id,
         inputType: row.input_type,
         rawInput: row.raw_input,
+        headline: traceHeadline(row.headline, row.input_type, row.raw_input, row.primary_claim),
         displayInput: displayInput(row.input_type, row.raw_input, row.primary_claim),
         traceraScore: row.tracera_score,
         analysis: row.analysis,
@@ -677,6 +690,29 @@ export async function findLatestCheckByRawInput(rawInput: string, ownerUserId?: 
     [rawInput, ownerUserId ?? null],
   );
   return result.rows[0]?.analysis ?? null;
+}
+
+/** Traces stored before headlines existed fall back to their first claim. */
+function traceHeadline(
+  headline: string | null,
+  inputType: string,
+  rawInput: string,
+  primaryClaim: string | null,
+) {
+  return (
+    headline?.trim() ||
+    primaryClaim?.trim() ||
+    (inputType === "link" ? readableUrl(rawInput) : displayInput(inputType, rawInput, primaryClaim))
+  );
+}
+
+function readableUrl(rawInput: string) {
+  try {
+    const url = new URL(rawInput);
+    return `${url.hostname.replace(/^www\./, "")}${url.pathname === "/" ? "" : url.pathname}`;
+  } catch {
+    return rawInput;
+  }
 }
 
 function displayInput(inputType: string, rawInput: string, primaryClaim: string | null) {

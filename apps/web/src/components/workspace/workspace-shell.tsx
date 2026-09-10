@@ -163,7 +163,7 @@ function Rail({
                   className="rail-trace"
                   aria-current={pathname === `/hub/${trace.id}` ? "page" : undefined}
                 >
-                  <span className="rail-trace-claim">{trace.rawInput}</span>
+                  <span className="rail-trace-claim">{trace.headline}</span>
                   <span className="rail-trace-meta">
                     <span>{shortAge(trace.createdAt)}</span>
                     <span

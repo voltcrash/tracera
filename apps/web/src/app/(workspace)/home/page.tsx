@@ -279,6 +279,7 @@ export default function Home() {
               </div>
             </div>
             <TraceReport
+              headline={result.headline}
               claims={result.claims}
               score={result.traceraScore}
               framing={result.framingAnalysis}
@@ -401,11 +402,12 @@ function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
   ];
 
   return (
-    <TraceAside margin="The file" gloss="Metadata carried inside the image itself.">
-      <h2 className="trace-section-title">The file leaves clues too</h2>
-      <p className="trace-section-say">
-        Visible text and embedded metadata were inspected alongside the claims.
-      </p>
+    <TraceAside
+      id="file"
+      title="The file leaves clues too"
+      count="Image metadata"
+      lede="Visible text and embedded metadata were inspected alongside the claims."
+    >
       <dl className="mt-6 max-w-[38rem]">
         {details.map((detail) => (
           <ProvenanceMetric key={detail.label} label={detail.label} value={detail.value} />

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 type Check = {
   id: string;
   rawInput: string;
+  headline: string;
   createdAt: string;
   traceraScore: TraceraScore;
   analysis: { claims: ClaimResult[]; score: TraceraScore; framing?: FramingAnalysis };
@@ -98,6 +99,7 @@ export function TraceDetail({ id }: { id: string }) {
           )}
           {check && (
             <TraceReport
+              headline={check.headline}
               statement={check.rawInput}
               checkedAt={check.createdAt}
               sourceDomain={check.sourceDomain}
@@ -131,15 +133,10 @@ function TraceHistory({
   return (
     <TraceAside
       id="history"
-      margin={`${entries.length} ${entries.length === 1 ? "version" : "versions"}`}
-      gloss="Every time Tracera rescored this story."
+      title="How this check has changed"
+      count={`${entries.length} ${entries.length === 1 ? "version" : "versions"}`}
+      lede="Evidence keeps arriving after a story is published, so a score is only true for the day it was given."
     >
-      <h2 className="trace-section-title">How this check has changed</h2>
-      <p className="trace-section-say">
-        Evidence keeps arriving after a story is published, so a score is only true for the day it
-        was given.
-      </p>
-
       <ol className="trace-history">
         {entries.map((entry, index) => {
           const previous = entries[index - 1];

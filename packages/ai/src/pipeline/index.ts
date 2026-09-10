@@ -8,6 +8,7 @@ export {
 export { retrieveSources } from "./retrieve-sources";
 export { buildVerdictPrompt, scoreClaim } from "./score-claim";
 export { verifyText } from "./verify-text";
+export { buildHeadlinePrompt, writeHeadline } from "./write-headline";
 export { normalizeInput, type RawAnalysisInput } from "./normalize-input";
 export { retrieveArchiveHistory, traceGroundZero } from "./ground-zero";
 export type {

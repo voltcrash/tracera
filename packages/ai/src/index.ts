@@ -40,6 +40,7 @@ export {
   retrieveSources,
   scoreClaim,
   verifyText,
+  writeHeadline,
   normalizeInput,
   retrieveArchiveHistory,
   traceGroundZero,

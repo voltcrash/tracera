@@ -204,6 +204,8 @@ export const checks = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     inputType: varchar("input_type", { length: 32 }).notNull(),
     rawInput: text("raw_input").notNull(),
+    /** Short readable title for the trace, so lists never show a bare URL. */
+    headline: text("headline"),
     sourceDomain: text("source_domain"),
     sourceUrl: text("source_url"),
     publishedAt: timestamp("published_at", { withTimezone: true }),

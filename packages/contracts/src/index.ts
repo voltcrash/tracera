@@ -133,6 +133,8 @@ export interface AnalysisResponse {
     id: string;
     createdAt: string;
   };
+  /** Short readable title for the trace, written from the submission. */
+  headline?: string;
   claims: ClaimResult[];
   traceraScore: TraceraScore;
   framingAnalysis?: FramingAnalysis;

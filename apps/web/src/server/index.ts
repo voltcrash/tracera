@@ -32,6 +32,7 @@ import {
   scoreClaim,
   normalizeInput,
   traceGroundZero,
+  writeHeadline,
   type AiProvider,
   type AiProviderConfig,
   type AiProviderName,
@@ -492,6 +493,7 @@ async function runAnalysis(
             policy: `${initialPolicy.reason} Similar stories are analyzed again and only prior verified claims are used as context.`,
           },
           check: { id: cached.id, createdAt: cached.createdAt },
+          headline: cached.headline ?? undefined,
           claims: cached.analysis.claims as ClaimVerdict[],
           traceraScore: cached.analysis.score as TraceraScore,
         }),
@@ -548,6 +550,7 @@ async function runAnalysis(
     });
     const stored = await persistCheck({
       rawInput: normalized.rawInput,
+      headline: result.headline,
       inputType: normalized.inputType,
       sourceUrl: normalized.sourceUrl,
       sourceDomain: normalized.sourceDomain,
@@ -606,6 +609,7 @@ async function runAnalysis(
       payload: analysisResponse({
         cached: false,
         check: stored,
+        headline: result.headline,
         claims: result.claims,
         traceraScore: result.score,
         framingAnalysis: result.framing,
@@ -723,6 +727,7 @@ async function analyzeText(
   claimEmbeddings: number[][];
   score: TraceraScore;
   framing: FramingAnalysis;
+  headline: string;
 }> {
   const audit = {
     signal,
@@ -742,9 +747,10 @@ async function analyzeText(
     stage: "claims",
     message: "Separating factual claims from framing and opinion.",
   });
-  const [extractedClaims, framing] = await Promise.all([
+  const [extractedClaims, framing, headline] = await Promise.all([
     extractClaims(provider, input.text, audit),
     analyzeFraming(provider, input.text, audit),
+    writeHeadline(provider, input, audit),
   ]);
   if (extractedClaims.length === 0) {
     throw new AnalysisError("no_checkable_claims");
@@ -808,6 +814,7 @@ async function analyzeText(
     claimEmbeddings,
     score: aggregateScore(claims, framing),
     framing,
+    headline,
   };
 }
 
