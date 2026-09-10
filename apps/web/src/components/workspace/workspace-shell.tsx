@@ -3,8 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, Newspaper, PenLine, Settings, X } from "lucide-react";
-import type { TraceSummary } from "@/app/(workspace)/hub/_components/trace-library";
+import { LogOut, Menu, PenLine, Settings, X } from "lucide-react";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { accountLabel, useAuth } from "@/components/providers/auth-provider";
 import { ThemeToggle } from "@/components/navigation/theme-toggle";
@@ -21,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiUrl } from "@/lib/api";
+import type { TraceSummary } from "@/lib/trace";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import { cn } from "@/lib/utils";
 
@@ -137,15 +137,6 @@ function Rail({
           <PenLine />
           New trace
         </Link>
-        <Link
-          href="/hub"
-          onClick={onClose}
-          className={cn("rail-link", pathname.startsWith("/hub") && "rail-link-current")}
-          aria-current={pathname.startsWith("/hub") ? "page" : undefined}
-        >
-          <Newspaper />
-          News Hub
-        </Link>
       </div>
 
       <nav className="rail-history" aria-label="Your traces">
@@ -164,10 +155,10 @@ function Rail({
               {group.traces.map((trace) => (
                 <Link
                   key={trace.id}
-                  href={`/hub/${trace.id}`}
+                  href={`/trace/${trace.id}`}
                   onClick={onClose}
                   className="rail-trace"
-                  aria-current={pathname === `/hub/${trace.id}` ? "page" : undefined}
+                  aria-current={pathname === `/trace/${trace.id}` ? "page" : undefined}
                 >
                   <span className="rail-trace-claim">{trace.headline}</span>
                   <span className="rail-trace-meta">

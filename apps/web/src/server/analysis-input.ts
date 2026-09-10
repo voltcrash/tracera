@@ -2,8 +2,6 @@ type AnalysisInput = { text: string } | { url: string } | { image: string; image
 
 export type FirstPartyAnalysisInput = AnalysisInput & {
   forceReanalysis?: boolean;
-  visibility?: "public" | "private";
-  publishConsent?: boolean;
   sourceUrl?: string;
   recheckOf?: string;
 };
@@ -23,8 +21,6 @@ export function parseFirstPartyAnalysisInput(
     "image",
     "imageMimeType",
     "forceReanalysis",
-    "visibility",
-    "publishConsent",
     "sourceUrl",
     "recheckOf",
   ];
@@ -39,16 +35,6 @@ export function parseFirstPartyAnalysisInput(
   if (!parsed.success) return parsed;
   if (body.forceReanalysis !== undefined && typeof body.forceReanalysis !== "boolean") {
     return invalid("forceReanalysis must be a boolean.");
-  }
-  if (
-    body.visibility !== undefined &&
-    body.visibility !== "public" &&
-    body.visibility !== "private"
-  ) {
-    return invalid('visibility must be either "public" or "private".');
-  }
-  if (body.publishConsent !== undefined && typeof body.publishConsent !== "boolean") {
-    return invalid("publishConsent must be a boolean.");
   }
   if (body.recheckOf !== undefined && typeof body.recheckOf !== "string") {
     return invalid("recheckOf must be a string.");
@@ -73,10 +59,6 @@ export function parseFirstPartyAnalysisInput(
     data: {
       ...parsed.data,
       ...(body.forceReanalysis === true ? { forceReanalysis: true } : {}),
-      ...(body.visibility ? { visibility: body.visibility as "public" | "private" } : {}),
-      ...(body.publishConsent !== undefined
-        ? { publishConsent: body.publishConsent as boolean }
-        : {}),
       ...(sourceUrl ? { sourceUrl } : {}),
       ...(typeof body.recheckOf === "string" ? { recheckOf: body.recheckOf } : {}),
     },

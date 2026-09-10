@@ -4,17 +4,14 @@ import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
 import type { AnalysisResponse, AnalysisReuse, ImageMetadata } from "@repo/contracts";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { Check, ExternalLink, ImagePlus, Loader2, Newspaper, Sparkles, Trash2 } from "lucide-react";
+import { Check, ExternalLink, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { apiUrl } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const TraceReport = dynamic(() =>
@@ -39,7 +36,6 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("Preparing the evidence trace.");
-  const [publishPublicly, setPublishPublicly] = useState(false);
   const refreshHistory = useHistoryRefresh();
 
   async function analyze(event?: FormEvent<HTMLFormElement>, forceReanalysis = false) {
@@ -66,8 +62,6 @@ export default function Home() {
         body: JSON.stringify({
           ...request,
           ...(forceReanalysis ? { forceReanalysis: true } : {}),
-          visibility: publishPublicly ? "public" : "private",
-          ...(publishPublicly ? { publishConsent: true } : {}),
         }),
       });
       if (!response.ok) {
@@ -190,26 +184,6 @@ export default function Home() {
                   disabled={loading}
                 />
               </Button>
-              {user && (
-                <div className="flex min-w-0 items-start gap-2">
-                  <Checkbox
-                    id="publish-trace"
-                    checked={publishPublicly}
-                    onCheckedChange={(checked) => setPublishPublicly(checked === true)}
-                    disabled={loading}
-                    aria-describedby="publish-consent-note"
-                  />
-                  <div className="min-w-0">
-                    <Label htmlFor="publish-trace" className="text-xs font-semibold leading-5">
-                      Publish this analysis publicly (optional)
-                    </Label>
-                    <p id="publish-consent-note" className="text-[11px] leading-4 text-ink-faint">
-                      Analyses are private by default. I agree to publish the submitted text,
-                      images, metadata, and analysis results publicly.
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
             <Button
               type="submit"
@@ -238,10 +212,6 @@ export default function Home() {
               <ImagePlus />
               Upload a screenshot
             </label>
-            <Link href="/hub" className="starter">
-              <Newspaper />
-              Browse traces others have run
-            </Link>
           </div>
         )}
 

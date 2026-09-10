@@ -80,7 +80,7 @@ for (const path of ["/checks", "/checks/00000000-0000-4000-8000-000000000000"]) 
 
     assert.equal(response.status, 401);
     assert.deepEqual(await response.json(), {
-      error: "Sign in or create an account to open the News Hub.",
+      error: "Sign in or create an account to open your traces.",
     });
   });
 }
