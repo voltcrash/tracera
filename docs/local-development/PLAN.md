@@ -1,6 +1,7 @@
 # Local development and testing plan
 
-Status: L01–L05 are authorized. L06 is recorded here for sequencing only and is not authorized by this document.
+Status: L01–L06 have been explicitly authorized in sequence. L06 is the current and final
+local-development task; no further Core implementation is authorized by this plan.
 
 ## Objective and boundaries
 

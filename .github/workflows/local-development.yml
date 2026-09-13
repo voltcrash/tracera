@@ -1,0 +1,45 @@
+name: Local development
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-development-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: voidzero-dev/setup-vp@v1.20.0
+        with:
+          node-version: "24"
+          cache: true
+      - name: Install dependencies
+        run: vp install
+      - name: Acquire local runtime assets
+        run: |
+          docker pull pgvector/pgvector:0.8.6-pg18-trixie@sha256:78bf48b801e792f99e3ac62b5036fd3876e9be48afda16c1e331af1c75ceb2ff
+          vp exec --filter web --fail-if-no-match -- playwright install --with-deps chromium
+      - name: Generate synthetic local configuration
+        run: vp run env:setup
+      - name: Check formatting, lint, and types
+        run: vp check
+      - name: Check workspace types
+        run: vp run check-types
+      - name: Build with the local profile
+        run: vp run build
+      - name: Run unit suites without external networking
+        run: scripts/ci/with-network-denied.sh vp test --run
+      - name: Run local integration suites without external networking
+        run: scripts/ci/with-network-denied.sh vp run test:integration
