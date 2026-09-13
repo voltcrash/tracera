@@ -80,7 +80,7 @@ export function TraceDetail({ id }: { id: string }) {
   return (
     <main className="trace-page min-h-screen bg-background text-foreground">
       <>
-        <BackButton href="/hub" label="Back to News Hub" />
+        <BackButton href="/home" label="Back to new trace" />
         {error && (
           <Alert variant="destructive" className="trace mt-10">
             <AlertDescription>{error}</AlertDescription>

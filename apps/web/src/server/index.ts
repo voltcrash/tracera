@@ -72,7 +72,6 @@ import {
   spendLimitedAiProvider,
   type AnalysisControlConfig,
 } from "./analysis-controls";
-import { requestedVisibility } from "./submission-visibility";
 
 export type Bindings = AuthBindings & {
   DATABASE_URL?: string;
@@ -420,7 +419,7 @@ async function runAnalysis(
   controlConfig: AnalysisControlConfig = analysisControlConfig(context.env),
 ): Promise<
   | { payload: AnalysisResponse; status: 200 | 201 }
-  | { payload: AnalysisErrorResponse; status: 400 | 422 | 503 }
+  | { payload: AnalysisErrorResponse; status: 422 | 503 }
 > {
   try {
     signal.throwIfAborted();
@@ -429,7 +428,7 @@ async function runAnalysis(
       message: "Reading and normalizing the submission.",
     });
     const user = await currentUser(context);
-    const visibility = requestedVisibility(body, user?.id);
+    if (!user) throw new Error("Sign in before saving a trace.");
     const aiConfiguration = configuredAiConfiguration();
     const provider = spendLimitedAiProvider(
       createAiProvider(aiConfiguration),
@@ -459,9 +458,8 @@ async function runAnalysis(
             cacheHours,
             IMAGE_DEDUP_SIMILARITY,
             user?.id,
-            visibility,
           )
-        : await findReusableExactCheck(normalized.rawInput, cacheHours, user?.id, visibility);
+        : await findReusableExactCheck(normalized.rawInput, cacheHours, user?.id);
 
     // A previous version stored empty analyses when a URL was sent as text.
     // Never serve an incomplete cache entry. Image checks may validly finish
@@ -528,7 +526,6 @@ async function runAnalysis(
         ...groundZeroSources.map((source) => source.canonicalUrl ?? source.url),
       ].filter((url): url is string => Boolean(url)),
       user?.id,
-      visibility,
     );
     const archiveHistory = await retrieveArchiveHistory(groundZeroSources, signal);
     signal.throwIfAborted();
@@ -541,7 +538,6 @@ async function runAnalysis(
       inputEmbedding,
       RELATED_STORY_SIMILARITY,
       RELATED_STORY_MAX_AGE_HOURS,
-      visibility,
       user?.id,
     );
     const completedPolicy = reanalysisPolicy({
@@ -584,8 +580,6 @@ async function runAnalysis(
         ...auditLog,
       ],
       ownerUserId: user?.id,
-      visibility,
-      publishConsent: hasPublicationConsent(body),
       supersedesCheckId: relatedStory?.id,
       lineageReason: relatedStory ? "related_story" : "first_check",
     });
@@ -638,8 +632,8 @@ async function runAnalysis(
   }
 }
 
-app.use("/checks", requireSignedInUser("the News Hub"));
-app.use("/checks/*", requireSignedInUser("the News Hub"));
+app.use("/checks", requireSignedInUser("your traces"));
+app.use("/checks/*", requireSignedInUser("your traces"));
 
 app.get("/checks/:id/timeline", async (context) => {
   const id = context.req.param("id");
@@ -659,19 +653,10 @@ app.get("/checks", async (context) => {
   const page = positiveInteger(context.req.query("page"), 1, 10_000);
   const pageSize = positiveInteger(context.req.query("pageSize"), 20, 100);
   const query = (context.req.query("q") ?? "").slice(0, 200);
-  const ownedOnly = context.req.query("scope") === "mine";
 
   try {
     const user = await currentUser(context);
-    const result = await listChecks(
-      page,
-      pageSize,
-      query,
-      user?.id,
-      ownedOnly,
-      !ownedOnly,
-      !ownedOnly,
-    );
+    const result = await listChecks(page, pageSize, query, user?.id);
     return context.json({
       checks: result.checks,
       pagination: {
@@ -1135,14 +1120,6 @@ async function normalizeWithStoredFallback(
       sourceDomain: url.hostname.replace(/^www\./, ""),
     };
   }
-}
-
-function hasPublicationConsent(body: unknown) {
-  return Boolean(
-    body &&
-    typeof body === "object" &&
-    (body as { publishConsent?: unknown }).publishConsent === true,
-  );
 }
 
 function environmentBoolean(rawValue: string | undefined, fallback: boolean) {
