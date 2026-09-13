@@ -58,6 +58,8 @@ export const MANAGED_ENVIRONMENT_KEYS = [
   "TRACERA_DATABASE_HOST",
   "TRACERA_DATABASE_PORT",
   "TRACERA_DATABASE_NAME",
+  "TRACERA_APP_ORIGIN",
+  "TRACERA_APP_PORT",
 ];
 
 const MANAGED_KEYS = new Set(MANAGED_ENVIRONMENT_KEYS);
@@ -121,6 +123,7 @@ export function assertEnvironmentConfiguration(environment, expectedRole) {
     requireSetting(environment, "DATABASE_URL");
     requireSetting(environment, "BETTER_AUTH_SECRET");
     assertDatabaseUrl(environment.DATABASE_URL, environment, role);
+    if (profile === "local" || profile === "test") assertApplicationOrigin(environment);
   } else if (role === "migration") {
     requireSetting(environment, "DATABASE_MIGRATOR_URL");
     assertDatabaseUrl(environment.DATABASE_MIGRATOR_URL, environment, role);
@@ -135,6 +138,29 @@ export function assertEnvironmentConfiguration(environment, expectedRole) {
   }
 
   return { profile, role };
+}
+
+function assertApplicationOrigin(environment) {
+  requireSetting(environment, "TRACERA_APP_ORIGIN");
+  requireSetting(environment, "TRACERA_APP_PORT");
+  let origin;
+  try {
+    origin = new URL(environment.TRACERA_APP_ORIGIN);
+  } catch {
+    throw new EnvironmentConfigurationError("TRACERA_APP_ORIGIN must be a valid URL.");
+  }
+  if (
+    origin.protocol !== "http:" ||
+    !isLoopbackHostname(origin.hostname) ||
+    origin.port !== environment.TRACERA_APP_PORT ||
+    origin.pathname !== "/" ||
+    origin.search ||
+    origin.hash
+  ) {
+    throw new EnvironmentConfigurationError(
+      "Local and test application origins must be loopback-only HTTP URLs matching TRACERA_APP_PORT.",
+    );
+  }
 }
 
 export function assertCoreStorageTestDatabase(environment) {
@@ -286,6 +312,8 @@ function assertRoleSeparation(environment, role) {
     "AI_ESTIMATED_EMBEDDING_COST_USD",
     "DOMAIN_TRUST_AUTO_REFINE",
     "DOMAIN_TRUST_ADMIN_TOKEN",
+    "TRACERA_APP_ORIGIN",
+    "TRACERA_APP_PORT",
   ];
   const analysisSettings = [
     "AI_PROVIDER",

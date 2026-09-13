@@ -1146,13 +1146,8 @@ function currentUser(context: Context<{ Bindings: Bindings }>) {
   const request = context.req.raw;
   const cached = currentUserByRequest.get(request);
   if (cached) return cached;
-  const user = authenticatedUser(request, {
-    BETTER_AUTH_SECRET: context.env.BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
-    GOOGLE_CLIENT_ID: context.env.GOOGLE_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: context.env.GOOGLE_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
-    GITHUB_CLIENT_ID: context.env.GITHUB_CLIENT_ID ?? process.env.GITHUB_CLIENT_ID,
-    GITHUB_CLIENT_SECRET: context.env.GITHUB_CLIENT_SECRET ?? process.env.GITHUB_CLIENT_SECRET,
-  });
+  const environment = context.env.TRACERA_PROFILE ? context.env : process.env;
+  const user = authenticatedUser(request, environment);
   currentUserByRequest.set(request, user);
   return user;
 }

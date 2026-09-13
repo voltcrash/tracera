@@ -26,9 +26,9 @@ vp run env:setup
 vp run env:diagnose:local
 ```
 
-Setup derives a stable identifier and port from the current worktree path, creates strong random local passwords and a Better Auth secret, and writes mode-0600 files under ignored `.tracera/environment/local` and `.tracera/environment/test` directories. It does not read or copy any legacy environment file. Existing generated files are retained, so rerunning setup does not rotate database credentials unexpectedly.
+Setup derives stable database and web ports from the current worktree path, creates strong random local passwords and a Better Auth secret, and writes mode-0600 files under ignored `.tracera/environment/local` and `.tracera/environment/test` directories. It does not read or copy any legacy environment file. Existing generated files are retained, so rerunning setup does not rotate database credentials unexpectedly. L04 setup safely adds missing local-auth settings to an existing generated profile without reading or replacing its secrets.
 
-The committed shape is documented in `config/environment/local.generated.env.example`; never copy its placeholders. The local and test profiles use separate ports, because each runs its own PostgreSQL cluster (see [Local PostgreSQL](#local-postgresql)). Credential-free sign-in (L04) and offline application analysis (L05) are not available yet.
+The committed shape is documented in `config/environment/local.generated.env.example`; never copy its placeholders. The local and test profiles use separate database ports, and the web app uses a third generated port (see [Local PostgreSQL](#local-postgresql)). Local sign-in is available through the synthetic identities described below. Offline application analysis (L05) is not available yet.
 
 ## Loading and precedence
 
@@ -62,7 +62,9 @@ Local/test database URLs must:
 
 The test profile's runtime and migration URLs may also target a run database `<name>_<run>`, where `<run>` is 1–16 lowercase letters or digits. Tooling derives these URLs only through `withTestRunDatabase`, which rewrites the database name of the sealed generated URL and reseals it; local profiles never accept a suffix.
 
-Local/test profiles reject OAuth client secrets, AI credentials and custom endpoints, and optional paid retrieval credentials. There is no external fallback. L04 will add local Better Auth login behavior, and L05 will add deterministic AI and retrieval fixtures.
+Local/test runtime configuration also requires `TRACERA_APP_ORIGIN` and `TRACERA_APP_PORT`. The origin must be an HTTP loopback URL whose port matches the generated value. The development server binds that worktree-specific port; a copied, remote, or mismatched origin fails validation before auth or database access.
+
+Local/test profiles reject OAuth client secrets, AI credentials and custom endpoints, and optional paid retrieval credentials. Local auth never configures a social provider. L05 will add deterministic AI and retrieval fixtures.
 
 ## Local PostgreSQL
 
@@ -90,6 +92,8 @@ vp run test:core-storage # fresh database, real Core storage integration suite, 
 ```
 
 `vp run dev` and `vp run db:local:migrate` fail with a start instruction unless this worktree's container is running and healthy.
+
+`vp run dev` prints the generated local web origin. Open that exact `http://localhost:<port>` URL rather than assuming port 3000.
 
 `vp run test:core-storage` exclusively locks this worktree's disposable test cluster,
 recreates it, applies the full migration history to a fresh run database, runs the
@@ -202,13 +206,36 @@ numeric user ID as the provider account ID. Account linking requires the same
 verified email address; mutable GitHub usernames and email addresses are not
 used as provider identity keys.
 
-## Development authentication
+## Local development authentication
 
-- `DEV_AUTH_BYPASS` — runtime role only. Set to exactly `true` to enable
-  `GET /api/auth/dev-login` while `NODE_ENV=development`. On a loopback host,
-  the endpoint creates or loads `developer@tracera.local`, creates a real
-  database-backed Better Auth session, sets its normal session cookie, and
-  redirects to `/home`. The route is not registered in any other environment.
+`vp run env:setup` adds `DEV_AUTH_BYPASS=true`, `TRACERA_APP_ORIGIN`, and
+`TRACERA_APP_PORT` only to the generated local runtime profile. Start and migrate the
+local database, then run `vp run dev` and open the exact reported origin. The landing
+page replaces unavailable OAuth buttons with two fixed synthetic identities:
+`ada@tracera.local` and `grace@tracera.local`.
+
+Each action uses `GET /api/auth/dev-login?identity=<fixed-id>` to create or load the
+synthetic user, create a real Better Auth session in local PostgreSQL, set the normal
+HTTP localhost session cookie, and redirect to `/home`. Page reload, session lookup,
+and logout use Better Auth's regular endpoints and database adapter. Local cookies are
+deliberately non-secure because the validated origin is loopback HTTP; deployed cookies
+remain forced secure.
+
+The login plugin requires all of the following simultaneously: profile `local`, role
+`runtime`, generated and sealed worktree configuration, `NODE_ENV=development`, exact
+`DEV_AUTH_BYPASS=true`, a validated local runtime database URL, and a request matching
+the configured loopback origin. Unknown identities and mismatched origins return 404.
+The plugin and identity listing are unavailable in test and deployed profiles, and
+local auth has no OAuth providers configured. Deployed Google/GitHub behavior and OAuth
+token discarding are unchanged.
+
+Run `vp run test:auth-browser` after the local database is running and migrated. The
+command starts the app on the generated port and runs one Chromium test covering both
+identities, database-backed session persistence across reload, logout, and private trace
+isolation. The web process receives only the runtime profile. The wrapper loads the
+generated migrator profile separately to remove only users with the two synthetic email
+addresses and traces carrying the reserved `L04 browser fixture:` prefix; it never
+accepts a URL or database name.
 
 ## AI provider overrides
 

@@ -12,6 +12,7 @@
   "dependencies": {
     "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/environment": "workspace:*",
     "better-auth": "^1.7.3"
   },
   "devDependencies": {
