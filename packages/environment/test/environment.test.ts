@@ -8,6 +8,7 @@ import {
   assertEnvironmentConfiguration,
   createEnvironmentSeal,
   redactedEnvironmentDiagnostic,
+  withTestRunDatabase,
 } from "../src/index.js";
 import { findLegacyEnvironmentFiles, loadProfileEnvironment } from "../src/loader.js";
 
@@ -191,6 +192,64 @@ test("core storage integration targets must be disposable loopback test database
   assert.throws(
     () => assertCoreStorageTestDatabase({ CORE_STORAGE_TEST_DATABASE_URL: disposable }),
     /TRACERA_PROFILE/,
+  );
+});
+
+test("test runtime and migration roles can target only this worktree's run databases", () => {
+  const testRuntime = localRuntimeEnvironment({ TRACERA_PROFILE: "test" });
+  const runtime = withTestRunDatabase(testRuntime, "a1b2c3");
+  assert.match(runtime.DATABASE_URL ?? "", /@127\.0\.0\.1:25432\/tracera_worktree_dev_a1b2c3$/);
+  assert.deepEqual(assertEnvironmentConfiguration(runtime, "runtime"), {
+    profile: "test",
+    role: "runtime",
+  });
+
+  const migration: Record<string, string | undefined> = {
+    TRACERA_PROFILE: "test",
+    TRACERA_CONFIG_ROLE: "migration",
+    TRACERA_CONFIG_SOURCE: "generated-worktree",
+    TRACERA_WORKTREE_ID: "worktree",
+    TRACERA_DATABASE_HOST: "127.0.0.1",
+    TRACERA_DATABASE_PORT: "25432",
+    TRACERA_DATABASE_NAME: "tracera_worktree_dev",
+    DATABASE_MIGRATOR_URL:
+      "postgresql://tracera_migrator:password@127.0.0.1:25432/tracera_worktree_dev",
+  };
+  migration.TRACERA_CONFIG_SEAL = createEnvironmentSeal(migration);
+  assert.match(
+    withTestRunDatabase(migration, "run2").DATABASE_MIGRATOR_URL ?? "",
+    /\/tracera_worktree_dev_run2$/,
+  );
+
+  for (const runId of ["", "Run1", "run-1", "run_1", "x".repeat(17), "../postgres"]) {
+    assert.throws(() => withTestRunDatabase(testRuntime, runId), /Test run IDs/);
+  }
+  assert.throws(
+    () => withTestRunDatabase(localRuntimeEnvironment(), "run1"),
+    /only to test-profile runtime and migration roles/,
+  );
+  assert.throws(
+    () =>
+      assertEnvironmentConfiguration(
+        localRuntimeEnvironment({
+          DATABASE_URL:
+            "postgresql://tracera_runtime:password@127.0.0.1:25432/tracera_worktree_dev_run1",
+        }),
+        "runtime",
+      ),
+    /does not match this worktree's provisioned database/,
+  );
+  assert.throws(
+    () =>
+      assertEnvironmentConfiguration(
+        localRuntimeEnvironment({
+          TRACERA_PROFILE: "test",
+          DATABASE_URL:
+            "postgresql://tracera_runtime:password@127.0.0.1:25432/tracera_worktree_dev_other-db",
+        }),
+        "runtime",
+      ),
+    /does not match this worktree's provisioned database/,
   );
 });
 

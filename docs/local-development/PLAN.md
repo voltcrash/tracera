@@ -1,6 +1,6 @@
 # Local development and testing plan
 
-Status: L01 is authorized. L02–L06 are recorded here for sequencing only and are not authorized by this document.
+Status: L01 and L02 are authorized. L03–L06 are recorded here for sequencing only and are not authorized by this document.
 
 ## Objective and boundaries
 

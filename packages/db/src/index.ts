@@ -1,25 +1,29 @@
-import { neonConfig, Pool, type PoolClient } from "@neondatabase/serverless";
 import { assertEnvironmentConfiguration } from "@repo/environment";
-import { drizzle } from "drizzle-orm/neon-serverless";
+import {
+  createDatabasePool,
+  createUnconfiguredDatabase,
+  type DatabaseClient as PoolClient,
+} from "@repo/db/connection";
+
+export {
+  createDatabasePool,
+  databaseTransportFor,
+  type DatabaseClient,
+  type DatabasePool,
+  type DatabaseTransport,
+} from "@repo/db/connection";
 
 export const EMBEDDING_DIMENSIONS = 1024;
 
 if (process.env.DATABASE_URL) assertEnvironmentConfiguration(process.env, "runtime");
 let activeConnectionString = process.env.DATABASE_URL;
+let active = activeConnectionString
+  ? createDatabasePool(activeConnectionString, process.env)
+  : createUnconfiguredDatabase();
 
-// Serverless instances may handle more than one request, but WebSocket database
-// connections cannot outlive the request that created them. Route standalone
-// Pool queries over Neon's stateless HTTP transport instead. The few interactive
-// transactions below still use WebSockets and destroy their clients on release.
-neonConfig.poolQueryViaFetch = true;
-
-/**
- * The Neon driver uses WebSockets and remains compatible with the
- * node-postgres API used by this package. Configure it from the environment
- * before handling a request.
- */
-export let pool = new Pool({ connectionString: activeConnectionString });
-export let db = drizzle({ client: pool });
+/** Configure from the validated environment before handling a request. */
+export let pool = active.pool;
+export let db = active.db;
 
 export function configureDatabase(
   connectionString: string | undefined,
@@ -28,12 +32,30 @@ export function configureDatabase(
   if (!connectionString) {
     throw new Error("DATABASE_URL must be configured for the Tracera server.");
   }
-  assertEnvironmentConfiguration({ ...environment, DATABASE_URL: connectionString }, "runtime");
+  const selected = { ...environment, DATABASE_URL: connectionString };
+  assertEnvironmentConfiguration(selected, "runtime");
   assertRuntimeDatabaseRole(connectionString);
   if (connectionString === activeConnectionString) return;
+  const previous = active.pool;
   activeConnectionString = connectionString;
-  pool = new Pool({ connectionString });
-  db = drizzle({ client: pool });
+  active = createDatabasePool(connectionString, selected);
+  pool = active.pool;
+  db = active.db;
+  void previous.end().catch(() => undefined);
+}
+
+export function activeDatabaseTransport() {
+  return active.transport;
+}
+
+/** Closes the active pool; later queries fail until the database is configured again. */
+export async function closeDatabase() {
+  const previous = active.pool;
+  activeConnectionString = undefined;
+  active = createUnconfiguredDatabase();
+  pool = active.pool;
+  db = active.db;
+  await previous.end();
 }
 
 export function assertRuntimeDatabaseRole(

@@ -80,6 +80,7 @@ const EXTERNAL_PROVIDER_KEYS = new Set([
   "NEWS_API_KEY",
   "JINA_API_KEY",
 ]);
+const TEST_RUN_ID_PATTERN = /^[a-z0-9]{1,16}$/;
 const DATABASE_KEYS = new Set([
   "DATABASE_URL",
   "DATABASE_MIGRATOR_URL",
@@ -151,6 +152,34 @@ export function assertCoreStorageTestDatabase(environment) {
     "CORE_STORAGE_TEST_DATABASE_URL",
   );
   return environment.CORE_STORAGE_TEST_DATABASE_URL;
+}
+
+/**
+ * Retargets a sealed test-profile runtime or migration environment at one
+ * disposable run database (`<TRACERA_DATABASE_NAME>_<runId>`) and reseals it.
+ */
+export function withTestRunDatabase(environment, runId) {
+  const { profile, role } = assertEnvironmentConfiguration(
+    environment,
+    environment.TRACERA_CONFIG_ROLE,
+  );
+  if (profile !== "test" || (role !== "runtime" && role !== "migration")) {
+    throw new EnvironmentConfigurationError(
+      "Run databases are available only to test-profile runtime and migration roles.",
+    );
+  }
+  if (!TEST_RUN_ID_PATTERN.test(runId)) {
+    throw new EnvironmentConfigurationError(
+      "Test run IDs must be 1-16 lowercase letters or digits.",
+    );
+  }
+  const key = databaseKeyForRole(role);
+  const url = new URL(environment[key]);
+  url.pathname = `/${environment.TRACERA_DATABASE_NAME}_${runId}`;
+  const derived = { ...environment, [key]: url.toString() };
+  derived.TRACERA_CONFIG_SEAL = createEnvironmentSeal(derived);
+  assertEnvironmentConfiguration(derived, role);
+  return derived;
 }
 
 export function assertEnvironmentIfConfigured(environment, expectedRole) {
@@ -347,10 +376,14 @@ function assertDatabaseUrl(value, environment, role, key = databaseKeyForRole(ro
   const expectedDatabase =
     role === "test-provisioning" ? "postgres" : environment.TRACERA_DATABASE_NAME;
   // Integration runs use disposable databases named after the worktree test database.
+  const isRunDatabase =
+    databaseName.startsWith(`${expectedDatabase}_`) &&
+    TEST_RUN_ID_PATTERN.test(databaseName.slice(expectedDatabase.length + 1));
   const matchesDatabase =
     key === "CORE_STORAGE_TEST_DATABASE_URL"
-      ? databaseName.startsWith(`${expectedDatabase}_`)
-      : databaseName === expectedDatabase;
+      ? isRunDatabase
+      : databaseName === expectedDatabase ||
+        (environment.TRACERA_PROFILE === "test" && role !== "test-provisioning" && isRunDatabase);
   if (!matchesDatabase) {
     throw new EnvironmentConfigurationError(
       `${key} does not match this worktree's provisioned database.`,

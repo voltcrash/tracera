@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { Pool } from "@neondatabase/serverless";
 import {
   completeRunReportExample,
   runContextExample,
@@ -15,6 +14,7 @@ import {
   type CoreAccessScope,
   type CorePool,
 } from "../src/core/index.js";
+import { createDatabasePool } from "../src/connection.js";
 
 const databaseUrl = process.env.CORE_STORAGE_TEST_DATABASE_URL
   ? assertCoreStorageTestDatabase(process.env)
@@ -51,7 +51,7 @@ integrationTest(
   "core storage enforces idempotency, retries, fencing, atomic completion, and tenant scope",
   async () => {
     assert.ok(databaseUrl);
-    const pool = new Pool({ connectionString: databaseUrl });
+    const { pool } = createDatabasePool(databaseUrl, process.env);
     const repository = new CoreStorageRepository(pool as unknown as CorePool);
     const suffix = randomUUID();
     const context = fixtureContext(

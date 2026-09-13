@@ -1,18 +1,10 @@
-import { createHash, randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { randomBytes } from "node:crypto";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { parseEnv } from "node:util";
 import { findLegacyEnvironmentFiles } from "../../packages/environment/src/loader.js";
+import { rootDirectory, worktreeIdentity } from "./worktree.mjs";
 
-const rootDirectory = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-const worktreePath = realpathSync(rootDirectory);
-const digest = createHash("sha256").update(worktreePath).digest("hex");
-const readableName = basename(worktreePath)
-  .toLowerCase()
-  .replace(/[^a-z0-9]+/g, "_")
-  .slice(0, 20);
-const worktreeId = `${readableName}_${digest.slice(0, 8)}`;
-const databasePort = String(20_000 + (Number.parseInt(digest.slice(0, 6), 16) % 20_000));
+const { worktreeId, ports } = worktreeIdentity();
 const environmentRoot = `${rootDirectory}/.tracera/environment`;
 
 const legacyEnvironmentFiles = findLegacyEnvironmentFiles(rootDirectory);
@@ -23,8 +15,21 @@ if (legacyEnvironmentFiles.length > 0) {
   process.exit(1);
 }
 
+// L01 generated one port for both profiles; each profile now runs its own cluster.
+const staleTestShared = `${environmentRoot}/test/shared.env`;
+if (
+  existsSync(staleTestShared) &&
+  parseEnv(readFileSync(staleTestShared, "utf8")).TRACERA_DATABASE_PORT !== ports.test
+) {
+  console.error(
+    `Generated test configuration does not use this worktree's test port ${ports.test}. It holds only disposable test credentials: delete .tracera/environment/test and rerun "vp run env:setup".`,
+  );
+  process.exit(1);
+}
+
 for (const profile of ["local", "test"]) {
   const profileDirectory = `${environmentRoot}/${profile}`;
+  const databasePort = ports[profile];
   mkdirSync(profileDirectory, { recursive: true, mode: 0o700 });
   chmodSync(profileDirectory, 0o700);
   const databaseName = `tracera_${worktreeId}_${profile === "local" ? "dev" : "test"}`;
@@ -60,7 +65,7 @@ for (const profile of ["local", "test"]) {
 
 console.error(`Generated isolated Tracera configuration for worktree ${worktreeId}.`);
 console.error(
-  `Database target: 127.0.0.1:${databasePort} (PostgreSQL provisioning begins in L02).`,
+  `Database targets: local 127.0.0.1:${ports.local}, test 127.0.0.1:${ports.test}. Start them with "vp run db:local:start" and "vp run db:test:start".`,
 );
 
 function secret(bytes = 32) {

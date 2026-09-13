@@ -1,12 +1,11 @@
 import { spawn } from "node:child_process";
-import { createConnection } from "node:net";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { redactedEnvironmentDiagnostic } from "../../packages/environment/src/index.js";
 import { loadProfileEnvironment } from "../../packages/environment/src/loader.js";
+import { containerTarget, requireHealthyTarget } from "../database/container.mjs";
+import { rootDirectory } from "./worktree.mjs";
 
-const rootDirectory = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 process.on("uncaughtException", failCleanly);
+process.on("unhandledRejection", failCleanly);
 const separator = process.argv.indexOf("--");
 const argumentsBeforeCommand =
   separator === -1 ? process.argv.slice(2) : process.argv.slice(2, separator);
@@ -27,7 +26,9 @@ const selected = loadProfileEnvironment({
   inheritedEnv: process.env,
 });
 console.error(redactedEnvironmentDiagnostic(selected));
-if (argumentsBeforeCommand.includes("--require-database")) await requireDatabaseTarget(selected);
+if (argumentsBeforeCommand.includes("--require-database")) {
+  await requireHealthyTarget(containerTarget(selected));
+}
 
 const child = spawn(command[0], command.slice(1), {
   cwd: process.cwd(),
@@ -56,36 +57,6 @@ function unmanagedEnvironment(environment) {
   const result = { ...environment };
   for (const key of Object.keys(selected)) delete result[key];
   return result;
-}
-
-function requireDatabaseTarget(environment) {
-  return new Promise((resolveConnection, rejectConnection) => {
-    const socket = createConnection({
-      host: environment.TRACERA_DATABASE_HOST,
-      port: Number(environment.TRACERA_DATABASE_PORT),
-    });
-    const timeout = setTimeout(() => {
-      socket.destroy();
-      rejectConnection(
-        new Error(
-          "Local PostgreSQL is unavailable; provisioning is intentionally deferred to L02.",
-        ),
-      );
-    }, 1_000);
-    socket.once("connect", () => {
-      clearTimeout(timeout);
-      socket.destroy();
-      resolveConnection();
-    });
-    socket.once("error", () => {
-      clearTimeout(timeout);
-      rejectConnection(
-        new Error(
-          "Local PostgreSQL is unavailable; provisioning is intentionally deferred to L02.",
-        ),
-      );
-    });
-  });
 }
 
 function failCleanly(error) {
