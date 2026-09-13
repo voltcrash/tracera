@@ -254,6 +254,7 @@ export default function Home() {
               score={result.traceraScore}
               framing={result.framingAnalysis}
               groundZero={result.groundZero}
+              analysisMode={result.analysisMode}
             >
               {result.inputMetadata && <ImageProvenance metadata={result.inputMetadata} />}
             </TraceReport>

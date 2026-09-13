@@ -99,6 +99,46 @@ test("local and test profiles reject external provider credentials and endpoints
   );
 });
 
+test("local analysis is fixture-only and deployed profiles cannot activate fixtures", () => {
+  assert.throws(
+    () =>
+      assertEnvironmentConfiguration(
+        localRuntimeEnvironment({ TRACERA_ANALYSIS_MODE: "live" }),
+        "runtime",
+      ),
+    /requires TRACERA_ANALYSIS_MODE=fixture/,
+  );
+  assert.throws(
+    () =>
+      assertEnvironmentConfiguration(
+        {
+          TRACERA_PROFILE: "deployed",
+          TRACERA_CONFIG_ROLE: "runtime",
+          TRACERA_ANALYSIS_MODE: "fixture",
+          DATABASE_URL: "postgresql://tracera_runtime:password@database.example/tracera",
+          BETTER_AUTH_SECRET: "auth-secret-at-least-32-characters",
+        },
+        "runtime",
+      ),
+    /deployed profile cannot use deterministic analysis fixtures/,
+  );
+  assert.throws(
+    () =>
+      assertEnvironmentConfiguration(
+        {
+          TRACERA_PROFILE: "deployed",
+          TRACERA_CONFIG_ROLE: "runtime",
+          AI_PROVIDER: "fixture",
+          AI_API_KEY: "not-a-real-key",
+          DATABASE_URL: "postgresql://tracera_runtime:password@database.example/tracera",
+          BETTER_AUTH_SECRET: "auth-secret-at-least-32-characters",
+        },
+        "runtime",
+      ),
+    /deployed profile cannot use deterministic analysis fixtures/,
+  );
+});
+
 test("local application origins must be loopback-only and match their generated port", () => {
   assert.throws(
     () =>
@@ -317,6 +357,7 @@ function localRuntimeEnvironment(overrides: Record<string, string> = {}) {
     TRACERA_DATABASE_NAME: "tracera_worktree_dev",
     TRACERA_APP_ORIGIN: "http://localhost:4173",
     TRACERA_APP_PORT: "4173",
+    TRACERA_ANALYSIS_MODE: "fixture",
     DATABASE_URL:
       "postgresql://tracera_runtime:database-password@127.0.0.1:25432/tracera_worktree_dev",
     BETTER_AUTH_SECRET: "auth-secret-at-least-32-characters",
@@ -337,7 +378,7 @@ function profileDirectory() {
   );
   writeFileSync(
     join(directory, "runtime.env"),
-    "DATABASE_URL=postgresql://tracera_runtime:password@127.0.0.1:25432/tracera_worktree_dev\nBETTER_AUTH_SECRET=auth-secret-at-least-32-characters\nTRACERA_APP_ORIGIN=http://localhost:4173\nTRACERA_APP_PORT=4173\n",
+    "DATABASE_URL=postgresql://tracera_runtime:password@127.0.0.1:25432/tracera_worktree_dev\nBETTER_AUTH_SECRET=auth-secret-at-least-32-characters\nTRACERA_APP_ORIGIN=http://localhost:4173\nTRACERA_APP_PORT=4173\nTRACERA_ANALYSIS_MODE=fixture\n",
   );
   return root;
 }

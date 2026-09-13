@@ -49,6 +49,7 @@ for (const profile of ["local", "test"]) {
       `BETTER_AUTH_SECRET=${secret(48)}`,
       `TRACERA_APP_ORIGIN=http://localhost:${ports.web}`,
       `TRACERA_APP_PORT=${ports.web}`,
+      "TRACERA_ANALYSIS_MODE=fixture",
       ...(profile === "local" ? ["DEV_AUTH_BYPASS=true"] : []),
     ].join("\n"),
   );
@@ -59,6 +60,7 @@ for (const profile of ["local", "test"]) {
     [`http://127.0.0.1:${ports.web}`],
   );
   ensureSetting(`${profileDirectory}/runtime.env`, "TRACERA_APP_PORT", ports.web);
+  ensureSetting(`${profileDirectory}/runtime.env`, "TRACERA_ANALYSIS_MODE", "fixture");
   if (profile === "local")
     ensureSetting(`${profileDirectory}/runtime.env`, "DEV_AUTH_BYPASS", "true");
   writeExclusive(
@@ -69,10 +71,8 @@ for (const profile of ["local", "test"]) {
     `${profileDirectory}/test-provisioning.env`,
     `TEST_DATABASE_PROVISIONER_URL=${postgresUrl("tracera_test_provisioner", secret(), databasePort, "postgres")}`,
   );
-  writeExclusive(
-    `${profileDirectory}/analysis.env`,
-    "# Offline fixture configuration is added by L05.",
-  );
+  writeExclusive(`${profileDirectory}/analysis.env`, "TRACERA_ANALYSIS_MODE=fixture");
+  ensureSetting(`${profileDirectory}/analysis.env`, "TRACERA_ANALYSIS_MODE", "fixture");
 }
 
 console.error(`Generated isolated Tracera configuration for worktree ${worktreeId}.`);

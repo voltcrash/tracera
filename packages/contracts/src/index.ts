@@ -128,6 +128,8 @@ export interface AnalysisReuse {
 }
 
 export interface AnalysisResponse {
+  /** Fixture reports are synthetic development artifacts, not real-world evidence. */
+  analysisMode?: "fixture" | "live";
   cached: boolean;
   check: {
     id: string;
@@ -145,6 +147,6 @@ export interface AnalysisResponse {
 
 export interface AnalysisErrorResponse {
   error: string;
-  code: "no_checkable_claims" | "analysis_unavailable";
+  code: "fixture_unavailable" | "no_checkable_claims" | "analysis_unavailable";
   requestId?: string;
 }

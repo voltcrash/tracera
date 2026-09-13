@@ -1,4 +1,6 @@
 export const ANALYSIS_ERROR_MESSAGES = {
+  fixture_unavailable:
+    "No offline fixture is available for this submission. Use a documented synthetic scenario.",
   no_checkable_claims:
     "No checkable claims could be extracted. Please provide the article text or a public news link.",
   analysis_unavailable: "Analysis is temporarily unavailable. Please try again.",
@@ -22,6 +24,6 @@ export function publicAnalysisError(error: unknown): {
   return {
     code,
     message: ANALYSIS_ERROR_MESSAGES[code],
-    status: code === "no_checkable_claims" ? 422 : 503,
+    status: code === "no_checkable_claims" || code === "fixture_unavailable" ? 422 : 503,
   };
 }

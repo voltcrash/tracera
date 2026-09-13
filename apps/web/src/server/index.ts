@@ -27,8 +27,12 @@ import {
   assertPublicHttpUrl,
   createAiProvider,
   extractClaims,
+  FixtureUnavailableError,
+  normalizeOfflineFixtureInput,
   retrieveSources,
   retrieveArchiveHistory,
+  retrieveOfflineFixtureArchiveHistory,
+  retrieveOfflineFixtureSources,
   scoreClaim,
   normalizeInput,
   traceGroundZero,
@@ -430,12 +434,19 @@ async function runAnalysis(
     const user = await currentUser(context);
     if (!user) throw new Error("Sign in before saving a trace.");
     const aiConfiguration = configuredAiConfiguration();
+    const fixtureMode = aiConfiguration.provider === "fixture";
     const provider = spendLimitedAiProvider(
       createAiProvider(aiConfiguration),
       aiConfiguration,
       controlConfig,
     );
-    const normalized = await normalizeWithStoredFallback(body, provider, signal, user?.id);
+    const normalized = await normalizeWithStoredFallback(
+      body,
+      provider,
+      signal,
+      user?.id,
+      fixtureMode,
+    );
     emit({
       stage: "embedding",
       message: "Checking for recent and related traces.",
@@ -483,6 +494,7 @@ async function runAnalysis(
       return {
         status: 200,
         payload: analysisResponse({
+          analysisMode: cached.analysis.analysisMode ?? (fixtureMode ? "fixture" : "live"),
           cached: true,
           reuse: {
             state: "reused_exact",
@@ -499,7 +511,15 @@ async function runAnalysis(
     }
 
     const auditLog: Array<{ stage: string; prompt: string }> = [];
-    const result = await analyzeText(normalized, provider, auditLog, emit, signal, user?.id);
+    const result = await analyzeText(
+      normalized,
+      provider,
+      auditLog,
+      emit,
+      signal,
+      user?.id,
+      fixtureMode,
+    );
     signal.throwIfAborted();
     const submittedSource: EvidenceSource[] =
       normalized.sourceUrl && normalized.publishedAt
@@ -527,7 +547,9 @@ async function runAnalysis(
       ].filter((url): url is string => Boolean(url)),
       user?.id,
     );
-    const archiveHistory = await retrieveArchiveHistory(groundZeroSources, signal);
+    const archiveHistory = fixtureMode
+      ? retrieveOfflineFixtureArchiveHistory(groundZeroSources)
+      : await retrieveArchiveHistory(groundZeroSources, signal);
     signal.throwIfAborted();
     emit({
       stage: "origin",
@@ -554,6 +576,7 @@ async function runAnalysis(
       inputEmbedding,
       traceraScore: result.score,
       analysis: {
+        analysisMode: fixtureMode ? "fixture" : "live",
         claims: result.claims,
         score: result.score,
         framing: result.framing,
@@ -601,6 +624,7 @@ async function runAnalysis(
     return {
       status: 201,
       payload: analysisResponse({
+        analysisMode: fixtureMode ? "fixture" : "live",
         cached: false,
         check: stored,
         headline: result.headline,
@@ -743,6 +767,7 @@ async function analyzeText(
   emit: ProgressEmitter = () => undefined,
   signal?: AbortSignal,
   ownerUserId?: string,
+  fixtureMode = false,
 ): Promise<{
   claims: ClaimVerdict[];
   claimEmbeddings: number[][];
@@ -788,29 +813,32 @@ async function analyzeText(
       claimCount: extractedClaims.length,
     });
     const claimEmbedding = await provider.embed(claim.claimText, { signal });
-    const sources = await retrieveSources(claim, {
-      provider,
-      signal,
-      ownerUserId,
-      factCheckApiKey: process.env.GOOGLE_FACT_CHECK_API_KEY,
-      corpusSimilarityThreshold: CORPUS_SIMILARITY,
-      newsApiKey: process.env.NEWS_API_KEY,
-      claimEmbedding,
-      storyContext: input.text,
-      submittedSource: input.sourceUrl
-        ? {
-            id: `submitted-source:${claim.id}`,
-            type: "submitted_source",
-            title: input.title ?? input.sourceDomain ?? "Submitted source",
-            url: input.sourceUrl,
-            canonicalUrl: input.sourceUrl,
-            sourceDomain: input.sourceDomain,
-            snippet: input.text.slice(0, 3_000),
-            publishedAt: input.publishedAt,
-            publisherPublishedAt: input.publishedAt,
-          }
-        : undefined,
-    });
+    const submittedSource = input.sourceUrl
+      ? {
+          id: `submitted-source:${claim.id}`,
+          type: "submitted_source" as const,
+          title: input.title ?? input.sourceDomain ?? "Submitted source",
+          url: input.sourceUrl,
+          canonicalUrl: input.sourceUrl,
+          sourceDomain: input.sourceDomain,
+          snippet: input.text.slice(0, 3_000),
+          publishedAt: input.publishedAt,
+          publisherPublishedAt: input.publishedAt,
+        }
+      : undefined;
+    const sources = fixtureMode
+      ? retrieveOfflineFixtureSources(claim, submittedSource)
+      : await retrieveSources(claim, {
+          provider,
+          signal,
+          ownerUserId,
+          factCheckApiKey: process.env.GOOGLE_FACT_CHECK_API_KEY,
+          corpusSimilarityThreshold: CORPUS_SIMILARITY,
+          newsApiKey: process.env.NEWS_API_KEY,
+          claimEmbedding,
+          storyContext: input.text,
+          submittedSource,
+        });
     auditLog.push({
       stage: "retrieved_sources",
       prompt: JSON.stringify({
@@ -970,6 +998,14 @@ function cacheTerms(text: string) {
 }
 
 function configuredAiConfiguration(): AiProviderConfig {
+  if (process.env.TRACERA_ANALYSIS_MODE === "fixture") {
+    return {
+      provider: "fixture",
+      model: "deterministic-fixture-v1",
+      embeddingModel: "deterministic-fixture-1024-v1",
+      embeddingDimensions: EMBEDDING_DIMENSIONS,
+    };
+  }
   const apiKey = requiredEnvironment("AI_API_KEY");
   const provider = aiProviderName(process.env.AI_PROVIDER);
   const embeddingProvider = process.env.AI_EMBEDDING_PROVIDER
@@ -1014,6 +1050,7 @@ function aiProviderName(value: string | undefined): AiProviderName {
   const provider = value?.trim().toLowerCase();
   const supported: AiProviderName[] = [
     "anthropic",
+    "fixture",
     "gemini",
     "openai",
     "openrouter",
@@ -1079,6 +1116,7 @@ async function normalizeWithStoredFallback(
   provider: AiProvider,
   signal?: AbortSignal,
   ownerUserId?: string,
+  fixtureMode = false,
 ) {
   const input =
     body && typeof body === "object"
@@ -1091,9 +1129,13 @@ async function normalizeWithStoredFallback(
         })
       : {};
   try {
+    if (fixtureMode) return normalizeOfflineFixtureInput(input);
     return await normalizeInput(input, provider, { signal });
   } catch (error) {
     signal?.throwIfAborted();
+    if (error instanceof FixtureUnavailableError || fixtureMode) {
+      throw new AnalysisError("fixture_unavailable");
+    }
     const candidate =
       input.url ??
       input.sourceUrl ??

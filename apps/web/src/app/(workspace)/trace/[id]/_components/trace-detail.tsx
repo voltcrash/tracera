@@ -16,7 +16,12 @@ type Check = {
   headline: string;
   createdAt: string;
   traceraScore: TraceraScore;
-  analysis: { claims: ClaimResult[]; score: TraceraScore; framing?: FramingAnalysis };
+  analysis: {
+    analysisMode?: "fixture" | "live";
+    claims: ClaimResult[];
+    score: TraceraScore;
+    framing?: FramingAnalysis;
+  };
   sourceDomain: string | null;
   sourceUrl: string | null;
   publishedAt: string | null;
@@ -102,6 +107,7 @@ export function TraceDetail({ id }: { id: string }) {
             score={check.analysis.score ?? check.traceraScore}
             framing={check.analysis.framing}
             groundZero={check.groundZero}
+            analysisMode={check.analysis.analysisMode}
           >
             <TraceHistory entries={timeline} appearances={appearances} />
           </TraceReport>
