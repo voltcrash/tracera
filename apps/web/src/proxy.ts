@@ -1,4 +1,5 @@
 import { getCookieCache, getSessionCookie } from "better-auth/cookies";
+import { assertEnvironmentIfConfigured } from "@repo/environment";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
@@ -8,6 +9,7 @@ import {
 } from "./security-headers";
 
 export async function proxy(request: NextRequest) {
+  assertEnvironmentIfConfigured(process.env, "runtime");
   const sessionCookie = getSessionCookie(request, { cookiePrefix: "tracera" });
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const policy = contentSecurityPolicy({

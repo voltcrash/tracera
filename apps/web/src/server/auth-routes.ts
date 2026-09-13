@@ -20,7 +20,7 @@ authRoutes.onError((error, context) =>
 );
 
 authRoutes.all("/*", async (context) => {
-  configureDatabase(context.env.DATABASE_URL ?? process.env.DATABASE_URL);
+  configureDatabase(context.env.DATABASE_URL ?? process.env.DATABASE_URL, context.env);
   // Better Auth resolves its own routes from the full request URL, which Hono
   // leaves untouched on `raw` even when this app is mounted under a prefix.
   const response = await createAuth(context.env, context.req.url).handler(context.req.raw);

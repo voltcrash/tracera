@@ -1,0 +1,24 @@
+{
+  "name": "@repo/environment",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./loader": {
+      "types": "./src/loader.d.ts",
+      "default": "./src/loader.js"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^26.5.0",
+    "typescript": "7.0.2"
+  }
+}

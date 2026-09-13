@@ -6,7 +6,10 @@ node_modules
 .pnp.js
 
 # Local environment
-/.env
+.env
+.env.*
+!.env.example
+/.tracera/
 
 # Testing
 coverage

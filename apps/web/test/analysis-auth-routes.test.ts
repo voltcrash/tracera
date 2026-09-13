@@ -3,7 +3,9 @@ import { test } from "vite-plus/test";
 import { app, type Bindings } from "../src/server/index";
 
 const env = {
-  DATABASE_URL: "postgresql://user:password@localhost/tracera",
+  TRACERA_PROFILE: "deployed",
+  TRACERA_CONFIG_ROLE: "runtime",
+  DATABASE_URL: "postgresql://tracera_runtime:password@database.example/tracera",
   BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long",
   GOOGLE_CLIENT_ID: "test-client-id",
   GOOGLE_CLIENT_SECRET: "test-client-secret",

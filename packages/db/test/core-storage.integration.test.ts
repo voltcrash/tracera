@@ -7,6 +7,7 @@ import {
   type RunContext,
   type RunReport,
 } from "@repo/contracts/core-v2";
+import { assertCoreStorageTestDatabase } from "@repo/environment";
 import { test } from "vite-plus/test";
 import {
   CoreStorageRepository,
@@ -15,7 +16,9 @@ import {
   type CorePool,
 } from "../src/core/index.js";
 
-const databaseUrl = process.env.CORE_STORAGE_TEST_DATABASE_URL;
+const databaseUrl = process.env.CORE_STORAGE_TEST_DATABASE_URL
+  ? assertCoreStorageTestDatabase(process.env)
+  : undefined;
 const integrationTest = databaseUrl ? test : test.skip;
 
 function fixtureContext(runId: string, tenantId: string, ownerUserId: string): RunContext {

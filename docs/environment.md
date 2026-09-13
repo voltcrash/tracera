@@ -1,33 +1,109 @@
 # Environment configuration
 
-Tracera uses one local environment file at the repository root. Copy
-`.env.example` to `.env`, then add an optional value only when enabling its
-feature. The web app, database tooling, and AI scripts all load this root file.
-All environment configuration is server-only; the browser bundle does not
-require environment variables.
+Tracera selects an explicit profile and process role independently of `NODE_ENV`. Root `.env` files are not loaded. Local and test commands use generated, worktree-specific files; deployed commands use only their process environment.
 
-## Core values
+Profiles:
 
-- `DATABASE_URL` — Neon/PostgreSQL connection string for the least-privileged
-  `tracera_runtime` role. This is the only database URL the web app should
-  receive.
-- `DATABASE_MIGRATOR_URL` — owner-role connection string used only by Drizzle
-  migrations. Keep it out of Vercel runtime environment variables and store it
-  only in the operator's migration environment.
-- `BETTER_AUTH_SECRET` — secret used to sign Better Auth sessions.
-- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` — Google OAuth credentials.
-- `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` — credentials from the Tracera
-  GitHub App. Use a GitHub App, not a GitHub OAuth App.
-- `AI_PROVIDER` — `gemini`, `openai`, `openrouter`, `anthropic`, or
-  `openai-compatible`.
-- `AI_API_KEY` — key for the selected generation provider.
+- `local` — development application and persistent development database target.
+- `test` — deterministic tests and disposable test-database targets.
+- `deployed` — hosted runtime, operator migrations, and explicitly authorized live AI scripts.
+
+Roles:
+
+- `runtime` receives `DATABASE_URL` and application settings, never migrator or test-provisioner credentials.
+- `migration` receives only `DATABASE_MIGRATOR_URL` from the database settings.
+- `test-provisioning` receives only `TEST_DATABASE_PROVISIONER_URL` and is unavailable with the deployed profile.
+- `analysis` receives no database URL. Local/test analysis also rejects external provider credentials and endpoints.
+
+The profile is not inferred from `NODE_ENV`. Consequently, `vp run build` is a production-mode Next build that still uses the selected local profile and local target. Hosted builds must set `TRACERA_PROFILE=deployed` and `TRACERA_CONFIG_ROLE=runtime` explicitly.
+
+## Local and test setup
+
+Run:
+
+```sh
+vp run env:setup
+vp run env:diagnose:local
+```
+
+Setup derives a stable identifier and port from the current worktree path, creates strong random local passwords and a Better Auth secret, and writes mode-0600 files under ignored `.tracera/environment/local` and `.tracera/environment/test` directories. It does not read or copy any legacy environment file. Existing generated files are retained, so rerunning setup does not rotate database credentials unexpectedly.
+
+The committed shape is documented in `config/environment/local.generated.env.example`; never copy its placeholders. L02 will make the generated database targets real. Until then, `vp run dev` and `vp run db:migrate:local` pass configuration validation but fail safely when they reach the unprovisioned loopback PostgreSQL target. L01 does not provide a working database, credential-free sign-in, or offline application analysis.
+
+## Loading and precedence
+
+The launcher reads exactly two files, in order:
+
+1. `.tracera/environment/<profile>/shared.env`
+2. `.tracera/environment/<profile>/<role>.env`
+
+Keys cannot appear in both files; duplicates are errors rather than overrides. Profile and role markers are launcher-owned and cannot appear in either file. Unknown managed keys are rejected.
+
+Before loading local/test files, the launcher rejects:
+
+- inherited Tracera database, auth, provider, or profile variables;
+- `.env` or `.env.*` files (other than `.env.example`) in the repository root, `apps/web`, or the `ai`, `auth`, and `db` packages, because Next.js and older scripts load them implicitly;
+- missing generated files.
+
+After loading, it seals the selected values. Import-time and connection-entry validation detects role changes, injected managed values, or modifications to the selected target before a database connection opens. Diagnostics report only the profile, role, database username, loopback host, port, and database name; passwords, secrets, tokens, and query parameters are never displayed.
+
+This fail-closed policy means exported production variables do not override local values. Unset them before launching a local/test command; do not paste them into generated files.
+
+## Local target validation
+
+Local/test database URLs must:
+
+- use `postgresql:` or `postgres:`;
+- use `localhost`, `127.0.0.1`, or `::1`;
+- match the generated worktree host, port, and database name;
+- use `tracera_runtime`, `tracera_migrator`, or `tracera_test_provisioner` according to the selected role.
+
+`CORE_STORAGE_TEST_DATABASE_URL` is accepted only by the `test` profile's runtime role. It must satisfy the same rules as the runtime URL, except that its database name must be a disposable database prefixed with the generated test database name (`<name>_<run>`). The Core storage integration test validates it before opening a pool; setting it without the test profile fails instead of connecting. The provisioning runner that creates such databases belongs to L03.
+
+Local/test profiles reject OAuth client secrets, AI credentials and custom endpoints, and optional paid retrieval credentials. There is no external fallback. L04 will add local Better Auth login behavior, and L05 will add deterministic AI and retrieval fixtures.
+
+## Deployed configuration
+
+Deployment examples are split by role:
+
+- `config/environment/deployed.runtime.env.example`
+- `config/environment/deployed.migration.env.example`
+- `config/environment/deployed.analysis.env.example`
+
+**Deployment prerequisite.** `next.config.js`, the request proxy, and database configuration now fail closed when Tracera settings are present without a profile. Before deploying this change, the hosted web environment (build and runtime) must set `TRACERA_PROFILE=deployed` and `TRACERA_CONFIG_ROLE=runtime`, and must not contain `DATABASE_MIGRATOR_URL`, `TEST_DATABASE_PROVISIONER_URL`, or `CORE_STORAGE_TEST_DATABASE_URL`.
+
+Do not combine them. The web deployment should receive the runtime example's settings only. The operator migration environment should receive the migration example's settings only. AI validation scripts are live-capable only under an explicitly selected and valid environment; local/test profiles reject their credentials before the script runs.
+
+Core deployed values include:
+
+- `DATABASE_URL` — the least-privileged `tracera_runtime` connection.
+- `BETTER_AUTH_SECRET` — the Better Auth signing secret.
+- paired Google credentials and optional paired GitHub credentials.
+- `AI_PROVIDER`, `AI_API_KEY`, and only the model/base URL/embedding overrides required by that provider.
+- optional `GOOGLE_FACT_CHECK_API_KEY` and `NEWS_API_KEY` retrieval credentials.
+
+Run operator migrations only from an environment containing:
+
+```sh
+TRACERA_PROFILE=deployed
+TRACERA_CONFIG_ROLE=migration
+DATABASE_MIGRATOR_URL=postgresql://OWNER:REDACTED@HOST/DATABASE
+```
+
+Then run `vp run @repo/db#db:migrate`. Never add `DATABASE_MIGRATOR_URL` to the web process.
+
+## Retiring a shared root `.env`
+
+If any of those environment files exist, do not print it, source it, copy it into `.tracera`, or delete it automatically. Move it to a secure location outside the repository, then inventory and rotate its credentials through the relevant provider or secret manager. Generate local/test configuration with `vp run env:setup`; do not reuse production values locally.
+
+After deployment settings have been transferred to the role-specific secret stores, remove the old root file yourself through an approved recoverable workflow. The launcher checks only for its filename and never reads its contents.
 
 ## OAuth token storage
 
 Tracera uses provider tokens only while completing an OAuth callback. Better
 Auth encryption remains enabled as defense in depth, while account hooks drop
 access, refresh, and ID tokens before an account is written or updated. Apply
-the database migrations with `vp run --filter @repo/db db:migrate`; migration
+the database migrations from the migration environment; migration
 `0020_clear_oauth_tokens.sql` removes token material created before this policy.
 
 If a previous database, backup, or log may have exposed provider tokens, revoke
@@ -54,9 +130,8 @@ values:
 
 No installation flow, private key, or installation token is used. Copy the
 GitHub App's client ID and generate one client secret. Store them only as
-`GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in the root `.env` for local
-development and as encrypted environment variables in the Vercel project for
-production. Never commit their real values.
+`GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` encrypted environment variables in
+the Vercel runtime environment. Local and test profiles reject them. Never commit their real values.
 
 Both GitHub variables must be set together. Until they are present, Google
 authentication continues to work and GitHub attempts use the normal
@@ -69,7 +144,7 @@ used as provider identity keys.
 
 ## Development authentication
 
-- `DEV_AUTH_BYPASS` — set to exactly `true` to enable
+- `DEV_AUTH_BYPASS` — runtime role only. Set to exactly `true` to enable
   `GET /api/auth/dev-login` while `NODE_ENV=development`. On a loopback host,
   the endpoint creates or loads `developer@tracera.local`, creates a real
   database-backed Better Auth session, sets its normal session cookie, and
@@ -95,6 +170,9 @@ what is needed:
   retrieval providers.
 
 ## Analysis safeguards
+
+These are deployed runtime settings; local and test runtime files may set them
+when needed.
 
 Both `/api/tracera/analyze` and `/api/tracera/analyze/stream` require an
 `Idempotency-Key` header. Reusing a key with the same request replays the
@@ -158,8 +236,10 @@ migration file.
 Run migrations with the owner URL, for example:
 
 ```sh
-DATABASE_MIGRATOR_URL=... vp run --filter @repo/db db:migrate
+vp run @repo/db#db:migrate
 ```
+
+from the deployed migration environment described above.
 
 Forced row-level security was evaluated for `checks` and its user-owned child
 data. It is not enabled by this migration because the current server passes the

@@ -2,9 +2,13 @@
   "name": "tracera",
   "private": true,
   "scripts": {
-    "build": "vp run -r build",
-    "dev": "vp run --filter web dev",
+    "build": "node scripts/environment/run.mjs --profile local --role runtime -- vp run --filter web build",
+    "dev": "node scripts/environment/run.mjs --profile local --role runtime --require-database -- vp run --filter web dev",
     "check-types": "vp run -r check-types",
+    "db:migrate:local": "node scripts/environment/run.mjs --profile local --role migration --require-database -- vp run @repo/db#db:migrate",
+    "env:diagnose:local": "node scripts/environment/run.mjs --profile local --role runtime -- node scripts/environment/diagnose.mjs",
+    "env:setup": "node scripts/environment/setup.mjs",
+    "evaluate:core:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core --mode fixture --split all --seed 20260910",
     "prepare": "vp config"
   },
   "devDependencies": {

@@ -88,7 +88,7 @@ app.onError((error, context) =>
 
 app.use("*", async (context, next) => {
   if (apiRelativePath(context.req.path) !== "/") {
-    configureDatabase(context.env.DATABASE_URL);
+    configureDatabase(context.env.DATABASE_URL, context.env);
   }
   await next();
 });
