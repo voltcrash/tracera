@@ -25,22 +25,22 @@ async function withPoolQuery<T>(query: QueryStub, run: () => Promise<T>) {
   }
 }
 
-test("related claims include public and only the requesting user's private claims", async () => {
+test("related claims only ever come from the requesting user's own checks", async () => {
   const records = [
-    relatedClaim("public-claim", "public", null),
-    relatedClaim("user-a-claim", "private", USER_A),
-    relatedClaim("user-b-claim", "private", USER_B),
+    relatedClaim("unowned-claim", null),
+    relatedClaim("user-a-claim", USER_A),
+    relatedClaim("user-b-claim", USER_B),
   ];
 
   const result = await withPoolQuery(
     async (text, params = []) => {
-      assert.match(text, /AND \(checks\.visibility = 'public' OR checks\.owner_user_id = \$4\)/);
-      assert.doesNotMatch(text, /AND checks\.visibility = 'public'\s+AND/);
+      assert.match(text, /AND checks\.owner_user_id = \$4/);
+      assert.doesNotMatch(text, /visibility/);
       const ownerUserId = params[3];
       return {
         rows: records
-          .filter((record) => record.visibility === "public" || record.ownerUserId === ownerUserId)
-          .map(({ visibility: _visibility, ownerUserId: _ownerUserId, ...row }) => row),
+          .filter((record) => record.ownerUserId === ownerUserId)
+          .map(({ ownerUserId: _ownerUserId, ...row }) => row),
       };
     },
     async () => {
@@ -55,31 +55,24 @@ test("related claims include public and only the requesting user's private claim
     },
   );
 
-  assert.deepEqual(result, {
-    userA: ["public-claim", "user-a-claim"],
-    userB: ["public-claim", "user-b-claim"],
-  });
+  assert.deepEqual(result, { userA: ["user-a-claim"], userB: ["user-b-claim"] });
 });
 
-test("cached URL analyses include public and only the requesting user's private analysis", async () => {
-  const publicAnalysis = analysis("public analysis");
+test("cached URL analyses only ever come from the requesting user's own checks", async () => {
   const userAAnalysis = analysis("user A analysis");
   const userBAnalysis = analysis("user B analysis");
   const records = [
-    { visibility: "public", ownerUserId: null, analysis: publicAnalysis },
-    { visibility: "private", ownerUserId: USER_A, analysis: userAAnalysis },
-    { visibility: "private", ownerUserId: USER_B, analysis: userBAnalysis },
+    { ownerUserId: null, analysis: analysis("unowned analysis") },
+    { ownerUserId: USER_A, analysis: userAAnalysis },
+    { ownerUserId: USER_B, analysis: userBAnalysis },
   ] as const;
 
   const result = await withPoolQuery(
     async (text, params = []) => {
-      assert.match(text, /AND \(visibility = 'public' OR owner_user_id = \$2\)/);
+      assert.match(text, /AND owner_user_id = \$2/);
+      assert.doesNotMatch(text, /visibility/);
       const ownerUserId = params[1];
-      const record = records
-        .filter(
-          (candidate) => candidate.visibility === "public" || candidate.ownerUserId === ownerUserId,
-        )
-        .at(-1);
+      const record = records.filter((candidate) => candidate.ownerUserId === ownerUserId).at(-1);
       return { rows: record ? [{ analysis: record.analysis }] : [] };
     },
     async () => {
@@ -100,10 +93,9 @@ test("cached URL analyses include public and only the requesting user's private 
   });
 });
 
-function relatedClaim(id: string, visibility: "public" | "private", ownerUserId: string | null) {
+function relatedClaim(id: string, ownerUserId: string | null) {
   return {
     id,
-    visibility,
     ownerUserId,
     claim_text: `${id} text`,
     verdict: "supported",
