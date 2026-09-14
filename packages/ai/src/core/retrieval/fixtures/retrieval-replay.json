@@ -1,0 +1,108 @@
+{
+  "version": "1.0.0",
+  "seed": 20260910,
+  "license": "synthetic-fixture-only",
+  "humanGoldClaims": 0,
+  "cases": [
+    {
+      "id": "strong-non-news",
+      "description": "An official register outside news search is acquired in full.",
+      "sources": [
+        {
+          "url": "https://records.example/non-news-register",
+          "content": "Official register: Northbridge recorded 42 incidents in 1998.",
+          "intents": ["primary_source"],
+          "fetch": "complete"
+        }
+      ],
+      "outage": false,
+      "budget": null,
+      "expected": {
+        "status": "complete",
+        "stoppingReason": "plan_complete",
+        "admitted": 1,
+        "role": "primary_record",
+        "intent": "primary_source"
+      }
+    },
+    {
+      "id": "contradicted",
+      "description": "A disconfirming correction remains available for later entailment assessment.",
+      "sources": [
+        {
+          "url": "https://archive.example/correction",
+          "content": "Correction: Northbridge recorded 41 incidents, not 42, in 1998.",
+          "intents": ["disconfirming"],
+          "fetch": "complete"
+        }
+      ],
+      "outage": false,
+      "budget": null,
+      "expected": {
+        "status": "complete",
+        "stoppingReason": "plan_complete",
+        "admitted": 1,
+        "role": "evidence",
+        "intent": "disconfirming"
+      }
+    },
+    {
+      "id": "historical",
+      "description": "A date-constrained historical ledger is not penalized for age.",
+      "sources": [
+        {
+          "url": "https://library.example/1998-ledger",
+          "content": "Northbridge ledger for 1998 lists 42 incidents.",
+          "intents": ["date_constrained"],
+          "fetch": "complete",
+          "publishedAt": "1998-12-31T00:00:00.000Z"
+        }
+      ],
+      "outage": false,
+      "budget": null,
+      "expected": {
+        "status": "complete",
+        "stoppingReason": "plan_complete",
+        "admitted": 1,
+        "role": "evidence",
+        "intent": "date_constrained",
+        "publishedAt": "1998-12-31T00:00:00.000Z"
+      }
+    },
+    {
+      "id": "api-outage",
+      "description": "A total discovery outage is unavailable, not complete no-results.",
+      "sources": [],
+      "outage": true,
+      "budget": null,
+      "expected": {
+        "status": "unavailable",
+        "stoppingReason": null,
+        "admitted": 0,
+        "role": null,
+        "intent": null
+      }
+    },
+    {
+      "id": "budget-exhausted",
+      "description": "The shared cap reserves one acquisition and records omitted queries.",
+      "sources": [
+        {
+          "url": "https://records.example/budget",
+          "content": "Northbridge recorded 42 incidents in 1998.",
+          "intents": ["disconfirming"],
+          "fetch": "complete"
+        }
+      ],
+      "outage": false,
+      "budget": 2,
+      "expected": {
+        "status": "partial",
+        "stoppingReason": "budget_exhausted",
+        "admitted": 1,
+        "role": "evidence",
+        "intent": "disconfirming"
+      }
+    }
+  ]
+}
