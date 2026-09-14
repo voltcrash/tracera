@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./core/adjudication": "./src/core/adjudication/index.ts",
+    "./core/calibration": "./src/core/calibration/index.ts",
     "./core/claims": "./src/core/claims/index.ts",
     "./core/evidence": "./src/core/evidence/index.ts",
     "./core/ingestion": "./src/core/ingestion/index.ts",
@@ -12,12 +14,16 @@
     "./core/retrieval": "./src/core/retrieval/index.ts"
   },
   "scripts": {
+    "calibration:evaluate": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/core-calibration.ts evaluate",
+    "calibration:fit": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/core-calibration.ts fit",
     "check-types": "tsc --noEmit",
     "evaluate:core": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core.ts",
+    "evaluate:core-adjudication": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-adjudication.ts",
     "evaluate:core-claims": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-claims.ts",
     "evaluate:core-evidence": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-evidence.ts",
     "evaluate:core-provenance": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-provenance.ts",
     "evaluate:core-retrieval": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-retrieval.ts",
+    "test:core-adjudication": "vp test --run test/core-adjudication.test.ts",
     "test:core-claims": "vp test --run test/core-claims.test.ts",
     "test:core-evidence": "vp test --run test/core-evidence.test.ts",
     "test:core-ingestion": "vp test --run test/core-ingestion.test.ts",
