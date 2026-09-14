@@ -8,6 +8,7 @@
     "./core/claims": "./src/core/claims/index.ts",
     "./core/evidence": "./src/core/evidence/index.ts",
     "./core/ingestion": "./src/core/ingestion/index.ts",
+    "./core/provenance": "./src/core/provenance/index.ts",
     "./core/retrieval": "./src/core/retrieval/index.ts"
   },
   "scripts": {
@@ -15,10 +16,12 @@
     "evaluate:core": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core.ts",
     "evaluate:core-claims": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-claims.ts",
     "evaluate:core-evidence": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-evidence.ts",
+    "evaluate:core-provenance": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-provenance.ts",
     "evaluate:core-retrieval": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-retrieval.ts",
     "test:core-claims": "vp test --run test/core-claims.test.ts",
     "test:core-evidence": "vp test --run test/core-evidence.test.ts",
     "test:core-ingestion": "vp test --run test/core-ingestion.test.ts",
+    "test:core-provenance": "vp test --run test/core-provenance.test.ts",
     "test:core-retrieval": "vp test --run test/core-retrieval.test.ts",
     "test:live": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/live-test.ts",
     "test:pipeline": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/pipeline-live-test.ts",

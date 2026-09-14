@@ -27,6 +27,7 @@
     "evaluate:core:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core --mode fixture --split all --seed 20260910",
     "evaluate:core-claims:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-claims --mode fixture --split all --seed 20260910",
     "evaluate:core-evidence:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-evidence --mode fixture --split all --seed 20260910",
+    "evaluate:core-provenance:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-provenance --mode fixture --split all --seed 20260910",
     "evaluate:core-retrieval:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-retrieval --mode fixture --split all --seed 20260910",
     "evaluate:core-retrieval:replay": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-retrieval --mode replay --split all --seed 20260910",
     "prepare": "vp config"
