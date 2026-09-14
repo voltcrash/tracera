@@ -86,9 +86,16 @@ vp run db:local:reset    # delete this worktree's local container and volume, re
 vp run db:test:start     # start the disposable test cluster
 vp run db:test:stop      # stop and discard the test cluster
 vp run db:rehearse       # full migration and runtime-privilege rehearsal (see below)
+vp run test:core-storage # fresh database, real Core storage integration suite, cleanup
 ```
 
 `vp run dev` and `vp run db:local:migrate` fail with a start instruction unless this worktree's container is running and healthy.
+
+`vp run test:core-storage` exclusively locks this worktree's disposable test cluster,
+recreates it, applies the full migration history to a fresh run database, runs the
+Core storage suite as `tracera_runtime`, and removes the run database and cluster even
+after failure. It accepts no URLs or database names, fails when any test is skipped or
+when zero tests execute, and never uses runtime `DELETE` privileges for cleanup.
 
 ### Roles and privileges
 
