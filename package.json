@@ -25,6 +25,7 @@
     "test:auth-browser": "node scripts/auth/test-browser.mjs",
     "test:offline-analysis": "node scripts/analysis/test-offline.mjs",
     "evaluate:core:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core --mode fixture --split all --seed 20260910",
+    "evaluate:core-adjudication:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-adjudication --mode fixture --split all --seed 20260910",
     "evaluate:core-claims:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-claims --mode fixture --split all --seed 20260910",
     "evaluate:core-evidence:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-evidence --mode fixture --split all --seed 20260910",
     "evaluate:core-provenance:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-provenance --mode fixture --split all --seed 20260910",
