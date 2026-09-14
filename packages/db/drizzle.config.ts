@@ -1,11 +1,7 @@
-import { existsSync } from "node:fs";
-import { loadEnvFile } from "node:process";
-import { fileURLToPath } from "node:url";
+import { assertEnvironmentConfiguration } from "@repo/environment";
 import { defineConfig } from "drizzle-kit";
 
-const rootEnvPath = fileURLToPath(new URL("../../.env", import.meta.url));
-if (existsSync(rootEnvPath)) loadEnvFile(rootEnvPath);
-
+assertEnvironmentConfiguration(process.env, "migration");
 const databaseUrl = process.env.DATABASE_MIGRATOR_URL;
 if (!databaseUrl) throw new Error("DATABASE_MIGRATOR_URL is required for database migrations.");
 

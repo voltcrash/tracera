@@ -1,9 +1,6 @@
-import { existsSync } from "node:fs";
-import { loadEnvFile } from "node:process";
-import { fileURLToPath } from "node:url";
+import { assertEnvironmentIfConfigured } from "@repo/environment";
 
-const rootEnvPath = fileURLToPath(new URL("../../.env", import.meta.url));
-if (existsSync(rootEnvPath)) loadEnvFile(rootEnvPath);
+assertEnvironmentIfConfigured(process.env, "runtime");
 
 const isDevelopment = process.env.NODE_ENV === "development";
 const contentSecurityPolicy = [
@@ -40,7 +37,7 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // The API route consumes the workspace packages directly from TypeScript.
-  transpilePackages: ["@repo/ai", "@repo/db", "@repo/auth", "@repo/contracts"],
+  transpilePackages: ["@repo/ai", "@repo/db", "@repo/auth", "@repo/contracts", "@repo/environment"],
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

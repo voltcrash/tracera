@@ -11,13 +11,14 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
-    "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
+    "db:generate": "node ../../scripts/environment/guard.mjs --role migration -- drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate": "node ../../scripts/environment/guard.mjs --role migration -- drizzle-kit migrate --config=drizzle.config.ts",
     "test:core-storage": "vp test --run test/core-storage.integration.test.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@repo/contracts": "workspace:*",
+    "@repo/environment": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {

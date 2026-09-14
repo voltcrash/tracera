@@ -1,8 +1,10 @@
 import { neonConfig, Pool, type PoolClient } from "@neondatabase/serverless";
+import { assertEnvironmentConfiguration } from "@repo/environment";
 import { drizzle } from "drizzle-orm/neon-serverless";
 
 export const EMBEDDING_DIMENSIONS = 1024;
 
+if (process.env.DATABASE_URL) assertEnvironmentConfiguration(process.env, "runtime");
 let activeConnectionString = process.env.DATABASE_URL;
 
 // Serverless instances may handle more than one request, but WebSocket database
@@ -19,10 +21,14 @@ neonConfig.poolQueryViaFetch = true;
 export let pool = new Pool({ connectionString: activeConnectionString });
 export let db = drizzle({ client: pool });
 
-export function configureDatabase(connectionString: string | undefined) {
+export function configureDatabase(
+  connectionString: string | undefined,
+  environment: Record<string, string | undefined> = process.env,
+) {
   if (!connectionString) {
     throw new Error("DATABASE_URL must be configured for the Tracera server.");
   }
+  assertEnvironmentConfiguration({ ...environment, DATABASE_URL: connectionString }, "runtime");
   assertRuntimeDatabaseRole(connectionString);
   if (connectionString === activeConnectionString) return;
   activeConnectionString = connectionString;

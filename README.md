@@ -36,9 +36,17 @@ vp check
 vp test --run
 ```
 
-Copy `.env.example` to `.env` at the repository root. This is the only local
-environment file used by the web app, database tooling, and AI scripts. The
-variables are documented in [docs/environment.md](docs/environment.md).
+Generate isolated local/test configuration for this worktree. Root `.env`
+files are rejected and never loaded:
+
+```sh
+vp run env:setup
+vp run env:diagnose:local
+```
+
+Profiles, process roles, deployed examples, and the safe migration away from a
+shared root `.env` are documented in [docs/environment.md](docs/environment.md).
+PostgreSQL provisioning begins in L02, so the server cannot connect yet.
 
 The website uses the Next.js CLI, so its workspace commands run through Vite Task rather than Vite's built-in app commands:
 
