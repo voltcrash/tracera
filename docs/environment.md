@@ -22,13 +22,18 @@ The profile is not inferred from `NODE_ENV`. Consequently, `vp run build` is a p
 Run:
 
 ```sh
-vp run env:setup
+vp run local:setup
 vp run env:diagnose:local
 ```
 
 Setup derives stable database and web ports from the current worktree path, creates strong random local passwords and a Better Auth secret, and writes mode-0600 files under ignored `.tracera/environment/local` and `.tracera/environment/test` directories. It does not read or copy any legacy environment file. Existing generated files are retained, so rerunning setup does not rotate database credentials unexpectedly. Setup safely adds missing local-auth and offline-analysis settings to an existing generated profile without reading or replacing its secrets.
 
 The committed shape is documented in `config/environment/local.generated.env.example`; never copy its placeholders. The local and test profiles use separate database ports, and the web app uses a third generated port (see [Local PostgreSQL](#local-postgresql)). Local sign-in and deterministic offline analysis are available through the synthetic identities and fixtures described below.
+
+The concise daily workflow, integration command, reset behavior, and CI boundary are in
+[`docs/local-development/README.md`](local-development/README.md). `vp run local:up`
+starts and health-checks an already configured database, `vp run local:reset` resets only
+this worktree's development data, and `vp run local:down` stops it without deleting data.
 
 ## Loading and precedence
 
