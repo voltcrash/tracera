@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./core/ingestion": "./src/core/ingestion/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
     "evaluate:core": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core.ts",
+    "test:core-ingestion": "vp test --run test/core-ingestion.test.ts",
     "test:live": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/live-test.ts",
     "test:pipeline": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/pipeline-live-test.ts",
     "validate:model": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/model-validation.ts"
@@ -16,6 +18,7 @@
   "dependencies": {
     "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
+    "cheerio": "^1.2.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
