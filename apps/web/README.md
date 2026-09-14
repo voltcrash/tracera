@@ -8,13 +8,15 @@ From the repository root:
 
 ```sh
 vp run env:setup
+vp run db:local:start
+vp run db:local:migrate
 vp run dev
 ```
 
 The root launcher selects the local runtime profile even when Next uses a
-production build mode. Do not run the workspace command directly or create a
-root `.env`; see `docs/environment.md`. PostgreSQL is provisioned by L02, not
-L01.
+production build mode, and refuses to start unless this worktree's PostgreSQL
+container is healthy. Do not run the workspace command directly or create a
+root `.env`; see `docs/environment.md`.
 
 ## Structure
 

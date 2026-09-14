@@ -46,7 +46,17 @@ vp run env:diagnose:local
 
 Profiles, process roles, deployed examples, and the safe migration away from a
 shared root `.env` are documented in [docs/environment.md](docs/environment.md).
-PostgreSQL provisioning begins in L02, so the server cannot connect yet.
+
+Start this worktree's PostgreSQL (Docker-compatible engine required) and apply
+migrations before running the server:
+
+```sh
+vp run db:local:start
+vp run db:local:migrate
+```
+
+Local sign-in without OAuth credentials and offline analysis are not available
+yet (L04 and L05).
 
 The website uses the Next.js CLI, so its workspace commands run through Vite Task rather than Vite's built-in app commands:
 

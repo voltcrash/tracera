@@ -19,6 +19,10 @@ export function assertEnvironmentConfiguration(
   expectedRole: TraceraConfigRole,
 ): { profile: TraceraProfile; role: TraceraConfigRole };
 export function assertCoreStorageTestDatabase(environment: EnvironmentValues): string;
+export function withTestRunDatabase(
+  environment: EnvironmentValues,
+  runId: string,
+): EnvironmentValues;
 export function assertEnvironmentIfConfigured(
   environment: EnvironmentValues,
   expectedRole: TraceraConfigRole,

@@ -28,7 +28,7 @@ vp run env:diagnose:local
 
 Setup derives a stable identifier and port from the current worktree path, creates strong random local passwords and a Better Auth secret, and writes mode-0600 files under ignored `.tracera/environment/local` and `.tracera/environment/test` directories. It does not read or copy any legacy environment file. Existing generated files are retained, so rerunning setup does not rotate database credentials unexpectedly.
 
-The committed shape is documented in `config/environment/local.generated.env.example`; never copy its placeholders. L02 will make the generated database targets real. Until then, `vp run dev` and `vp run db:migrate:local` pass configuration validation but fail safely when they reach the unprovisioned loopback PostgreSQL target. L01 does not provide a working database, credential-free sign-in, or offline application analysis.
+The committed shape is documented in `config/environment/local.generated.env.example`; never copy its placeholders. The local and test profiles use separate ports, because each runs its own PostgreSQL cluster (see [Local PostgreSQL](#local-postgresql)). Credential-free sign-in (L04) and offline application analysis (L05) are not available yet.
 
 ## Loading and precedence
 
@@ -58,9 +58,62 @@ Local/test database URLs must:
 - match the generated worktree host, port, and database name;
 - use `tracera_runtime`, `tracera_migrator`, or `tracera_test_provisioner` according to the selected role.
 
-`CORE_STORAGE_TEST_DATABASE_URL` is accepted only by the `test` profile's runtime role. It must satisfy the same rules as the runtime URL, except that its database name must be a disposable database prefixed with the generated test database name (`<name>_<run>`). The Core storage integration test validates it before opening a pool; setting it without the test profile fails instead of connecting. The provisioning runner that creates such databases belongs to L03.
+`CORE_STORAGE_TEST_DATABASE_URL` is accepted only by the `test` profile's runtime role. It must satisfy the same rules as the runtime URL, except that its database name must be a disposable database prefixed with the generated test database name (`<name>_<run>`). The Core storage integration test validates it before opening a pool; setting it without the test profile fails instead of connecting. The Core storage runner that creates such databases belongs to L03.
+
+The test profile's runtime and migration URLs may also target a run database `<name>_<run>`, where `<run>` is 1–16 lowercase letters or digits. Tooling derives these URLs only through `withTestRunDatabase`, which rewrites the database name of the sealed generated URL and reseals it; local profiles never accept a suffix.
 
 Local/test profiles reject OAuth client secrets, AI credentials and custom endpoints, and optional paid retrieval credentials. There is no external fallback. L04 will add local Better Auth login behavior, and L05 will add deterministic AI and retrieval fixtures.
+
+## Local PostgreSQL
+
+Each worktree runs two PostgreSQL 18 clusters with pgvector 0.8.6 from the digest-pinned `pgvector/pgvector:0.8.6-pg18-trixie` image. A Docker-compatible engine is required: the tooling uses `docker` on `PATH` and falls back to OrbStack's bundled CLI and context. Redis, hosted databases, and cloud storage are not used.
+
+| Profile | Container                     | Storage                                         | Port                     |
+| ------- | ----------------------------- | ----------------------------------------------- | ------------------------ |
+| `local` | `tracera-<worktree-id>-local` | named volume `tracera-<worktree-id>-local-data` | generated local port     |
+| `test`  | `tracera-<worktree-id>-test`  | tmpfs; discarded when stopped                   | generated local port + 1 |
+
+Ports are published only on `127.0.0.1`. Containers and volumes carry `dev.tracera.*` labels with the profile, worktree ID, and a SHA-256 of the worktree's real path. Every command verifies those labels and the port binding before it uses, stops, or deletes a resource. It refuses a same-named resource owned by another worktree, a port held by another process, or generated configuration copied from another worktree.
+
+Commands (they accept no URLs or database names):
+
+```sh
+vp run db:local:start    # create or start, health-check, bootstrap roles and database
+vp run db:local:migrate  # apply migrations as tracera_migrator, then set the runtime password
+vp run db:local:status   # container state and health; exits 1 when not running
+vp run db:local:stop     # stop without deleting the development volume
+vp run db:local:reset    # delete this worktree's local container and volume, recreate, migrate
+vp run db:test:start     # start the disposable test cluster
+vp run db:test:stop      # stop and discard the test cluster
+vp run db:rehearse       # full migration and runtime-privilege rehearsal (see below)
+```
+
+`vp run dev` and `vp run db:local:migrate` fail with a start instruction unless this worktree's container is running and healthy.
+
+### Roles and privileges
+
+- **Bootstrap:** the container superuser `postgres`. Bootstrap clears its password, so it is reachable only through `docker exec` on the container-local socket. It creates the login roles from the generated passwords and installs `vector` into `template1`, because pgvector is not a trusted extension. Failed bootstrap statements are kept out of server logs and redacted from command output.
+- **Migrator** (`tracera_migrator`): owns the Tracera database and every migrated object. It has `CREATEROLE` (required by migration 0024) but not superuser, `CREATEDB`, replication, or `BYPASSRLS`.
+- **Runtime** (`tracera_runtime`): created by migration 0024 as the migrator, with no inherited roles. Bootstrap sets its password after migrations. Table privileges come only from migrations 0024 and 0029. It has `CONNECT` on its database and `USAGE` on `public`. It has no `CREATE`, `TEMP`, DDL, `TRUNCATE`, or maintenance-database access.
+- **Test provisioner** (`tracera_test_provisioner`, test cluster only): `CREATEDB`, with `SET` (not inherited) on the migrator so it can create and drop migrator-owned run databases, and `pg_signal_backend` to end a run database's sessions before dropping it.
+
+`PUBLIC` has no privileges on any database. `scripts/database/runtime-grants.mjs` lists the expected runtime privileges for every public table; a new table must be added there and granted through a reviewed migration.
+
+Migration 0024's existing-role branch runs `ALTER ROLE tracera_runtime ... NOSUPERUSER`, which vanilla PostgreSQL allows only for superusers. Neon's owner role permits it. To stay compatible without rewriting 0024 or migrating as a superuser, each local or test cluster hosts exactly one migrated Tracera database lifecycle: local reset recreates the cluster, and each rehearsal starts a fresh test cluster.
+
+### Connection transports
+
+`@repo/db/connection` selects the driver from the validated profile. `local` and `test` use node-postgres (`pg`) over TCP; `deployed` keeps Neon's serverless pool with HTTP queries and WebSocket transactions. Before configuration, the database module uses a pool that rejects every query instead of falling back to default `PG*` settings. `drizzle-kit` prefers `pg` when installed, so migrations in every profile now use the standard PostgreSQL wire protocol.
+
+### Migration rehearsal
+
+`vp run db:rehearse` recreates the test cluster, bootstraps it, and creates run database `<test-name>_<run>` as the test provisioner. It then:
+
+1. applies the full migration history as the migrator and verifies that every journal entry has a file, and each applied SHA-256 hash and timestamp matches;
+2. migrates again and requires identical migration rows and schema/ACL fingerprint;
+3. audits runtime table, column, schema, database, and role privileges against the reviewed map;
+4. runs `packages/db/test/postgres.integration.test.ts` with only the sealed runtime environment. The command fails if any test fails or is skipped, or if none run;
+5. drops the run database as the provisioner and confirms it is gone, including after failures.
 
 ## Deployed configuration
 
