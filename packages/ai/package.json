@@ -9,9 +9,11 @@
     "./core/calibration": "./src/core/calibration/index.ts",
     "./core/claims": "./src/core/claims/index.ts",
     "./core/evidence": "./src/core/evidence/index.ts",
+    "./core/framing": "./src/core/framing/index.ts",
     "./core/ingestion": "./src/core/ingestion/index.ts",
     "./core/provenance": "./src/core/provenance/index.ts",
-    "./core/retrieval": "./src/core/retrieval/index.ts"
+    "./core/retrieval": "./src/core/retrieval/index.ts",
+    "./core/scoring": "./src/core/scoring/index.ts"
   },
   "scripts": {
     "calibration:evaluate": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/core-calibration.ts evaluate",
@@ -23,12 +25,14 @@
     "evaluate:core-evidence": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-evidence.ts",
     "evaluate:core-provenance": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-provenance.ts",
     "evaluate:core-retrieval": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-retrieval.ts",
+    "evaluate:core-scoring": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-scoring.ts",
     "test:core-adjudication": "vp test --run test/core-adjudication.test.ts",
     "test:core-claims": "vp test --run test/core-claims.test.ts",
     "test:core-evidence": "vp test --run test/core-evidence.test.ts",
     "test:core-ingestion": "vp test --run test/core-ingestion.test.ts",
     "test:core-provenance": "vp test --run test/core-provenance.test.ts",
     "test:core-retrieval": "vp test --run test/core-retrieval.test.ts",
+    "test:core-scoring": "vp test --run test/core-scoring.test.ts",
     "test:live": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/live-test.ts",
     "test:pipeline": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/pipeline-live-test.ts",
     "validate:model": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/model-validation.ts"
