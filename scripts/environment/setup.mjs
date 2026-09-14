@@ -47,8 +47,20 @@ for (const profile of ["local", "test"]) {
     [
       `DATABASE_URL=${postgresUrl("tracera_runtime", secret(), databasePort, databaseName)}`,
       `BETTER_AUTH_SECRET=${secret(48)}`,
+      `TRACERA_APP_ORIGIN=http://localhost:${ports.web}`,
+      `TRACERA_APP_PORT=${ports.web}`,
+      ...(profile === "local" ? ["DEV_AUTH_BYPASS=true"] : []),
     ].join("\n"),
   );
+  ensureSetting(
+    `${profileDirectory}/runtime.env`,
+    "TRACERA_APP_ORIGIN",
+    `http://localhost:${ports.web}`,
+    [`http://127.0.0.1:${ports.web}`],
+  );
+  ensureSetting(`${profileDirectory}/runtime.env`, "TRACERA_APP_PORT", ports.web);
+  if (profile === "local")
+    ensureSetting(`${profileDirectory}/runtime.env`, "DEV_AUTH_BYPASS", "true");
   writeExclusive(
     `${profileDirectory}/migration.env`,
     `DATABASE_MIGRATOR_URL=${postgresUrl("tracera_migrator", secret(), databasePort, databaseName)}`,
@@ -65,7 +77,7 @@ for (const profile of ["local", "test"]) {
 
 console.error(`Generated isolated Tracera configuration for worktree ${worktreeId}.`);
 console.error(
-  `Database targets: local 127.0.0.1:${ports.local}, test 127.0.0.1:${ports.test}. Start them with "vp run db:local:start" and "vp run db:test:start".`,
+  `Targets: web http://localhost:${ports.web}, local database 127.0.0.1:${ports.local}, test database 127.0.0.1:${ports.test}.`,
 );
 
 function secret(bytes = 32) {
@@ -79,4 +91,26 @@ function postgresUrl(username, password, port, database) {
 function writeExclusive(path, content) {
   if (existsSync(path)) return;
   writeFileSync(path, `${content}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
+}
+
+function ensureSetting(path, key, value, replaceValues = []) {
+  const current = readFileSync(path, "utf8");
+  const parsed = parseEnv(current);
+  if (parsed[key] === value) return;
+  if (replaceValues.includes(parsed[key])) {
+    const updated = current
+      .split("\n")
+      .map((line) => (line.startsWith(`${key}=`) ? `${key}=${value}` : line))
+      .join("\n");
+    writeFileSync(path, updated, { encoding: "utf8", mode: 0o600 });
+    chmodSync(path, 0o600);
+    return;
+  }
+  if (parsed[key] !== undefined) {
+    throw new Error(
+      `${key} in ${path} does not match this worktree. Delete the generated profile directory and rerun "vp run env:setup".`,
+    );
+  }
+  writeFileSync(path, `${current.trimEnd()}\n${key}=${value}\n`, { encoding: "utf8", mode: 0o600 });
+  chmodSync(path, 0o600);
 }

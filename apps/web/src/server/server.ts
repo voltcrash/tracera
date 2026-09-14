@@ -1,4 +1,4 @@
-import { TRACERA_AUTH_BASE_PATH } from "@repo/auth";
+import { DEV_AUTH_IDENTITIES_PATH, localAuthIdentities, TRACERA_AUTH_BASE_PATH } from "@repo/auth";
 import { getSessionCookie } from "better-auth/cookies";
 import { Hono } from "hono";
 import { TRACERA_API_BASE_PATH } from "./base-path";
@@ -40,5 +40,11 @@ server.use("*", async (context, next) => {
   }
 });
 
+server.get(`${TRACERA_AUTH_BASE_PATH}${DEV_AUTH_IDENTITIES_PATH}`, (context) => {
+  const identities = localAuthIdentities(context.env, context.req.url);
+  return identities
+    ? context.json({ identities: identities.map(({ id, name }) => ({ id, name })) })
+    : context.notFound();
+});
 server.route(TRACERA_AUTH_BASE_PATH, authRoutes);
 server.route(TRACERA_API_BASE_PATH, traceraApi);

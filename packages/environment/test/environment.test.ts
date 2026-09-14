@@ -99,6 +99,25 @@ test("local and test profiles reject external provider credentials and endpoints
   );
 });
 
+test("local application origins must be loopback-only and match their generated port", () => {
+  assert.throws(
+    () =>
+      assertEnvironmentConfiguration(
+        localRuntimeEnvironment({ TRACERA_APP_ORIGIN: "https://production.example" }),
+        "runtime",
+      ),
+    /application origins must be loopback-only/,
+  );
+  assert.throws(
+    () =>
+      assertEnvironmentConfiguration(
+        localRuntimeEnvironment({ TRACERA_APP_ORIGIN: "http://localhost:3000" }),
+        "runtime",
+      ),
+    /matching TRACERA_APP_PORT/,
+  );
+});
+
 test("the profile loader rejects inherited credentials without exposing their values", () => {
   const rootDirectory = profileDirectory();
   const inheritedSecret = "production-secret-must-not-appear";
@@ -296,6 +315,8 @@ function localRuntimeEnvironment(overrides: Record<string, string> = {}) {
     TRACERA_DATABASE_HOST: "127.0.0.1",
     TRACERA_DATABASE_PORT: "25432",
     TRACERA_DATABASE_NAME: "tracera_worktree_dev",
+    TRACERA_APP_ORIGIN: "http://localhost:4173",
+    TRACERA_APP_PORT: "4173",
     DATABASE_URL:
       "postgresql://tracera_runtime:database-password@127.0.0.1:25432/tracera_worktree_dev",
     BETTER_AUTH_SECRET: "auth-secret-at-least-32-characters",
@@ -316,7 +337,7 @@ function profileDirectory() {
   );
   writeFileSync(
     join(directory, "runtime.env"),
-    "DATABASE_URL=postgresql://tracera_runtime:password@127.0.0.1:25432/tracera_worktree_dev\nBETTER_AUTH_SECRET=auth-secret-at-least-32-characters\n",
+    "DATABASE_URL=postgresql://tracera_runtime:password@127.0.0.1:25432/tracera_worktree_dev\nBETTER_AUTH_SECRET=auth-secret-at-least-32-characters\nTRACERA_APP_ORIGIN=http://localhost:4173\nTRACERA_APP_PORT=4173\n",
   );
   return root;
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import { BrandLockup } from "@/components/brand/brand-lockup";
-import { SocialSignInButton } from "@/components/auth/social-sign-in-button";
+import { SignInOptions } from "@/components/auth/sign-in-options";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -164,18 +164,7 @@ export default function LandingPage() {
                 ref={authCtaRef}
                 className="mt-5 flex max-w-sm flex-col gap-3 rounded-2xl sm:max-w-none sm:flex-row"
               >
-                <SocialSignInButton
-                  provider="google"
-                  variant="brand"
-                  size="lg"
-                  className="color-sweep-button story-auth-cta"
-                />
-                <SocialSignInButton
-                  provider="github"
-                  variant="brand"
-                  size="lg"
-                  className="color-sweep-button story-auth-cta"
-                />
+                <SignInOptions />
               </div>
             </div>
 

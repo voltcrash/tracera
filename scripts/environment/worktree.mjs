@@ -13,9 +13,10 @@ export function worktreeIdentity(directory = rootDirectory) {
     .replace(/[^a-z0-9]+/g, "_")
     .slice(0, 20);
   const localPort = 20_000 + (Number.parseInt(digest.slice(0, 6), 16) % 20_000);
+  const webPort = 40_000 + (Number.parseInt(digest.slice(6, 12), 16) % 20_000);
   return {
     worktreeId: `${readableName}_${digest.slice(0, 8)}`,
     pathDigest: digest,
-    ports: { local: String(localPort), test: String(localPort + 1) },
+    ports: { local: String(localPort), test: String(localPort + 1), web: String(webPort) },
   };
 }
