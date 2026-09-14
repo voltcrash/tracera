@@ -1,0 +1,596 @@
+{
+  "doc-attribution": {
+    "segments": [],
+    "claims": [
+      {
+        "text": "The ministry said unemployment fell to 4.1% in 2025.",
+        "retrievalText": "The ministry said unemployment fell to 4.1% in 2025.",
+        "sourceQuotes": ["The ministry said unemployment fell to 4.1% in 2025."],
+        "proposition": {
+          "subject": "The ministry",
+          "predicate": "said",
+          "object": "unemployment fell to 4.1% in 2025",
+          "qualifiers": []
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "4.1%",
+            "value": 4.1,
+            "unit": "percent",
+            "denominatorText": null,
+            "kind": "percentage"
+          }
+        ],
+        "time": {
+          "statedText": "2025"
+        },
+        "place": null,
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "statement"
+      },
+      {
+        "text": "Unemployment fell to 4.1% in 2025",
+        "retrievalText": "Unemployment fell to 4.1% in 2025",
+        "sourceQuotes": ["unemployment fell to 4.1% in 2025"],
+        "proposition": {
+          "subject": "unemployment",
+          "predicate": "fell to",
+          "object": "4.1%",
+          "qualifiers": ["in 2025"]
+        },
+        "attribution": {
+          "kind": "attributed_statement",
+          "attributedTo": "The ministry",
+          "quote": "The ministry said"
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "4.1%",
+            "value": 4.1,
+            "unit": "percent",
+            "denominatorText": null,
+            "kind": "percentage"
+          }
+        ],
+        "time": {
+          "statedText": "2025"
+        },
+        "place": null,
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": "statement",
+        "localId": "embedded"
+      }
+    ]
+  },
+  "doc-negation": {
+    "segments": [],
+    "claims": [
+      {
+        "text": "The council did not approve the budget in 2024.",
+        "retrievalText": "The council did not approve the budget in 2024.",
+        "sourceQuotes": ["The council did not approve the budget in 2024."],
+        "proposition": {
+          "subject": "The council",
+          "predicate": "approve",
+          "object": "the budget",
+          "qualifiers": ["in 2024"]
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": true,
+        "quantities": [],
+        "time": {
+          "statedText": "2024"
+        },
+        "place": null,
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null
+      }
+    ]
+  },
+  "doc-denominator": {
+    "segments": [],
+    "claims": [
+      {
+        "text": "Unemployment reached 12% among adults under 25 in 2025.",
+        "retrievalText": "Unemployment reached 12% among adults under 25 in 2025.",
+        "sourceQuotes": ["Unemployment reached 12% among adults under 25 in 2025."],
+        "proposition": {
+          "subject": "Unemployment",
+          "predicate": "reached",
+          "object": "12%",
+          "qualifiers": ["among adults under 25", "in 2025"]
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "12%",
+            "value": 12,
+            "unit": "percent",
+            "denominatorText": "adults under 25",
+            "kind": "percentage"
+          }
+        ],
+        "time": {
+          "statedText": "2025"
+        },
+        "place": null,
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null
+      }
+    ]
+  },
+  "doc-duplicate": {
+    "segments": [
+      {
+        "text": "Officials praised the crews.",
+        "disposition": "opinion",
+        "reason": "Praise without a checkable proposition."
+      }
+    ],
+    "claims": [
+      {
+        "text": "The port handled 40 ships on Monday.",
+        "retrievalText": "The port handled 40 ships on Monday.",
+        "sourceQuotes": [
+          {
+            "quote": "The port handled 40 ships on Monday.",
+            "occurrence": 1
+          }
+        ],
+        "proposition": {
+          "subject": "The port",
+          "predicate": "handled",
+          "object": "40 ships",
+          "qualifiers": ["on Monday"]
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "40 ships",
+            "value": 40,
+            "unit": "ships",
+            "denominatorText": null,
+            "kind": "count"
+          }
+        ],
+        "time": {
+          "statedText": "on Monday"
+        },
+        "place": null,
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "port-1"
+      },
+      {
+        "text": "The port handled 40 ships on Monday.",
+        "retrievalText": "The port handled 40 ships on Monday.",
+        "sourceQuotes": [
+          {
+            "quote": "The port handled 40 ships on Monday.",
+            "occurrence": 2
+          }
+        ],
+        "proposition": {
+          "subject": "The port",
+          "predicate": "handled",
+          "object": "40 ships",
+          "qualifiers": ["on Monday"]
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "40 ships",
+            "value": 40,
+            "unit": "ships",
+            "denominatorText": null,
+            "kind": "count"
+          }
+        ],
+        "time": {
+          "statedText": "on Monday"
+        },
+        "place": null,
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "port-2"
+      }
+    ]
+  },
+  "doc-multi": {
+    "segments": [],
+    "claims": [
+      {
+        "text": "Plant 1 in Town 1 employs 3 workers.",
+        "retrievalText": "Plant 1 in Town 1 employs 3 workers.",
+        "sourceQuotes": [
+          {
+            "quote": "Plant 1 in Town 1 employs 3 workers.",
+            "in": "Plant 1 in Town 1 "
+          }
+        ],
+        "proposition": {
+          "subject": "Plant 1",
+          "predicate": "employs",
+          "object": "3 workers",
+          "qualifiers": []
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "3 workers",
+            "value": 3,
+            "unit": "workers",
+            "denominatorText": null,
+            "kind": "count"
+          }
+        ],
+        "time": {
+          "statedText": null
+        },
+        "place": "Town 1",
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "plant-1"
+      },
+      {
+        "text": "Plant 2 in Town 2 employs 6 workers.",
+        "retrievalText": "Plant 2 in Town 2 employs 6 workers.",
+        "sourceQuotes": [
+          {
+            "quote": "Plant 2 in Town 2 employs 6 workers.",
+            "in": "Plant 2 in Town 2 "
+          }
+        ],
+        "proposition": {
+          "subject": "Plant 2",
+          "predicate": "employs",
+          "object": "6 workers",
+          "qualifiers": []
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "6 workers",
+            "value": 6,
+            "unit": "workers",
+            "denominatorText": null,
+            "kind": "count"
+          }
+        ],
+        "time": {
+          "statedText": null
+        },
+        "place": "Town 2",
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "plant-2"
+      },
+      {
+        "text": "Plant 3 in Town 3 employs 9 workers.",
+        "retrievalText": "Plant 3 in Town 3 employs 9 workers.",
+        "sourceQuotes": [
+          {
+            "quote": "Plant 3 in Town 3 employs 9 workers.",
+            "in": "Plant 3 in Town 3 "
+          }
+        ],
+        "proposition": {
+          "subject": "Plant 3",
+          "predicate": "employs",
+          "object": "9 workers",
+          "qualifiers": []
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "9 workers",
+            "value": 9,
+            "unit": "workers",
+            "denominatorText": null,
+            "kind": "count"
+          }
+        ],
+        "time": {
+          "statedText": null
+        },
+        "place": "Town 3",
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "plant-3"
+      },
+      {
+        "text": "Plant 4 in Town 4 employs 12 workers.",
+        "retrievalText": "Plant 4 in Town 4 employs 12 workers.",
+        "sourceQuotes": [
+          {
+            "quote": "Plant 4 in Town 4 employs 12 workers.",
+            "in": "Plant 4 in Town 4 "
+          }
+        ],
+        "proposition": {
+          "subject": "Plant 4",
+          "predicate": "employs",
+          "object": "12 workers",
+          "qualifiers": []
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "12 workers",
+            "value": 12,
+            "unit": "workers",
+            "denominatorText": null,
+            "kind": "count"
+          }
+        ],
+        "time": {
+          "statedText": null
+        },
+        "place": "Town 4",
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "plant-4"
+      },
+      {
+        "text": "Plant 5 in Town 5 employs 15 workers.",
+        "retrievalText": "Plant 5 in Town 5 employs 15 workers.",
+        "sourceQuotes": [
+          {
+            "quote": "Plant 5 in Town 5 employs 15 workers.",
+            "in": "Plant 5 in Town 5 "
+          }
+        ],
+        "proposition": {
+          "subject": "Plant 5",
+          "predicate": "employs",
+          "object": "15 workers",
+          "qualifiers": []
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "15 workers",
+            "value": 15,
+            "unit": "workers",
+            "denominatorText": null,
+            "kind": "count"
+          }
+        ],
+        "time": {
+          "statedText": null
+        },
+        "place": "Town 5",
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "plant-5"
+      },
+      {
+        "text": "Plant 6 in Town 6 employs 18 workers.",
+        "retrievalText": "Plant 6 in Town 6 employs 18 workers.",
+        "sourceQuotes": [
+          {
+            "quote": "Plant 6 in Town 6 employs 18 workers.",
+            "in": "Plant 6 in Town 6 "
+          }
+        ],
+        "proposition": {
+          "subject": "Plant 6",
+          "predicate": "employs",
+          "object": "18 workers",
+          "qualifiers": []
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "18 workers",
+            "value": 18,
+            "unit": "workers",
+            "denominatorText": null,
+            "kind": "count"
+          }
+        ],
+        "time": {
+          "statedText": null
+        },
+        "place": "Town 6",
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "plant-6"
+      },
+      {
+        "text": "Plant 7 in Town 7 employs 21 workers.",
+        "retrievalText": "Plant 7 in Town 7 employs 21 workers.",
+        "sourceQuotes": [
+          {
+            "quote": "Plant 7 in Town 7 employs 21 workers.",
+            "in": "Plant 7 in Town 7 "
+          }
+        ],
+        "proposition": {
+          "subject": "Plant 7",
+          "predicate": "employs",
+          "object": "21 workers",
+          "qualifiers": []
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "21 workers",
+            "value": 21,
+            "unit": "workers",
+            "denominatorText": null,
+            "kind": "count"
+          }
+        ],
+        "time": {
+          "statedText": null
+        },
+        "place": "Town 7",
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "plant-7"
+      },
+      {
+        "text": "Plant 8 in Town 8 employs 24 workers.",
+        "retrievalText": "Plant 8 in Town 8 employs 24 workers.",
+        "sourceQuotes": [
+          {
+            "quote": "Plant 8 in Town 8 employs 24 workers.",
+            "in": "Plant 8 in Town 8 "
+          }
+        ],
+        "proposition": {
+          "subject": "Plant 8",
+          "predicate": "employs",
+          "object": "24 workers",
+          "qualifiers": []
+        },
+        "attribution": {
+          "kind": "direct_assertion",
+          "attributedTo": null,
+          "quote": null
+        },
+        "negated": false,
+        "quantities": [
+          {
+            "rawText": "24 workers",
+            "value": 24,
+            "unit": "workers",
+            "denominatorText": null,
+            "kind": "count"
+          }
+        ],
+        "time": {
+          "statedText": null
+        },
+        "place": "Town 8",
+        "referents": [],
+        "unresolvedMentions": [],
+        "checkability": "checkable",
+        "material": true,
+        "parentLocalId": null,
+        "localId": "plant-8"
+      }
+    ]
+  },
+  "doc-opinion": {
+    "segments": [
+      {
+        "text": "What a wonderful plan.",
+        "disposition": "opinion",
+        "reason": "Expresses approval."
+      },
+      {
+        "text": "I love the new park design.",
+        "disposition": "opinion",
+        "reason": "Personal preference."
+      }
+    ],
+    "claims": []
+  },
+  "doc-unsupported": {
+    "segments": [],
+    "claims": []
+  }
+}
