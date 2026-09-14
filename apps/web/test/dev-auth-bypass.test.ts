@@ -78,6 +78,7 @@ function localAuthEnvironment(overrides: Record<string, string> = {}) {
     TRACERA_DATABASE_NAME: "tracera_auth_test_dev",
     TRACERA_APP_ORIGIN: "http://127.0.0.1:4173",
     TRACERA_APP_PORT: "4173",
+    TRACERA_ANALYSIS_MODE: "fixture",
     DATABASE_URL:
       "postgresql://tracera_runtime:database-password@127.0.0.1:25432/tracera_auth_test_dev",
     BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long",

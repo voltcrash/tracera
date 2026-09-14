@@ -87,6 +87,7 @@ export interface StoredClaim {
 }
 
 export interface StoredAnalysis {
+  analysisMode?: "fixture" | "live";
   claims: unknown[];
   score: unknown;
   framing?: unknown;

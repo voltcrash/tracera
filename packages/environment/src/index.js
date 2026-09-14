@@ -60,6 +60,7 @@ export const MANAGED_ENVIRONMENT_KEYS = [
   "TRACERA_DATABASE_NAME",
   "TRACERA_APP_ORIGIN",
   "TRACERA_APP_PORT",
+  "TRACERA_ANALYSIS_MODE",
 ];
 
 const MANAGED_KEYS = new Set(MANAGED_ENVIRONMENT_KEYS);
@@ -116,6 +117,21 @@ export function assertEnvironmentConfiguration(environment, expectedRole) {
     }
     assertEnvironmentSeal(environment);
     rejectExternalProviders(environment, profile);
+    if (
+      (role === "runtime" || role === "analysis") &&
+      environment.TRACERA_ANALYSIS_MODE !== "fixture"
+    ) {
+      throw new EnvironmentConfigurationError(
+        `${profile} profile requires TRACERA_ANALYSIS_MODE=fixture.`,
+      );
+    }
+  } else if (
+    environment.TRACERA_ANALYSIS_MODE === "fixture" ||
+    environment.AI_PROVIDER === "fixture"
+  ) {
+    throw new EnvironmentConfigurationError(
+      "The deployed profile cannot use deterministic analysis fixtures.",
+    );
   }
 
   assertRoleSeparation(environment, role);
@@ -316,6 +332,7 @@ function assertRoleSeparation(environment, role) {
     "TRACERA_APP_PORT",
   ];
   const analysisSettings = [
+    "TRACERA_ANALYSIS_MODE",
     "AI_PROVIDER",
     "AI_API_KEY",
     "AI_MODEL",

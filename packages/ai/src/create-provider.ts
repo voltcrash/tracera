@@ -3,12 +3,19 @@ import { GeminiProvider } from "./providers/gemini";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible";
 import { CompositeAiProvider } from "./composite-provider";
 import type { AiProvider } from "./provider";
+import { OfflineFixtureAiProvider } from "./offline-fixtures";
 
-export type AiProviderName = "anthropic" | "gemini" | "openai" | "openrouter" | "openai-compatible";
+export type AiProviderName =
+  | "anthropic"
+  | "fixture"
+  | "gemini"
+  | "openai"
+  | "openrouter"
+  | "openai-compatible";
 
 export interface ModelProviderConfig {
   provider: AiProviderName;
-  apiKey: string;
+  apiKey?: string;
   model?: string;
   /** Required only for `openai-compatible`; optional to override a built-in endpoint. */
   baseUrl?: string;
@@ -41,13 +48,16 @@ function createModelProvider(
   embedding: { embeddingModel?: string; embeddingDimensions?: number },
 ): AiProvider {
   switch (config.provider) {
+    case "fixture":
+      return new OfflineFixtureAiProvider();
     case "gemini":
-      return new GeminiProvider({ ...config, ...embedding });
+      return new GeminiProvider({ ...config, ...embedding, apiKey: requireApiKey(config) });
     case "anthropic":
-      return new AnthropicProvider(config);
+      return new AnthropicProvider({ ...config, apiKey: requireApiKey(config) });
     case "openai":
       return new OpenAiCompatibleProvider({
         ...config,
+        apiKey: requireApiKey(config),
         ...embedding,
         baseUrl: config.baseUrl ?? "https://api.openai.com/v1",
         providerName: "OpenAI",
@@ -55,6 +65,7 @@ function createModelProvider(
     case "openrouter":
       return new OpenAiCompatibleProvider({
         ...config,
+        apiKey: requireApiKey(config),
         ...embedding,
         baseUrl: config.baseUrl ?? "https://openrouter.ai/api/v1",
         providerName: "OpenRouter",
@@ -65,8 +76,14 @@ function createModelProvider(
       }
       return new OpenAiCompatibleProvider({
         ...config,
+        apiKey: requireApiKey(config),
         ...embedding,
         baseUrl: config.baseUrl,
       });
   }
+}
+
+function requireApiKey(config: ModelProviderConfig) {
+  if (!config.apiKey) throw new Error(`${config.provider} requires an API key.`);
+  return config.apiKey;
 }

@@ -10,6 +10,7 @@ import type {
 } from "@repo/contracts";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 export type { ClaimResult, TraceraScore } from "@repo/contracts";
 
@@ -74,6 +75,7 @@ export function TraceReport({
   score,
   framing,
   groundZero,
+  analysisMode,
   children,
 }: {
   headline?: string;
@@ -85,6 +87,7 @@ export function TraceReport({
   score: TraceraScore;
   framing?: FramingAnalysis | null;
   groundZero?: GroundZeroTrace | null;
+  analysisMode?: "fixture" | "live";
   children?: React.ReactNode;
 }) {
   const sources = useMemo(
@@ -102,6 +105,11 @@ export function TraceReport({
 
   return (
     <article className="trace">
+      {analysisMode === "fixture" && (
+        <Badge className="mb-4" data-testid="synthetic-fixture-badge">
+          Synthetic offline fixture — not real-world evidence
+        </Badge>
+      )}
       <Verdict
         headline={headline}
         statement={statement}

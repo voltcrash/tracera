@@ -20,6 +20,17 @@ export {
 } from "./providers/openai-compatible";
 export { CompositeAiProvider } from "./composite-provider";
 export {
+  FixtureProviderError,
+  FixtureUnavailableError,
+  OFFLINE_FIXTURE_IMAGE,
+  OFFLINE_FIXTURE_URL,
+  OFFLINE_INACCESSIBLE_URL,
+  OfflineFixtureAiProvider,
+  normalizeOfflineFixtureInput,
+  retrieveOfflineFixtureArchiveHistory,
+  retrieveOfflineFixtureSources,
+} from "./offline-fixtures";
+export {
   assertPublicHttpUrl,
   createSafeFetch,
   isBlockedAddress,

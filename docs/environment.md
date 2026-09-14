@@ -26,9 +26,9 @@ vp run env:setup
 vp run env:diagnose:local
 ```
 
-Setup derives stable database and web ports from the current worktree path, creates strong random local passwords and a Better Auth secret, and writes mode-0600 files under ignored `.tracera/environment/local` and `.tracera/environment/test` directories. It does not read or copy any legacy environment file. Existing generated files are retained, so rerunning setup does not rotate database credentials unexpectedly. L04 setup safely adds missing local-auth settings to an existing generated profile without reading or replacing its secrets.
+Setup derives stable database and web ports from the current worktree path, creates strong random local passwords and a Better Auth secret, and writes mode-0600 files under ignored `.tracera/environment/local` and `.tracera/environment/test` directories. It does not read or copy any legacy environment file. Existing generated files are retained, so rerunning setup does not rotate database credentials unexpectedly. Setup safely adds missing local-auth and offline-analysis settings to an existing generated profile without reading or replacing its secrets.
 
-The committed shape is documented in `config/environment/local.generated.env.example`; never copy its placeholders. The local and test profiles use separate database ports, and the web app uses a third generated port (see [Local PostgreSQL](#local-postgresql)). Local sign-in is available through the synthetic identities described below. Offline application analysis (L05) is not available yet.
+The committed shape is documented in `config/environment/local.generated.env.example`; never copy its placeholders. The local and test profiles use separate database ports, and the web app uses a third generated port (see [Local PostgreSQL](#local-postgresql)). Local sign-in and deterministic offline analysis are available through the synthetic identities and fixtures described below.
 
 ## Loading and precedence
 
@@ -64,7 +64,7 @@ The test profile's runtime and migration URLs may also target a run database `<n
 
 Local/test runtime configuration also requires `TRACERA_APP_ORIGIN` and `TRACERA_APP_PORT`. The origin must be an HTTP loopback URL whose port matches the generated value. The development server binds that worktree-specific port; a copied, remote, or mismatched origin fails validation before auth or database access.
 
-Local/test profiles reject OAuth client secrets, AI credentials and custom endpoints, and optional paid retrieval credentials. Local auth never configures a social provider. L05 will add deterministic AI and retrieval fixtures.
+Local/test runtime and analysis roles require `TRACERA_ANALYSIS_MODE=fixture`. They reject OAuth client secrets, AI credentials and custom endpoints, and optional paid retrieval credentials. Deployed profiles reject fixture mode and `AI_PROVIDER=fixture`. Local auth never configures a social provider.
 
 ## Local PostgreSQL
 
@@ -236,6 +236,42 @@ isolation. The web process receives only the runtime profile. The wrapper loads 
 generated migrator profile separately to remove only users with the two synthetic email
 addresses and traces carrying the reserved `L04 browser fixture:` prefix; it never
 accepts a URL or database name.
+
+## Deterministic offline analysis
+
+Local and test profiles use a deterministic provider for structured generation, image
+text extraction, and normalized 1024-dimensional embeddings. The application selects
+fixture acquisition before any live transport: no request reaches hosted AI, Google or
+Bing News, GDELT, Google Fact Check, NewsAPI, Internet Archive, Jina, or an arbitrary
+document URL. `safeFetch` and its SSRF policy are unchanged for deployed live analysis.
+
+The local UI's example coffee claim is a supported text fixture. Additional synthetic
+inputs are exported by `@repo/ai` for automated tests:
+
+- `OFFLINE_FIXTURE_URL` exercises fixture-backed link acquisition.
+- `OFFLINE_FIXTURE_IMAGE` exercises image analysis without a vision call.
+- `OFFLINE_INACCESSIBLE_URL` returns the explicit `fixture_unavailable` response.
+- the Harbor City 10,000-tree statement exercises conflicting evidence;
+- the Atlas Transit provider-failure statement exercises a deterministic provider error.
+
+Unregistered text, links, and images return `fixture_unavailable`; they never fall back
+to the network. Successful reports persist `analysisMode: "fixture"` in the analysis
+artifact and show “Synthetic offline fixture — not real-world evidence” in both the
+fresh and saved-report UI. Real Better Auth sessions, PostgreSQL persistence, tenant
+scope, idempotency, rate/concurrency limits, daily quota, and provider-spend reservations
+still wrap fixture execution.
+
+Run `vp run test:offline-analysis` with the local database running and migrated. It runs
+one Chromium test covering text, link, image, conflicting, inaccessible, missing, and
+provider-failure scenarios, idempotent replay, persistence, spend controls, synthetic
+labeling, and cross-user isolation. Cleanup uses the migrator connection separately and
+deletes only fixture-marked checks, the two fixed synthetic identities, and the `fixture`
+spend records.
+
+The current v1 image flow stores its submitted data URI in PostgreSQL and does not call
+the Core v2 `RawBlobStore`. L05 therefore defines no filesystem blob implementation.
+Core Task 04 must implement that boundary when acquisition produces stored raw bytes;
+this task does not resume or pre-implement that Core stage.
 
 ## AI provider overrides
 
