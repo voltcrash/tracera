@@ -1,5 +1,10 @@
 # Core v2 operations runbook
 
+> **Historical context — superseded full-release operations.** This runbook documents the old
+> staging, worker-host, release, and cutover program. It remains a safety reference only; it is
+> not an active Core v2 Focused prerequisite or activation checklist. Use
+> [`FOCUSED-PLAN.md`](FOCUSED-PLAN.md) for focused implementation.
+
 This runbook is for local and future approval-gated staging/production rehearsals. It does not
 authorize live providers, production credentials, migrations, deployments, shadow traffic, or
 canary traffic. The current release state is BLOCKED; use

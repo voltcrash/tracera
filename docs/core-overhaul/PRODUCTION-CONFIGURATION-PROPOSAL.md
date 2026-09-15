@@ -1,5 +1,10 @@
 # Core v2 production configuration proposal
 
+> **Historical context — superseded full-release proposal.** This is the unapproved, undeployed
+> production-cutover proposal produced for the original full Core v2 release program. It is not
+> required or activated by Core v2 Focused, and it must not be treated as deployment evidence. Use
+> [`FOCUSED-PLAN.md`](FOCUSED-PLAN.md) for the active product path.
+
 Status: **proposal only; not approved or deployed**.
 
 This proposal keeps the existing Vercel web deployment as the HTTP/UI plane and runs the durable
