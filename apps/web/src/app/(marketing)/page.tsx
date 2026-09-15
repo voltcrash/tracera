@@ -15,7 +15,7 @@ const notes = [
     marker: "1",
     verdict: "Supported",
     tone: "text-lime-ink",
-    body: "The department's own dataset gives the 40% figure, and three independent reports match it.",
+    body: "A supplied source record quotes the 40% figure; corroboration is shown only when sources are independently validated.",
   },
   {
     marker: "2",
@@ -33,35 +33,45 @@ const notes = [
 
 const trail = [
   {
-    when: "Today, 09:42",
-    source: "Aggregator repost",
-    detail: "No new reporting. Links back to yesterday's write-up.",
+    when: "Later observation",
+    source: "Related copy",
+    detail: "Syndicated or related material is context, not independent evidence.",
   },
   {
-    when: "Yesterday, 18:10",
-    source: "Regional paper",
-    detail: "First article to quote the 40% figure, without the quartile breakdown.",
+    when: "Acquired observation",
+    source: "Publisher record",
+    detail: "A live report shows exact timestamps and source snapshots when they are available.",
   },
   {
-    when: "14 May, 08:00",
-    source: "Department dataset",
-    detail: "Table 3 is where the figure comes from.",
+    when: "Scope boundary",
+    source: "Candidate root",
+    detail: "Earlier material may exist outside the searched scope.",
     origin: true,
   },
 ];
 
 const scoreParts = [
-  { label: "Source reputation", value: 91 },
-  { label: "Recency of evidence", value: 84 },
-  { label: "Corroboration across sources", value: 78 },
-  { label: "Evidence quality", value: 72 },
-  { label: "Neutral language", value: 58 },
+  {
+    label: "Focused factual score",
+    value: "Not available",
+    detail: "Requires resolved selected claims and valid evidence.",
+  },
+  {
+    label: "Source reputation",
+    value: "Context only",
+    detail: "No reputation record is supplied by this sample.",
+  },
+  {
+    label: "Framing and language",
+    value: "Separate",
+    detail: "Presentation observations do not change factual truth.",
+  },
+  {
+    label: "Origin and timeline",
+    value: "Observed scope",
+    detail: "Unknown history and timestamps stay unresolved.",
+  },
 ];
-
-/** Same bands the hub scores against, so a part reads the same wherever it appears. */
-function scoreTone(value: number) {
-  return value >= 70 ? "strong" : value >= 45 ? "mixed" : "weak";
-}
 
 export default function LandingPage() {
   const { isLoading, user } = useAuth();
@@ -191,8 +201,8 @@ export default function LandingPage() {
             The version you read is rarely the first one.
           </h2>
           <p className="mt-5 max-w-[60ch] text-base leading-7 text-ink-soft">
-            Tracera walks a story back through the reposts and rewrites to the earliest source it
-            can find, and says so plainly when the trail runs cold.
+            Tracera walks a story back through the reposts and rewrites to the earliest observed
+            source within the searched scope, and says so plainly when the trail runs cold.
           </p>
 
           <div className="mt-12">
@@ -207,7 +217,7 @@ export default function LandingPage() {
                     {entry.source}
                     {entry.origin ? (
                       <span className="ml-3 align-middle text-xs font-bold text-lime-ink font-sans">
-                        Earliest found
+                        Earliest observed in scope
                       </span>
                     ) : null}
                   </p>
@@ -227,13 +237,12 @@ export default function LandingPage() {
                 One number, kept in pieces.
               </h2>
               <p className="mt-5 max-w-[46ch] text-base leading-7 text-ink-soft">
-                A single score is easy to wave away, so Tracera leaves its parts on the page.
-                Reputable sources don&rsquo;t cover for thin evidence &mdash; each part is measured
-                on its own.
+                A score appears only when selected claims are resolved with valid evidence. Source
+                context, framing, origin, and timing stay on the page as separate signals.
               </p>
               <p className="mt-6 max-w-[46ch] text-sm leading-6 text-ink-faint">
-                The score describes what Tracera found. It is not a ruling on whether the story is
-                true.
+                This sample has no scored report. Unknown and unavailable results stay explicit; the
+                factual score is not a ruling on whether a story is true.
               </p>
             </div>
 
@@ -242,11 +251,9 @@ export default function LandingPage() {
                 <li key={part.label} className="py-4">
                   <div className="flex items-baseline justify-between gap-6">
                     <span className="text-sm text-ink-soft">{part.label}</span>
-                    <span className="font-serif text-lg tabular-nums">{part.value}</span>
+                    <span className="font-serif text-lg">{part.value}</span>
                   </div>
-                  <span className="score-rule mt-2.5" data-tone={scoreTone(part.value)}>
-                    <span style={{ width: `${part.value}%` }} />
-                  </span>
+                  <p className="mt-1 text-xs leading-5 text-ink-faint">{part.detail}</p>
                 </li>
               ))}
             </ul>

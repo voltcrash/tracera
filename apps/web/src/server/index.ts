@@ -556,7 +556,7 @@ async function runAnalysis(
     signal.throwIfAborted();
     emit({
       stage: "origin",
-      message: "Tracing the earliest known publication.",
+      message: "Tracing the earliest observed publication within the searched scope.",
     });
     const groundZero = traceGroundZero(groundZeroSources, groundZeroHistory, archiveHistory);
     const relatedStory = await findRelatedStoryCheck(

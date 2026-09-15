@@ -38,11 +38,7 @@ import {
   type ReuseDecision,
 } from "./reuse-policy.js";
 import { scoreReportV2 } from "./scoring/index.js";
-import {
-  accountFocusedScore,
-  coverageForSelectedClaims,
-  selectTopClaims,
-} from "./selection/index.js";
+import { coverageForSelectedClaims, selectTopClaims } from "./selection/index.js";
 import type {
   AdjudicateClaimsV2,
   AssessEvidenceV2,
@@ -593,33 +589,20 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
           identity,
         }),
         async () => ({
-          result: focusedMode
-            ? accountFocusedScore(
-                factories.scoreReport(usage())({
-                  claims: analyzedClaims(),
-                  decisions: state.decisions,
-                  assessments: state.assessments,
-                  graphs: state.provenance,
-                  coverage: coverageForSelectedClaims(
-                    state.inputCoverage,
-                    new Set(state.selectedClaimIds),
-                  ),
-                  inputStatus: normalized.result.status,
-                  extractionStatus: extracted.result.status,
-                  at: clock.now(),
-                }),
-                state.focusedSelection!,
-              )
-            : factories.scoreReport(usage())({
-                claims: analyzedClaims(),
-                decisions: state.decisions,
-                assessments: state.assessments,
-                graphs: state.provenance,
-                coverage: state.inputCoverage,
-                inputStatus: normalized.result.status,
-                extractionStatus: extracted.result.status,
-                at: clock.now(),
-              }),
+          result: factories.scoreReport(usage())({
+            claims: analyzedClaims(),
+            decisions: state.decisions,
+            assessments: state.assessments,
+            graphs: state.provenance,
+            snapshots: state.snapshots,
+            ...(focusedMode ? { focusedSelection: state.focusedSelection! } : {}),
+            coverage: focusedMode
+              ? coverageForSelectedClaims(state.inputCoverage, new Set(state.selectedClaimIds))
+              : state.inputCoverage,
+            inputStatus: normalized.result.status,
+            extractionStatus: extracted.result.status,
+            at: clock.now(),
+          }),
           extra: null,
         }),
       ),
@@ -712,17 +695,17 @@ export async function replayAnalysisV2(input: {
     decisions: decisionStage.data.decisions,
     assessments: source.assessments,
     graphs: source.provenance,
+    snapshots: source.snapshots,
     coverage: source.focusedSelection
       ? coverageForSelectedClaims(source.inputCoverage, selectedClaimIds)
       : source.inputCoverage,
+    ...(source.focusedSelection ? { focusedSelection: source.focusedSelection } : {}),
     inputStatus: source.scorecard?.inputStatus ?? stageStatus(source, "normalize_input"),
     extractionStatus: source.scorecard?.extractionStatus ?? stageStatus(source, "extract_claims"),
     at: environment.ports.clock.now(),
   });
   if (!score.data) throw new Error("Deterministic replay could not score persisted artifacts.");
-  const focusedScore = source.focusedSelection
-    ? accountFocusedScore(score, source.focusedSelection)
-    : score;
+  const focusedScore = score;
   const retained = source.stageOutcomes.filter(
     ({ stage }) => stage !== "calibrate_decisions" && stage !== "score_report",
   );
@@ -859,9 +842,15 @@ async function reuseDecision(
   const candidate = await lookup.findCandidate({
     inputHash: environment.context.inputHash,
     contentHash: primary.contentHash,
+    scope: {
+      tenantId: environment.context.tenantId,
+      ownerUserId: environment.context.ownerUserId,
+      visibility: environment.context.visibility,
+    },
     signal: environment.signal,
   });
   return decideReportReuse(candidate, {
+    inputHash: environment.context.inputHash,
     contentHash: primary.contentHash,
     propositionScopeHash: propositionScopeHash(state.claims),
     versions: environment.context.versions,
