@@ -76,6 +76,7 @@ import {
   spendLimitedAiProvider,
   type AnalysisControlConfig,
 } from "./analysis-controls";
+import { coreV2App } from "./core-v2";
 
 export type Bindings = AuthBindings & {
   DATABASE_URL?: string;
@@ -129,6 +130,8 @@ app.get("/health", async (context) => {
     return healthErrorResponse(context, error);
   }
 });
+
+app.route("/v2", coreV2App);
 
 app.get("/internal/domains/:domain/trust-history", async (context) => {
   if (!authorizedDomainTrustAdmin(context)) return context.json({ error: "Unauthorized." }, 401);

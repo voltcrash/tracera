@@ -57,12 +57,72 @@ test("local analysis uses offline fixtures with real controls and persistence", 
   await page.goto(`/trace/${textResult.check.id}`);
   await expect(page.getByTestId("synthetic-fixture-badge")).toBeVisible();
 
+  const coreKey = crypto.randomUUID();
+  const coreSubmission = await analyzeV2(page, { text: coffee }, coreKey);
+  expect(coreSubmission.status()).toBe(202);
+  const coreRun = await coreSubmission.json();
+  expect(coreRun.schemaVersion).toBe(2);
+  expect(coreRun.status).toBe("queued");
+  expect(coreRun.progressUrl).toBe(`/api/tracera/v2/runs/${coreRun.runId}`);
+  const coreReplay = await analyzeV2(page, { text: coffee }, coreKey);
+  expect(coreReplay.status()).toBe(202);
+  expect(coreReplay.headers()["x-idempotency-replayed"]).toBe("true");
+  expect((await coreReplay.json()).runId).toBe(coreRun.runId);
+  const resumed = await page.request.get(`/api/tracera/v2/runs/${coreRun.runId}`);
+  expect(resumed.status()).toBe(200);
+  expect((await resumed.json()).progress.status).toBe("queued");
+  const disconnectedEvent = await page.evaluate(async (runId) => {
+    const controller = new AbortController();
+    const response = await fetch(`/api/tracera/v2/runs/${runId}/events`, {
+      signal: controller.signal,
+    });
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let frames = "";
+    while (!frames.includes("event: progress")) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      frames += decoder.decode(chunk.value, { stream: true });
+    }
+    controller.abort();
+    return frames;
+  }, coreRun.runId);
+  expect(disconnectedEvent).toContain('"status":"queued"');
+  expect(
+    (await (await page.request.get(`/api/tracera/v2/runs/${coreRun.runId}`)).json()).progress
+      .status,
+  ).toBe("queued");
+  const canceled = await page.request.post(`/api/tracera/v2/runs/${coreRun.runId}/cancel`);
+  expect(canceled.status()).toBe(202);
+  expect(
+    (await (await page.request.get(`/api/tracera/v2/runs/${coreRun.runId}`)).json()).progress
+      .status,
+  ).toBe("canceled");
+  expect((await page.request.post(`/api/tracera/v2/runs/${coreRun.runId}/cancel`)).status()).toBe(
+    409,
+  );
+
   const graceContext = await browser.newContext();
   const gracePage = await graceContext.newPage();
   await gracePage.goto("/");
   await gracePage.getByRole("button", { name: "Continue as Grace Local" }).click();
   const privateDetail = await gracePage.request.get(`/api/tracera/checks/${textResult.check.id}`);
   expect(privateDetail.status()).toBe(404);
+  const privateCoreRun = await gracePage.request.get(`/api/tracera/v2/runs/${coreRun.runId}`);
+  expect(privateCoreRun.status()).toBe(404);
+  expect(
+    (await gracePage.request.get(`/api/tracera/v2/runs/${coreRun.runId}/events`)).status(),
+  ).toBe(404);
+  expect(
+    (await gracePage.request.post(`/api/tracera/v2/runs/${coreRun.runId}/cancel`)).status(),
+  ).toBe(404);
+  expect(
+    (
+      await gracePage.request.get(
+        `/api/tracera/v2/runs/${coreRun.runId}/evidence/${encodeURIComponent("snapshot")}`,
+      )
+    ).status(),
+  ).toBe(404);
   await graceContext.close();
 
   configureDatabase(process.env.DATABASE_URL, process.env);
@@ -83,6 +143,17 @@ function analyze(
   idempotencyKey: string,
 ) {
   return page.request.post("/api/tracera/analyze", {
+    headers: { "Idempotency-Key": idempotencyKey },
+    data: input,
+  });
+}
+
+function analyzeV2(
+  page: import("@playwright/test").Page,
+  input: Record<string, unknown>,
+  idempotencyKey: string,
+) {
+  return page.request.post("/api/tracera/v2/analyze", {
     headers: { "Idempotency-Key": idempotencyKey },
     data: input,
   });
