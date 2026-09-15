@@ -2,6 +2,7 @@ import {
   claimSchema,
   runReportSchema,
   type FocusedSelection,
+  type FocusedPublicationPolicy,
   type RunContext,
   type RunReport,
 } from "@repo/contracts/core-v2";
@@ -18,7 +19,10 @@ export interface ReuseIdentity {
   focusedSelectionIdentity?: Pick<
     FocusedSelection,
     "policyVersion" | "selectionVersion" | "maxSelectedClaims"
-  >;
+  > & {
+    publicationPolicyVersion: FocusedPublicationPolicy["policyVersion"];
+    publicationDecisionVersion: FocusedPublicationPolicy["decisionVersion"];
+  };
 }
 
 export type ReuseDecision =
@@ -94,10 +98,13 @@ export function decideReportReuse(candidate: unknown, identity: ReuseIdentity): 
     const focused = report.focusedSelection;
     if (
       focused === undefined ||
+      report.focusedPublicationPolicy === undefined ||
       hashValue({
         policyVersion: focused.policyVersion,
         selectionVersion: focused.selectionVersion,
         maxSelectedClaims: focused.maxSelectedClaims,
+        publicationPolicyVersion: report.focusedPublicationPolicy.policyVersion,
+        publicationDecisionVersion: report.focusedPublicationPolicy.decisionVersion,
       }) !== hashValue(identity.focusedSelectionIdentity)
     ) {
       return { reusable: false, report: null, reason: "version_changed" };

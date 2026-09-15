@@ -9,6 +9,7 @@ import {
   type DocumentSnapshot,
   type EvidenceAssessment,
   type EvidenceCandidate,
+  type FocusedPublicationPolicy,
   type FocusedSelection,
   type InputCoverage,
   type ProvenanceGraph,
@@ -27,6 +28,7 @@ import { createExtractClaimsV2 } from "./claims/index.js";
 import { createAssessEvidenceV2 } from "./evidence/index.js";
 import { canonicalJson, evidenceSetHash, hashValue, snapshotIdentity } from "./hashing.js";
 import { normalizeInputV2 } from "./ingestion/index.js";
+import { createFocusedPublicationV2, FOCUSED_PUBLICATION_POLICY } from "./publication/index.js";
 import { createTraceOriginsV2, type ArchiveLookupPort } from "./provenance/index.js";
 import { createRetrieveEvidenceV2, type RetrievalOptions } from "./retrieval/index.js";
 import {
@@ -46,7 +48,10 @@ import type {
   AssessEvidenceV2,
   AssessEvidenceV2Data,
   CalibrateDecisionsV2,
+  CalibrateDecisionsV2Data,
   ExtractClaimsV2,
+  FocusedPublicationV2,
+  FocusedPublicationV2Data,
   NormalizeInputV2,
   RetrieveEvidenceV2,
   RetrieveEvidenceV2Data,
@@ -82,6 +87,7 @@ export interface RunAnalysisV2StageFactories {
     },
   ): AdjudicateClaimsV2;
   calibrateDecisions(usage: StageUsage): CalibrateDecisionsV2;
+  publishFocusedDecisions(usage: StageUsage): FocusedPublicationV2;
   scoreReport(usage: StageUsage): ScoreReportV2;
 }
 
@@ -93,6 +99,8 @@ export interface RunAnalysisV2Options {
   retrieval?: Omit<RetrievalOptions, "priorExternalRequests" | "priorCostUsd">;
   archive?: ArchiveLookupPort;
   calibratorArtifact?: unknown;
+  /** Focused evidence-gated publication is the default product path. */
+  focused?: boolean;
   reuse?: ReportReuseLookup;
 }
 
@@ -102,6 +110,7 @@ interface RunState {
   claims: RunReport["claims"];
   selectedClaimIds: string[];
   focusedSelection: FocusedSelection | null;
+  focusedPublicationPolicy: FocusedPublicationPolicy | null;
   candidates: EvidenceCandidate[];
   admittedSnapshotIds: string[];
   assessments: EvidenceAssessment[];
@@ -151,10 +160,11 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
 
   return async (input, environment) => {
     const { clock } = environment.ports;
+    const focusedMode = options.focused !== false;
     const startedMs = clock.monotonicMs();
     const deadlineMonotonicMs = startedMs + environment.context.budget.maxElapsedMs;
     const state = emptyState();
-    const identity = runIdentity(environment);
+    const identity = runIdentity(environment, focusedMode);
     const usage = (pending: StageMetrics[] = []): StageUsage => {
       const metrics = [...state.outcomes.map(({ metrics }) => metrics), ...pending];
       const priorExternalRequests = metrics.reduce((sum, item) => sum + item.externalRequests, 0);
@@ -229,19 +239,27 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
     if (!extracted.result.data) return stop(stageRunStatus(extracted.result));
     state.claims = extracted.result.data.claims;
     state.inputCoverage = extracted.result.data.coverage;
-    const focused = selectTopClaims({
-      claims: state.claims,
-      snapshots: state.snapshots,
-      coverage: state.inputCoverage,
-      inventoryStatus: extracted.result.status,
-      primarySnapshotId,
-    });
-    state.claims = focused.claims;
-    state.selectedClaimIds = focused.selection.selectedClaimIds;
-    state.focusedSelection = focused.selection;
-    state.issues.push(...focused.issues);
-    const selectedClaims = () =>
-      state.claims.filter((claim) => state.selectedClaimIds.includes(claim.id));
+    if (focusedMode) {
+      const focused = selectTopClaims({
+        claims: state.claims,
+        snapshots: state.snapshots,
+        coverage: state.inputCoverage,
+        inventoryStatus: extracted.result.status,
+        primarySnapshotId,
+      });
+      state.claims = focused.claims;
+      state.selectedClaimIds = focused.selection.selectedClaimIds;
+      state.focusedSelection = focused.selection;
+      state.focusedPublicationPolicy = FOCUSED_PUBLICATION_POLICY;
+      state.issues.push(...focused.issues);
+    } else {
+      state.selectedClaimIds = state.claims.map(({ id }) => id);
+      state.focusedSelection = null;
+    }
+    const analyzedClaims = () =>
+      focusedMode
+        ? state.claims.filter((claim) => state.selectedClaimIds.includes(claim.id))
+        : state.claims;
 
     if (
       options.reuse &&
@@ -270,10 +288,14 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
       usage(),
       await checkpointed(
         "retrieve_evidence",
-        hashValue({ upstream: extracted.result, focusedSelection: focused.selection, identity }),
+        hashValue({
+          upstream: extracted.result,
+          focusedSelection: state.focusedSelection,
+          identity,
+        }),
         async () => ({
           result: await factories.retrieveEvidence(usage())(
-            { claims: selectedClaims(), snapshots: state.snapshots, round: 0, sufficiency: [] },
+            { claims: analyzedClaims(), snapshots: state.snapshots, round: 0, sufficiency: [] },
             environment,
           ),
           extra: null,
@@ -300,7 +322,7 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
       async () => {
         let assessment = await factories.assessEvidence(usage())(
           {
-            claims: selectedClaims(),
+            claims: analyzedClaims(),
             snapshots: state.snapshots,
             admittedSnapshotIds: state.admittedSnapshotIds,
           },
@@ -325,7 +347,7 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
           const retrieval: StageResult<RetrieveEvidenceV2Data> = await factories.retrieveEvidence(
             usage(pending),
           )(
-            { claims: selectedClaims(), snapshots, round: rounds, sufficiency: insufficient },
+            { claims: analyzedClaims(), snapshots, round: rounds, sufficiency: insufficient },
             environment,
           );
           targetedRetrieval = targetedRetrieval
@@ -339,7 +361,7 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
           if (fresh.length === 0) break;
           for (const id of fresh) assessedSnapshotIds.add(id);
           const reassessed = await factories.assessEvidence(usage([...pending, retrieval.metrics]))(
-            { claims: selectedClaims(), snapshots, admittedSnapshotIds: fresh },
+            { claims: analyzedClaims(), snapshots, admittedSnapshotIds: fresh },
             environment,
           );
           assessment = mergeResults(assessment, reassessed, combineAssessment);
@@ -392,7 +414,7 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
       }),
       async () => {
         const result = await factories.traceOrigins(usage())(
-          { claims: selectedClaims(), snapshots: state.snapshots, assessments: state.assessments },
+          { claims: analyzedClaims(), snapshots: state.snapshots, assessments: state.assessments },
           environment,
         );
         const newSnapshotIds = [...new Set(result.data?.newSnapshotIds ?? [])];
@@ -420,7 +442,7 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
         }
         const reassessment = await factories.assessEvidence(usage([result.metrics]))(
           {
-            claims: selectedClaims(),
+            claims: analyzedClaims(),
             snapshots: uniqueById([...state.snapshots, ...loaded]),
             admittedSnapshotIds: newSnapshotIds,
           },
@@ -481,7 +503,7 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
           };
           const result = await factories.adjudicateClaims({ ...usage(), record })(
             {
-              claims: selectedClaims(),
+              claims: analyzedClaims(),
               assessments: state.assessments,
               graphs: state.provenance,
             },
@@ -507,37 +529,55 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
     if (!adjudicated.result.data) return stop(stageRunStatus(adjudicated.result));
     state.decisions = adjudicated.result.data.decisions;
 
-    const beforeCalibrate = interrupted("calibrate_decisions");
-    if (beforeCalibrate) return beforeCalibrate;
-    const calibrated = checkStageBudget(
+    const beforePublication = interrupted("calibrate_decisions");
+    if (beforePublication) return beforePublication;
+    const decisionStage = checkStageBudget(
       "calibrate_decisions",
       usage(),
-      await checkpointed(
+      await checkpointed<CalibrateDecisionsV2Data | FocusedPublicationV2Data, null>(
         "calibrate_decisions",
         hashValue({
           upstream: adjudicated.result,
           evidenceSetHash: state.evidenceSetHash,
           selectedClaimIds: state.selectedClaimIds,
+          focusedMode,
           identity,
         }),
-        async () => ({
-          result: await factories.calibrateDecisions(usage())(
-            {
-              claims: selectedClaims(),
-              decisions: state.decisions,
-              assessments: state.assessments,
-            },
-            environment,
-          ),
-          extra: null,
-        }),
+        async () => {
+          const result = focusedMode
+            ? await factories.publishFocusedDecisions(usage())(
+                {
+                  claims: analyzedClaims(),
+                  snapshots: state.snapshots,
+                  decisions: state.decisions,
+                  assessments: state.assessments,
+                },
+                environment,
+              )
+            : await factories.calibrateDecisions(usage())(
+                {
+                  claims: analyzedClaims(),
+                  decisions: state.decisions,
+                  assessments: state.assessments,
+                },
+                environment,
+              );
+          return {
+            result: result as StageResult<CalibrateDecisionsV2Data | FocusedPublicationV2Data>,
+            extra: null,
+          };
+        },
       ),
       environment,
     );
-    setOutcome(state, "calibrate_decisions", calibrated.result);
-    if (calibrated.exceeded) return stop(statusAfterBudget(calibrated.result));
-    if (!calibrated.result.data) return stop(stageRunStatus(calibrated.result));
-    state.decisions = calibrated.result.data.decisions;
+    setOutcome(state, "calibrate_decisions", decisionStage.result);
+    if (decisionStage.exceeded) return stop(statusAfterBudget(decisionStage.result));
+    if (!decisionStage.result.data) return stop(stageRunStatus(decisionStage.result));
+    state.decisions = decisionStage.result.data.decisions;
+    if (focusedMode) {
+      const focusedData = decisionStage.result.data as FocusedPublicationV2Data;
+      state.focusedPublicationPolicy = focusedData.policy;
+    }
 
     const beforeScore = interrupted("score_report");
     if (beforeScore) return beforeScore;
@@ -547,28 +587,39 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
       await checkpointed(
         "score_report",
         hashValue({
-          upstream: calibrated.result,
+          upstream: decisionStage.result,
           evidenceSetHash: state.evidenceSetHash,
           selectedClaimIds: state.selectedClaimIds,
           identity,
         }),
         async () => ({
-          result: accountFocusedScore(
-            factories.scoreReport(usage())({
-              claims: selectedClaims(),
-              decisions: state.decisions,
-              assessments: state.assessments,
-              graphs: state.provenance,
-              coverage: coverageForSelectedClaims(
-                state.inputCoverage,
-                new Set(state.selectedClaimIds),
-              ),
-              inputStatus: normalized.result.status,
-              extractionStatus: extracted.result.status,
-              at: clock.now(),
-            }),
-            state.focusedSelection!,
-          ),
+          result: focusedMode
+            ? accountFocusedScore(
+                factories.scoreReport(usage())({
+                  claims: analyzedClaims(),
+                  decisions: state.decisions,
+                  assessments: state.assessments,
+                  graphs: state.provenance,
+                  coverage: coverageForSelectedClaims(
+                    state.inputCoverage,
+                    new Set(state.selectedClaimIds),
+                  ),
+                  inputStatus: normalized.result.status,
+                  extractionStatus: extracted.result.status,
+                  at: clock.now(),
+                }),
+                state.focusedSelection!,
+              )
+            : factories.scoreReport(usage())({
+                claims: analyzedClaims(),
+                decisions: state.decisions,
+                assessments: state.assessments,
+                graphs: state.provenance,
+                coverage: state.inputCoverage,
+                inputStatus: normalized.result.status,
+                extractionStatus: extracted.result.status,
+                at: clock.now(),
+              }),
           extra: null,
         }),
       ),
@@ -602,13 +653,15 @@ export interface DeterministicReplayResult {
 }
 
 /**
- * Recomputes calibration and scoring from persisted immutable artifacts only. It never
- * calls a model, search, or acquisition port; a stochastic rerun is a new durable run.
+ * Recomputes focused publication (or legacy calibration) and scoring from persisted immutable
+ * artifacts only. It never calls a model, search, or acquisition port; a stochastic rerun is a
+ * new durable run.
  */
 export async function replayAnalysisV2(input: {
   report: RunReport;
   environment: RunEnvironment;
-  calibrateDecisions: CalibrateDecisionsV2;
+  calibrateDecisions?: CalibrateDecisionsV2;
+  publishFocusedDecisions?: FocusedPublicationV2;
   scoreReport?: ScoreReportV2;
 }): Promise<DeterministicReplayResult> {
   const source = runReportSchema.parse(input.report);
@@ -632,15 +685,31 @@ export async function replayAnalysisV2(input: {
   const claims = source.focusedSelection
     ? source.claims.filter(({ id }) => selectedClaimIds.has(id))
     : source.claims;
-  const calibrated = await input.calibrateDecisions(
-    { claims, decisions: source.decisions, assessments: source.assessments },
-    environment,
-  );
-  if (!calibrated.data)
-    throw new Error("Deterministic replay could not calibrate persisted decisions.");
+  const focusedMode =
+    source.focusedSelection !== undefined || source.focusedPublicationPolicy !== undefined;
+  const decisionStage = focusedMode
+    ? await (input.publishFocusedDecisions ?? createFocusedPublicationV2())(
+        {
+          claims,
+          snapshots: source.snapshots,
+          decisions: source.decisions,
+          assessments: source.assessments,
+        },
+        environment,
+      )
+    : await (input.calibrateDecisions ?? createCalibrateDecisionsV2({ artifact: null }))(
+        { claims, decisions: source.decisions, assessments: source.assessments },
+        environment,
+      );
+  if (!decisionStage.data)
+    throw new Error(
+      focusedMode
+        ? "Deterministic replay could not publish focused decisions."
+        : "Deterministic replay could not calibrate persisted decisions.",
+    );
   const score = (input.scoreReport ?? scoreReportV2)({
     claims,
-    decisions: calibrated.data.decisions,
+    decisions: decisionStage.data.decisions,
     assessments: source.assessments,
     graphs: source.provenance,
     coverage: source.focusedSelection
@@ -659,7 +728,7 @@ export async function replayAnalysisV2(input: {
   );
   const stageOutcomes = [
     ...retained,
-    outcome("calibrate_decisions", calibrated),
+    outcome("calibrate_decisions", decisionStage),
     outcome("score_report", focusedScore),
   ];
   const report = runReportSchema.parse({
@@ -667,11 +736,16 @@ export async function replayAnalysisV2(input: {
     createdAt: environment.ports.clock.now(),
     status: overallStatus(stageOutcomes),
     stageOutcomes,
-    decisions: calibrated.data.decisions,
+    decisions: decisionStage.data.decisions,
     scorecard: focusedScore.data?.scorecard ?? null,
+    ...(focusedMode
+      ? {
+          focusedPublicationPolicy: (decisionStage.data as FocusedPublicationV2Data).policy,
+        }
+      : {}),
     unresolvedReasons: uniqueIssues([
       ...source.unresolvedReasons,
-      ...calibrated.issues,
+      ...decisionStage.issues,
       ...focusedScore.issues,
     ]),
   });
@@ -726,6 +800,7 @@ function defaultStageFactories(options: RunAnalysisV2Options): RunAnalysisV2Stag
       }),
     calibrateDecisions: () =>
       createCalibrateDecisionsV2({ artifact: options.calibratorArtifact ?? null }),
+    publishFocusedDecisions: () => createFocusedPublicationV2(),
     scoreReport: () => scoreReportV2,
   };
 }
@@ -800,6 +875,12 @@ async function reuseDecision(
             policyVersion: state.focusedSelection.policyVersion,
             selectionVersion: state.focusedSelection.selectionVersion,
             maxSelectedClaims: state.focusedSelection.maxSelectedClaims,
+            publicationPolicyVersion:
+              state.focusedPublicationPolicy?.policyVersion ??
+              FOCUSED_PUBLICATION_POLICY.policyVersion,
+            publicationDecisionVersion:
+              state.focusedPublicationPolicy?.decisionVersion ??
+              FOCUSED_PUBLICATION_POLICY.decisionVersion,
           },
         }),
   });
@@ -886,6 +967,9 @@ function finishResult(
     replayManifest,
     cost,
     ...(state.focusedSelection === null ? {} : { focusedSelection: state.focusedSelection }),
+    ...(state.focusedPublicationPolicy === null
+      ? {}
+      : { focusedPublicationPolicy: state.focusedPublicationPolicy }),
   });
   return { status, report, issues: report.unresolvedReasons, replayManifest, cost };
 }
@@ -897,6 +981,7 @@ function emptyState(): RunState {
     claims: [],
     selectedClaimIds: [],
     focusedSelection: null,
+    focusedPublicationPolicy: null,
     candidates: [],
     admittedSnapshotIds: [],
     assessments: [],
@@ -1118,9 +1203,16 @@ function overallStatus(outcomes: StageOutcome[]): RunStatus {
   return "complete";
 }
 
-function runIdentity(environment: RunEnvironment) {
+function runIdentity(environment: RunEnvironment, focusedMode: boolean) {
   return {
     contract: CORE_V2_CONTRACT_VERSION,
+    focusedMode,
+    ...(focusedMode
+      ? {
+          focusedPublicationPolicyVersion: FOCUSED_PUBLICATION_POLICY.policyVersion,
+          focusedPublicationDecisionVersion: FOCUSED_PUBLICATION_POLICY.decisionVersion,
+        }
+      : {}),
     versions: environment.context.versions,
     budget: environment.context.budget,
     asOfTime: environment.context.asOfTime,
