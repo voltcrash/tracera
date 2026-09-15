@@ -1,5 +1,11 @@
 # Tracera core rebuild specification
 
+> **Historical design record.** The full-release program in this file is superseded as the active
+> product path. Use [`FOCUSED-PLAN.md`](FOCUSED-PLAN.md) for Core v2 Focused implementation. Keep
+> this document for the already implemented architecture and historical decisions; its
+> 1,500-claim, calibration, sealed-test, staging, worker-host, canary, and cutover requirements
+> are not focused-product prerequisites.
+
 Status: implementation plan, not an implemented or validated system. Prepared 2026-09-10.
 
 ## Objective and boundaries

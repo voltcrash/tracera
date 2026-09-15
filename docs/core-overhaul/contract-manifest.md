@@ -1,5 +1,11 @@
 # Tracera core v2 contract manifest
 
+> **Focused boundary.** This frozen manifest remains the compatibility baseline for the existing
+> Core v2 stages and saved reports. For new Core v2 Focused behavior, use
+> [`FOCUSED-PLAN.md`](FOCUSED-PLAN.md) and add focused policy/report types or projections
+> additively. Do not install a calibration artifact to satisfy the focused path or reinterpret
+> existing full-release fields and historical reports.
+
 Status: frozen by task 02 on 2026-09-10. Downstream tasks import these schemas and
 types and may not define parallel models. Changing a frozen schema requires an
 explicit contract revision and a recalibration review, not an in-place edit.

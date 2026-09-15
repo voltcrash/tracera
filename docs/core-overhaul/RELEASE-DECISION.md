@@ -1,5 +1,10 @@
 # Core v2 release decision
 
+> **Historical context — superseded full-release decision.** The `BLOCKED` decision below applies
+> to the original full-release evaluation program and remains unchanged: its gates did not pass.
+> It is not a blocker for focused product implementation, and it does not authorize a production
+> cutover. The active implementation plan is [`FOCUSED-PLAN.md`](FOCUSED-PLAN.md).
+
 Decision: **BLOCKED**
 Implementation status: **PASS for Task 12 deliverables**
 Release-validation status: **BLOCKED**
