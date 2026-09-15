@@ -40,6 +40,11 @@ export {
 export { createRunStore, createSnapshotStore } from "./storage.js";
 export type { RawBlobStore } from "./storage.js";
 export {
+  FOCUSED_PUBLICATION_POLICY,
+  createFocusedPublicationV2,
+  publishFocusedDecisions,
+} from "./publication/index.js";
+export {
   createCoreEmbeddingPort,
   createCoreGenerationPort,
   createOperationalAudit,

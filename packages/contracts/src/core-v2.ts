@@ -17,6 +17,13 @@ export const CORE_V2_RESOLUTION_COVERAGE_THRESHOLD = 0.8 as const;
 export const CORE_V2_FOCUSED_POLICY_VERSION = "core-v2-focused-1.0.0" as const;
 export const CORE_V2_FOCUSED_SELECTION_VERSION = "core-v2-focused-selection-1.0.0" as const;
 export const CORE_V2_FOCUSED_MAX_SELECTED_CLAIMS = 3 as const;
+export const CORE_V2_FOCUSED_PUBLICATION_POLICY_VERSION =
+  "core-v2-focused-publication-1.0.0" as const;
+export const CORE_V2_FOCUSED_PUBLICATION_DECISION_VERSION =
+  "core-v2-focused-decision-1.0.0" as const;
+export const CORE_V2_FOCUSED_SCORE_FORMULA_VERSION = "focused-supported-share-1.0.0" as const;
+export const CORE_V2_FOCUSED_NON_CALIBRATION_REASON =
+  "Focused policy is evidence-gated and does not use statistical calibration." as const;
 
 /** Starting evaluation-only caps from the plan. Not a production spend approval. */
 export const CORE_V2_EVALUATION_BUDGET = {
@@ -968,6 +975,7 @@ export const decisionReasonCodeSchema = z.enum([
   "unresolved_challenge_disagreement",
   "calibration_unavailable",
   "calibration_out_of_scope",
+  "focused_evidence_gate_abstained",
   "budget_exhausted_before_resolution",
   "source_unavailable",
   "unsupported_language",
@@ -994,6 +1002,40 @@ export const calibrationSchema = z.discriminatedUnion("applicability", [
   }),
 ]);
 
+export const focusedPublicationGateSchema = z.enum([
+  "passed",
+  "insufficient_evidence",
+  "invalid_citation",
+  "failed_applicability",
+  "unresolved_conflict",
+  "challenge_unresolved",
+  "ambiguous_scope",
+  "evidence_unavailable",
+  "uncertain_evidence",
+]);
+
+export const focusedPublicationCalibrationSchema = z.strictObject({
+  status: z.literal("not_used"),
+  probability: z.null(),
+  reason: z.literal(CORE_V2_FOCUSED_NON_CALIBRATION_REASON),
+});
+
+export const focusedPublicationPolicySchema = z.strictObject({
+  policyVersion: z.literal(CORE_V2_FOCUSED_PUBLICATION_POLICY_VERSION),
+  decisionVersion: z.literal(CORE_V2_FOCUSED_PUBLICATION_DECISION_VERSION),
+  mode: z.literal("evidence_gated"),
+  scoreFormulaVersion: z.literal(CORE_V2_FOCUSED_SCORE_FORMULA_VERSION),
+  calibration: focusedPublicationCalibrationSchema,
+});
+
+export const focusedPublicationDecisionSchema = z.strictObject({
+  policyVersion: z.literal(CORE_V2_FOCUSED_PUBLICATION_POLICY_VERSION),
+  decisionVersion: z.literal(CORE_V2_FOCUSED_PUBLICATION_DECISION_VERSION),
+  status: z.enum(["published", "abstained"]),
+  gate: focusedPublicationGateSchema,
+  calibration: focusedPublicationCalibrationSchema,
+});
+
 export const challengeSchema = z.strictObject({
   status: z.enum(["not_required", "resolved", "unresolved", "failed"]),
   independentLabel: claimLabelSchema.nullable(),
@@ -1007,7 +1049,7 @@ export const decisionSchema = z
     claimId: z.string().min(1),
     /** Adjudicated label before release gating. Diagnostic and evaluation use only. */
     diagnosticLabel: claimLabelSchema,
-    /** The label released to users. Gated by calibration, challenge and citations. */
+    /** The label released to users. Gated by the legacy calibration or focused evidence policy. */
     publishedLabel: claimLabelSchema,
     reasonCodes: z.array(decisionReasonCodeSchema).min(1),
     supportingAssessmentIds: z.array(z.string().min(1)),
@@ -1016,15 +1058,24 @@ export const decisionSchema = z
     justification: z.string().min(1),
     challenge: challengeSchema,
     calibration: calibrationSchema,
+    /** Additive focused publication proof; absent on historical/full reports. */
+    focusedPublication: focusedPublicationDecisionSchema.optional(),
     /** Model self-reports are diagnostic. They are never a calibrated probability. */
     rawModelConfidence: probabilitySchema.nullable(),
     citationIntegrity: z.enum(["valid", "invalid", "not_checked"]),
   })
   .superRefine((value, context) => {
-    const publishable =
+    const calibratedPublishable =
       value.calibration.applicability === "in_scope" &&
       value.challenge.status === "resolved" &&
       value.citationIntegrity === "valid";
+    const focusedPublishable =
+      value.focusedPublication?.status === "published" &&
+      value.focusedPublication.gate === "passed" &&
+      value.challenge.status === "resolved" &&
+      value.challenge.agreed === true &&
+      value.citationIntegrity === "valid";
+    const publishable = calibratedPublishable || focusedPublishable;
     const isDecisive = (decisiveLabels as readonly string[]).includes(value.publishedLabel);
 
     if (isDecisive && !publishable) {
@@ -1032,8 +1083,40 @@ export const decisionSchema = z
         code: "custom",
         path: ["publishedLabel"],
         message:
-          "A decisive published label requires in-scope calibration, a resolved challenge and valid citations.",
+          "A decisive published label requires either the legacy calibrated gate or a passed focused evidence gate.",
       });
+    }
+    if (value.focusedPublication !== undefined) {
+      if (value.calibration.applicability === "in_scope") {
+        context.addIssue({
+          code: "custom",
+          path: ["calibration"],
+          message: "Focused publication cannot carry an in-scope statistical calibration.",
+        });
+      }
+      if (value.focusedPublication.status === "published") {
+        if (!isDecisive) {
+          context.addIssue({
+            code: "custom",
+            path: ["focusedPublication", "status"],
+            message: "Only a decisive focused label can pass the publication gate.",
+          });
+        }
+        if (value.focusedPublication.gate !== "passed") {
+          context.addIssue({
+            code: "custom",
+            path: ["focusedPublication", "gate"],
+            message: "A published focused decision must carry a passed evidence gate.",
+          });
+        }
+      }
+      if (value.focusedPublication.status === "abstained" && isDecisive) {
+        context.addIssue({
+          code: "custom",
+          path: ["publishedLabel"],
+          message: "An abstained focused decision cannot publish a decisive label.",
+        });
+      }
     }
     if (value.publishedLabel === "supported" && value.supportingAssessmentIds.length === 0) {
       context.addIssue({
@@ -1124,7 +1207,7 @@ export const evidenceSummarySchema = z.strictObject({
 
 export const scorecardSchema = z
   .strictObject({
-    formulaVersion: z.literal(CORE_V2_SCORE_FORMULA_VERSION),
+    formulaVersion: z.enum([CORE_V2_SCORE_FORMULA_VERSION, CORE_V2_FOCUSED_SCORE_FORMULA_VERSION]),
     /** 100 * supported / (supported + contradicted). Null whenever gated. */
     factualScore: percentageSchema.nullable(),
     nullReasons: z.array(scoreNullReasonSchema),
@@ -1273,6 +1356,8 @@ export const runReportSchema = z
     cost: runCostSummarySchema,
     /** Additive focused boundary; omitted on historical/full-release reports. */
     focusedSelection: focusedSelectionSchema.optional(),
+    /** Versioned evidence-gated publication; omitted on historical/full-release reports. */
+    focusedPublicationPolicy: focusedPublicationPolicySchema.optional(),
   })
   .superRefine(validateRunReportIntegrity);
 
@@ -1314,6 +1399,7 @@ function validateRunReportIntegrity(
     inputCoverage: Array<z.infer<typeof inputCoverageSchema>>;
     replayManifest: z.infer<typeof replayManifestSchema>;
     focusedSelection?: z.infer<typeof focusedSelectionSchema>;
+    focusedPublicationPolicy?: z.infer<typeof focusedPublicationPolicySchema>;
   },
   context: z.RefinementCtx,
 ) {
@@ -1570,6 +1656,57 @@ function validateRunReportIntegrity(
     }
   }
 
+  if (report.focusedPublicationPolicy !== undefined) {
+    if (report.focusedSelection === undefined) {
+      addIssue(
+        context,
+        ["focusedPublicationPolicy"],
+        "Focused publication policy requires focused selection metadata.",
+      );
+    }
+    for (const [index, decision] of report.decisions.entries()) {
+      const publication = decision.focusedPublication;
+      if (publication === undefined) {
+        addIssue(
+          context,
+          ["decisions", index, "focusedPublication"],
+          "A focused report decision must carry its focused publication gate.",
+        );
+        continue;
+      }
+      if (publication.policyVersion !== report.focusedPublicationPolicy.policyVersion) {
+        addIssue(
+          context,
+          ["decisions", index, "focusedPublication", "policyVersion"],
+          "Focused decision policy version must match the report policy.",
+        );
+      }
+      if (publication.decisionVersion !== report.focusedPublicationPolicy.decisionVersion) {
+        addIssue(
+          context,
+          ["decisions", index, "focusedPublication", "decisionVersion"],
+          "Focused decision version must match the report policy.",
+        );
+      }
+    }
+    if (
+      report.scorecard !== null &&
+      report.scorecard.formulaVersion !== report.focusedPublicationPolicy.scoreFormulaVersion
+    ) {
+      addIssue(
+        context,
+        ["scorecard", "formulaVersion"],
+        "Focused reports must use the focused score formula version.",
+      );
+    }
+  } else if (report.decisions.some(({ focusedPublication }) => focusedPublication !== undefined)) {
+    addIssue(
+      context,
+      ["decisions"],
+      "Focused decision gates require a focused publication policy.",
+    );
+  }
+
   if (report.status === "canceled" && report.scorecard !== null) {
     addIssue(context, ["scorecard"], "A canceled run cannot publish a scorecard.");
   }
@@ -1655,6 +1792,10 @@ export type ProvenanceGraph = z.infer<typeof provenanceGraphSchema>;
 export type ClaimLabel = z.infer<typeof claimLabelSchema>;
 export type DecisionReasonCode = z.infer<typeof decisionReasonCodeSchema>;
 export type Calibration = z.infer<typeof calibrationSchema>;
+export type FocusedPublicationGate = z.infer<typeof focusedPublicationGateSchema>;
+export type FocusedPublicationCalibration = z.infer<typeof focusedPublicationCalibrationSchema>;
+export type FocusedPublicationPolicy = z.infer<typeof focusedPublicationPolicySchema>;
+export type FocusedPublicationDecision = z.infer<typeof focusedPublicationDecisionSchema>;
 export type Challenge = z.infer<typeof challengeSchema>;
 export type Decision = z.infer<typeof decisionSchema>;
 export type PresentationFinding = z.infer<typeof presentationFindingSchema>;

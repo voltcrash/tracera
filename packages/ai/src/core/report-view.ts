@@ -3,6 +3,8 @@ import {
   type ClaimLabel,
   type ClaimV2,
   type EvidenceRelation,
+  type FocusedPublicationDecision,
+  type FocusedPublicationPolicy,
   type RunReport,
   type Scorecard,
 } from "@repo/contracts/core-v2";
@@ -34,6 +36,7 @@ export interface CoreV2ReportView {
     disposition: ClaimV2["coverageDisposition"];
     publishedLabel: ClaimLabel | null;
     diagnosticLabel: ClaimLabel | null;
+    focusedPublication: Pick<FocusedPublicationDecision, "status" | "gate"> | null;
     justification: string | null;
     conflict: boolean;
     evidence: Array<{
@@ -56,6 +59,7 @@ export interface CoreV2ReportView {
     excludedClaims: number;
     shortfallReason: string | null;
   } | null;
+  focusedPublicationPolicy: FocusedPublicationPolicy | null;
   conflicts: Array<{ claimId: string; description: string }>;
   originCandidates: Array<{
     claimId: string;
@@ -120,9 +124,7 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
     reusedFromRunId:
       report.replayManifest.runId === report.runId ? null : report.replayManifest.runId,
     score: {
-      label: report.focusedSelection
-        ? "Supported share of selected claims"
-        : "Supported share of resolved claims",
+      label: "Supported share of resolved claims",
       value: score?.factualScore ?? null,
       formulaVersion: score?.formulaVersion ?? null,
       counts: score?.counts ?? null,
@@ -153,6 +155,12 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
           disposition: claim.coverageDisposition,
           publishedLabel: decision?.publishedLabel ?? null,
           diagnosticLabel: decision?.diagnosticLabel ?? null,
+          focusedPublication: decision?.focusedPublication
+            ? {
+                status: decision.focusedPublication.status,
+                gate: decision.focusedPublication.gate,
+              }
+            : null,
           justification: decision?.justification ?? null,
           conflict: conflicted.has(claim.id),
           evidence: cited.flatMap((id) => {
@@ -189,6 +197,7 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
           shortfallReason: report.focusedSelection.shortfallReason,
         }
       : null,
+    focusedPublicationPolicy: report.focusedPublicationPolicy ?? null,
     conflicts,
     originCandidates: report.provenance.map((graph) => ({
       claimId: graph.claimId,
