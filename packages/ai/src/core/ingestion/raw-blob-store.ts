@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import type { RawBlobStore } from "../storage.js";
+import type { RawBlobStore } from "../storage";
 
 const abort = (signal: AbortSignal) => signal.throwIfAborted();
 

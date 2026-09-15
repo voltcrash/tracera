@@ -1,5 +1,5 @@
 import type { ClaimV2, EvidenceAssessment } from "@repo/contracts/core-v2";
-import type { ChallengeInput } from "./types.js";
+import type { ChallengeInput } from "./types";
 
 export function buildChallengeInput(
   claim: ClaimV2,

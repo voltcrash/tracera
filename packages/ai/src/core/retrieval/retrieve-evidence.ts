@@ -12,10 +12,10 @@ import type {
   RetrieveEvidenceV2Data,
   RetrieveEvidenceV2Input,
   RunEnvironment,
-} from "../types.js";
-import { selectPassageCandidates } from "./passages.js";
-import { buildPropositionKey, buildRetrievalQuestions } from "./questions.js";
-import type { AcquiredEvidence, RetrievalOptions, RetrievalQuestion } from "./types.js";
+} from "../types";
+import { selectPassageCandidates } from "./passages";
+import { buildPropositionKey, buildRetrievalQuestions } from "./questions";
+import type { AcquiredEvidence, RetrievalOptions, RetrievalQuestion } from "./types";
 
 const DEFAULT_MAX_BYTES = 5_000_000;
 const DEFAULT_PASSAGES_PER_SNAPSHOT = 8;

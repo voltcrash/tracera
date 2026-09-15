@@ -26,14 +26,14 @@ import {
   partitionEvidence,
   scopeAbstention,
   withRelation,
-} from "../adjudication/policy.js";
+} from "../adjudication/policy";
 import type {
   FocusedPublicationV2,
   FocusedPublicationV2Data,
   FocusedPublicationV2Input,
   RunEnvironment,
   StageResult,
-} from "../types.js";
+} from "../types";
 
 export const FOCUSED_PUBLICATION_POLICY: FocusedPublicationPolicy =
   focusedPublicationPolicySchema.parse({

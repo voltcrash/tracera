@@ -8,7 +8,7 @@ import {
   type EvidenceAssessment,
   type EvidenceRelation,
 } from "@repo/contracts/core-v2";
-import type { ChallengeProposal, DraftProposal, EvidencePartition } from "./types.js";
+import type { ChallengeProposal, DraftProposal, EvidencePartition } from "./types";
 
 export type DecisiveLabel = (typeof decisiveLabels)[number];
 

@@ -1,12 +1,18 @@
 import { createHash } from "node:crypto";
-import type { AiProvider } from "../provider.js";
-import { createDocumentAcquisitionPort } from "./ingestion/index.js";
-import type { AuditPort, ClockPort, EmbeddingPort, GenerationPort } from "./types.js";
+import { z } from "zod";
+import type { AiProvider } from "../provider";
+import { createDocumentAcquisitionPort } from "./ingestion/index";
+import type { OcrPort } from "./ingestion/types";
+import type { AuditPort, ClockPort, EmbeddingPort, GenerationPort } from "./types";
 
 export function createCoreGenerationPort(input: {
   provider: AiProvider;
   modelId: string;
   promptVersion: string;
+  /** Configured estimate used only for the run spend bound; provider adapters do not report cost. */
+  estimatedGenerationCostUsd?: number;
+  /** Configured estimate used only for the run spend bound; provider adapters do not report cost. */
+  estimatedImageCostUsd?: number;
   withExternalCall?: <Value>(identity: string, operation: () => Promise<Value>) => Promise<Value>;
 }): GenerationPort {
   return {
@@ -44,7 +50,15 @@ export function createCoreGenerationPort(input: {
         : await operation();
       return {
         value,
-        usage: { inputTokens: null, outputTokens: null, costUsd: null },
+        usage: {
+          inputTokens: null,
+          outputTokens: null,
+          costUsd: estimatedCost(
+            request.images.length > 0
+              ? input.estimatedImageCostUsd
+              : input.estimatedGenerationCostUsd,
+          ),
+        },
         attempts: Math.max(1, attempts),
       };
     },
@@ -56,6 +70,8 @@ export function createCoreEmbeddingPort(input: {
   modelId: string;
   dimensions: number;
   preprocessing: string;
+  /** Configured estimate used only for the run spend bound; provider adapters do not report cost. */
+  estimatedCostUsd?: number;
   withExternalCall?: <Value>(identity: string, operation: () => Promise<Value>) => Promise<Value>;
 }): EmbeddingPort {
   return {
@@ -76,7 +92,14 @@ export function createCoreEmbeddingPort(input: {
           );
         vectors.push(vector);
       }
-      return { vectors, usage: { inputTokens: null, outputTokens: null, costUsd: null } };
+      return {
+        vectors,
+        usage: {
+          inputTokens: null,
+          outputTokens: null,
+          costUsd: scaledCost(input.estimatedCostUsd, request.texts.length),
+        },
+      };
     },
   };
 }
@@ -100,6 +123,60 @@ export function createRuntimeDocumentPort(clock: ClockPort, fetchImplementation?
     monotonicMs: () => clock.monotonicMs(),
     ...(fetchImplementation ? { safeFetchOptions: { fetchImplementation } } : {}),
   });
+}
+
+const ocrResponseSchema = z.strictObject({
+  regions: z.array(
+    z.strictObject({
+      text: z.string().min(1),
+      boundingBox: z.strictObject({
+        page: z.number().int().nonnegative(),
+        frameId: z.string().min(1).nullable(),
+        x: z.number().finite(),
+        y: z.number().finite(),
+        width: z.number().finite().positive(),
+        height: z.number().finite().positive(),
+      }),
+      transcriptionUncertain: z.boolean(),
+    }),
+  ),
+});
+
+/** Uses the configured live model for bounded OCR; it never turns image content into instructions. */
+export function createProviderOcrPort(input: {
+  provider: AiProvider;
+  modelId: string;
+  withExternalCall?: <Value>(identity: string, operation: () => Promise<Value>) => Promise<Value>;
+}): OcrPort {
+  return {
+    provider: "configured-ai",
+    modelId: input.modelId,
+    async recognize(request) {
+      const image = {
+        data: `data:${request.mimeType};base64,${Buffer.from(request.bytes).toString("base64")}`,
+        mimeType: request.mimeType,
+      };
+      const operation = () =>
+        input.provider.generateFromImage(
+          [
+            "Read visible text in this image for a fact-checking workflow.",
+            "Return only text regions that are visibly present.",
+            "Do not infer missing words, identity, provenance, or meaning.",
+            "Mark a transcription uncertain when the pixels are ambiguous.",
+          ].join(" "),
+          image,
+          ocrResponseSchema,
+          { signal: request.signal },
+        );
+      const value = input.withExternalCall
+        ? await input.withExternalCall(
+            `ocr:${request.mimeType}:${request.bytes.byteLength}`,
+            operation,
+          )
+        : await operation();
+      return { regions: value.regions };
+    },
+  };
 }
 
 export type SpendAdmission = { allowed: true } | { allowed: false; retryAt: string };
@@ -130,4 +207,13 @@ export function deterministicReservationId(value: string) {
   hex[16] = ((Number.parseInt(hex[16]!, 16) & 3) | 8).toString(16);
   const joined = hex.join("");
   return `${joined.slice(0, 8)}-${joined.slice(8, 12)}-${joined.slice(12, 16)}-${joined.slice(16, 20)}-${joined.slice(20)}`;
+}
+
+function estimatedCost(value: number | undefined) {
+  return value !== undefined && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function scaledCost(value: number | undefined, count: number) {
+  const cost = estimatedCost(value);
+  return cost === null ? null : cost * count;
 }

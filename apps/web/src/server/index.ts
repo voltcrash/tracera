@@ -192,6 +192,8 @@ const RELATED_STORY_SIMILARITY = 0.84;
 const RELATED_STORY_MAX_AGE_HOURS = 24 * 90;
 const CORPUS_SIMILARITY = 0.78;
 
+// Legacy v1 analysis endpoints remain for explicit compatibility only. New product submissions
+// use /v2/analyze; saved v1 reports continue through the historical /checks detail path.
 app.post("/analyze", async (context) => {
   const requestBody = await readAnalysisRequestBody(context.req.raw);
   if (requestBody.tooLarge) {

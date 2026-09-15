@@ -1,4 +1,4 @@
-import type { ExtractClaimsV2Data } from "../types.js";
+import type { ExtractClaimsV2Data } from "../types";
 
 /**
  * Counts downstream stages need. `noCheckableClaims` is the explicit no-claim

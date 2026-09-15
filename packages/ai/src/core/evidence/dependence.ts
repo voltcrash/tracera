@@ -1,6 +1,6 @@
 import type { DocumentSnapshot, EvidenceAssessment } from "@repo/contracts/core-v2";
 import { evidenceAssessmentSchema } from "@repo/contracts/core-v2";
-import { stableId } from "./validation.js";
+import { stableId } from "./validation";
 
 export function assignSourceDependence(
   assessments: EvidenceAssessment[],

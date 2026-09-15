@@ -10,7 +10,7 @@ import {
   type PresentationFinding,
   type Span,
 } from "@repo/contracts/core-v2";
-import type { PresentationObservation } from "./types.js";
+import type { PresentationObservation } from "./types";
 
 export class FramingValidationError extends Error {}
 

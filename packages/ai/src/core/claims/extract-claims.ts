@@ -1,14 +1,14 @@
 import type { CoreIssue, DocumentSnapshot, StageMetrics } from "@repo/contracts/core-v2";
-import type { AuditEvent, ExtractClaimsV2, RunEnvironment } from "../types.js";
-import { buildChunkRequest, chunkExtractionSchema, type ChunkExtraction } from "./generation.js";
-import { buildInventory, scopeKey, type AcceptedClaim, type SegmentOutcome } from "./inventory.js";
+import type { AuditEvent, ExtractClaimsV2, RunEnvironment } from "../types";
+import { buildChunkRequest, chunkExtractionSchema, type ChunkExtraction } from "./generation";
+import { buildInventory, scopeKey, type AcceptedClaim, type SegmentOutcome } from "./inventory";
 import {
   buildChunks,
   segmentDocument,
   type InventorySegment,
   type SegmentedDocument,
-} from "./segmentation.js";
-import { validateRawClaim, type ChunkScope, type ClaimDraft } from "./validation.js";
+} from "./segmentation";
+import { validateRawClaim, type ChunkScope, type ClaimDraft } from "./validation";
 
 export interface ClaimExtractionOptions {
   maxChunkCharacters?: number;

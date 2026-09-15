@@ -5,8 +5,8 @@ import type {
   EvidenceAssessment,
   EvidenceCandidate,
 } from "@repo/contracts/core-v2";
-import type { RetrievalOptions } from "../retrieval/index.js";
-import type { AssessEvidenceV2, RetrieveEvidenceV2 } from "../types.js";
+import type { RetrievalOptions } from "../retrieval/index";
+import type { AssessEvidenceV2, RetrieveEvidenceV2 } from "../types";
 
 /** Evidence produced by the single targeted round; it must be persisted with the report. */
 export interface TargetedEvidence {

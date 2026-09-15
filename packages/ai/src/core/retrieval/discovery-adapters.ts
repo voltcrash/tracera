@@ -4,8 +4,8 @@ import {
   type EvidenceCandidate,
   type StageResult,
 } from "@repo/contracts/core-v2";
-import type { ClockPort, SearchPort, SearchRequest } from "../types.js";
-import type { PrimarySourceResolverPort } from "./types.js";
+import type { ClockPort, SearchPort, SearchRequest } from "../types";
+import type { PrimarySourceResolverPort } from "./types";
 
 export interface CandidateDiscoveryResult {
   url: string;

@@ -1,7 +1,7 @@
-import type { AiProvider, ExtractedClaim } from "../src/index.js";
-import { extractClaims, scoreClaim } from "../src/index.js";
-import type { EvaluationAdapter, EvaluationAdapterOptions } from "./adapter.js";
-import { datasetHash, type AdapterRun, type EvaluationDataset } from "./schemas.js";
+import type { AiProvider, ExtractedClaim } from "../src/index";
+import { extractClaims, scoreClaim } from "../src/index";
+import type { EvaluationAdapter, EvaluationAdapterOptions } from "./adapter";
+import { datasetHash, type AdapterRun, type EvaluationDataset } from "./schemas";
 
 export function createV1EvaluationAdapter(provider: AiProvider): EvaluationAdapter {
   return {

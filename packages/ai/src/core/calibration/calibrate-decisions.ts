@@ -6,15 +6,15 @@ import {
   type DecisionReasonCode,
   type StageResult,
 } from "@repo/contracts/core-v2";
-import { isDecisive } from "../adjudication/policy.js";
+import { isDecisive } from "../adjudication/policy";
 import type {
   AuditEvent,
   CalibrateDecisionsV2,
   CalibrateDecisionsV2Data,
   RunEnvironment,
-} from "../types.js";
-import { checkCalibratorArtifact, findSlice, predictCorrectness } from "./artifact.js";
-import { CalibrationFeatureError, extractCalibrationFeatures } from "./features.js";
+} from "../types";
+import { checkCalibratorArtifact, findSlice, predictCorrectness } from "./artifact";
+import { CalibrationFeatureError, extractCalibrationFeatures } from "./features";
 
 export interface CalibrationOptions {
   /** Parsed JSON of a frozen calibrator artifact, or null when none is installed. */

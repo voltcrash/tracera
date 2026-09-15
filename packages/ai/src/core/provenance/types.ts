@@ -1,6 +1,6 @@
 import type { ClaimV2, DocumentSnapshot, StageResult, TimeInterval } from "@repo/contracts/core-v2";
-import type { AssessEvidenceV2, RetrieveEvidenceV2Data, RunEnvironment } from "../types.js";
-import type { RetrievalOptions } from "../retrieval/index.js";
+import type { AssessEvidenceV2, RetrieveEvidenceV2Data, RunEnvironment } from "../types";
+import type { RetrievalOptions } from "../retrieval/index";
 
 export interface ProvenanceReference {
   url: string;

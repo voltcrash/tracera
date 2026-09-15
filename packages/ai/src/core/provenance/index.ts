@@ -1,16 +1,11 @@
-export {
-  archiveAssertion,
-  detectChronologyConflicts,
-  detectCycles,
-  rankRoots,
-} from "./chronology.js";
-export { extractProvenanceReferences } from "./references.js";
-export { createProvenanceRetrievalController } from "./retrieval-controller.js";
-export { createTraceOriginsV2, traceOriginsV2 } from "./trace-origins.js";
+export { archiveAssertion, detectChronologyConflicts, detectCycles, rankRoots } from "./chronology";
+export { extractProvenanceReferences } from "./references";
+export { createProvenanceRetrievalController } from "./retrieval-controller";
+export { createTraceOriginsV2, traceOriginsV2 } from "./trace-origins";
 export type {
   ArchiveCaptureCandidate,
   ArchiveLookupPort,
   ProvenanceOptions,
   ProvenanceReference,
   ProvenanceRetrievalController,
-} from "./types.js";
+} from "./types";
