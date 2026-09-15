@@ -1094,6 +1094,7 @@ export async function reserveProviderSpend(input: {
   providerKey: string;
   estimatedUsd: number;
   dailyBudgetUsd: number;
+  reservationId?: string;
 }): Promise<ProviderSpendAdmission> {
   const client = await pool.connect();
   let transactionOpen = false;
@@ -1107,6 +1108,37 @@ export async function reserveProviderSpend(input: {
     );
     const current = clock.rows[0];
     if (!current) throw new Error("Provider spend clock returned no row.");
+    if (input.reservationId) {
+      const existing = await client.query<{
+        provider_key: string;
+        estimated_usd: string;
+      }>(
+        `SELECT provider_key, estimated_usd
+           FROM ai_spend_reservations WHERE id = $1 FOR UPDATE`,
+        [input.reservationId],
+      );
+      const row = existing.rows[0];
+      if (row) {
+        // A retry may cross the UTC day boundary; the charge stays in its original period.
+        if (
+          row.provider_key !== input.providerKey ||
+          Number(row.estimated_usd) !== input.estimatedUsd
+        ) {
+          throw new Error("Spend reservation identity was reused with different immutable input.");
+        }
+        await client.query("COMMIT");
+        transactionOpen = false;
+        return {
+          allowed: true,
+          reservation: {
+            id: input.reservationId,
+            providerKey: input.providerKey,
+            estimatedUsd: input.estimatedUsd,
+            resetAt: new Date(current.reset_at).toISOString(),
+          },
+        };
+      }
+    }
     await client.query(
       `INSERT INTO ai_provider_spend
          (provider_key, period_start, budget_usd, reserved_usd, actual_usd)
@@ -1149,10 +1181,10 @@ export async function reserveProviderSpend(input: {
     }
     const reservation = await client.query<{ id: string }>(
       `INSERT INTO ai_spend_reservations
-         (provider_key, period_start, estimated_usd)
-       VALUES ($1, $2::date, $3)
+         (id, provider_key, period_start, estimated_usd)
+       VALUES (COALESCE($4::uuid, gen_random_uuid()), $1, $2::date, $3)
        RETURNING id`,
-      [input.providerKey, current.period_start, input.estimatedUsd],
+      [input.providerKey, current.period_start, input.estimatedUsd, input.reservationId ?? null],
     );
     const reservationRow = reservation.rows[0];
     if (!reservationRow) throw new Error("Provider spend reservation returned no row.");
