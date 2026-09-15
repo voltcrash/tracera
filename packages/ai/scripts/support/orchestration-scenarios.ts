@@ -846,9 +846,10 @@ export async function runOrchestrationScenario(id: OrchestrationScenario): Promi
       check(view.schemaVersion === 2, "v2 reports use the version-discriminated renderer");
       if (view.schemaVersion !== 2) return { id, checks };
       check(
-        view.score.label === "Supported share of resolved claims" &&
-          view.score.formulaVersion !== null,
-        "score shows its label and formula version",
+        view.score.label === "Supported share of selected claims" &&
+          view.score.formulaVersion !== null &&
+          view.focusedSelection?.selectedClaimIds.length === 1,
+        "focused score shows its selected-claim scope and formula version",
       );
       check(
         view.claims.every((claim) =>

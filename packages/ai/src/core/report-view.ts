@@ -20,7 +20,7 @@ export interface CoreV2ReportView {
   createdAt: string;
   reusedFromRunId: string | null;
   score: {
-    label: "Supported share of resolved claims";
+    label: string;
     value: number | null;
     formulaVersion: Scorecard["formulaVersion"] | null;
     counts: Scorecard["counts"] | null;
@@ -48,6 +48,14 @@ export interface CoreV2ReportView {
     }>;
   }>;
   deferredClaims: Array<{ id: string; text: string }>;
+  focusedSelection: {
+    selectedClaimIds: string[];
+    inventoriedClaims: number;
+    analyzedClaims: number;
+    deferredClaims: number;
+    excludedClaims: number;
+    shortfallReason: string | null;
+  } | null;
   conflicts: Array<{ claimId: string; description: string }>;
   originCandidates: Array<{
     claimId: string;
@@ -99,6 +107,9 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
   ];
   const conflicted = new Set(conflicts.map(({ claimId }) => claimId));
   const score = report.scorecard;
+  const selectedClaimIds = report.focusedSelection
+    ? new Set(report.focusedSelection.selectedClaimIds)
+    : null;
 
   return {
     schemaVersion: 2,
@@ -109,7 +120,9 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
     reusedFromRunId:
       report.replayManifest.runId === report.runId ? null : report.replayManifest.runId,
     score: {
-      label: "Supported share of resolved claims",
+      label: report.focusedSelection
+        ? "Supported share of selected claims"
+        : "Supported share of resolved claims",
       value: score?.factualScore ?? null,
       formulaVersion: score?.formulaVersion ?? null,
       counts: score?.counts ?? null,
@@ -118,7 +131,11 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
       nullReasons: score ? score.nullReasons : ["score_not_computed"],
     },
     claims: canonical
-      .filter(({ coverageDisposition }) => coverageDisposition !== "deferred")
+      .filter(
+        ({ id, coverageDisposition }) =>
+          coverageDisposition !== "deferred" &&
+          (selectedClaimIds === null || selectedClaimIds.has(id)),
+      )
       .map((claim) => {
         const decision = decisions.get(claim.id) ?? null;
         const cited = decision
@@ -162,6 +179,16 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
     deferredClaims: canonical
       .filter(({ coverageDisposition }) => coverageDisposition === "deferred")
       .map(({ id, text }) => ({ id, text })),
+    focusedSelection: report.focusedSelection
+      ? {
+          selectedClaimIds: report.focusedSelection.selectedClaimIds,
+          inventoriedClaims: report.focusedSelection.inventory.totalClaims,
+          analyzedClaims: report.focusedSelection.inventory.analyzedClaims,
+          deferredClaims: report.focusedSelection.inventory.deferredClaims,
+          excludedClaims: report.focusedSelection.inventory.excludedClaims,
+          shortfallReason: report.focusedSelection.shortfallReason,
+        }
+      : null,
     conflicts,
     originCandidates: report.provenance.map((graph) => ({
       claimId: graph.claimId,

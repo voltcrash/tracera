@@ -14,6 +14,9 @@ export const CORE_V2_SCHEMA_VERSION = 2 as const;
 export const CORE_V2_CONTRACT_VERSION = "2.0.0" as const;
 export const CORE_V2_SCORE_FORMULA_VERSION = "factual-supported-share-1.0.0" as const;
 export const CORE_V2_RESOLUTION_COVERAGE_THRESHOLD = 0.8 as const;
+export const CORE_V2_FOCUSED_POLICY_VERSION = "core-v2-focused-1.0.0" as const;
+export const CORE_V2_FOCUSED_SELECTION_VERSION = "core-v2-focused-selection-1.0.0" as const;
+export const CORE_V2_FOCUSED_MAX_SELECTED_CLAIMS = 3 as const;
 
 /** Starting evaluation-only caps from the plan. Not a production spend approval. */
 export const CORE_V2_EVALUATION_BUDGET = {
@@ -417,6 +420,256 @@ export const inputCoverageSchema = z
     (value) => value.charactersCovered <= value.charactersTotal,
     "Covered characters cannot exceed the document length.",
   );
+
+// ---------------------------------------------------------------------------
+// Focused selection
+// ---------------------------------------------------------------------------
+
+export const focusedSelectionStatusSchema = z.enum(["analyzed", "deferred", "excluded"]);
+
+export const focusedSelectionPositionSchema = z.enum([
+  "headline",
+  "heading",
+  "lead",
+  "body",
+  "unknown",
+]);
+
+export const focusedConcreteSignalSchema = z.enum([
+  "entity",
+  "date",
+  "place",
+  "quantity",
+  "measurable_event",
+]);
+
+export const focusedSelectionReasonCodeSchema = z.enum([
+  "selected_material_checkable",
+  "deferred_by_selection_limit",
+  "deferred_by_extraction_limit",
+  "ambiguous_context",
+  "unanswerable",
+  "not_checkable",
+  "uncertain_ocr",
+  "not_material",
+  "duplicate_claim",
+  "not_factual_claim",
+  "opinion",
+  "background",
+  "non_checkable",
+]);
+
+export const focusedSelectionRankingSchema = z.strictObject({
+  position: focusedSelectionPositionSchema,
+  concreteSignals: z.array(focusedConcreteSignalSchema),
+  documentOrder: nonNegativeIntSchema.nullable(),
+  spanStart: nonNegativeIntSchema.nullable(),
+  tieBreaker: z.literal("document_order_then_claim_id"),
+});
+
+export const focusedSelectionClaimSchema = z.strictObject({
+  claimId: z.string().min(1),
+  status: focusedSelectionStatusSchema,
+  rank: z.number().int().positive().nullable(),
+  canonical: z.boolean(),
+  originalCoverageDisposition: coverageDispositionSchema,
+  coverageDisposition: coverageDispositionSchema,
+  checkability: checkabilitySchema,
+  material: z.boolean(),
+  reasonCode: focusedSelectionReasonCodeSchema,
+  reason: z.string().min(1),
+  ranking: focusedSelectionRankingSchema,
+});
+
+export const focusedSelectionInventorySchema = z.strictObject({
+  totalClaims: nonNegativeIntSchema,
+  canonicalClaims: nonNegativeIntSchema,
+  duplicateClaims: nonNegativeIntSchema,
+  canonicalFactualClaims: nonNegativeIntSchema,
+  eligibleClaims: nonNegativeIntSchema,
+  analyzedClaims: nonNegativeIntSchema,
+  deferredClaims: nonNegativeIntSchema,
+  excludedClaims: nonNegativeIntSchema,
+});
+
+export const focusedSelectionCoverageSchema = z.strictObject({
+  documents: nonNegativeIntSchema,
+  completeDocuments: nonNegativeIntSchema,
+  partialDocuments: nonNegativeIntSchema,
+  totalCharacters: nonNegativeIntSchema,
+  coveredCharacters: nonNegativeIntSchema,
+  omittedCharacters: nonNegativeIntSchema,
+});
+
+export const focusedSelectionSchema = z
+  .strictObject({
+    policyVersion: z.literal(CORE_V2_FOCUSED_POLICY_VERSION),
+    selectionVersion: z.literal(CORE_V2_FOCUSED_SELECTION_VERSION),
+    maxSelectedClaims: z.literal(CORE_V2_FOCUSED_MAX_SELECTED_CLAIMS),
+    inputSnapshotHash: contentHashSchema.nullable(),
+    inventoryStatus: stageStatusSchema,
+    inventory: focusedSelectionInventorySchema,
+    coverage: focusedSelectionCoverageSchema,
+    claims: z.array(focusedSelectionClaimSchema),
+    selectedClaimIds: z.array(z.string().min(1)).max(CORE_V2_FOCUSED_MAX_SELECTED_CLAIMS),
+    deferredClaimIds: z.array(z.string().min(1)),
+    excludedClaimIds: z.array(z.string().min(1)),
+    shortfallReason: z.string().min(1).nullable(),
+  })
+  .superRefine((value, context) => {
+    const entries = new Map<string, z.infer<typeof focusedSelectionClaimSchema>>();
+    for (const [index, entry] of value.claims.entries()) {
+      if (entries.has(entry.claimId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["claims", index, "claimId"],
+          message: `Duplicate focused selection claim: ${entry.claimId}.`,
+        });
+      }
+      entries.set(entry.claimId, entry);
+    }
+
+    const selected = value.claims.filter(({ status }) => status === "analyzed");
+    const deferred = value.claims.filter(({ status }) => status === "deferred");
+    const excluded = value.claims.filter(({ status }) => status === "excluded");
+    const canonical = value.claims.filter(({ canonical: isCanonical }) => isCanonical);
+    const canonicalFactual = canonical.filter(
+      ({ originalCoverageDisposition }) => originalCoverageDisposition === "factual_claim",
+    );
+    const eligible = canonicalFactual.filter(
+      ({ checkability, material, reasonCode }) =>
+        checkability === "checkable" && material && reasonCode !== "uncertain_ocr",
+    );
+    const setEquals = (left: string[], right: string[]) =>
+      left.length === right.length && left.every((id) => right.includes(id));
+    if (
+      !setEquals(
+        value.selectedClaimIds,
+        selected.map(({ claimId }) => claimId),
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["selectedClaimIds"],
+        message: "Selected claim IDs must match the analyzed selection entries.",
+      });
+    }
+    if (
+      !setEquals(
+        value.deferredClaimIds,
+        deferred.map(({ claimId }) => claimId),
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["deferredClaimIds"],
+        message: "Deferred claim IDs must match the deferred selection entries.",
+      });
+    }
+    if (
+      !setEquals(
+        value.excludedClaimIds,
+        excluded.map(({ claimId }) => claimId),
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["excludedClaimIds"],
+        message: "Excluded claim IDs must match the excluded selection entries.",
+      });
+    }
+    if (value.inventory.totalClaims !== value.claims.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory", "totalClaims"],
+        message: "Focused inventory total must match its selection entries.",
+      });
+    }
+    if (value.inventory.analyzedClaims !== selected.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory", "analyzedClaims"],
+        message: "Focused analyzed count must match its selection entries.",
+      });
+    }
+    if (value.inventory.deferredClaims !== deferred.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory", "deferredClaims"],
+        message: "Focused deferred count must match its selection entries.",
+      });
+    }
+    if (value.inventory.excludedClaims !== excluded.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory", "excludedClaims"],
+        message: "Focused excluded count must match its selection entries.",
+      });
+    }
+    if (value.selectedClaimIds.some((id, index) => entries.get(id)?.rank !== index + 1)) {
+      context.addIssue({
+        code: "custom",
+        path: ["selectedClaimIds"],
+        message: "Selected claim IDs must be ordered by focused rank.",
+      });
+    }
+    for (const [index, entry] of value.claims.entries()) {
+      if (entry.status !== "analyzed" && entry.rank !== null) {
+        context.addIssue({
+          code: "custom",
+          path: ["claims", index, "rank"],
+          message: "Deferred and excluded focused claims cannot have an analysis rank.",
+        });
+      }
+      if (
+        entry.status === "analyzed" &&
+        (!entry.canonical ||
+          entry.originalCoverageDisposition !== "factual_claim" ||
+          entry.coverageDisposition !== "factual_claim" ||
+          entry.checkability !== "checkable" ||
+          !entry.material)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["claims", index, "status"],
+          message: "Only canonical material checkable factual claims may be analyzed.",
+        });
+      }
+    }
+    [...selected]
+      .sort(
+        (left, right) =>
+          (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER),
+      )
+      .forEach((entry, index) => {
+        if (entry.rank !== index + 1) {
+          context.addIssue({
+            code: "custom",
+            path: ["claims", value.claims.indexOf(entry), "rank"],
+            message: "Focused analyzed claims must have contiguous ranks.",
+          });
+        }
+      });
+    if (value.inventory.canonicalClaims + value.inventory.duplicateClaims !== value.claims.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory"],
+        message: "Focused canonical and duplicate counts must cover the inventory.",
+      });
+    }
+    if (
+      value.inventory.canonicalClaims !== canonical.length ||
+      value.inventory.duplicateClaims !== value.claims.length - canonical.length ||
+      value.inventory.canonicalFactualClaims !== canonicalFactual.length ||
+      value.inventory.eligibleClaims !== eligible.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory"],
+        message: "Focused inventory eligibility counts must match its selection entries.",
+      });
+    }
+  });
 
 // ---------------------------------------------------------------------------
 // Evidence candidates and assessments
@@ -1018,6 +1271,8 @@ export const runReportSchema = z
     evidenceSetHash: contentHashSchema.nullable(),
     replayManifest: replayManifestSchema,
     cost: runCostSummarySchema,
+    /** Additive focused boundary; omitted on historical/full-release reports. */
+    focusedSelection: focusedSelectionSchema.optional(),
   })
   .superRefine(validateRunReportIntegrity);
 
@@ -1039,6 +1294,13 @@ export const versionedRunReportSchema = z.discriminatedUnion("schemaVersion", [
 
 function validateRunReportIntegrity(
   report: {
+    schemaVersion: typeof CORE_V2_SCHEMA_VERSION;
+    contractVersion: typeof CORE_V2_CONTRACT_VERSION;
+    runId: string;
+    createdAt: string;
+    asOfTime: string;
+    engineVersion: string;
+    visibility: z.infer<typeof visibilitySchema>;
     status: z.infer<typeof runStatusSchema>;
     stageOutcomes: Array<z.infer<typeof stageOutcomeSchema>>;
     snapshots: Array<z.infer<typeof documentSnapshotSchema>>;
@@ -1051,6 +1313,7 @@ function validateRunReportIntegrity(
     scorecard: z.infer<typeof scorecardSchema> | null;
     inputCoverage: Array<z.infer<typeof inputCoverageSchema>>;
     replayManifest: z.infer<typeof replayManifestSchema>;
+    focusedSelection?: z.infer<typeof focusedSelectionSchema>;
   },
   context: z.RefinementCtx,
 ) {
@@ -1231,6 +1494,82 @@ function validateRunReportIntegrity(
     }
   }
 
+  if (report.focusedSelection !== undefined) {
+    const selection = report.focusedSelection;
+    const primary =
+      report.primarySnapshotId === null ? null : snapshots.get(report.primarySnapshotId);
+    if (primary === undefined || primary === null) {
+      addIssue(
+        context,
+        ["focusedSelection", "inputSnapshotHash"],
+        "Focused selection requires the report primary snapshot.",
+      );
+    } else if (
+      selection.inputSnapshotHash !== null &&
+      selection.inputSnapshotHash !== primary.contentHash
+    ) {
+      addIssue(
+        context,
+        ["focusedSelection", "inputSnapshotHash"],
+        "Focused selection input hash must match the primary snapshot.",
+      );
+    }
+    const reportClaims = new Map(report.claims.map((claim) => [claim.id, claim]));
+    for (const [index, entry] of selection.claims.entries()) {
+      const claim = reportClaims.get(entry.claimId);
+      if (!claim) {
+        addDangling(context, ["focusedSelection", "claims", index, "claimId"], entry.claimId);
+        continue;
+      }
+      if (entry.coverageDisposition !== claim.coverageDisposition) {
+        addIssue(
+          context,
+          ["focusedSelection", "claims", index, "coverageDisposition"],
+          "Focused selection disposition must match the report claim.",
+        );
+      }
+      if (
+        entry.status === "analyzed" &&
+        (claim.duplicateOfClaimId !== null ||
+          claim.coverageDisposition !== "factual_claim" ||
+          claim.checkability !== "checkable" ||
+          !claim.material)
+      ) {
+        addIssue(
+          context,
+          ["focusedSelection", "claims", index, "status"],
+          "Only canonical, material, checkable factual claims may be analyzed in focused output.",
+        );
+      }
+    }
+    for (const [field, ids] of [
+      ["selectedClaimIds", selection.selectedClaimIds],
+      ["deferredClaimIds", selection.deferredClaimIds],
+      ["excludedClaimIds", selection.excludedClaimIds],
+    ] as const) {
+      for (const [index, id] of ids.entries()) {
+        if (!reportClaims.has(id)) addDangling(context, ["focusedSelection", field, index], id);
+      }
+    }
+    const canonical = report.claims.filter(({ duplicateOfClaimId }) => duplicateOfClaimId === null);
+    const duplicateClaims = report.claims.length - canonical.length;
+    const canonicalFactualClaims = selection.claims.filter(
+      ({ canonical: isCanonical, originalCoverageDisposition }) =>
+        isCanonical && originalCoverageDisposition === "factual_claim",
+    ).length;
+    if (
+      selection.inventory.canonicalClaims !== canonical.length ||
+      selection.inventory.duplicateClaims !== duplicateClaims ||
+      selection.inventory.canonicalFactualClaims !== canonicalFactualClaims
+    ) {
+      addIssue(
+        context,
+        ["focusedSelection", "inventory"],
+        "Focused inventory counts must match the report claims.",
+      );
+    }
+  }
+
   if (report.status === "canceled" && report.scorecard !== null) {
     addIssue(context, ["scorecard"], "A canceled run cannot publish a scorecard.");
   }
@@ -1300,6 +1639,15 @@ export type TimestampAssertion = z.infer<typeof timestampAssertionSchema>;
 export type DiscoveryHint = z.infer<typeof discoveryHintSchema>;
 export type ClaimV2 = z.infer<typeof claimSchema>;
 export type InputCoverage = z.infer<typeof inputCoverageSchema>;
+export type FocusedSelectionStatus = z.infer<typeof focusedSelectionStatusSchema>;
+export type FocusedSelectionPosition = z.infer<typeof focusedSelectionPositionSchema>;
+export type FocusedConcreteSignal = z.infer<typeof focusedConcreteSignalSchema>;
+export type FocusedSelectionReasonCode = z.infer<typeof focusedSelectionReasonCodeSchema>;
+export type FocusedSelectionRanking = z.infer<typeof focusedSelectionRankingSchema>;
+export type FocusedSelectionClaim = z.infer<typeof focusedSelectionClaimSchema>;
+export type FocusedSelectionInventory = z.infer<typeof focusedSelectionInventorySchema>;
+export type FocusedSelectionCoverage = z.infer<typeof focusedSelectionCoverageSchema>;
+export type FocusedSelection = z.infer<typeof focusedSelectionSchema>;
 export type EvidenceCandidate = z.infer<typeof evidenceCandidateSchema>;
 export type EvidenceAssessment = z.infer<typeof evidenceAssessmentSchema>;
 export type SufficiencyFeedback = z.infer<typeof sufficiencyFeedbackSchema>;

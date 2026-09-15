@@ -12,6 +12,13 @@ export type {
   StageUsage,
 } from "./run-analysis.js";
 export { evidenceSetHash } from "./hashing.js";
+export {
+  accountFocusedScore,
+  coverageForSelectedClaims,
+  selectTopClaims,
+  type FocusedSelectionInput,
+  type FocusedSelectionResult,
+} from "./selection/index.js";
 export { createCoreJobPayload, type CoreJobPayload } from "./job.js";
 export {
   decideReportReuse,
