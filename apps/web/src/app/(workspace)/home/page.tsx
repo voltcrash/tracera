@@ -38,7 +38,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResult(null);
-    setProgress("Preparing the evidence trace.");
+    setProgress("Preparing focused claim checks.");
     try {
       const value = text.trim();
       const request = image
@@ -74,7 +74,7 @@ export default function Home() {
       const view = projectReport(data.report, apiUrl);
       if (view.schemaVersion !== 2) throw new Error("The focused report format was unavailable.");
       setResult(view);
-      setProgress("Focused evidence trace saved.");
+      setProgress("Focused claim checks saved.");
       refreshHistory();
     } catch (requestError) {
       setError(
@@ -250,8 +250,8 @@ const traceStages = [
   { label: "Prepare", detail: "Read submission" },
   { label: "Claims", detail: "Separate facts" },
   { label: "Evidence", detail: "Check sources" },
-  { label: "Origin", detail: "Trace Ground Zero" },
-  { label: "Complete", detail: "Save the trail" },
+  { label: "Provenance", detail: "Compare observed sources" },
+  { label: "Complete", detail: "Save the report" },
 ];
 
 function TraceProgress({ progress }: { progress: string }) {

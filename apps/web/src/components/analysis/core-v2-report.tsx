@@ -8,6 +8,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
   const { score } = view;
   const counts = score.counts;
   const denominatorLabel = score.selectedClaimCount === null ? "eligible" : "selected";
+  const scoreUnavailable = score.value === null;
 
   return (
     <article className="trace">
@@ -27,7 +28,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
         <div className="mt-8 grid gap-5 sm:grid-cols-3">
           <Metric
             label={score.label}
-            value={score.value === null ? "Not available" : `${format(score.value)}%`}
+            value={scoreUnavailable ? "Insufficient evidence" : `${format(score.value!)}%`}
             detail={
               counts
                 ? `${counts.supported} supported / ${counts.contradicted} contradicted · ${score.resolvedClaimCount ?? counts.supported + counts.contradicted} resolved of ${score.selectedClaimCount ?? counts.eligibleFactualClaims} ${denominatorLabel}`
@@ -50,7 +51,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
           <Metric
             label="Evidence as of"
             value={new Date(view.asOfTime).toLocaleString()}
-            detail={score.formulaVersion}
+            detail={score.formulaVersion ?? "No score computed"}
           />
         </div>
         {view.focusedSelection ? (
@@ -66,8 +67,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
         ) : null}
         {view.focusedPublicationPolicy ? (
           <p className="mt-3 text-sm text-ink-soft">
-            Focused evidence gate {view.focusedPublicationPolicy.policyVersion} · decision boundary{" "}
-            {view.focusedPublicationPolicy.decisionVersion} · statistical calibration not used.
+            Focused checking uses evidence-gated decisions. Scores cover selected claims only.
           </p>
         ) : null}
         {counts ? (
@@ -80,7 +80,10 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
         ) : null}
         {score.nullReasons.length > 0 ? (
           <p className="trace-reading-caveat mt-3">
-            No summary score: {score.nullReasons.map(humanize).join(", ")}.
+            <span>
+              {scoreUnavailable ? "Insufficient evidence for a safe score" : "Score notes"}:{" "}
+              {score.nullReasons.map(humanize).join(", ")}.
+            </span>
           </p>
         ) : null}
       </header>
@@ -101,10 +104,10 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
 
       <section className="trace-section" id="claims">
         <header className="trace-section-head">
-          <h2 className="trace-section-title">Claim coverage</h2>
-          <p className="trace-section-count">{view.claims.length} analyzed</p>
+          <h2 className="trace-section-title">Top claims selected for checking</h2>
+          <p className="trace-section-count">{view.claims.length} of 3 max</p>
           <p className="trace-section-lede">
-            Extraction coverage{" "}
+            Selected claims are the factual claims checked in this report. Extraction coverage{" "}
             {score.extractionCoverage === null
               ? "is unavailable"
               : `is ${format(score.extractionCoverage * 100)}%`}
@@ -115,7 +118,9 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
           {view.claims.map((claim) => (
             <li key={claim.id} className="trace-claim">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>{humanize(claim.publishedLabel ?? claim.disposition)}</Badge>
+                <Badge>
+                  {claim.publishedLabel ? humanize(claim.publishedLabel) : "Unresolved"}
+                </Badge>
                 {claim.focusedPublication ? (
                   <Badge
                     variant={claim.focusedPublication.status === "published" ? "violet" : "amber"}
@@ -142,7 +147,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        “{item.quote}” <ExternalLink />
+                        Evidence excerpt: “{item.quote}” <ExternalLink />
                       </a>
                       <span className="text-ink-faint">{humanize(item.relation)}</span>
                       {item.sourceUrl ? (
@@ -152,13 +157,17 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          source
+                          source link
                         </a>
                       ) : null}
                     </li>
                   ))}
                 </ul>
-              ) : null}
+              ) : (
+                <p className="mt-4 text-sm text-ink-soft">
+                  Evidence unavailable or unresolved for this claim.
+                </p>
+              )}
             </li>
           ))}
         </ol>
@@ -208,8 +217,8 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
             <h2 className="trace-section-title">Presentation observations</h2>
             <p className="trace-section-count">{view.presentationFindings.length}</p>
             <p className="trace-section-lede">
-              These observations describe presentation, attribution, or context. They do not
-              determine factual truth or change the factual score.
+              These observations describe presentation, attribution, or context. They do not change
+              the factual verdict or score.
             </p>
           </header>
           <ul className="space-y-3 text-sm">
@@ -273,7 +282,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
 
       <section className="trace-section" id="origin">
         <header className="trace-section-head">
-          <h2 className="trace-section-title">Origin candidates</h2>
+          <h2 className="trace-section-title">Earliest-observed provenance</h2>
           <p className="trace-section-lede">
             Earliest observed within the searched scope; earlier material may exist outside it.{" "}
             {view.relatedContextNotice}
@@ -281,7 +290,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
         </header>
         {view.originCandidates.length === 0 ? (
           <p className="border-t border-line-weak py-4 text-sm text-ink-soft">
-            Origin unavailable; no claim-bearing provenance graph was supplied.
+            Provenance unavailable; no claim-bearing source graph was supplied.
           </p>
         ) : (
           view.originCandidates.map((graph) => (
@@ -294,7 +303,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
                     {root.url ? ` · ${root.url}` : ""}
                   </li>
                 ))}
-                {graph.unresolved ? <li>Origin unresolved.</li> : null}
+                {graph.unresolved ? <li>Earliest observed source remains unresolved.</li> : null}
               </ul>
             </div>
           ))
@@ -333,7 +342,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
       {view.visualVerification.ocr !== "not_applicable" ? (
         <section className="trace-section" id="visual-status">
           <header className="trace-section-head">
-            <h2 className="trace-section-title">Image verification status</h2>
+            <h2 className="trace-section-title">Screenshot text status</h2>
             <p className="trace-section-lede">
               {view.visualVerification.ocr === "uncertain"
                 ? "Some visible text was transcribed with uncertainty. "
@@ -360,8 +369,36 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
                 ))}
               </ul>
             ) : null}
-            <p className="mt-3 text-xs text-ink-faint">Visual authenticity: not verified.</p>
+            <p className="mt-3 text-xs text-ink-faint">
+              Image authenticity is not assessed by OCR.
+            </p>
           </header>
+        </section>
+      ) : null}
+
+      {view.unresolvedReasons.length > 0 || view.status !== "complete" ? (
+        <section className="trace-section" id="unresolved">
+          <header className="trace-section-head">
+            <h2 className="trace-section-title">Unresolved or unavailable evidence</h2>
+            <p className="trace-section-lede">
+              This run did not turn every requested check into a safe result. Provider failures,
+              inaccessible sources, and uncertain extraction remain visible here.
+            </p>
+          </header>
+          {view.unresolvedReasons.length > 0 ? (
+            <ul className="space-y-2 text-sm">
+              {view.unresolvedReasons.map((issue, index) => (
+                <li key={`${issue.code}:${index}`} className="border-t border-line-weak pt-2">
+                  <span className="font-semibold">{humanize(issue.code)}</span>
+                  {issue.message ? (
+                    <span className="ml-2 text-ink-soft">{issue.message}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-ink-soft">No completed evidence report is available.</p>
+          )}
         </section>
       ) : null}
     </article>

@@ -40,7 +40,7 @@ export function CoreRunDetail({ id }: { id: string }) {
   const [view, setView] = useState<ReportView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Leaving the page only stops polling; the durable run continues until it finishes or is
+  // Leaving the page only stops polling; the on-demand run continues until it finishes or is
   // explicitly canceled.
   useEffect(() => {
     if (!user || isLoading) return;
@@ -109,11 +109,10 @@ export function CoreRunDetail({ id }: { id: string }) {
           <Skeleton className="h-40 rounded-xl" />
         ) : (
           <div className="rounded-3xl bg-panel p-7 text-panel-foreground">
-            <p className="text-sm text-white/60">Core v2 durable run</p>
+            <p className="text-sm text-white/60">Core v2 focused run</p>
             <h1 className="mt-2 text-2xl font-bold">{headline(progress)}</h1>
             <p className="mt-3 text-sm text-white/60">
-              Attempt {progress.attempt} · {progress.completedStages.length} of 8 stages
-              checkpointed
+              Attempt {progress.attempt} · {progress.completedStages.length} of 8 stages recorded
             </p>
             {!progress.cancellationRequested && !TERMINAL.has(progress.status) ? (
               <Button className="mt-6" variant="outline" onClick={() => void cancel()}>
