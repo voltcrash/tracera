@@ -20,8 +20,8 @@ import {
   type Scorecard,
   type StageResult,
 } from "@repo/contracts/core-v2";
-import { buildPresentationFindings } from "../framing/index.js";
-import type { ScoreReportV2, ScoreReportV2Data } from "../types.js";
+import { buildPresentationFindings } from "../framing/index";
+import type { ScoreReportV2, ScoreReportV2Data } from "../types";
 
 export const scoreReportV2: ScoreReportV2 = (input) => {
   const metrics = {

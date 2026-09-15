@@ -1,25 +1,18 @@
 "use client";
 
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
-import type { AnalysisResponse, AnalysisReuse, ImageMetadata } from "@repo/contracts";
-import dynamic from "next/dynamic";
+import { projectReport, type CoreV2ReportView } from "@repo/ai/core/report-view";
 import Image from "next/image";
-import { Check, ExternalLink, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { Check, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { apiUrl } from "@/lib/api";
+import { CoreV2Report } from "@/components/analysis/core-v2-report";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-
-const TraceReport = dynamic(() =>
-  import("@/components/analysis/trace-report").then((module) => module.TraceReport),
-);
-const TraceAside = dynamic(() =>
-  import("@/components/analysis/trace-report").then((module) => module.TraceAside),
-);
 
 const example =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
@@ -32,13 +25,13 @@ export default function Home() {
     mimeType: string;
     name: string;
   } | null>(null);
-  const [result, setResult] = useState<AnalysisResponse | null>(null);
+  const [result, setResult] = useState<CoreV2ReportView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("Preparing the evidence trace.");
   const refreshHistory = useHistoryRefresh();
 
-  async function analyze(event?: FormEvent<HTMLFormElement>, forceReanalysis = false) {
+  async function analyze(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (!text.trim() && !image) return;
     if (!user) return;
@@ -53,7 +46,7 @@ export default function Home() {
         : isHttpUrl(value)
           ? { url: value }
           : { text: value };
-      const response = await apiFetch(`${apiUrl}/analyze/stream`, {
+      const response = await apiFetch(`${apiUrl}/v2/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -61,7 +54,6 @@ export default function Home() {
         },
         body: JSON.stringify({
           ...request,
-          ...(forceReanalysis ? { forceReanalysis: true } : {}),
         }),
       });
       if (!response.ok) {
@@ -70,7 +62,19 @@ export default function Home() {
           typeof failure?.error === "string" ? failure.error : "Unable to start this analysis.",
         );
       }
-      setResult(await readAnalysisStream(response, setProgress));
+      const data = (await response.json()) as {
+        report?: unknown;
+        error?: unknown;
+      };
+      if (!data.report) {
+        throw new Error(
+          typeof data.error === "string" ? data.error : "No focused report was saved.",
+        );
+      }
+      const view = projectReport(data.report, apiUrl);
+      if (view.schemaVersion !== 2) throw new Error("The focused report format was unavailable.");
+      setResult(view);
+      setProgress("Focused evidence trace saved.");
       refreshHistory();
     } catch (requestError) {
       setError(
@@ -228,36 +232,13 @@ export default function Home() {
 
         {result && (
           <section className="pb-24 pt-10">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <p className="flex items-center gap-2.5 text-sm text-ink-soft">
-                <Check className="size-4 text-brand-lime-ink" />
-                Evidence trail assembled
-              </p>
-              <div className="flex items-center gap-3">
-                <ReuseNotice reuse={result.reuse} cached={result.cached} />
-                {result.reuse?.state === "reused_exact" && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void analyze(undefined, true)}
-                    disabled={loading}
-                  >
-                    Check again with today&rsquo;s evidence
-                  </Button>
-                )}
-              </div>
-            </div>
-            <TraceReport
-              headline={result.headline}
-              claims={result.claims}
-              score={result.traceraScore}
-              framing={result.framingAnalysis}
-              groundZero={result.groundZero}
-              analysisMode={result.analysisMode}
-            >
-              {result.inputMetadata && <ImageProvenance metadata={result.inputMetadata} />}
-            </TraceReport>
+            <p className="mb-6 flex items-center gap-2.5 text-sm text-ink-soft">
+              <Check className="size-4 text-brand-lime-ink" />
+              {result.status === "complete"
+                ? "Focused evidence trace assembled"
+                : `Focused evidence trace saved · ${result.status}`}
+            </p>
+            <CoreV2Report view={result} />
           </section>
         )}
       </div>
@@ -321,117 +302,6 @@ function traceProgressIndex(progress: string) {
   if (message.includes("evidence") || message.includes("scored claim")) return 2;
   if (message.includes("separating") || message.includes("factual claims")) return 1;
   return 0;
-}
-
-async function readAnalysisStream(
-  response: Response,
-  onProgress: (message: string) => void,
-): Promise<AnalysisResponse> {
-  if (!response.body) throw new Error("The analysis stream was unavailable.");
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let completed: AnalysisResponse | undefined;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done });
-    const frames = buffer.split("\n\n");
-    buffer = frames.pop() ?? "";
-    for (const frame of frames) {
-      const event = frame.match(/^event:\s*(.+)$/m)?.[1];
-      const rawData = frame.match(/^data:\s*(.+)$/m)?.[1];
-      if (!event || !rawData) continue;
-      const data = JSON.parse(rawData) as {
-        message?: unknown;
-        error?: unknown;
-      } & Partial<AnalysisResponse>;
-      if (event === "progress" && typeof data.message === "string") {
-        onProgress(data.message);
-      } else if (event === "error") {
-        throw new Error(typeof data.error === "string" ? data.error : "Analysis failed.");
-      } else if (event === "complete") {
-        completed = data as AnalysisResponse;
-      }
-    }
-    if (done) break;
-  }
-  if (!completed) throw new Error("The analysis stream ended unexpectedly.");
-  return completed;
-}
-
-function ImageProvenance({ metadata }: { metadata: ImageMetadata }) {
-  const exif = Object.entries(metadata.exif ?? {});
-  const details = [
-    {
-      label: "Text extraction",
-      value:
-        metadata.textExtractionProvider === "ai_provider" ? "Selected AI provider" : "Unavailable",
-    },
-    { label: "File type", value: metadata.mimeType ?? "Unknown" },
-    ...exif.slice(0, 4).map(([label, value]) => ({ label, value })),
-  ];
-
-  return (
-    <TraceAside
-      id="file"
-      title="The file leaves clues too"
-      count="Image metadata"
-      lede="Visible text and embedded metadata were inspected alongside the claims."
-    >
-      <dl className="mt-6 max-w-[38rem]">
-        {details.map((detail) => (
-          <ProvenanceMetric key={detail.label} label={detail.label} value={detail.value} />
-        ))}
-        {!exif.length && (
-          <p className="pt-3 text-sm text-ink-faint">
-            No embedded camera or location data was present.
-          </p>
-        )}
-      </dl>
-      {metadata.reverseSearchUrl && (
-        <a
-          href={metadata.reverseSearchUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="trace-external mt-4 inline-flex text-sm"
-        >
-          Search this image with Google Lens
-          <ExternalLink />
-        </a>
-      )}
-    </TraceAside>
-  );
-}
-
-function ProvenanceMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-6 border-t border-line-weak py-2.5">
-      <dt className="text-sm capitalize text-ink-faint">{label}</dt>
-      <dd className="truncate text-sm font-semibold" title={value}>
-        {value}
-      </dd>
-    </div>
-  );
-}
-
-function ReuseNotice({ reuse, cached }: { reuse?: AnalysisReuse; cached: boolean }) {
-  if (reuse?.state === "reused_exact" && reuse.expiresAt) {
-    return (
-      <Badge variant="lime">
-        Recent trace reused · {new Date(reuse.expiresAt).toLocaleDateString()}
-      </Badge>
-    );
-  }
-  if (reuse?.state === "reanalyzed") return <Badge variant="violet">Freshly re-analyzed</Badge>;
-  if (reuse && reuse.relatedContextClaims)
-    return (
-      <Badge variant="amber">
-        {reuse.relatedContextClaims} related claim
-        {reuse.relatedContextClaims === 1 ? "" : "s"} used
-      </Badge>
-    );
-  return cached ? <Badge variant="slate">Recent matching check</Badge> : null;
 }
 
 function isHttpUrl(value: string) {

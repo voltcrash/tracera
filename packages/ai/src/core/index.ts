@@ -4,23 +4,23 @@ export {
   hashValue,
   replayAnalysisV2,
   runAnalysisV2,
-} from "./run-analysis.js";
+} from "./run-analysis";
 export type {
   DeterministicReplayResult,
   RunAnalysisV2Options,
   RunAnalysisV2StageFactories,
   StageUsage,
-} from "./run-analysis.js";
-export { evidenceSetHash } from "./hashing.js";
+} from "./run-analysis";
+export { evidenceSetHash } from "./hashing";
 export {
   accountFocusedScore,
   coverageForSelectedClaims,
   selectTopClaims,
   type FocusedSelectionInput,
   type FocusedSelectionResult,
-} from "./selection/index.js";
-export { scoreFocusedReportV2, scoreReportV2 } from "./scoring/index.js";
-export { createCoreJobPayload, type CoreJobPayload } from "./job.js";
+} from "./selection/index";
+export { scoreFocusedReportV2, scoreReportV2 } from "./scoring/index";
+export { createCoreJobPayload, type CoreJobPayload } from "./job";
 export {
   decideReportReuse,
   propositionScopeHash,
@@ -28,13 +28,13 @@ export {
   type ReportReuseLookup,
   type ReuseDecision,
   type ReuseIdentity,
-} from "./reuse-policy.js";
-export { projectReport, type CoreV2ReportView, type ReportView } from "./report-view.js";
+} from "./reuse-policy";
+export { projectReport, type CoreV2ReportView, type ReportView } from "./report-view";
 export {
   buildImmutableTimeline,
   IMMUTABLE_TIMELINE_NOTICE,
   type ImmutableTimelineEntry,
-} from "./timeline.js";
+} from "./timeline";
 export {
   acceptStoredSnapshots,
   runCoreWorker,
@@ -42,21 +42,22 @@ export {
   type CoreWorkerOptions,
   type CoreWorkerRepository,
   type DurableCoreLease,
-} from "./worker.js";
-export { createRunStore, createSnapshotStore } from "./storage.js";
-export type { RawBlobStore } from "./storage.js";
+} from "./worker";
+export { createRunStore, createSnapshotStore } from "./storage";
+export type { RawBlobStore } from "./storage";
 export {
   FOCUSED_PUBLICATION_POLICY,
   createFocusedPublicationV2,
   publishFocusedDecisions,
-} from "./publication/index.js";
+} from "./publication/index";
 export {
   createCoreEmbeddingPort,
   createCoreGenerationPort,
   createOperationalAudit,
+  createProviderOcrPort,
   createReservedExternalCall,
   deterministicReservationId,
   createRuntimeDocumentPort,
   createSystemClock,
-} from "./runtime-ports.js";
-export * from "./types.js";
+} from "./runtime-ports";
+export * from "./types";

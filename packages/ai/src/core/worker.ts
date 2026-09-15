@@ -1,10 +1,10 @@
 import type { DocumentSnapshot, RunStatus } from "@repo/contracts/core-v2";
 import type { CoreScopedLease, CoreStorageRepository } from "@repo/db/core";
-import { canonicalJson } from "./hashing.js";
-import type { CoreJobPayload } from "./job.js";
-import { createRunAnalysisV2, type RunAnalysisV2Options } from "./run-analysis.js";
-import { createRunStore, createSnapshotStore, type RawBlobStore } from "./storage.js";
-import type { CorePorts, RunAnalysisV2Input, RunEnvironment } from "./types.js";
+import { canonicalJson } from "./hashing";
+import type { CoreJobPayload } from "./job";
+import { createRunAnalysisV2, type RunAnalysisV2Options } from "./run-analysis";
+import { createRunStore, createSnapshotStore, type RawBlobStore } from "./storage";
+import type { CorePorts, RunAnalysisV2Input, RunEnvironment } from "./types";
 
 export type DurableCoreLease = CoreScopedLease;
 

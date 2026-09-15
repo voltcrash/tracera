@@ -6,7 +6,7 @@ import type {
   StageResult,
   TimeInterval,
 } from "@repo/contracts/core-v2";
-import type { SearchPort } from "../types.js";
+import type { SearchPort } from "../types";
 
 export interface QueryTransformation {
   kind: "quoted" | "translated" | "sufficiency_suggestion";

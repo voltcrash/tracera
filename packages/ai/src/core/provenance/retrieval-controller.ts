@@ -1,6 +1,6 @@
 import type { SufficiencyFeedback } from "@repo/contracts/core-v2";
-import { createRetrieveEvidenceV2 } from "../retrieval/index.js";
-import type { ProvenanceRetrievalController } from "./types.js";
+import { createRetrieveEvidenceV2 } from "../retrieval/index";
+import type { ProvenanceRetrievalController } from "./types";
 
 export function createProvenanceRetrievalController(
   retrievalOptions: Parameters<typeof createRetrieveEvidenceV2>[0] = {},

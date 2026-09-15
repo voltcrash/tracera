@@ -1,5 +1,5 @@
 import type { ClaimV2, EvidenceAssessment, EvidenceRelation } from "@repo/contracts/core-v2";
-import type { GenerationRequest } from "../types.js";
+import type { GenerationRequest } from "../types";
 
 export interface EvidenceAssessmentOptions {
   maxPassagesPerSnapshot?: number;

@@ -6,9 +6,9 @@ import {
   type StageMetrics,
   type StageResult,
 } from "@repo/contracts/core-v2";
-import { safeFetch, type SafeFetchOptions } from "../../safe-fetch.js";
-import type { RawBlobStore } from "../storage.js";
-import { extractStructuredHtml } from "./html.js";
+import { safeFetch, type SafeFetchOptions } from "../../safe-fetch";
+import type { RawBlobStore } from "../storage";
+import { extractStructuredHtml } from "./html";
 import type {
   ContentCredentialsPort,
   ImageAcquisitionRequest,
@@ -16,7 +16,7 @@ import type {
   OcrPort,
   ReaderFallbackPort,
   ReverseImageRetrievalPort,
-} from "./types.js";
+} from "./types";
 
 const DEFAULT_CHARACTER_LIMIT = 200_000;
 const DEFAULT_TEXT_BYTE_LIMIT = 5_000_000;
@@ -31,6 +31,8 @@ export interface DocumentAcquisitionOptions {
   rawBlobStore?: RawBlobStore;
   readerFallback?: ReaderFallbackPort;
   ocr?: OcrPort;
+  /** Configured estimate for the OCR call; it is a spend bound, not a provider measurement. */
+  ocrCostUsd?: number;
   reverseImage?: ReverseImageRetrievalPort;
   contentCredentials?: ContentCredentialsPort;
   safeFetchOptions?: SafeFetchOptions;
@@ -735,7 +737,18 @@ async function acquireImageBytes(
     snapshot,
     issues,
     issues.length || extractionStatus !== "complete" ? "partial" : "complete",
-    metrics(options.now, startedAt, startedMs, monotonicMs, externalRequests),
+    metrics(
+      options.now,
+      startedAt,
+      startedMs,
+      monotonicMs,
+      externalRequests,
+      options.ocr && externalRequests === 1
+        ? (options.ocrCostUsd ?? null)
+        : externalRequests === 0
+          ? 0
+          : null,
+    ),
   );
 }
 
@@ -749,7 +762,7 @@ async function imageSource(request: ImageAcquisitionRequest, fetchOptions?: Safe
     if (!response.ok) throw new Error(`The image returned HTTP ${response.status}.`);
     const mimeType = contentType(response.headers.get("content-type"));
     if (!mimeType) throw new Error("The image response did not declare a MIME type.");
-    if (mimeType !== request.mimeType)
+    if (request.mimeType !== "application/octet-stream" && mimeType !== request.mimeType)
       throw new Error("The image response MIME type does not match the submitted type.");
     const read = await readBounded(response, request.maxBytes, request.signal);
     return {
@@ -1207,6 +1220,7 @@ function metrics(
   startedMs: number,
   monotonicMs: () => number,
   externalRequests: number,
+  costUsd: number | null = externalRequests === 0 ? 0 : null,
 ): StageMetrics {
   return {
     startedAt,
@@ -1215,7 +1229,7 @@ function metrics(
     externalRequests,
     inputTokens: null,
     outputTokens: null,
-    costUsd: externalRequests === 0 ? 0 : null,
+    costUsd,
   };
 }
 

@@ -1,5 +1,5 @@
 import type { ClaimV2, DocumentSnapshot } from "@repo/contracts/core-v2";
-import type { PassageCandidate } from "./types.js";
+import type { PassageCandidate } from "./types";
 
 export function selectPassageCandidates(
   snapshot: DocumentSnapshot,

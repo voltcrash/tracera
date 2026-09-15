@@ -1,5 +1,5 @@
 import type { DocumentSnapshot } from "@repo/contracts/core-v2";
-import type { ProvenanceReference } from "./types.js";
+import type { ProvenanceReference } from "./types";
 
 const URL_PATTERN = /https?:\/\/[^\s<>"')\]]+/gu;
 const ATTRIBUTION_PATTERN = /(?:according to|attributed to|reported by|source:)\s*$/iu;

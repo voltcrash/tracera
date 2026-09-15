@@ -1,17 +1,17 @@
 import { createHash } from "node:crypto";
 import { claimLabelSchema, contentHashSchema, type ClaimLabel } from "@repo/contracts/core-v2";
 import { z } from "zod";
-import { evaluateRun } from "../../../evaluation/harness.js";
-import { wilsonLowerBound } from "../../../evaluation/metrics.js";
+import { evaluateRun } from "../../../evaluation/harness";
+import { wilsonLowerBound } from "../../../evaluation/metrics";
 import {
   datasetHash,
   evaluationDatasetSchema,
   type AdapterRun,
   type EvaluationDataset,
   type EvaluationSplit,
-} from "../../../evaluation/schemas.js";
-import { validateSplitLeakage } from "../../../evaluation/validation.js";
-import { isDecisive, type DecisiveLabel } from "../adjudication/policy.js";
+} from "../../../evaluation/schemas";
+import { validateSplitLeakage } from "../../../evaluation/validation";
+import { isDecisive, type DecisiveLabel } from "../adjudication/policy";
 import {
   CALIBRATOR_ARTIFACT_VERSION,
   calibrationCompatibilitySchema,
@@ -22,9 +22,9 @@ import {
   predictCorrectness,
   verifyArtifactIntegrity,
   type CalibratorArtifact,
-} from "./artifact.js";
-import { CALIBRATION_FEATURE_NAMES, calibrationFeaturesSchema, featureVector } from "./features.js";
-import { fitLogistic, predictLogistic } from "./logistic.js";
+} from "./artifact";
+import { CALIBRATION_FEATURE_NAMES, calibrationFeaturesSchema, featureVector } from "./features";
+import { fitLogistic, predictLogistic } from "./logistic";
 
 export const CALIBRATION_OBSERVATION_SET_VERSION = "core-v2-calibration-observations-1.0.0";
 
