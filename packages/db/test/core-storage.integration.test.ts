@@ -269,6 +269,50 @@ integrationTest(
   },
 );
 
+integrationTest("a terminal retry finalizes the run and rejects later cancellation", async () => {
+  const { pool, repository } = harness();
+  const context = uniqueContext("terminal-retry");
+  const scope = scopeOf(context);
+  await repository.enqueue({
+    context,
+    stage: "normalize_input",
+    payload: { fixture: true },
+    maxAttempts: 1,
+  });
+  const lease = await repository.acquireLease({
+    scope,
+    workerId: "terminal-retry-worker",
+    leaseSeconds: 60,
+  });
+  assert.ok(lease);
+
+  assert.deepEqual(
+    await repository.retry({
+      scope,
+      runId: context.runId,
+      stage: lease.stage,
+      attempt: lease.attempt,
+      fencingToken: lease.fencingToken,
+      error: "synthetic terminal failure",
+      backoffMs: 0,
+    }),
+    { terminal: true },
+  );
+  assert.equal(
+    (await repository.getRunProgress({ scope, runId: context.runId }))?.status,
+    "failed",
+  );
+  const state = await pool.query<{ status: string; finalized: boolean }>(
+    `SELECT status, finalized_at IS NOT NULL AS finalized FROM core_runs WHERE run_id = $1`,
+    [context.runId],
+  );
+  assert.deepEqual(state.rows[0], { status: "failed", finalized: true });
+  assert.equal(
+    await repository.requestCancellation({ scope, runId: context.runId, reason: "user_request" }),
+    false,
+  );
+});
+
 integrationTest(
   "failed finalization rolls back and concurrent completion preserves report values",
   async () => {

@@ -56,7 +56,7 @@ async function retrieve(
 
   const claims = eligibleClaims(input, issues);
   if (claims.length === 0) {
-    const data = emptyData("no_results", options);
+    const data = emptyData("no_results");
     await audit("stage_finished", "No canonical factual claims required retrieval.", null, null);
     return finish("complete", data, issues);
   }
@@ -167,6 +167,7 @@ async function retrieve(
           dateRange: question.dateRange,
           signal: environment.signal,
         });
+        budget.spend(Math.max(0, result.metrics.externalRequests - 1));
         budget.addCost(result.metrics.costUsd);
         if (result.status === "complete" && result.data !== null) {
           successfulSearches += 1;
@@ -240,6 +241,7 @@ async function retrieve(
           limit: environment.context.budget.maxFetchedCandidatesPerClaim,
           signal: environment.signal,
         });
+        budget.spend(Math.max(0, resolved.metrics.externalRequests - 1));
         budget.addCost(resolved.metrics.costUsd);
         if (resolved.data !== null) {
           candidates.push(
@@ -343,6 +345,7 @@ async function retrieve(
         maxBytes: options.maxDocumentBytes ?? DEFAULT_MAX_BYTES,
         signal: environment.signal,
       });
+      budget.spend(Math.max(0, fetchedResult.metrics.externalRequests - 1));
       budget.addCost(fetchedResult.metrics.costUsd);
       if (fetchedResult.data === null) {
         issues.push(...fetchedResult.issues);
@@ -401,14 +404,30 @@ async function retrieve(
         options.maxPassagesPerSnapshot ?? DEFAULT_PASSAGES_PER_SNAPSHOT,
       );
       if (options.reranker !== undefined) {
-        const reranked = await options.reranker.rerank({
-          claim,
-          passages,
-          limit: options.maxPassagesPerSnapshot ?? DEFAULT_PASSAGES_PER_SNAPSHOT,
-          signal: environment.signal,
-        });
-        budget.addCost(reranked.costUsd);
-        passages = reranked.passages;
+        if (budget.canSpend(1, laterClaimReserve)) {
+          budget.spend(1);
+          const reranked = await options.reranker.rerank({
+            claim,
+            passages,
+            limit: options.maxPassagesPerSnapshot ?? DEFAULT_PASSAGES_PER_SNAPSHOT,
+            signal: environment.signal,
+          });
+          budget.addCost(reranked.costUsd);
+          passages = reranked.passages;
+        } else {
+          exhausted = true;
+          omitted = true;
+          issues.push(
+            issue(
+              "budget_exhausted",
+              `Passage reranking omitted by the shared request cap: ${candidate.proposedUrl}`,
+              "warning",
+              claim.id,
+              null,
+              candidate.proposedUrl,
+            ),
+          );
+        }
       }
       passages = passages.slice(
         0,
@@ -570,7 +589,7 @@ async function retrieve(
         externalRequests: budget?.usedInStage() ?? 0,
         inputTokens: null,
         outputTokens: null,
-        costUsd: budget?.totalCost() ?? options.priorCostUsd ?? null,
+        costUsd: budget?.totalCost() ?? 0,
       },
     };
   }
@@ -779,13 +798,12 @@ function issue(
 
 function emptyData(
   stoppingReason: RetrieveEvidenceV2Data["stoppingReason"],
-  options: RetrievalOptions,
 ): RetrieveEvidenceV2Data {
   return {
     candidates: [],
     snapshots: [],
     admittedSnapshotIds: [],
-    budgetUsed: { externalRequests: 0, costUsd: options.priorCostUsd ?? null },
+    budgetUsed: { externalRequests: 0, costUsd: 0 },
     stoppingReason,
   };
 }
