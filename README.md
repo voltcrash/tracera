@@ -2,15 +2,19 @@
 
 ## Purpose
 
-Tracera combats misinformation by evaluating text, links, images, and news sources against evidence it can name. It decomposes a story into atomic claims, traces each claim toward the earliest observed source within the searched scope ("Ground Zero"), and reports claim-level verdicts alongside evidence status and a scoped factual score.
+Tracera evaluates pasted text, public links, and screenshots against evidence it can name. It selects up to three checkable factual claims, reports each claim's verdict with exact evidence, and shows a scoped supported share only when the resolved evidence is sufficient.
 
 Tracera also preserves report artifacts for exact reuse, related context, and immutable timelines of observed timestamps as new evidence appears.
+
+Core v2 Focused is the active product path. The older full-v2 evaluation, calibration, sealed-test,
+staging, and worker-host documents remain in `docs/core-overhaul/` as archived, non-blocking
+historical artifacts; they are not claims about focused-product accuracy or readiness.
 
 ## Features
 
 - **Multi-format analysis:** Check news presented as text, links, or images through one verification flow.
 - **Claim decomposition:** Break a story into atomic, individually verifiable factual claims instead of judging the article as a whole.
-- **Ground Zero tracing:** Identify and surface the earliest observed source within the searched scope.
+- **Scoped provenance:** Show earliest-observed source signals within the searched scope, with unknown history left unresolved.
 - **Evidence-backed verdicts:** Cross-check each selected claim against applicable evidence and distinguish supporting, conflicting, and inconclusive states.
 - **Evidence status:** Show evidence strength, applicability, independence, recency, and completeness separately from the claim verdict when those records exist.
 - **Focused factual score:** Report the supported share of resolved selected claims only; source context, framing, provenance, and recency never become factual truth points.

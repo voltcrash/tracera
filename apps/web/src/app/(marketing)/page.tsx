@@ -132,7 +132,7 @@ export default function LandingPage() {
           </h1>
           <p className="mt-6 max-w-[58ch] text-lg leading-8 text-ink-soft">
             Tracera takes them apart one at a time, checks each against sources it can name, and
-            marks the ones that don&rsquo;t hold up.
+            shows whether the evidence supports, contradicts, or leaves each one unresolved.
           </p>
 
           <div className="mt-14 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14">
