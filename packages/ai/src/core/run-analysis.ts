@@ -9,6 +9,7 @@ import {
   type DocumentSnapshot,
   type EvidenceAssessment,
   type EvidenceCandidate,
+  type FocusedSelection,
   type InputCoverage,
   type ProvenanceGraph,
   type RunReport,
@@ -35,6 +36,11 @@ import {
   type ReuseDecision,
 } from "./reuse-policy.js";
 import { scoreReportV2 } from "./scoring/index.js";
+import {
+  accountFocusedScore,
+  coverageForSelectedClaims,
+  selectTopClaims,
+} from "./selection/index.js";
 import type {
   AdjudicateClaimsV2,
   AssessEvidenceV2,
@@ -94,6 +100,8 @@ interface RunState {
   snapshots: DocumentSnapshot[];
   primarySnapshotId: string | null;
   claims: RunReport["claims"];
+  selectedClaimIds: string[];
+  focusedSelection: FocusedSelection | null;
   candidates: EvidenceCandidate[];
   admittedSnapshotIds: string[];
   assessments: EvidenceAssessment[];
@@ -221,6 +229,19 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
     if (!extracted.result.data) return stop(stageRunStatus(extracted.result));
     state.claims = extracted.result.data.claims;
     state.inputCoverage = extracted.result.data.coverage;
+    const focused = selectTopClaims({
+      claims: state.claims,
+      snapshots: state.snapshots,
+      coverage: state.inputCoverage,
+      inventoryStatus: extracted.result.status,
+      primarySnapshotId,
+    });
+    state.claims = focused.claims;
+    state.selectedClaimIds = focused.selection.selectedClaimIds;
+    state.focusedSelection = focused.selection;
+    state.issues.push(...focused.issues);
+    const selectedClaims = () =>
+      state.claims.filter((claim) => state.selectedClaimIds.includes(claim.id));
 
     if (
       options.reuse &&
@@ -249,10 +270,10 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
       usage(),
       await checkpointed(
         "retrieve_evidence",
-        hashValue({ upstream: extracted.result, identity }),
+        hashValue({ upstream: extracted.result, focusedSelection: focused.selection, identity }),
         async () => ({
           result: await factories.retrieveEvidence(usage())(
-            { claims: state.claims, snapshots: state.snapshots, round: 0, sufficiency: [] },
+            { claims: selectedClaims(), snapshots: state.snapshots, round: 0, sufficiency: [] },
             environment,
           ),
           extra: null,
@@ -273,12 +294,13 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
       hashValue({
         upstream: retrieved.result,
         snapshots: snapshotIdentity(state.snapshots),
+        selectedClaimIds: state.selectedClaimIds,
         identity,
       }),
       async () => {
         let assessment = await factories.assessEvidence(usage())(
           {
-            claims: state.claims,
+            claims: selectedClaims(),
             snapshots: state.snapshots,
             admittedSnapshotIds: state.admittedSnapshotIds,
           },
@@ -303,7 +325,7 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
           const retrieval: StageResult<RetrieveEvidenceV2Data> = await factories.retrieveEvidence(
             usage(pending),
           )(
-            { claims: state.claims, snapshots, round: rounds, sufficiency: insufficient },
+            { claims: selectedClaims(), snapshots, round: rounds, sufficiency: insufficient },
             environment,
           );
           targetedRetrieval = targetedRetrieval
@@ -317,7 +339,7 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
           if (fresh.length === 0) break;
           for (const id of fresh) assessedSnapshotIds.add(id);
           const reassessed = await factories.assessEvidence(usage([...pending, retrieval.metrics]))(
-            { claims: state.claims, snapshots, admittedSnapshotIds: fresh },
+            { claims: selectedClaims(), snapshots, admittedSnapshotIds: fresh },
             environment,
           );
           assessment = mergeResults(assessment, reassessed, combineAssessment);
@@ -365,11 +387,12 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
       hashValue({
         upstream: assessed.result,
         evidenceSetHash: state.evidenceSetHash,
+        selectedClaimIds: state.selectedClaimIds,
         identity,
       }),
       async () => {
         const result = await factories.traceOrigins(usage())(
-          { claims: state.claims, snapshots: state.snapshots, assessments: state.assessments },
+          { claims: selectedClaims(), snapshots: state.snapshots, assessments: state.assessments },
           environment,
         );
         const newSnapshotIds = [...new Set(result.data?.newSnapshotIds ?? [])];
@@ -397,7 +420,7 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
         }
         const reassessment = await factories.assessEvidence(usage([result.metrics]))(
           {
-            claims: state.claims,
+            claims: selectedClaims(),
             snapshots: uniqueById([...state.snapshots, ...loaded]),
             admittedSnapshotIds: newSnapshotIds,
           },
@@ -445,6 +468,7 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
           reassessment: traced.extra?.reassessment ?? null,
           evidenceSetHash: state.evidenceSetHash,
           targetedRounds: state.targetedRounds,
+          selectedClaimIds: state.selectedClaimIds,
           identity,
         }),
         async () => {
@@ -456,7 +480,11 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
             targeted.push(evidence);
           };
           const result = await factories.adjudicateClaims({ ...usage(), record })(
-            { claims: state.claims, assessments: state.assessments, graphs: state.provenance },
+            {
+              claims: selectedClaims(),
+              assessments: state.assessments,
+              graphs: state.provenance,
+            },
             environment,
           );
           return { result, extra: targeted };
@@ -489,11 +517,16 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
         hashValue({
           upstream: adjudicated.result,
           evidenceSetHash: state.evidenceSetHash,
+          selectedClaimIds: state.selectedClaimIds,
           identity,
         }),
         async () => ({
           result: await factories.calibrateDecisions(usage())(
-            { claims: state.claims, decisions: state.decisions, assessments: state.assessments },
+            {
+              claims: selectedClaims(),
+              decisions: state.decisions,
+              assessments: state.assessments,
+            },
             environment,
           ),
           extra: null,
@@ -516,19 +549,26 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
         hashValue({
           upstream: calibrated.result,
           evidenceSetHash: state.evidenceSetHash,
+          selectedClaimIds: state.selectedClaimIds,
           identity,
         }),
         async () => ({
-          result: factories.scoreReport(usage())({
-            claims: state.claims,
-            decisions: state.decisions,
-            assessments: state.assessments,
-            graphs: state.provenance,
-            coverage: state.inputCoverage,
-            inputStatus: normalized.result.status,
-            extractionStatus: extracted.result.status,
-            at: clock.now(),
-          }),
+          result: accountFocusedScore(
+            factories.scoreReport(usage())({
+              claims: selectedClaims(),
+              decisions: state.decisions,
+              assessments: state.assessments,
+              graphs: state.provenance,
+              coverage: coverageForSelectedClaims(
+                state.inputCoverage,
+                new Set(state.selectedClaimIds),
+              ),
+              inputStatus: normalized.result.status,
+              extractionStatus: extracted.result.status,
+              at: clock.now(),
+            }),
+            state.focusedSelection!,
+          ),
           extra: null,
         }),
       ),
@@ -588,30 +628,39 @@ export async function replayAnalysisV2(input: {
   if (recomputed !== source.evidenceSetHash) {
     throw new Error("Persisted evidence does not match the report's evidence-set hash.");
   }
+  const selectedClaimIds = new Set(source.focusedSelection?.selectedClaimIds ?? []);
+  const claims = source.focusedSelection
+    ? source.claims.filter(({ id }) => selectedClaimIds.has(id))
+    : source.claims;
   const calibrated = await input.calibrateDecisions(
-    { claims: source.claims, decisions: source.decisions, assessments: source.assessments },
+    { claims, decisions: source.decisions, assessments: source.assessments },
     environment,
   );
   if (!calibrated.data)
     throw new Error("Deterministic replay could not calibrate persisted decisions.");
   const score = (input.scoreReport ?? scoreReportV2)({
-    claims: source.claims,
+    claims,
     decisions: calibrated.data.decisions,
     assessments: source.assessments,
     graphs: source.provenance,
-    coverage: source.inputCoverage,
+    coverage: source.focusedSelection
+      ? coverageForSelectedClaims(source.inputCoverage, selectedClaimIds)
+      : source.inputCoverage,
     inputStatus: source.scorecard?.inputStatus ?? stageStatus(source, "normalize_input"),
     extractionStatus: source.scorecard?.extractionStatus ?? stageStatus(source, "extract_claims"),
     at: environment.ports.clock.now(),
   });
   if (!score.data) throw new Error("Deterministic replay could not score persisted artifacts.");
+  const focusedScore = source.focusedSelection
+    ? accountFocusedScore(score, source.focusedSelection)
+    : score;
   const retained = source.stageOutcomes.filter(
     ({ stage }) => stage !== "calibrate_decisions" && stage !== "score_report",
   );
   const stageOutcomes = [
     ...retained,
     outcome("calibrate_decisions", calibrated),
-    outcome("score_report", score),
+    outcome("score_report", focusedScore),
   ];
   const report = runReportSchema.parse({
     ...source,
@@ -619,11 +668,11 @@ export async function replayAnalysisV2(input: {
     status: overallStatus(stageOutcomes),
     stageOutcomes,
     decisions: calibrated.data.decisions,
-    scorecard: score.data.scorecard,
+    scorecard: focusedScore.data?.scorecard ?? null,
     unresolvedReasons: uniqueIssues([
       ...source.unresolvedReasons,
       ...calibrated.issues,
-      ...score.issues,
+      ...focusedScore.issues,
     ]),
   });
   return {
@@ -642,6 +691,8 @@ function defaultStageFactories(options: RunAnalysisV2Options): RunAnalysisV2Stag
     normalizeInput: () => normalizeInputV2,
     extractClaims: (usage) =>
       createExtractClaimsV2({
+        // Focused selection happens only after the complete inventory exists.
+        maxAnalyzedClaims: null,
         maxGenerationRequests: usage.remainingExternalRequests,
         deadlineMonotonicMs: usage.deadlineMonotonicMs,
       }),
@@ -742,6 +793,15 @@ async function reuseDecision(
     visibility: environment.context.visibility,
     asOfTime: environment.context.asOfTime,
     maxAgeMs: lookup.maxAgeMs,
+    ...(state.focusedSelection === null
+      ? {}
+      : {
+          focusedSelectionIdentity: {
+            policyVersion: state.focusedSelection.policyVersion,
+            selectionVersion: state.focusedSelection.selectionVersion,
+            maxSelectedClaims: state.focusedSelection.maxSelectedClaims,
+          },
+        }),
   });
 }
 
@@ -825,6 +885,7 @@ function finishResult(
     evidenceSetHash: state.evidenceSetHash,
     replayManifest,
     cost,
+    ...(state.focusedSelection === null ? {} : { focusedSelection: state.focusedSelection }),
   });
   return { status, report, issues: report.unresolvedReasons, replayManifest, cost };
 }
@@ -834,6 +895,8 @@ function emptyState(): RunState {
     snapshots: [],
     primarySnapshotId: null,
     claims: [],
+    selectedClaimIds: [],
+    focusedSelection: null,
     candidates: [],
     admittedSnapshotIds: [],
     assessments: [],

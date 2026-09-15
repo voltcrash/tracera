@@ -17,6 +17,7 @@
     "./core/provenance": "./src/core/provenance/index.ts",
     "./core/report-view": "./src/core/report-view.ts",
     "./core/retrieval": "./src/core/retrieval/index.ts",
+    "./core/selection": "./src/core/selection/index.ts",
     "./core/scoring": "./src/core/scoring/index.ts",
     "./core/types": "./src/core/types.ts"
   },
