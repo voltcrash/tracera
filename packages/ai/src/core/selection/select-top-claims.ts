@@ -1,6 +1,7 @@
 import {
   CORE_V2_FOCUSED_MAX_SELECTED_CLAIMS,
   CORE_V2_FOCUSED_POLICY_VERSION,
+  CORE_V2_FOCUSED_SCORE_FORMULA_VERSION,
   CORE_V2_FOCUSED_SELECTION_VERSION,
   claimSchema,
   focusedSelectionClaimSchema,
@@ -254,7 +255,7 @@ export function coverageForSelectedClaims(
   }));
 }
 
-/** Adds focused deferred accounting without changing the score formula or verdict semantics. */
+/** Adds focused deferred accounting and its explicit selected-claim formula version. */
 export function accountFocusedScore(
   result: StageResult<ScoreReportV2Data>,
   selection: FocusedSelection,
@@ -262,6 +263,7 @@ export function accountFocusedScore(
   if (result.data === null) return result;
   const scorecard = scorecardSchema.parse({
     ...result.data.scorecard,
+    formulaVersion: CORE_V2_FOCUSED_SCORE_FORMULA_VERSION,
     counts: {
       ...result.data.scorecard.counts,
       deferredClaims: selection.inventory.deferredClaims,

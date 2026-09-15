@@ -10,16 +10,19 @@ Status: frozen by task 02 on 2026-09-10. Downstream tasks import these schemas a
 types and may not define parallel models. Changing a frozen schema requires an
 explicit contract revision and a recalibration review, not an in-place edit.
 
-| Identifier                              | Value                               |
-| --------------------------------------- | ----------------------------------- |
-| `CORE_V2_SCHEMA_VERSION`                | `2`                                 |
-| `CORE_V2_CONTRACT_VERSION`              | `"2.0.0"`                           |
-| `CORE_V2_SCORE_FORMULA_VERSION`         | `"factual-supported-share-1.0.0"`   |
-| `CORE_V2_RESOLUTION_COVERAGE_THRESHOLD` | `0.8`                               |
-| `CORE_V2_FOCUSED_POLICY_VERSION`        | `"core-v2-focused-1.0.0"`           |
-| `CORE_V2_FOCUSED_SELECTION_VERSION`     | `"core-v2-focused-selection-1.0.0"` |
-| `CORE_V2_FOCUSED_MAX_SELECTED_CLAIMS`   | `3`                                 |
-| `CORE_V2_ENGINE_VERSION`                | `"core-v2.0.0"`                     |
+| Identifier                                     | Value                                 |
+| ---------------------------------------------- | ------------------------------------- |
+| `CORE_V2_SCHEMA_VERSION`                       | `2`                                   |
+| `CORE_V2_CONTRACT_VERSION`                     | `"2.0.0"`                             |
+| `CORE_V2_SCORE_FORMULA_VERSION`                | `"factual-supported-share-1.0.0"`     |
+| `CORE_V2_RESOLUTION_COVERAGE_THRESHOLD`        | `0.8`                                 |
+| `CORE_V2_FOCUSED_POLICY_VERSION`               | `"core-v2-focused-1.0.0"`             |
+| `CORE_V2_FOCUSED_SELECTION_VERSION`            | `"core-v2-focused-selection-1.0.0"`   |
+| `CORE_V2_FOCUSED_MAX_SELECTED_CLAIMS`          | `3`                                   |
+| `CORE_V2_FOCUSED_PUBLICATION_POLICY_VERSION`   | `"core-v2-focused-publication-1.0.0"` |
+| `CORE_V2_FOCUSED_PUBLICATION_DECISION_VERSION` | `"core-v2-focused-decision-1.0.0"`    |
+| `CORE_V2_FOCUSED_SCORE_FORMULA_VERSION`        | `"focused-supported-share-1.0.0"`     |
+| `CORE_V2_ENGINE_VERSION`                       | `"core-v2.0.0"`                       |
 
 Import sites:
 
@@ -41,40 +44,42 @@ The additive focused schemas and inferred types are also available from
 
 ## Schema inventory
 
-| Schema                          | Type                      | Purpose                                                                          |
-| ------------------------------- | ------------------------- | -------------------------------------------------------------------------------- |
-| `spanSchema`                    | `Span`                    | Half-open UTF-16 code-unit range into a snapshot's `normalizedText`              |
-| `boundingBoxSchema`             | —                         | OCR region with page and optional frame identity                                 |
-| `timeIntervalSchema`            | `TimeInterval`            | Typed time with precision and timezone; unknown is `{earliest:null,latest:null}` |
-| `issueSchema`                   | `CoreIssue`               | Typed stage issue with a code from `issueCodeSchema`                             |
-| `stageMetricsSchema`            | `StageMetrics`            | Per-stage timing, external requests, tokens and cost, each nullable              |
-| `stageResultSchema(data)`       | `StageResult<T>`          | `{status, data, issues, metrics}` factory for every stage                        |
-| `runContextSchema`              | `RunContext`              | Serializable run identity, versions, budget and cancellation state               |
-| `runBudgetSchema`               | `RunBudget`               | Shared run caps; no per-stage multiplication                                     |
-| `engineVersionsSchema`          | `EngineVersions`          | Engine, prompt, model, retriever, embedding and calibration identities           |
-| `documentSnapshotSchema`        | `DocumentSnapshot`        | Immutable normalized document with hashes, locators and timestamp assertions     |
-| `locatorSchema`                 | `Locator`                 | Structural locator, optional bounding box, uncertain-transcription flag          |
-| `timestampAssertionSchema`      | `TimestampAssertion`      | Typed publication/update/event/index/archive/capture time plus its source        |
-| `discoveryHintSchema`           | `DiscoveryHint`           | Slug, link title, snippet or caption: never a factual claim                      |
-| `claimSchema`                   | `ClaimV2`                 | Scoped proposition with spans, attribution, negation, quantities and time        |
-| `inputCoverageSchema`           | `InputCoverage`           | Segment-level disposition of the whole document                                  |
-| `focusedSelectionSchema`        | `FocusedSelection`        | Complete inventory and deterministic selected/deferred/excluded claim scope      |
-| `focusedSelectionClaimSchema`   | `FocusedSelectionClaim`   | Selection status, eligibility, reason and recorded ranking signals               |
-| `focusedSelectionRankingSchema` | `FocusedSelectionRanking` | Structural position, concrete signals and stable tie-breaker                     |
-| `evidenceCandidateSchema`       | `EvidenceCandidate`       | Discovery record with `admissible: false` as a structural literal                |
-| `evidenceAssessmentSchema`      | `EvidenceAssessment`      | Claim/excerpt relation, applicability, directness, dependence and checks         |
-| `sufficiencyFeedbackSchema`     | `SufficiencyFeedback`     | Feedback from assessment into targeted retrieval rounds                          |
-| `provenanceGraphSchema`         | `ProvenanceGraph`         | Per-claim graph, candidate roots, search log and unresolved chronology           |
-| `calibrationSchema`             | `Calibration`             | Discriminated on `applicability`; only `in_scope` carries a probability          |
-| `challengeSchema`               | `Challenge`               | Independent reassessment outcome                                                 |
-| `decisionSchema`                | `Decision`                | Diagnostic and published labels, reason codes and cited assessments              |
-| `presentationFindingSchema`     | `PresentationFinding`     | Language observation or evidence-backed material context finding                 |
-| `scorecardSchema`               | `Scorecard`               | Nullable factual score, counts, coverage and separate evidence/origin fields     |
-| `stageOutcomeSchema`            | `StageOutcome`            | Per-stage status recorded on the report                                          |
-| `replayManifestSchema`          | `ReplayManifest`          | Everything needed to recompute deterministic decisions                           |
-| `runReportSchema`               | `RunReport`               | Versioned public report, schema version 2                                        |
-| `legacyRunReportSchema`         | `LegacyRunReport`         | Saved v1 reports, schema version 1, decoded and rendered unchanged               |
-| `versionedRunReportSchema`      | `VersionedRunReport`      | Discriminated union on `schemaVersion`                                           |
+| Schema                             | Type                         | Purpose                                                                          |
+| ---------------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| `spanSchema`                       | `Span`                       | Half-open UTF-16 code-unit range into a snapshot's `normalizedText`              |
+| `boundingBoxSchema`                | —                            | OCR region with page and optional frame identity                                 |
+| `timeIntervalSchema`               | `TimeInterval`               | Typed time with precision and timezone; unknown is `{earliest:null,latest:null}` |
+| `issueSchema`                      | `CoreIssue`                  | Typed stage issue with a code from `issueCodeSchema`                             |
+| `stageMetricsSchema`               | `StageMetrics`               | Per-stage timing, external requests, tokens and cost, each nullable              |
+| `stageResultSchema(data)`          | `StageResult<T>`             | `{status, data, issues, metrics}` factory for every stage                        |
+| `runContextSchema`                 | `RunContext`                 | Serializable run identity, versions, budget and cancellation state               |
+| `runBudgetSchema`                  | `RunBudget`                  | Shared run caps; no per-stage multiplication                                     |
+| `engineVersionsSchema`             | `EngineVersions`             | Engine, prompt, model, retriever, embedding and calibration identities           |
+| `documentSnapshotSchema`           | `DocumentSnapshot`           | Immutable normalized document with hashes, locators and timestamp assertions     |
+| `locatorSchema`                    | `Locator`                    | Structural locator, optional bounding box, uncertain-transcription flag          |
+| `timestampAssertionSchema`         | `TimestampAssertion`         | Typed publication/update/event/index/archive/capture time plus its source        |
+| `discoveryHintSchema`              | `DiscoveryHint`              | Slug, link title, snippet or caption: never a factual claim                      |
+| `claimSchema`                      | `ClaimV2`                    | Scoped proposition with spans, attribution, negation, quantities and time        |
+| `inputCoverageSchema`              | `InputCoverage`              | Segment-level disposition of the whole document                                  |
+| `focusedSelectionSchema`           | `FocusedSelection`           | Complete inventory and deterministic selected/deferred/excluded claim scope      |
+| `focusedSelectionClaimSchema`      | `FocusedSelectionClaim`      | Selection status, eligibility, reason and recorded ranking signals               |
+| `focusedSelectionRankingSchema`    | `FocusedSelectionRanking`    | Structural position, concrete signals and stable tie-breaker                     |
+| `evidenceCandidateSchema`          | `EvidenceCandidate`          | Discovery record with `admissible: false` as a structural literal                |
+| `evidenceAssessmentSchema`         | `EvidenceAssessment`         | Claim/excerpt relation, applicability, directness, dependence and checks         |
+| `sufficiencyFeedbackSchema`        | `SufficiencyFeedback`        | Feedback from assessment into targeted retrieval rounds                          |
+| `provenanceGraphSchema`            | `ProvenanceGraph`            | Per-claim graph, candidate roots, search log and unresolved chronology           |
+| `calibrationSchema`                | `Calibration`                | Discriminated on `applicability`; only `in_scope` carries a probability          |
+| `focusedPublicationPolicySchema`   | `FocusedPublicationPolicy`   | Versioned evidence-gated publication policy; calibration is explicitly not used  |
+| `focusedPublicationDecisionSchema` | `FocusedPublicationDecision` | Per-decision focused gate, status, versions, and non-calibration marker          |
+| `challengeSchema`                  | `Challenge`                  | Independent reassessment outcome                                                 |
+| `decisionSchema`                   | `Decision`                   | Diagnostic and published labels, reason codes and cited assessments              |
+| `presentationFindingSchema`        | `PresentationFinding`        | Language observation or evidence-backed material context finding                 |
+| `scorecardSchema`                  | `Scorecard`                  | Nullable factual score, counts, coverage and separate evidence/origin fields     |
+| `stageOutcomeSchema`               | `StageOutcome`               | Per-stage status recorded on the report                                          |
+| `replayManifestSchema`             | `ReplayManifest`             | Everything needed to recompute deterministic decisions                           |
+| `runReportSchema`                  | `RunReport`                  | Versioned public report, schema version 2                                        |
+| `legacyRunReportSchema`            | `LegacyRunReport`            | Saved v1 reports, schema version 1, decoded and rendered unchanged               |
+| `versionedRunReportSchema`         | `VersionedRunReport`         | Discriminated union on `schemaVersion`                                           |
 
 ## Frozen enumerations
 
@@ -96,14 +101,19 @@ The additive focused schemas and inferred types are also available from
   `evidence_not_applicable_to_entity`, `evidence_not_applicable_in_jurisdiction`,
   `insufficient_independent_origins`, `citation_validation_failed`, `ambiguous_claim_scope`,
   `unresolved_context`, `unresolved_challenge_disagreement`, `calibration_unavailable`,
-  `calibration_out_of_scope`, `budget_exhausted_before_resolution`, `source_unavailable`,
-  `unsupported_language`, `awaiting_deferred_processing`, `no_checkable_proposition`.
+  `calibration_out_of_scope`, `focused_evidence_gate_abstained`,
+  `budget_exhausted_before_resolution`, `source_unavailable`, `unsupported_language`,
+  `awaiting_deferred_processing`, `no_checkable_proposition`.
 - **Score null reasons** — `zero_resolved_denominator`, `no_checkable_claims`, `partial_input`,
   `partial_extraction`, `resolution_coverage_below_threshold`,
   `material_mixed_or_misleading_open`, `run_canceled`, `run_failed`.
 - **Focused selection statuses** — `analyzed`, `deferred`, `excluded`; selection is limited to
   three canonical claims and records structural position, concrete signals, reasons, and the
   `document_order_then_claim_id` tie-breaker.
+- **Focused publication gates** — `passed`, `insufficient_evidence`, `invalid_citation`,
+  `failed_applicability`, `unresolved_conflict`, `challenge_unresolved`, `ambiguous_scope`,
+  `evidence_unavailable`, `uncertain_evidence`. A focused gate is evidence policy state, not a
+  calibrated probability.
 
 ## Invariants the schemas enforce at runtime
 
@@ -129,9 +139,11 @@ Citation and offset integrity:
 Decision publishability:
 
 7. `diagnosticLabel` is the adjudicated label used for evaluation and calibration.
-   `publishedLabel` is what users see. A decisive `publishedLabel` requires
-   `calibration.applicability === "in_scope"`, `challenge.status === "resolved"` and
-   `citationIntegrity === "valid"`. Otherwise the published label must be `unverified`.
+   `publishedLabel` is what users see. In the legacy/full policy, a decisive published label
+   requires `calibration.applicability === "in_scope"`, a resolved challenge and valid citations.
+   In the focused policy, it instead requires a matching `focusedPublication` marker with
+   `status: "published"`, `gate: "passed"`, an agreed resolved challenge and valid citations.
+   Otherwise a decisive focused label must be `unverified`.
 8. `supported` requires supporting assessment IDs, `contradicted` requires contradicting
    IDs, `misleading` requires both the stated assertion and corrective-context IDs, and
    `mixed` requires supporting and contradicting IDs.
@@ -159,8 +171,9 @@ Stage results:
     cannot present itself as a completed empty search.
 16. A focused report keeps every inventoried claim and the full segment coverage audit, while
     only analyzed, canonical, material and checkable factual claim IDs may enter evidence,
-    provenance, adjudication, calibration, or scoring. Other canonical factual claims become
-    explicit deferred work; duplicates and non-factual dispositions remain excluded with reasons.
+    provenance, adjudication, focused publication, or scoring. Other canonical factual claims
+    become explicit deferred work; duplicates and non-factual dispositions remain excluded with
+    reasons. Focused publication is a pure local policy stage and makes zero provider calls.
 
 There is no `z.any`, `z.unknown` or open record anywhere in the core evidence objects.
 Every core entity is a `strictObject`, so unknown keys are rejected. The only loose
@@ -223,6 +236,10 @@ type AdjudicateClaimsV2 = (
   i: AdjudicateClaimsV2Input,
   env: RunEnvironment,
 ) => Promise<StageResult<AdjudicateClaimsV2Data>>;
+type FocusedPublicationV2 = (
+  i: FocusedPublicationV2Input,
+  env: RunEnvironment,
+) => Promise<StageResult<FocusedPublicationV2Data>>;
 type CalibrateDecisionsV2 = (
   i: CalibrateDecisionsV2Input,
   env: RunEnvironment,

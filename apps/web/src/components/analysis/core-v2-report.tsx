@@ -59,6 +59,12 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
               : ""}
           </p>
         ) : null}
+        {view.focusedPublicationPolicy ? (
+          <p className="mt-3 text-sm text-ink-soft">
+            Focused evidence gate {view.focusedPublicationPolicy.policyVersion} · decision boundary{" "}
+            {view.focusedPublicationPolicy.decisionVersion} · statistical calibration not used.
+          </p>
+        ) : null}
         {counts ? (
           <p className="mt-5 text-sm text-ink-soft">
             {counts.misleading} misleading · {counts.mixed} mixed · {counts.unverified} unverified ·{" "}
@@ -103,6 +109,13 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
             <li key={claim.id} className="trace-claim">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>{humanize(claim.publishedLabel ?? claim.disposition)}</Badge>
+                {claim.focusedPublication ? (
+                  <Badge
+                    variant={claim.focusedPublication.status === "published" ? "violet" : "amber"}
+                  >
+                    Evidence gate: {humanize(claim.focusedPublication.gate)}
+                  </Badge>
+                ) : null}
                 {claim.diagnosticLabel && claim.diagnosticLabel !== claim.publishedLabel ? (
                   <Badge variant="amber">Not published: {humanize(claim.diagnosticLabel)}</Badge>
                 ) : null}

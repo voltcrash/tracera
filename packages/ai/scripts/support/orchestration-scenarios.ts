@@ -846,9 +846,10 @@ export async function runOrchestrationScenario(id: OrchestrationScenario): Promi
       check(view.schemaVersion === 2, "v2 reports use the version-discriminated renderer");
       if (view.schemaVersion !== 2) return { id, checks };
       check(
-        view.score.label === "Supported share of selected claims" &&
+        view.score.label === "Supported share of resolved claims" &&
           view.score.formulaVersion !== null &&
-          view.focusedSelection?.selectedClaimIds.length === 1,
+          view.focusedSelection?.selectedClaimIds.length === 1 &&
+          view.focusedPublicationPolicy?.policyVersion === "core-v2-focused-publication-1.0.0",
         "focused score shows its selected-claim scope and formula version",
       );
       check(
@@ -1004,11 +1005,12 @@ export async function runOrchestrationScenario(id: OrchestrationScenario): Promi
         calibrateDecisions: createCalibrateDecisionsV2({ artifact: syntheticCalibratorArtifact() }),
       });
       check(
-        !failClosed.decisionsMatch &&
+        failClosed.decisionsMatch &&
+          failClosed.report.focusedPublicationPolicy?.calibration.status === "not_used" &&
           failClosed.report.decisions.every(
-            ({ publishedLabel }) => publishedLabel === "unverified",
+            ({ focusedPublication }) => focusedPublication?.calibration.status === "not_used",
           ),
-        "a synthetic fixture calibrator cannot publish decisive labels outside fixture mode",
+        "focused replay uses its evidence gate and never manufactures calibration",
       );
       return { id, checks };
     }

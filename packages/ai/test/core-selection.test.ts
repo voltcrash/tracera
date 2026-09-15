@@ -11,6 +11,7 @@ import {
 } from "@repo/contracts/core-v2";
 import { test } from "vite-plus/test";
 import {
+  createFocusedPublicationV2,
   createRunAnalysisV2,
   hashValue,
   projectReport,
@@ -545,12 +546,10 @@ test("the orchestration pipeline sends only selected claims to evidence-bearing 
         observe("adjudicate", inputClaims);
         return stageResult({ decisions: [] });
       },
-    calibrateDecisions:
-      () =>
-      async ({ claims: inputClaims }) => {
-        observe("calibrate", inputClaims);
-        return stageResult({ decisions: [] });
-      },
+    publishFocusedDecisions: () => async (input, environment) => {
+      observe("publish", input.claims);
+      return createFocusedPublicationV2()(input, environment);
+    },
     scoreReport: () => (input) => {
       observe("score", input.claims);
       return scoreReportV2(input);
@@ -565,7 +564,7 @@ test("the orchestration pipeline sends only selected claims to evidence-bearing 
   const report = result.report;
   const selected = report.focusedSelection!.selectedClaimIds;
 
-  for (const stage of ["retrieve", "assess", "trace", "adjudicate", "calibrate", "score"]) {
+  for (const stage of ["retrieve", "assess", "trace", "adjudicate", "publish", "score"]) {
     assert.deepEqual(observed.get(stage), [selected], `${stage} received a non-focused claim set`);
   }
   assert.equal(report.claims.length, claims.length);
@@ -574,11 +573,16 @@ test("the orchestration pipeline sends only selected claims to evidence-bearing 
   assert.equal(report.decisions.length, 0);
   assert.equal(report.inputCoverage[0]!.segments[0]!.claimIds.length, claims.length);
   assert.equal(report.scorecard!.counts.deferredClaims, 2);
+  assert.equal(report.scorecard!.formulaVersion, "focused-supported-share-1.0.0");
+  assert.equal(
+    report.focusedPublicationPolicy?.scoreFormulaVersion,
+    "focused-supported-share-1.0.0",
+  );
   assert.equal(report.scorecard!.counts.eligibleFactualClaims, 0);
   const view = projectReport(report);
   assert.equal(view.schemaVersion, 2);
   if (view.schemaVersion !== 2) return;
-  assert.equal(view.score.label, "Supported share of selected claims");
+  assert.equal(view.score.label, "Supported share of resolved claims");
   assert.equal(view.claims.length, selected.length);
   assert.equal(view.deferredClaims.length, 2);
   assert.equal(view.focusedSelection?.inventoriedClaims, claims.length);
