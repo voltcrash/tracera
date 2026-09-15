@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { runContextExample, type DocumentSnapshot } from "@repo/contracts/core-v2";
 import {
   CoreStorageRepository,
+  type CoreTransactionClient,
   StaleWorkerError,
   type CorePool,
   type CoreQueryResult,
@@ -147,4 +148,52 @@ test("checkpoint writes fail closed when attempt and fencing validation changes 
     }),
     StaleWorkerError,
   );
+});
+
+test("successful core transactions return healthy pool connections", async () => {
+  let destroyed: boolean | undefined;
+  const client = {
+    async query<Row = Record<string, unknown>>(text: string): Promise<CoreQueryResult<Row>> {
+      if (text === "BEGIN" || text === "COMMIT") return { rows: [] };
+      if (text.includes("SELECT run_id") && text.includes("FROM core_runs"))
+        return {
+          rows: [
+            {
+              run_id: runContextExample.runId,
+              input_hash: runContextExample.inputHash,
+              execution_mode: runContextExample.executionMode,
+              same_versions: true,
+              same_budget: true,
+            } as Row,
+          ],
+          rowCount: 1,
+        };
+      if (text.includes("INSERT INTO core_jobs"))
+        return {
+          rows: [{ job_id: `${runContextExample.runId}:normalize_input` } as Row],
+          rowCount: 1,
+        };
+      return { rows: [], rowCount: 0 };
+    },
+    release(destroy = false) {
+      destroyed = destroy;
+    },
+  } satisfies CoreTransactionClient;
+  const pool = {
+    async query() {
+      throw new Error("The transaction fixture should use its connected client.");
+    },
+    async connect() {
+      return client;
+    },
+  } satisfies CorePool;
+
+  await new CoreStorageRepository(pool).enqueue({
+    context: runContextExample,
+    stage: "normalize_input",
+    payload: { fixture: true },
+    maxAttempts: 1,
+  });
+
+  assert.equal(destroyed, false);
 });

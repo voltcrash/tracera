@@ -3,6 +3,7 @@ import {
   CORE_V2_SCHEMA_VERSION,
   issueSchema,
   runReportSchema,
+  stageResultSchema,
   type CoreIssue,
   type Decision,
   type DocumentSnapshot,
@@ -18,6 +19,7 @@ import {
   type StageResult,
   type StageStatus,
 } from "@repo/contracts/core-v2";
+import { z } from "zod";
 import { createAdjudicateClaimsV2, type TargetedEvidence } from "./adjudication/index.js";
 import { createCalibrateDecisionsV2 } from "./calibration/index.js";
 import { createExtractClaimsV2 } from "./claims/index.js";
@@ -180,15 +182,17 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
 
     const beforeNormalize = interrupted("normalize_input");
     if (beforeNormalize) return beforeNormalize;
-    const normalized = await checkpointed(
+    const normalized = checkStageBudget(
       "normalize_input",
-      hashValue({ input, identity }),
-      async () => ({
+      usage(),
+      await checkpointed("normalize_input", hashValue({ input, identity }), async () => ({
         result: await factories.normalizeInput(usage())({ input: input.input }, environment),
         extra: null,
-      }),
+      })),
+      environment,
     );
     setOutcome(state, "normalize_input", normalized.result);
+    if (normalized.exceeded) return stop(statusAfterBudget(normalized.result));
     if (!normalized.result.data) return stop(stageRunStatus(normalized.result));
     state.snapshots = uniqueById(normalized.result.data.snapshots);
     state.primarySnapshotId = normalized.result.data.primarySnapshotId;
@@ -196,18 +200,24 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
 
     const beforeExtract = interrupted("extract_claims");
     if (beforeExtract) return beforeExtract;
-    const extracted = await checkpointed(
+    const extracted = checkStageBudget(
       "extract_claims",
-      hashValue({ upstream: normalized.result, identity }),
-      async () => ({
-        result: await factories.extractClaims(usage())(
-          { snapshots: state.snapshots, primarySnapshotId },
-          environment,
-        ),
-        extra: null,
-      }),
+      usage(),
+      await checkpointed(
+        "extract_claims",
+        hashValue({ upstream: normalized.result, identity }),
+        async () => ({
+          result: await factories.extractClaims(usage())(
+            { snapshots: state.snapshots, primarySnapshotId },
+            environment,
+          ),
+          extra: null,
+        }),
+      ),
+      environment,
     );
     setOutcome(state, "extract_claims", extracted.result);
+    if (extracted.exceeded) return stop(statusAfterBudget(extracted.result));
     if (!extracted.result.data) return stop(stageRunStatus(extracted.result));
     state.claims = extracted.result.data.claims;
     state.inputCoverage = extracted.result.data.coverage;
@@ -234,24 +244,31 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
 
     const beforeRetrieve = interrupted("retrieve_evidence");
     if (beforeRetrieve) return beforeRetrieve;
-    const retrieved = await checkpointed(
+    const retrieved = checkStageBudget(
       "retrieve_evidence",
-      hashValue({ upstream: extracted.result, identity }),
-      async () => ({
-        result: await factories.retrieveEvidence(usage())(
-          { claims: state.claims, snapshots: state.snapshots, round: 0, sufficiency: [] },
-          environment,
-        ),
-        extra: null,
-      }),
+      usage(),
+      await checkpointed(
+        "retrieve_evidence",
+        hashValue({ upstream: extracted.result, identity }),
+        async () => ({
+          result: await factories.retrieveEvidence(usage())(
+            { claims: state.claims, snapshots: state.snapshots, round: 0, sufficiency: [] },
+            environment,
+          ),
+          extra: null,
+        }),
+      ),
+      environment,
     );
     setOutcome(state, "retrieve_evidence", retrieved.result);
+    if (retrieved.exceeded) return stop(statusAfterBudget(retrieved.result));
     if (!retrieved.result.data) return stop(stageRunStatus(retrieved.result));
     absorbRetrieval(state, retrieved.result.data);
 
     const beforeAssess = interrupted("assess_evidence");
     if (beforeAssess) return beforeAssess;
-    const assessed = await checkpointed<AssessEvidenceV2Data, AssessmentExtra>(
+    const assessPrior = usage();
+    const assessedExecution = await checkpointed<AssessEvidenceV2Data, AssessmentExtra>(
       "assess_evidence",
       hashValue({
         upstream: retrieved.result,
@@ -308,6 +325,19 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
         return { result: assessment, extra: { targetedRetrieval, rounds } };
       },
     );
+    const assessMetrics = assessedExecution.extra.targetedRetrieval
+      ? sumMetrics(
+          assessedExecution.result.metrics,
+          assessedExecution.extra.targetedRetrieval.metrics,
+        )
+      : assessedExecution.result.metrics;
+    const assessed = checkStageBudget(
+      "assess_evidence",
+      assessPrior,
+      assessedExecution,
+      environment,
+      assessMetrics,
+    );
     if (assessed.extra.targetedRetrieval) {
       setOutcome(
         state,
@@ -319,13 +349,15 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
     }
     state.targetedRounds = assessed.extra.rounds;
     setOutcome(state, "assess_evidence", assessed.result);
+    if (assessed.exceeded) return stop(statusAfterBudget(assessed.result));
     if (!assessed.result.data) return stop(stageRunStatus(assessed.result));
     state.assessments = uniqueById(assessed.result.data.assessments);
     state.evidenceSetHash = evidenceSetHash(state.snapshots, state.assessments);
 
     const beforeTrace = interrupted("trace_origins");
     if (beforeTrace) return beforeTrace;
-    const traced = await checkpointed<
+    const tracePrior = usage();
+    const tracedExecution = await checkpointed<
       { graphs: ProvenanceGraph[]; newSnapshotIds: string[] },
       ProvenanceExtra | null
     >(
@@ -374,6 +406,16 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
         return { result, extra: { snapshots: loaded, reassessment } };
       },
     );
+    const traceMetrics = tracedExecution.extra
+      ? sumMetrics(tracedExecution.result.metrics, tracedExecution.extra.reassessment.metrics)
+      : tracedExecution.result.metrics;
+    const traced = checkStageBudget(
+      "trace_origins",
+      tracePrior,
+      tracedExecution,
+      environment,
+      traceMetrics,
+    );
     if (!traced.result.data) {
       setOutcome(state, "trace_origins", traced.result);
       return stop(stageRunStatus(traced.result));
@@ -389,32 +431,38 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
     } else {
       setOutcome(state, "trace_origins", traced.result);
     }
+    if (traced.exceeded) return stop(statusAfterBudget(traced.result));
 
     const beforeAdjudicate = interrupted("adjudicate_claims");
     if (beforeAdjudicate) return beforeAdjudicate;
-    const adjudicated = await checkpointed<{ decisions: Decision[] }, TargetedEvidence[]>(
+    const adjudicated = checkStageBudget(
       "adjudicate_claims",
-      hashValue({
-        upstream: traced.result,
-        reassessment: traced.extra?.reassessment ?? null,
-        evidenceSetHash: state.evidenceSetHash,
-        targetedRounds: state.targetedRounds,
-        identity,
-      }),
-      async () => {
-        const targeted: TargetedEvidence[] = [];
-        const record = async (evidence: TargetedEvidence, signal: AbortSignal) => {
-          signal.throwIfAborted();
-          for (const snapshot of evidence.snapshots)
-            await environment.ports.snapshots.put(snapshot, signal);
-          targeted.push(evidence);
-        };
-        const result = await factories.adjudicateClaims({ ...usage(), record })(
-          { claims: state.claims, assessments: state.assessments, graphs: state.provenance },
-          environment,
-        );
-        return { result, extra: targeted };
-      },
+      usage(),
+      await checkpointed<{ decisions: Decision[] }, TargetedEvidence[]>(
+        "adjudicate_claims",
+        hashValue({
+          upstream: traced.result,
+          reassessment: traced.extra?.reassessment ?? null,
+          evidenceSetHash: state.evidenceSetHash,
+          targetedRounds: state.targetedRounds,
+          identity,
+        }),
+        async () => {
+          const targeted: TargetedEvidence[] = [];
+          const record = async (evidence: TargetedEvidence, signal: AbortSignal) => {
+            signal.throwIfAborted();
+            for (const snapshot of evidence.snapshots)
+              await environment.ports.snapshots.put(snapshot, signal);
+            targeted.push(evidence);
+          };
+          const result = await factories.adjudicateClaims({ ...usage(), record })(
+            { claims: state.claims, assessments: state.assessments, graphs: state.provenance },
+            environment,
+          );
+          return { result, extra: targeted };
+        },
+      ),
+      environment,
     );
     for (const evidence of adjudicated.extra) {
       state.candidates = uniqueById([...state.candidates, ...evidence.candidates]);
@@ -427,54 +475,67 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
     if (adjudicated.extra.length > 0)
       state.evidenceSetHash = evidenceSetHash(state.snapshots, state.assessments);
     setOutcome(state, "adjudicate_claims", adjudicated.result);
+    if (adjudicated.exceeded) return stop(statusAfterBudget(adjudicated.result));
     if (!adjudicated.result.data) return stop(stageRunStatus(adjudicated.result));
     state.decisions = adjudicated.result.data.decisions;
 
     const beforeCalibrate = interrupted("calibrate_decisions");
     if (beforeCalibrate) return beforeCalibrate;
-    const calibrated = await checkpointed(
+    const calibrated = checkStageBudget(
       "calibrate_decisions",
-      hashValue({
-        upstream: adjudicated.result,
-        evidenceSetHash: state.evidenceSetHash,
-        identity,
-      }),
-      async () => ({
-        result: await factories.calibrateDecisions(usage())(
-          { claims: state.claims, decisions: state.decisions, assessments: state.assessments },
-          environment,
-        ),
-        extra: null,
-      }),
+      usage(),
+      await checkpointed(
+        "calibrate_decisions",
+        hashValue({
+          upstream: adjudicated.result,
+          evidenceSetHash: state.evidenceSetHash,
+          identity,
+        }),
+        async () => ({
+          result: await factories.calibrateDecisions(usage())(
+            { claims: state.claims, decisions: state.decisions, assessments: state.assessments },
+            environment,
+          ),
+          extra: null,
+        }),
+      ),
+      environment,
     );
     setOutcome(state, "calibrate_decisions", calibrated.result);
+    if (calibrated.exceeded) return stop(statusAfterBudget(calibrated.result));
     if (!calibrated.result.data) return stop(stageRunStatus(calibrated.result));
     state.decisions = calibrated.result.data.decisions;
 
     const beforeScore = interrupted("score_report");
     if (beforeScore) return beforeScore;
-    const scored = await checkpointed(
+    const scored = checkStageBudget(
       "score_report",
-      hashValue({
-        upstream: calibrated.result,
-        evidenceSetHash: state.evidenceSetHash,
-        identity,
-      }),
-      async () => ({
-        result: factories.scoreReport(usage())({
-          claims: state.claims,
-          decisions: state.decisions,
-          assessments: state.assessments,
-          graphs: state.provenance,
-          coverage: state.inputCoverage,
-          inputStatus: normalized.result.status,
-          extractionStatus: extracted.result.status,
-          at: clock.now(),
+      usage(),
+      await checkpointed(
+        "score_report",
+        hashValue({
+          upstream: calibrated.result,
+          evidenceSetHash: state.evidenceSetHash,
+          identity,
         }),
-        extra: null,
-      }),
+        async () => ({
+          result: factories.scoreReport(usage())({
+            claims: state.claims,
+            decisions: state.decisions,
+            assessments: state.assessments,
+            graphs: state.provenance,
+            coverage: state.inputCoverage,
+            inputStatus: normalized.result.status,
+            extractionStatus: extracted.result.status,
+            at: clock.now(),
+          }),
+          extra: null,
+        }),
+      ),
+      environment,
     );
     setOutcome(state, "score_report", scored.result);
+    if (scored.exceeded) return stop(statusAfterBudget(scored.result));
     if (!scored.result.data) return stop(stageRunStatus(scored.result));
     if (canceled(environment)) return stop("canceled");
     return finishResult(
@@ -633,9 +694,13 @@ async function executeStage<Value, Extra>(
       signal: environment.signal,
     });
     if (saved?.checkpointHash === dependencyHash) {
-      const envelope = JSON.parse(saved.payloadJson) as CheckpointEnvelope<Value, Extra>;
-      if (envelope.version === 2 && isStageResult(envelope.result)) {
-        return { result: envelope.result, extra: envelope.extra };
+      try {
+        const envelope = JSON.parse(saved.payloadJson) as CheckpointEnvelope<Value, Extra>;
+        if (envelope.version === 2 && isStageResult(envelope.result)) {
+          return { result: envelope.result, extra: envelope.extra };
+        }
+      } catch {
+        // A malformed checkpoint is stale data; execute the stage again.
       }
     }
   }
@@ -838,7 +903,7 @@ function combineRetrieval(a: RetrieveEvidenceV2Data, b: RetrieveEvidenceV2Data) 
     admittedSnapshotIds: [...new Set([...a.admittedSnapshotIds, ...b.admittedSnapshotIds])],
     budgetUsed: {
       externalRequests: a.budgetUsed.externalRequests + b.budgetUsed.externalRequests,
-      costUsd: b.budgetUsed.costUsd,
+      costUsd: sumNullable([a.budgetUsed.costUsd, b.budgetUsed.costUsd]),
     },
     stoppingReason: b.stoppingReason,
   };
@@ -909,6 +974,78 @@ function stageRunStatus(result: StageResult<unknown>): RunStatus {
   return result.status;
 }
 
+function checkStageBudget<Value, Extra>(
+  stage: StageName,
+  prior: StageUsage,
+  execution: { result: StageResult<Value>; extra: Extra },
+  environment: RunEnvironment,
+  metrics = execution.result.metrics,
+) {
+  const exceeded = runBudgetExceeded(prior, metrics, environment);
+  return {
+    ...execution,
+    result: enforceRunBudget(execution.result, prior, metrics, environment, stage),
+    exceeded,
+  };
+}
+
+function runBudgetExceeded(prior: StageUsage, metrics: StageMetrics, environment: RunEnvironment) {
+  const externalRequests = prior.priorExternalRequests + metrics.externalRequests;
+  if (externalRequests > environment.context.budget.maxExternalRequests) return true;
+  const totalCost = sumNullable([prior.priorCostUsd, metrics.costUsd]);
+  if (
+    environment.context.budget.maxCostUsd !== null &&
+    (totalCost === null || totalCost > environment.context.budget.maxCostUsd)
+  )
+    return true;
+  return environment.ports.clock.monotonicMs() >= prior.deadlineMonotonicMs;
+}
+
+function enforceRunBudget<Value>(
+  result: StageResult<Value>,
+  prior: StageUsage,
+  metrics: StageMetrics,
+  environment: RunEnvironment,
+  stage: StageName,
+): StageResult<Value> {
+  const violations: CoreIssue[] = [];
+  const externalRequests = prior.priorExternalRequests + metrics.externalRequests;
+  if (externalRequests > environment.context.budget.maxExternalRequests) {
+    violations.push(
+      issue(
+        "budget_exhausted",
+        `The shared request cap was exceeded after ${stage}; the run stopped before further work.`,
+      ),
+    );
+  }
+  const totalCost = sumNullable([prior.priorCostUsd, metrics.costUsd]);
+  if (
+    environment.context.budget.maxCostUsd !== null &&
+    (totalCost === null || totalCost > environment.context.budget.maxCostUsd)
+  ) {
+    violations.push(
+      issue(
+        "budget_exhausted",
+        `The shared cost cap was exceeded or became unknown after ${stage}; the run stopped before further work.`,
+      ),
+    );
+  }
+  if (environment.ports.clock.monotonicMs() >= prior.deadlineMonotonicMs) {
+    violations.push(issue("timeout", `The elapsed run cap was reached after ${stage}.`));
+  }
+  if (violations.length === 0) return result;
+  return {
+    ...result,
+    status: result.status === "complete" && result.data !== null ? "partial" : result.status,
+    issues: uniqueIssues([...result.issues, ...violations]),
+  };
+}
+
+function statusAfterBudget(result: StageResult<unknown>): RunStatus {
+  const status = stageRunStatus(result);
+  return status === "canceled" ? status : result.data === null ? status : "partial";
+}
+
 function overallStatus(outcomes: StageOutcome[]): RunStatus {
   if (outcomes.some(({ issues }) => issues.some(({ code }) => code === "cancellation_requested")))
     return "canceled";
@@ -943,14 +1080,7 @@ function issue(code: CoreIssue["code"], message: string): CoreIssue {
 }
 
 function isStageResult(value: unknown): value is StageResult<unknown> {
-  if (!value || typeof value !== "object") return false;
-  const result = value as Partial<StageResult<unknown>>;
-  return (
-    ["complete", "partial", "unavailable", "failed"].includes(result.status ?? "") &&
-    Array.isArray(result.issues) &&
-    Boolean(result.metrics) &&
-    result.issues.every((item) => issueSchema.safeParse(item).success)
-  );
+  return stageResultSchema(z.unknown()).safeParse(value).success;
 }
 
 function canceled(environment: RunEnvironment) {
