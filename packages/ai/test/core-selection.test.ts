@@ -578,7 +578,11 @@ test("the orchestration pipeline sends only selected claims to evidence-bearing 
     report.focusedPublicationPolicy?.scoreFormulaVersion,
     "focused-supported-share-1.0.0",
   );
-  assert.equal(report.scorecard!.counts.eligibleFactualClaims, 0);
+  assert.equal(report.scorecard!.counts.eligibleFactualClaims, selected.length);
+  assert.equal(report.scorecard!.selectedClaimCount, selected.length);
+  assert.equal(report.scorecard!.resolvedClaimCount, 0);
+  assert.equal(report.scorecard!.counts.omittedClaims, selected.length);
+  assert.ok(report.scorecard!.nullReasons.includes("zero_resolved_denominator"));
   const view = projectReport(report);
   assert.equal(view.schemaVersion, 2);
   if (view.schemaVersion !== 2) return;

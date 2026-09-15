@@ -2,12 +2,18 @@ import {
   versionedRunReportSchema,
   type ClaimLabel,
   type ClaimV2,
+  type DocumentSnapshot,
   type EvidenceRelation,
   type FocusedPublicationDecision,
   type FocusedPublicationPolicy,
   type RunReport,
   type Scorecard,
 } from "@repo/contracts/core-v2";
+import {
+  buildImmutableTimeline,
+  IMMUTABLE_TIMELINE_NOTICE,
+  type ImmutableTimelineEntry,
+} from "./timeline";
 
 export const RELATED_CONTEXT_NOTICE =
   "Related stories and similar images are context only; they are not identical submissions or verified evidence.";
@@ -25,11 +31,14 @@ export interface CoreV2ReportView {
     label: string;
     value: number | null;
     formulaVersion: Scorecard["formulaVersion"] | null;
+    selectedClaimCount: number | null;
+    resolvedClaimCount: number | null;
     counts: Scorecard["counts"] | null;
     resolutionCoverage: number | null;
     extractionCoverage: number | null;
     nullReasons: string[];
   };
+  presentationFindings: Scorecard["presentationFindings"];
   claims: Array<{
     id: string;
     text: string;
@@ -50,7 +59,16 @@ export interface CoreV2ReportView {
       excerptHref: string;
     }>;
   }>;
-  deferredClaims: Array<{ id: string; text: string }>;
+  deferredClaims: Array<{ id: string; text: string; reason: string | null }>;
+  excludedClaims: Array<{ id: string; text: string; reason: string | null }>;
+  sourceContext: Array<{
+    candidateId: string;
+    claimId: string;
+    title: string | null;
+    url: string;
+    provider: string;
+    providerRating: string | null;
+  }>;
   focusedSelection: {
     selectedClaimIds: string[];
     inventoriedClaims: number;
@@ -67,8 +85,20 @@ export interface CoreV2ReportView {
     candidates: Array<{ snapshotId: string; rootKind: string; rank: number; url: string | null }>;
     unresolved: boolean;
   }>;
+  timeline: {
+    notice: string;
+    entries: ImmutableTimelineEntry[];
+  };
   visualVerification: {
-    ocr: "not_applicable" | "inspected" | "uncertain";
+    ocr: "not_applicable" | "unavailable" | "inspected" | "uncertain";
+    observations: Array<{
+      snapshotId: string;
+      text: string;
+      start: number;
+      end: number;
+      boundingBox: DocumentSnapshot["locators"][number]["boundingBox"];
+      transcriptionUncertain: boolean;
+    }>;
     visualProvenance: "not_verified";
   };
   unresolvedReasons: RunReport["unresolvedReasons"];
@@ -95,6 +125,22 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
   const canonical = report.claims.filter(({ duplicateOfClaimId }) => duplicateOfClaimId === null);
   const locators = report.snapshots.flatMap(({ locators }) => locators);
   const ocrLocators = locators.filter(({ kind }) => kind === "ocr_text");
+  const imageSnapshots = report.snapshots.filter(
+    ({ mimeType, extractionMethod }) =>
+      mimeType?.startsWith("image/") || extractionMethod === "ocr",
+  );
+  const ocrObservations = report.snapshots.flatMap((snapshot) =>
+    snapshot.locators
+      .filter(({ kind }) => kind === "ocr_text")
+      .map((locator) => ({
+        snapshotId: snapshot.id,
+        text: snapshot.normalizedText.slice(locator.span.start, locator.span.end),
+        start: locator.span.start,
+        end: locator.span.end,
+        boundingBox: locator.boundingBox,
+        transcriptionUncertain: locator.transcriptionUncertain,
+      })),
+  );
   const conflicts = [
     ...report.decisions
       .filter(
@@ -108,6 +154,24 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
     ...report.provenance.flatMap(({ claimId, chronologyConflicts }) =>
       chronologyConflicts.map(({ description }) => ({ claimId, description })),
     ),
+    ...report.provenance.flatMap((graph) => [
+      ...graph.cycles.map((cycle) => ({
+        claimId: graph.claimId,
+        description: `Citation cycle remains unresolved: ${cycle.join(" → ")}.`,
+      })),
+      ...graph.inaccessibleOriginals.map(({ url, reason }) => ({
+        claimId: graph.claimId,
+        description: `Provenance source remains unavailable (${reason}): ${url}.`,
+      })),
+      ...(graph.coverageStatus === "complete"
+        ? []
+        : [
+            {
+              claimId: graph.claimId,
+              description: `Provenance coverage is ${graph.coverageStatus}; origin remains unresolved.`,
+            },
+          ]),
+    ]),
   ];
   const conflicted = new Set(conflicts.map(({ claimId }) => claimId));
   const score = report.scorecard;
@@ -127,11 +191,14 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
       label: "Supported share of resolved claims",
       value: score?.factualScore ?? null,
       formulaVersion: score?.formulaVersion ?? null,
+      selectedClaimCount: score?.selectedClaimCount ?? null,
+      resolvedClaimCount: score?.resolvedClaimCount ?? null,
       counts: score?.counts ?? null,
       resolutionCoverage: score?.resolutionCoverage ?? null,
       extractionCoverage: score?.extractionCoverage ?? null,
       nullReasons: score ? score.nullReasons : ["score_not_computed"],
     },
+    presentationFindings: score?.presentationFindings ?? [],
     claims: canonical
       .filter(
         ({ id, coverageDisposition }) =>
@@ -186,7 +253,29 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
       }),
     deferredClaims: canonical
       .filter(({ coverageDisposition }) => coverageDisposition === "deferred")
-      .map(({ id, text }) => ({ id, text })),
+      .map(({ id, text }) => ({
+        id,
+        text,
+        reason:
+          report.focusedSelection?.claims.find(({ claimId }) => claimId === id)?.reason ?? null,
+      })),
+    excludedClaims: report.focusedSelection
+      ? report.focusedSelection.claims
+          .filter(({ status }) => status === "excluded")
+          .map(({ claimId, reason }) => ({
+            id: claimId,
+            text: claimText.get(claimId) ?? claimId,
+            reason,
+          }))
+      : [],
+    sourceContext: report.candidates.map((candidate) => ({
+      candidateId: candidate.id,
+      claimId: candidate.claimId,
+      title: candidate.title,
+      url: candidate.proposedUrl,
+      provider: candidate.provider,
+      providerRating: candidate.providerRating,
+    })),
     focusedSelection: report.focusedSelection
       ? {
           selectedClaimIds: report.focusedSelection.selectedClaimIds,
@@ -208,15 +297,27 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
         rank: root.rank,
         url: graph.nodes.find(({ snapshotId }) => snapshotId === root.snapshotId)?.url ?? null,
       })),
-      unresolved: graph.candidateRoots.length === 0,
+      unresolved:
+        graph.candidateRoots.length === 0 ||
+        graph.inaccessibleOriginals.length > 0 ||
+        graph.chronologyConflicts.length > 0 ||
+        graph.cycles.length > 0 ||
+        graph.coverageStatus !== "complete",
     })),
+    timeline: {
+      notice: IMMUTABLE_TIMELINE_NOTICE,
+      entries: buildImmutableTimeline(report.snapshots),
+    },
     visualVerification: {
       ocr:
-        ocrLocators.length === 0
-          ? "not_applicable"
-          : ocrLocators.some(({ transcriptionUncertain }) => transcriptionUncertain)
+        ocrLocators.length > 0
+          ? ocrLocators.some(({ transcriptionUncertain }) => transcriptionUncertain)
             ? "uncertain"
-            : "inspected",
+            : "inspected"
+          : imageSnapshots.length > 0
+            ? "unavailable"
+            : "not_applicable",
+      observations: ocrObservations,
       visualProvenance: "not_verified",
     },
     unresolvedReasons: report.unresolvedReasons,

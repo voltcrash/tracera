@@ -5,6 +5,7 @@ type ArchiveHistory = GroundZeroResult["archiveHistory"];
 type GroundZeroRelationship = GroundZeroResult["relationships"][number];
 
 const SIMULTANEOUS_PUBLICATION_WINDOW_MS = 5 * 60_000;
+const SEARCH_SCOPE_STATEMENT = "Earliest observed within the searched scope.";
 
 export function traceGroundZero(
   sources: EvidenceSource[],
@@ -27,8 +28,11 @@ export function traceGroundZero(
       earliestSource: null,
       candidates: [],
       confidence: "low",
-      signals: ["No retrieved source exposed a reliable publication timestamp."],
-      explanation: "No timestamped publisher source was found in retrieved evidence.",
+      signals: [
+        `${SEARCH_SCOPE_STATEMENT} No retrieved source exposed a reliable publication timestamp.`,
+      ],
+      explanation:
+        "The evidence in hand does not establish an earliest observed source within the searched scope.",
       relationships: [],
       corpusHistory,
       archiveHistory,
@@ -102,7 +106,7 @@ export function traceGroundZero(
   ).length;
   const earliestArchive = archiveHistory.find((item) => sameUrl(item.url, earliestUrl));
   const signals = [
-    `Earliest ${earliestSource.publisherPublishedAt ? "publisher-declared" : "retrieval-index"} timestamp: ${new Date(earliestDate).toISOString()}.`,
+    `${SEARCH_SCOPE_STATEMENT} ${earliestSource.publisherPublishedAt ? "Publisher-declared" : "Retrieval-index"} timestamp: ${new Date(earliestDate).toISOString()}.`,
     `${independentDomains} independent source domain${independentDomains === 1 ? "" : "s"} found.`,
   ];
   if (laterIndependentSources > 0) {
@@ -127,7 +131,9 @@ export function traceGroundZero(
       `${simultaneousSources} independent source${simultaneousSources === 1 ? " was" : "s were"} published within five minutes, so exact ordering may be unreliable.`,
     );
   if (earliestArchive)
-    signals.push(`The earliest known web archive capture is ${earliestArchive.firstSeenAt}.`);
+    signals.push(
+      `The earliest observed web archive capture within this scope is ${earliestArchive.firstSeenAt}.`,
+    );
   if (chronologyConflicts)
     signals.push(
       `${chronologyConflicts} citation${chronologyConflicts === 1 ? " has" : "s have"} a timestamp conflict and cannot establish origin order.`,
@@ -152,14 +158,14 @@ export function traceGroundZero(
     confidence,
     signals,
     explanation:
-      "This is the earliest publisher-declared timestamp after canonical-URL and explicit-citation checks. It remains an origin candidate, not proof of first publication on the web.",
+      "This is the earliest observed publication timestamp within the searched scope after canonical-URL and explicit-citation checks. It remains an origin candidate; earlier material may exist outside this scope.",
     relationships,
     corpusHistory,
     archiveHistory,
   };
 }
 
-/** Looks up an earliest known archive capture without treating it as a publish date. */
+/** Looks up an earliest observed archive capture without treating it as a publish date. */
 export async function retrieveArchiveHistory(
   sources: EvidenceSource[],
   signal?: AbortSignal,

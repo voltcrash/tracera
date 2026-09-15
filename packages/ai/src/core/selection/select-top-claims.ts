@@ -3,6 +3,7 @@ import {
   CORE_V2_FOCUSED_POLICY_VERSION,
   CORE_V2_FOCUSED_SCORE_FORMULA_VERSION,
   CORE_V2_FOCUSED_SELECTION_VERSION,
+  CORE_V2_RESOLUTION_COVERAGE_THRESHOLD,
   claimSchema,
   focusedSelectionClaimSchema,
   focusedSelectionSchema,
@@ -15,6 +16,7 @@ import {
   type FocusedSelectionClaim,
   type InputCoverage,
   type Scorecard,
+  type ScoreNullReason,
   type StageResult,
   type StageStatus,
 } from "@repo/contracts/core-v2";
@@ -255,21 +257,63 @@ export function coverageForSelectedClaims(
   }));
 }
 
-/** Adds focused deferred accounting and its explicit selected-claim formula version. */
+/** Adds the focused selected-claim denominator when a custom scorer returns legacy-shaped data. */
 export function accountFocusedScore(
   result: StageResult<ScoreReportV2Data>,
   selection: FocusedSelection,
 ): StageResult<ScoreReportV2Data> {
   if (result.data === null) return result;
+  const base = result.data.scorecard;
+  const selectedClaimCount = selection.selectedClaimIds.length;
+  const resolvedClaimCount = base.counts.supported + base.counts.contradicted;
+  const labeled =
+    resolvedClaimCount + base.counts.misleading + base.counts.mixed + base.counts.unverified;
+  const resolutionCoverage =
+    selectedClaimCount === 0 ? null : resolvedClaimCount / selectedClaimCount;
+  const nullReasons = focusedNullReasons(
+    base,
+    resolutionCoverage,
+    selectedClaimCount,
+    resolvedClaimCount,
+  );
   const scorecard = scorecardSchema.parse({
-    ...result.data.scorecard,
+    ...base,
     formulaVersion: CORE_V2_FOCUSED_SCORE_FORMULA_VERSION,
+    factualScore:
+      nullReasons.length === 0 ? (100 * base.counts.supported) / resolvedClaimCount : null,
+    nullReasons,
+    selectedClaimCount,
+    resolvedClaimCount,
     counts: {
-      ...result.data.scorecard.counts,
+      ...base.counts,
+      eligibleFactualClaims: selectedClaimCount,
       deferredClaims: selection.inventory.deferredClaims,
+      omittedClaims: Math.max(0, selectedClaimCount - labeled),
     },
+    resolutionCoverage,
   }) satisfies Scorecard;
   return { ...result, data: { ...result.data, scorecard } };
+}
+
+function focusedNullReasons(
+  scorecard: Scorecard,
+  resolutionCoverage: number | null,
+  selectedClaimCount: number,
+  resolvedClaimCount: number,
+) {
+  const reasons = [...scorecard.nullReasons] as ScoreNullReason[];
+  if (selectedClaimCount === 0 && !reasons.includes("no_checkable_claims"))
+    reasons.push("no_checkable_claims");
+  if (resolvedClaimCount === 0 && !reasons.includes("zero_resolved_denominator"))
+    reasons.push("zero_resolved_denominator");
+  if (
+    resolutionCoverage !== null &&
+    resolutionCoverage < CORE_V2_RESOLUTION_COVERAGE_THRESHOLD &&
+    !reasons.includes("resolution_coverage_below_threshold")
+  ) {
+    reasons.push("resolution_coverage_below_threshold");
+  }
+  return [...new Set(reasons)];
 }
 
 function isEligible(entry: WorkingClaim) {

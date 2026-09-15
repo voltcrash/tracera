@@ -10,6 +10,8 @@ import { hashValue } from "./hashing.js";
 import { RELATED_CONTEXT_NOTICE } from "./report-view.js";
 
 export interface ReuseIdentity {
+  /** Optional for compatibility with direct callers; the orchestrator always supplies it. */
+  inputHash?: string;
   contentHash: string;
   propositionScopeHash: string;
   versions: RunContext["versions"];
@@ -49,6 +51,7 @@ export interface ReportReuseLookup {
   findCandidate(request: {
     inputHash: string;
     contentHash: string;
+    scope: Pick<RunContext, "tenantId" | "ownerUserId" | "visibility">;
     signal: AbortSignal;
   }): Promise<unknown>;
 }
@@ -83,10 +86,19 @@ export function decideReportReuse(candidate: unknown, identity: ReuseIdentity): 
     return { reusable: false, report: null, reason: "no_candidate" };
   }
   const parsed = runReportSchema.safeParse(candidate);
-  if (!parsed.success || parsed.data.status !== "complete" || !parsed.data.scorecard) {
+  if (
+    !parsed.success ||
+    parsed.data.status !== "complete" ||
+    !parsed.data.scorecard ||
+    parsed.data.evidenceSetHash === null ||
+    parsed.data.replayManifest.evidenceSetHash !== parsed.data.evidenceSetHash
+  ) {
     return { reusable: false, report: null, reason: "incomplete" };
   }
   const report = parsed.data;
+  if (identity.inputHash !== undefined && report.replayManifest.inputHash !== identity.inputHash) {
+    return { reusable: false, report: null, reason: "content_changed" };
+  }
   const primary = report.snapshots.find(({ id }) => id === report.primarySnapshotId);
   if (!primary || primary.contentHash !== identity.contentHash) {
     return { reusable: false, report: null, reason: "content_changed" };

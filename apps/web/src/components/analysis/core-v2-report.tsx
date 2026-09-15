@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
   const { score } = view;
   const counts = score.counts;
+  const denominatorLabel = score.selectedClaimCount === null ? "eligible" : "selected";
 
   return (
     <article className="trace">
@@ -29,7 +30,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
             value={score.value === null ? "Not available" : `${format(score.value)}%`}
             detail={
               counts
-                ? `${counts.supported} supported / ${counts.supported + counts.contradicted} resolved`
+                ? `${counts.supported} supported / ${counts.contradicted} contradicted · ${score.resolvedClaimCount ?? counts.supported + counts.contradicted} resolved of ${score.selectedClaimCount ?? counts.eligibleFactualClaims} ${denominatorLabel}`
                 : null
             }
           />
@@ -40,7 +41,11 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
                 ? "Not available"
                 : `${format(score.resolutionCoverage * 100)}%`
             }
-            detail={counts ? `${counts.eligibleFactualClaims} eligible factual claims` : null}
+            detail={
+              counts
+                ? `${score.resolvedClaimCount ?? counts.supported + counts.contradicted} resolved / ${score.selectedClaimCount ?? counts.eligibleFactualClaims} ${denominatorLabel}`
+                : null
+            }
           />
           <Metric
             label="Evidence as of"
@@ -67,6 +72,8 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
         ) : null}
         {counts ? (
           <p className="mt-5 text-sm text-ink-soft">
+            {score.selectedClaimCount ?? counts.eligibleFactualClaims} {denominatorLabel} ·{" "}
+            {score.resolvedClaimCount ?? counts.supported + counts.contradicted} resolved ·{" "}
             {counts.misleading} misleading · {counts.mixed} mixed · {counts.unverified} unverified ·{" "}
             {counts.deferredClaims} deferred · {counts.omittedClaims} omitted
           </p>
@@ -165,35 +172,163 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
           </header>
           <ul className="space-y-2 text-sm">
             {view.deferredClaims.map((claim) => (
-              <li key={claim.id}>{claim.text}</li>
+              <li key={claim.id}>
+                <p>{claim.text}</p>
+                {claim.reason ? <p className="text-xs text-ink-faint">{claim.reason}</p> : null}
+              </li>
             ))}
           </ul>
         </section>
       ) : null}
 
+      {view.excludedClaims.length > 0 ? (
+        <section className="trace-section" id="excluded">
+          <header className="trace-section-head">
+            <h2 className="trace-section-title">Excluded from focused factual work</h2>
+            <p className="trace-section-count">{view.excludedClaims.length}</p>
+            <p className="trace-section-lede">
+              These inventoried items are retained for transparency but are not selected factual
+              claims and do not affect the focused score.
+            </p>
+          </header>
+          <ul className="space-y-2 text-sm">
+            {view.excludedClaims.map((claim) => (
+              <li key={claim.id}>
+                <p>{claim.text}</p>
+                {claim.reason ? <p className="text-xs text-ink-faint">{claim.reason}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {view.presentationFindings.length > 0 ? (
+        <section className="trace-section" id="presentation">
+          <header className="trace-section-head">
+            <h2 className="trace-section-title">Presentation observations</h2>
+            <p className="trace-section-count">{view.presentationFindings.length}</p>
+            <p className="trace-section-lede">
+              These observations describe presentation, attribution, or context. They do not
+              determine factual truth or change the factual score.
+            </p>
+          </header>
+          <ul className="space-y-3 text-sm">
+            {view.presentationFindings.map((finding) => (
+              <li key={finding.id} className="border-t border-line-weak pt-3">
+                <p className="font-semibold">{humanize(finding.kind)}</p>
+                <p className="mt-1 text-ink-soft">{finding.description}</p>
+                <p className="mt-1 text-xs text-ink-faint">
+                  {finding.evidenceBacked
+                    ? "Evidence-backed context"
+                    : "Submitted-text observation only"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="trace-section" id="source-context">
+        {view.sourceContext.length > 0 ? (
+          <>
+            <header className="trace-section-head">
+              <h2 className="trace-section-title">Source context</h2>
+              <p className="trace-section-count">{view.sourceContext.length}</p>
+              <p className="trace-section-lede">
+                Provider ratings and discovery metadata are context only; they are not proof of a
+                claim.
+              </p>
+            </header>
+            <ul className="space-y-3 text-sm">
+              {view.sourceContext.map((source) => (
+                <li key={source.candidateId} className="border-t border-line-weak pt-3">
+                  <a
+                    className="trace-external inline-flex font-semibold"
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {source.title ?? source.url} <ExternalLink />
+                  </a>
+                  <p className="text-xs text-ink-faint">
+                    {source.provider} · provider rating: {source.providerRating ?? "not supplied"}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <>
+            <header className="trace-section-head">
+              <h2 className="trace-section-title">Source context</h2>
+              <p className="trace-section-count">Unavailable</p>
+              <p className="trace-section-lede">
+                No provider or source-reputation metadata was supplied. Source context is not
+                evidence and does not affect the factual score.
+              </p>
+            </header>
+          </>
+        )}
+      </section>
+
       <section className="trace-section" id="origin">
         <header className="trace-section-head">
           <h2 className="trace-section-title">Origin candidates</h2>
           <p className="trace-section-lede">
-            Earliest observed within the recorded search scope, never a global first source.{" "}
+            Earliest observed within the searched scope; earlier material may exist outside it.{" "}
             {view.relatedContextNotice}
           </p>
         </header>
-        {view.originCandidates.map((graph) => (
-          <div key={graph.claimId} className="border-t border-line-weak py-4">
-            <p className="text-sm font-semibold">{graph.claimText}</p>
-            <ul className="mt-2 text-sm text-ink-soft">
-              {graph.candidates.map((root) => (
-                <li key={`${root.snapshotId}:${root.rootKind}`}>
-                  {humanize(root.rootKind)} · rank {root.rank}
-                  {root.url ? ` · ${root.url}` : ""}
-                </li>
-              ))}
-              {graph.unresolved ? <li>Origin unresolved.</li> : null}
-            </ul>
-          </div>
-        ))}
+        {view.originCandidates.length === 0 ? (
+          <p className="border-t border-line-weak py-4 text-sm text-ink-soft">
+            Origin unavailable; no claim-bearing provenance graph was supplied.
+          </p>
+        ) : (
+          view.originCandidates.map((graph) => (
+            <div key={graph.claimId} className="border-t border-line-weak py-4">
+              <p className="text-sm font-semibold">{graph.claimText}</p>
+              <ul className="mt-2 text-sm text-ink-soft">
+                {graph.candidates.map((root) => (
+                  <li key={`${root.snapshotId}:${root.rootKind}`}>
+                    {humanize(root.rootKind)} · rank {root.rank}
+                    {root.url ? ` · ${root.url}` : ""}
+                  </li>
+                ))}
+                {graph.unresolved ? <li>Origin unresolved.</li> : null}
+              </ul>
+            </div>
+          ))
+        )}
       </section>
+
+      {view.timeline.entries.length > 0 ? (
+        <section className="trace-section" id="timeline">
+          <header className="trace-section-head">
+            <h2 className="trace-section-title">Observed timeline</h2>
+            <p className="trace-section-count">{view.timeline.entries.length}</p>
+            <p className="trace-section-lede">{view.timeline.notice}</p>
+          </header>
+          <ol className="space-y-3 text-sm">
+            {view.timeline.entries.map((entry) => (
+              <li key={entry.id} className="border-t border-line-weak pt-3">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="font-semibold">{humanize(entry.assertion.type)}</span>
+                  <span>{formatTimelineInterval(entry.assertion.interval)}</span>
+                  {entry.status === "unresolved" ? (
+                    <Badge variant="amber">
+                      Unresolved: {humanize(entry.unresolvedReason ?? "unknown")}
+                    </Badge>
+                  ) : null}
+                </div>
+                <p className="text-xs text-ink-faint">
+                  {humanize(entry.assertion.source)} · {humanize(entry.snapshotRole)} snapshot
+                  {entry.sourceUrl ? ` · ${entry.sourceUrl}` : ""}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       {view.visualVerification.ocr !== "not_applicable" ? (
         <section className="trace-section" id="visual-status">
@@ -202,10 +337,30 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
             <p className="trace-section-lede">
               {view.visualVerification.ocr === "uncertain"
                 ? "Some visible text was transcribed with uncertainty. "
-                : "Visible text was transcribed. "}
+                : view.visualVerification.ocr === "unavailable"
+                  ? "OCR was unavailable, so no image text was transcribed. "
+                  : "Visible text was transcribed. "}
               OCR checks what the image says; it does not verify the depicted event, visual
-              provenance, or authenticity.
+              provenance, or authenticity. Missing EXIF/C2PA metadata or reverse-image matches is
+              not evidence that the image is fabricated.
             </p>
+            {view.visualVerification.observations.length > 0 ? (
+              <ul className="mt-4 space-y-2 text-sm">
+                {view.visualVerification.observations.map((observation) => (
+                  <li
+                    key={`${observation.snapshotId}:${observation.start}:${observation.end}`}
+                    className="border-t border-line-weak pt-2"
+                  >
+                    <span>“{observation.text}”</span>
+                    <span className="ml-2 text-xs text-ink-faint">
+                      OCR region {observation.start}–{observation.end}
+                      {observation.transcriptionUncertain ? " · transcription uncertain" : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="mt-3 text-xs text-ink-faint">Visual authenticity: not verified.</p>
           </header>
         </section>
       ) : null}
@@ -229,4 +384,13 @@ function humanize(value: string) {
 
 function format(value: number) {
   return Number(value.toFixed(1));
+}
+
+function formatTimelineInterval(interval: { earliest: string | null; latest: string | null }) {
+  if (interval.earliest === null && interval.latest === null) return "Time unknown";
+  const earliest = interval.earliest
+    ? new Date(interval.earliest).toLocaleString()
+    : "Unknown start";
+  const latest = interval.latest ? new Date(interval.latest).toLocaleString() : "Unknown end";
+  return earliest === latest ? earliest : `${earliest} – ${latest}`;
 }

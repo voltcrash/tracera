@@ -159,8 +159,15 @@ async function processLease(
         ? {
             reuse: {
               maxAgeMs: options.reuseMaxAgeMs,
-              findCandidate: ({ inputHash }) =>
-                options.repository.findLatestCompletedReport({ scope: lease.scope, inputHash }),
+              findCandidate: ({ inputHash, scope }) =>
+                options.repository.findLatestCompletedReport({
+                  scope: {
+                    tenantId: scope.tenantId,
+                    ownerUserId: scope.ownerUserId,
+                    visibility: scope.visibility,
+                  },
+                  inputHash,
+                }),
             },
           }
         : {}),

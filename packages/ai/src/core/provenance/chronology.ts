@@ -132,7 +132,7 @@ export function rankRoots(
       rootKind: "earliest_observed_statement",
       rank: observedRank,
       signals: [
-        "Earliest observed statement within the searched sources and date range",
+        "Earliest observed within the searched scope.",
         dependence.some(({ dependence: value }) => value === "unknown")
           ? "Source dependence is unknown and was not treated as independent"
           : "Claim presence was validated against an immutable snapshot",
@@ -157,7 +157,10 @@ export function rankRoots(
       snapshotId: node.snapshotId,
       rootKind: "earliest_retrieved_report",
       rank: reportRank,
-      signals: ["Earliest retrieved report within the bounded traversal"],
+      signals: [
+        "Earliest observed within the searched scope.",
+        "Publication time was unavailable; retrieval order does not establish publication order.",
+      ],
     });
   }
   return [

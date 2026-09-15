@@ -19,6 +19,7 @@ export {
   type FocusedSelectionInput,
   type FocusedSelectionResult,
 } from "./selection/index.js";
+export { scoreFocusedReportV2, scoreReportV2 } from "./scoring/index.js";
 export { createCoreJobPayload, type CoreJobPayload } from "./job.js";
 export {
   decideReportReuse,
@@ -29,6 +30,11 @@ export {
   type ReuseIdentity,
 } from "./reuse-policy.js";
 export { projectReport, type CoreV2ReportView, type ReportView } from "./report-view.js";
+export {
+  buildImmutableTimeline,
+  IMMUTABLE_TIMELINE_NOTICE,
+  type ImmutableTimelineEntry,
+} from "./timeline.js";
 export {
   acceptStoredSnapshots,
   runCoreWorker,

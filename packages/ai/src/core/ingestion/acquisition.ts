@@ -619,7 +619,7 @@ async function acquireImageBytes(
         issues.push(
           issue(
             "capability_unavailable",
-            `Reverse-image connector ${options.reverseImage.connector} was unavailable; visual provenance is unverified.`,
+            `Reverse-image connector ${options.reverseImage.connector} was unavailable; visual provenance is unverified, and its absence is not evidence of fabrication.`,
             input.originalUrl,
           ),
         );
@@ -629,7 +629,7 @@ async function acquireImageBytes(
       issues.push(
         issue(
           "provider_failure",
-          `Reverse-image connector ${options.reverseImage.connector} failed; visual provenance is unverified: ${safeMessage(error)}`,
+          `Reverse-image connector ${options.reverseImage.connector} failed; visual provenance is unverified, and its absence is not evidence of fabrication: ${safeMessage(error)}`,
           input.originalUrl,
         ),
       );
@@ -638,7 +638,7 @@ async function acquireImageBytes(
     issues.push(
       issue(
         "capability_unavailable",
-        "No validated reverse-image connector is configured; visual provenance is unverified.",
+        "No validated reverse-image connector is configured; visual provenance is unverified, and its absence is not evidence of fabrication.",
         input.originalUrl,
       ),
     );
@@ -655,7 +655,7 @@ async function acquireImageBytes(
         issues.push(
           issue(
             "capability_unavailable",
-            `Content credentials are ${credentials.status}; image authenticity is not certified.`,
+            `Content credentials are ${credentials.status}; image authenticity is not certified, and missing metadata is not evidence of fabrication.`,
             input.originalUrl,
           ),
         );
@@ -665,7 +665,7 @@ async function acquireImageBytes(
       issues.push(
         issue(
           "provider_failure",
-          `Content-credentials verifier ${options.contentCredentials.verifier} failed; image authenticity is not certified: ${safeMessage(error)}`,
+          `Content-credentials verifier ${options.contentCredentials.verifier} failed; image authenticity is not certified, and missing metadata is not evidence of fabrication: ${safeMessage(error)}`,
           input.originalUrl,
         ),
       );
@@ -674,7 +674,7 @@ async function acquireImageBytes(
     issues.push(
       issue(
         "capability_unavailable",
-        "No content-credentials verifier is configured; image authenticity is not certified.",
+        "No EXIF/C2PA content-credentials verifier is configured; image authenticity is not certified, and missing EXIF/C2PA metadata is not evidence of fabrication.",
         input.originalUrl,
       ),
     );

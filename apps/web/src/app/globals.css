@@ -1868,7 +1868,7 @@
   background: var(--tone-ink);
 }
 
-/* Origin: one connected trail, ending on the earliest source found. */
+/* Origin: one connected trail, ending on the earliest observation in scope. */
 .trace-trail {
   position: relative;
   margin-top: 1.25rem;
