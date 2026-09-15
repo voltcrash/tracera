@@ -1,5 +1,10 @@
 # Core v2 Task 12 evaluation report
 
+> **Historical context — superseded full-release evaluation.** This report records the Task 12
+> full-release program only. Its blocked gates did not pass, and no full Core v2 release approval
+> is claimed. It is not an active gate for Core v2 Focused implementation; use
+> [`FOCUSED-PLAN.md`](FOCUSED-PLAN.md) for the active product path.
+
 Status: **release-validation BLOCKED**. The Task 12 fixture and operational evidence are
 implementation evidence only. No production traffic, shadow traffic, paid provider batch,
 human-gold annotation, calibration artifact, or production database was used.
