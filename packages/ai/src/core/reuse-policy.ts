@@ -1,6 +1,7 @@
 import {
   claimSchema,
   runReportSchema,
+  type FocusedSelection,
   type RunContext,
   type RunReport,
 } from "@repo/contracts/core-v2";
@@ -14,6 +15,10 @@ export interface ReuseIdentity {
   visibility: RunContext["visibility"];
   asOfTime: string;
   maxAgeMs: number;
+  focusedSelectionIdentity?: Pick<
+    FocusedSelection,
+    "policyVersion" | "selectionVersion" | "maxSelectedClaims"
+  >;
 }
 
 export type ReuseDecision =
@@ -84,6 +89,19 @@ export function decideReportReuse(candidate: unknown, identity: ReuseIdentity): 
   }
   if (propositionScopeHash(report.claims) !== identity.propositionScopeHash) {
     return { reusable: false, report: null, reason: "proposition_scope_changed" };
+  }
+  if (identity.focusedSelectionIdentity !== undefined) {
+    const focused = report.focusedSelection;
+    if (
+      focused === undefined ||
+      hashValue({
+        policyVersion: focused.policyVersion,
+        selectionVersion: focused.selectionVersion,
+        maxSelectedClaims: focused.maxSelectedClaims,
+      }) !== hashValue(identity.focusedSelectionIdentity)
+    ) {
+      return { reusable: false, report: null, reason: "version_changed" };
+    }
   }
   if (hashValue(report.replayManifest.versions) !== hashValue(identity.versions)) {
     return { reusable: false, report: null, reason: "version_changed" };

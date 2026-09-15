@@ -48,6 +48,17 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
             detail={score.formulaVersion}
           />
         </div>
+        {view.focusedSelection ? (
+          <p className="mt-5 text-sm text-ink-soft">
+            Evidence analysis covers {view.focusedSelection.analyzedClaims} selected claim
+            {view.focusedSelection.analyzedClaims === 1 ? "" : "s"} of{" "}
+            {view.focusedSelection.inventoriedClaims} inventoried claims. Remaining claims stay
+            visible as deferred or excluded work.
+            {view.focusedSelection.shortfallReason
+              ? ` ${view.focusedSelection.shortfallReason}`
+              : ""}
+          </p>
+        ) : null}
         {counts ? (
           <p className="mt-5 text-sm text-ink-soft">
             {counts.misleading} misleading · {counts.mixed} mixed · {counts.unverified} unverified ·{" "}
