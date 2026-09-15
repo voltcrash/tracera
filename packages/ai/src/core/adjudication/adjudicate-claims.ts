@@ -16,8 +16,8 @@ import {
   buildChallengeInput,
   buildSufficiencyFeedback,
   createAssessEvidenceV2,
-} from "../evidence/index.js";
-import { createRetrieveEvidenceV2 } from "../retrieval/index.js";
+} from "../evidence/index";
+import { createRetrieveEvidenceV2 } from "../retrieval/index";
 import type {
   AdjudicateClaimsV2,
   AdjudicateClaimsV2Data,
@@ -25,8 +25,8 @@ import type {
   GenerationRequest,
   PortUsage,
   RunEnvironment,
-} from "../types.js";
-import { buildChallengeRequest, buildDraftRequest } from "./generation.js";
+} from "../types";
+import { buildChallengeRequest, buildDraftRequest } from "./generation";
 import {
   hasSufficientOrigins,
   isAdjudicable,
@@ -38,8 +38,8 @@ import {
   validateChallenge,
   withRelation,
   type DraftResolution,
-} from "./policy.js";
-import type { AdjudicationOptions, TargetedEvidence } from "./types.js";
+} from "./policy";
+import type { AdjudicationOptions, TargetedEvidence } from "./types";
 
 export const PENDING_CALIBRATION: Calibration = {
   applicability: "unavailable",

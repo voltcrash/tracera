@@ -20,7 +20,7 @@ import {
   type StageResult,
   type StageStatus,
 } from "@repo/contracts/core-v2";
-import type { ScoreReportV2Data } from "../types.js";
+import type { ScoreReportV2Data } from "../types";
 
 export interface FocusedSelectionInput {
   claims: ClaimV2[];

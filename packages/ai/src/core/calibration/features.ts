@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Decision, EvidenceAssessment } from "@repo/contracts/core-v2";
-import { isDecisive } from "../adjudication/policy.js";
+import { isDecisive } from "../adjudication/policy";
 
 export const CALIBRATION_FEATURE_VERSION = "core-v2-calibration-features-1.0.0";
 

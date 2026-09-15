@@ -265,6 +265,7 @@ export class CoreStorageRepository {
     scope: CoreAccessScope;
     workerId: string;
     leaseSeconds: number;
+    runId?: string;
   }): Promise<CoreLease | null> {
     if (!Number.isInteger(input.leaseSeconds) || input.leaseSeconds < 1) {
       throw new Error("leaseSeconds must be a positive integer.");
@@ -273,6 +274,7 @@ export class CoreStorageRepository {
       const candidate = await client.query<{ job_id: string }>(
         `SELECT job_id FROM core_jobs
           WHERE tenant_id = $1 AND owner_user_id = $2 AND visibility = $3
+            AND ($4::text IS NULL OR run_id = $4)
             AND cancellation_requested = FALSE
             AND attempt < max_attempts
             AND available_at <= NOW()
@@ -280,7 +282,7 @@ export class CoreStorageRepository {
           ORDER BY available_at, created_at, job_id
           FOR UPDATE SKIP LOCKED
           LIMIT 1`,
-        scopeValues(input.scope),
+        [...scopeValues(input.scope), input.runId ?? null],
       );
       const jobId = candidate.rows[0]?.job_id;
       if (!jobId) return null;

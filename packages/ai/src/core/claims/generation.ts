@@ -1,7 +1,7 @@
 import { attributionSchema, checkabilitySchema, quantitySchema } from "@repo/contracts/core-v2";
 import { z } from "zod";
-import type { GenerationRequest } from "../types.js";
-import type { ExtractionChunk, InventorySegment } from "./segmentation.js";
+import type { GenerationRequest } from "../types";
+import type { ExtractionChunk, InventorySegment } from "./segmentation";
 
 export const CLAIM_EXTRACTION_SCHEMA_NAME = "core-v2-claim-inventory-chunk";
 export const CLAIM_EXTRACTION_PROMPT_VERSION = "core-v2-claims-1.0.0";

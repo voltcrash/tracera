@@ -1,10 +1,10 @@
 import type { ClaimV2, Span, TimeInterval } from "@repo/contracts/core-v2";
-import type { QuoteReference, RawClaim } from "./generation.js";
+import type { QuoteReference, RawClaim } from "./generation";
 import {
   ENGLISH_FUNCTION_WORDS,
   type InventorySegment,
   type SegmentedDocument,
-} from "./segmentation.js";
+} from "./segmentation";
 
 export interface ClaimDraft {
   localId: string;

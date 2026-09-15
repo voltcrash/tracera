@@ -2,7 +2,7 @@ export {
   PENDING_CALIBRATION,
   adjudicateClaimsV2,
   createAdjudicateClaimsV2,
-} from "./adjudicate-claims.js";
+} from "./adjudicate-claims";
 export {
   ADJUDICATION_CHALLENGE_SCHEMA_NAME,
   ADJUDICATION_DRAFT_SCHEMA_NAME,
@@ -12,7 +12,7 @@ export {
   buildDraftRequest,
   challengeProposalSchema,
   draftProposalSchema,
-} from "./generation.js";
+} from "./generation";
 export {
   hasSufficientOrigins,
   isAdjudicable,
@@ -21,7 +21,7 @@ export {
   resolveDraft,
   scopeAbstention,
   validateChallenge,
-} from "./policy.js";
+} from "./policy";
 export type {
   AdjudicationOptions,
   ChallengeProposal,
@@ -29,4 +29,4 @@ export type {
   EvidencePartition,
   TargetedEvidence,
   TargetedReassessment,
-} from "./types.js";
+} from "./types";

@@ -1,5 +1,5 @@
 import type { ClaimV2, QueryIntent, SufficiencyFeedback } from "@repo/contracts/core-v2";
-import type { RetrievalQuestion } from "./types.js";
+import type { RetrievalQuestion } from "./types";
 
 const quote = (value: string) => `"${value.replaceAll('"', "").trim()}"`;
 

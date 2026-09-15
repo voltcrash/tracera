@@ -8,18 +8,15 @@ import {
   type RunContext,
 } from "@repo/contracts/core-v2";
 import { z } from "zod";
-import {
-  ADJUDICATION_PROMPT_VERSION,
-  CHALLENGE_PROMPT_VERSION,
-} from "../adjudication/generation.js";
-import { EVIDENCE_ASSESSMENT_PROMPT_VERSION } from "../evidence/index.js";
+import { ADJUDICATION_PROMPT_VERSION, CHALLENGE_PROMPT_VERSION } from "../adjudication/generation";
+import { EVIDENCE_ASSESSMENT_PROMPT_VERSION } from "../evidence/index";
 import {
   CALIBRATION_FEATURE_NAMES,
   CALIBRATION_FEATURE_VERSION,
   featureVector,
   type CalibrationFeatures,
-} from "./features.js";
-import { predictLogistic } from "./logistic.js";
+} from "./features";
+import { predictLogistic } from "./logistic";
 
 export const CALIBRATOR_ARTIFACT_VERSION = "core-v2-calibrator-artifact-1.0.0";
 

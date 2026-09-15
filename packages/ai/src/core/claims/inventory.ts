@@ -7,8 +7,8 @@ import {
   type InputCoverage,
   type Span,
 } from "@repo/contracts/core-v2";
-import type { SegmentedDocument } from "./segmentation.js";
-import type { ClaimDraft } from "./validation.js";
+import type { SegmentedDocument } from "./segmentation";
+import type { ClaimDraft } from "./validation";
 
 export interface AcceptedClaim {
   draft: ClaimDraft;

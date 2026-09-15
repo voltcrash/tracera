@@ -7,8 +7,8 @@ import {
   type ProvenanceGraph,
   type StageResult,
 } from "@repo/contracts/core-v2";
-import { createAssessEvidenceV2 } from "../evidence/index.js";
-import type { RunEnvironment, TraceOriginsV2, TraceOriginsV2Data } from "../types.js";
+import { createAssessEvidenceV2 } from "../evidence/index";
+import type { RunEnvironment, TraceOriginsV2, TraceOriginsV2Data } from "../types";
 import {
   archiveAssertion,
   classifyNode,
@@ -17,10 +17,10 @@ import {
   hasValidatedClaim,
   rankRoots,
   searchedDateRange,
-} from "./chronology.js";
-import { extractProvenanceReferences } from "./references.js";
-import { createProvenanceRetrievalController } from "./retrieval-controller.js";
-import type { ArchiveCaptureCandidate, ProvenanceOptions, ProvenanceReference } from "./types.js";
+} from "./chronology";
+import { extractProvenanceReferences } from "./references";
+import { createProvenanceRetrievalController } from "./retrieval-controller";
+import type { ArchiveCaptureCandidate, ProvenanceOptions, ProvenanceReference } from "./types";
 
 export const traceOriginsV2: TraceOriginsV2 = createTraceOriginsV2();
 

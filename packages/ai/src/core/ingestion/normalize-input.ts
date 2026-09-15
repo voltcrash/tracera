@@ -1,6 +1,6 @@
 import type { CoreIssue, StageMetrics } from "@repo/contracts/core-v2";
-import type { NormalizeInputV2 } from "../types.js";
-import { supportsImageAcquisition } from "./types.js";
+import type { NormalizeInputV2 } from "../types";
+import { supportsImageAcquisition } from "./types";
 
 export const normalizeInputV2: NormalizeInputV2 = async ({ input }, environment) => {
   const { clock, documents, audit } = environment.ports;

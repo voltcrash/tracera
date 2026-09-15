@@ -5,10 +5,10 @@ export {
   type CandidateDiscoveryClient,
   type CandidateDiscoveryResult,
   type ExistingDiscoveryClients,
-} from "./discovery-adapters.js";
-export { selectPassageCandidates } from "./passages.js";
-export { buildPropositionKey, buildRetrievalQuestions } from "./questions.js";
-export { createRetrieveEvidenceV2, retrieveEvidenceV2 } from "./retrieve-evidence.js";
+} from "./discovery-adapters";
+export { selectPassageCandidates } from "./passages";
+export { buildPropositionKey, buildRetrievalQuestions } from "./questions";
+export { createRetrieveEvidenceV2, retrieveEvidenceV2 } from "./retrieve-evidence";
 export type {
   AcquiredEvidence,
   CorpusEvidenceMatch,
@@ -20,4 +20,4 @@ export type {
   RetrievalOptions,
   RetrievalQuestion,
   RetrievalReplayCase,
-} from "./types.js";
+} from "./types";

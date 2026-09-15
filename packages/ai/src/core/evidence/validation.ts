@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ClaimV2, DocumentSnapshot, EvidenceAssessment } from "@repo/contracts/core-v2";
 import { evidenceAssessmentSchema } from "@repo/contracts/core-v2";
-import { EVIDENCE_ASSESSMENT_PROMPT_VERSION, type RawAssessment } from "./generation.js";
+import { EVIDENCE_ASSESSMENT_PROMPT_VERSION, type RawAssessment } from "./generation";
 
 type AssessmentCheck = EvidenceAssessment["checks"][number];
 

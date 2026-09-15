@@ -7,28 +7,28 @@ export {
   hashArtifactContent,
   predictCorrectness,
   verifyArtifactIntegrity,
-} from "./artifact.js";
-export type { ArtifactCheck, CalibratorArtifact } from "./artifact.js";
-export { createCalibrateDecisionsV2 } from "./calibrate-decisions.js";
-export type { CalibrationOptions } from "./calibrate-decisions.js";
+} from "./artifact";
+export type { ArtifactCheck, CalibratorArtifact } from "./artifact";
+export { createCalibrateDecisionsV2 } from "./calibrate-decisions";
+export type { CalibrationOptions } from "./calibrate-decisions";
 export {
   CALIBRATION_FEATURE_NAMES,
   CALIBRATION_FEATURE_VERSION,
   CalibrationFeatureError,
   calibrationFeaturesSchema,
   extractCalibrationFeatures,
-} from "./features.js";
-export type { CalibrationFeatures } from "./features.js";
+} from "./features";
+export type { CalibrationFeatures } from "./features";
 export {
   CALIBRATION_OBSERVATION_SET_VERSION,
   RELEASE_CALIBRATION_POLICY,
   calibrationObservationSetSchema,
   evaluateCorrectnessCalibrator,
   fitCorrectnessCalibrator,
-} from "./fit.js";
+} from "./fit";
 export type {
   CalibrationCounts,
   CalibrationFitPolicy,
   CalibrationFitResult,
   CalibrationObservationSet,
-} from "./fit.js";
+} from "./fit";

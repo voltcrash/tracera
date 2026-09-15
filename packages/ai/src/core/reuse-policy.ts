@@ -6,8 +6,8 @@ import {
   type RunContext,
   type RunReport,
 } from "@repo/contracts/core-v2";
-import { hashValue } from "./hashing.js";
-import { RELATED_CONTEXT_NOTICE } from "./report-view.js";
+import { hashValue } from "./hashing";
+import { RELATED_CONTEXT_NOTICE } from "./report-view";
 
 export interface ReuseIdentity {
   /** Optional for compatibility with direct callers; the orchestrator always supplies it. */

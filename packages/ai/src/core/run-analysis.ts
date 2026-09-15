@@ -22,23 +22,23 @@ import {
   type StageStatus,
 } from "@repo/contracts/core-v2";
 import { z } from "zod";
-import { createAdjudicateClaimsV2, type TargetedEvidence } from "./adjudication/index.js";
-import { createCalibrateDecisionsV2 } from "./calibration/index.js";
-import { createExtractClaimsV2 } from "./claims/index.js";
-import { createAssessEvidenceV2 } from "./evidence/index.js";
-import { canonicalJson, evidenceSetHash, hashValue, snapshotIdentity } from "./hashing.js";
-import { normalizeInputV2 } from "./ingestion/index.js";
-import { createFocusedPublicationV2, FOCUSED_PUBLICATION_POLICY } from "./publication/index.js";
-import { createTraceOriginsV2, type ArchiveLookupPort } from "./provenance/index.js";
-import { createRetrieveEvidenceV2, type RetrievalOptions } from "./retrieval/index.js";
+import { createAdjudicateClaimsV2, type TargetedEvidence } from "./adjudication/index";
+import { createCalibrateDecisionsV2 } from "./calibration/index";
+import { createExtractClaimsV2 } from "./claims/index";
+import { createAssessEvidenceV2 } from "./evidence/index";
+import { canonicalJson, evidenceSetHash, hashValue, snapshotIdentity } from "./hashing";
+import { normalizeInputV2 } from "./ingestion/index";
+import { createFocusedPublicationV2, FOCUSED_PUBLICATION_POLICY } from "./publication/index";
+import { createTraceOriginsV2, type ArchiveLookupPort } from "./provenance/index";
+import { createRetrieveEvidenceV2, type RetrievalOptions } from "./retrieval/index";
 import {
   decideReportReuse,
   propositionScopeHash,
   type ReportReuseLookup,
   type ReuseDecision,
-} from "./reuse-policy.js";
-import { scoreReportV2 } from "./scoring/index.js";
-import { coverageForSelectedClaims, selectTopClaims } from "./selection/index.js";
+} from "./reuse-policy";
+import { scoreReportV2 } from "./scoring/index";
+import { coverageForSelectedClaims, selectTopClaims } from "./selection/index";
 import type {
   AdjudicateClaimsV2,
   AssessEvidenceV2,
@@ -57,10 +57,10 @@ import type {
   RunEnvironment,
   ScoreReportV2,
   TraceOriginsV2,
-} from "./types.js";
-import { CORE_V2_ENGINE_VERSION } from "./types.js";
+} from "./types";
+import { CORE_V2_ENGINE_VERSION } from "./types";
 
-export { canonicalJson, hashValue } from "./hashing.js";
+export { canonicalJson, hashValue } from "./hashing";
 
 /** Shared run allowance handed to each stage so no stage can spend the whole budget again. */
 export interface StageUsage {

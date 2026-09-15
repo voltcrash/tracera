@@ -1,8 +1,8 @@
 import { claimLabelSchema, probabilitySchema } from "@repo/contracts/core-v2";
 import { z } from "zod";
-import type { ChallengeInput } from "../evidence/index.js";
-import type { GenerationRequest } from "../types.js";
-import type { ChallengeProposal, DraftProposal } from "./types.js";
+import type { ChallengeInput } from "../evidence/index";
+import type { GenerationRequest } from "../types";
+import type { ChallengeProposal, DraftProposal } from "./types";
 
 export const ADJUDICATION_DRAFT_SCHEMA_NAME = "core-v2-adjudication-draft";
 export const ADJUDICATION_CHALLENGE_SCHEMA_NAME = "core-v2-adjudication-challenge";

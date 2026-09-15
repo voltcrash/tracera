@@ -5,7 +5,7 @@ import {
 } from "@repo/contracts/core-v2";
 import { z } from "zod";
 import type { ClaimV2, DocumentSnapshot } from "@repo/contracts/core-v2";
-import type { EvidenceGenerationRequest, RawAssessment } from "./types.js";
+import type { EvidenceGenerationRequest, RawAssessment } from "./types";
 
 export const EVIDENCE_ASSESSMENT_SCHEMA_NAME = "core-v2-evidence-assessment";
 export const EVIDENCE_ASSESSMENT_PROMPT_VERSION = "core-v2-evidence-1.0.0";

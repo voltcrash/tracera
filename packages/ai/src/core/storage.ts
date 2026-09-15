@@ -6,7 +6,7 @@ import {
   type RunContext,
 } from "@repo/contracts/core-v2";
 import type { CoreAccessScope, CoreStorageRepository } from "@repo/db/core";
-import type { RunStorePort, SnapshotStorePort } from "./types.js";
+import type { RunStorePort, SnapshotStorePort } from "./types";
 
 export interface RawBlobStore {
   put(request: {

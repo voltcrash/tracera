@@ -4,4 +4,4 @@ export {
   selectTopClaims,
   type FocusedSelectionInput,
   type FocusedSelectionResult,
-} from "./select-top-claims.js";
+} from "./select-top-claims";

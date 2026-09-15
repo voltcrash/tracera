@@ -4,17 +4,12 @@ import type {
   EvidenceAssessment,
   StageMetrics,
 } from "@repo/contracts/core-v2";
-import type {
-  AssessEvidenceV2,
-  AssessEvidenceV2Data,
-  AuditEvent,
-  RunEnvironment,
-} from "../types.js";
-import { assignSourceDependence } from "./dependence.js";
-import { buildAssessmentRequest } from "./generation.js";
-import { buildSufficiencyFeedback } from "./sufficiency.js";
-import type { EvidenceAssessmentOptions } from "./types.js";
-import { validateAssessment } from "./validation.js";
+import type { AssessEvidenceV2, AssessEvidenceV2Data, AuditEvent, RunEnvironment } from "../types";
+import { assignSourceDependence } from "./dependence";
+import { buildAssessmentRequest } from "./generation";
+import { buildSufficiencyFeedback } from "./sufficiency";
+import type { EvidenceAssessmentOptions } from "./types";
+import { validateAssessment } from "./validation";
 
 export const assessEvidenceV2: AssessEvidenceV2 = createAssessEvidenceV2();
 
