@@ -152,15 +152,20 @@ Decision publishability:
 
 Score consistency:
 
-10. Verdict counts must sum to `eligibleFactualClaims`, and `resolutionCoverage` must
-    equal `(supported + contradicted) / eligibleFactualClaims`, or `null` when the
-    denominator is zero.
+10. Full-release verdict counts must sum to `eligibleFactualClaims`. A focused scorecard
+    additionally carries `selectedClaimCount` and `resolvedClaimCount`; its eligible count
+    equals the selected count, and its labeled counts plus `omittedClaims` cover every selected
+    claim. `resolutionCoverage` is resolved divided by the applicable denominator, or `null`
+    when that denominator is zero.
 11. `factualScore` is non-null exactly when `nullReasons` is empty, and must then equal
-    `100 * supported / (supported + contradicted)`.
-12. Zero eligible claims, zero resolved claims, partial input, partial extraction,
-    coverage below `0.8`, and an open material mixed/misleading claim each force their
-    null reason. A gated scorecard must report a null score.
-13. Scorecard counts must match the tally of `publishedLabel` across decisions.
+    `100 * supported / (supported + contradicted)`. Focused claims have equal weight; mixed,
+    misleading, unverified, deferred, omitted, duplicate, and unselected claims do not become
+    fractional truth values.
+12. Zero eligible/selected claims, zero resolved claims, partial input, partial extraction,
+    coverage below `0.8`, invalid selected citations, unresolved selected conflicts, and an open
+    material mixed/misleading claim each force their explicit null reason. A gated scorecard must
+    report a null score.
+13. Scorecard label counts must match the tally of the decisions in that scorecard's scope.
 14. A `canceled` run cannot carry a scorecard. A `complete` run requires every stage
     outcome to be `complete`.
 

@@ -20,6 +20,7 @@
     "./core/retrieval": "./src/core/retrieval/index.ts",
     "./core/selection": "./src/core/selection/index.ts",
     "./core/scoring": "./src/core/scoring/index.ts",
+    "./core/timeline": "./src/core/timeline.ts",
     "./core/types": "./src/core/types.ts"
   },
   "scripts": {
@@ -31,6 +32,7 @@
     "evaluate:core-adjudication": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-adjudication.ts",
     "evaluate:core-claims": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-claims.ts",
     "evaluate:core-evidence": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-evidence.ts",
+    "evaluate:core-focused": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-focused.ts",
     "evaluate:core-provenance": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-provenance.ts",
     "evaluate:core-retrieval": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-retrieval.ts",
     "evaluate:core-scoring": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-scoring.ts",

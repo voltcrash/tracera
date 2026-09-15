@@ -1167,6 +1167,8 @@ export const scoreNullReasonSchema = z.enum([
   "partial_input",
   "partial_extraction",
   "resolution_coverage_below_threshold",
+  "citation_validation_failed",
+  "unresolved_conflict",
   "material_mixed_or_misleading_open",
   "run_canceled",
   "run_failed",
@@ -1211,6 +1213,10 @@ export const scorecardSchema = z
     /** 100 * supported / (supported + contradicted). Null whenever gated. */
     factualScore: percentageSchema.nullable(),
     nullReasons: z.array(scoreNullReasonSchema),
+    /** Additive focused scope count; absent on historical/full-release scorecards. */
+    selectedClaimCount: nonNegativeIntSchema.optional(),
+    /** Additive focused resolved count; absent on historical/full-release scorecards. */
+    resolvedClaimCount: nonNegativeIntSchema.optional(),
     counts: z.strictObject({
       supported: nonNegativeIntSchema,
       contradicted: nonNegativeIntSchema,
@@ -1234,7 +1240,42 @@ export const scorecardSchema = z
     const { counts } = value;
     const resolved = counts.supported + counts.contradicted;
     const labeled = resolved + counts.misleading + counts.mixed + counts.unverified;
-    if (labeled !== counts.eligibleFactualClaims) {
+    const focused = value.formulaVersion === CORE_V2_FOCUSED_SCORE_FORMULA_VERSION;
+    const hasFocusedCounts =
+      value.selectedClaimCount !== undefined || value.resolvedClaimCount !== undefined;
+    if (focused !== hasFocusedCounts) {
+      context.addIssue({
+        code: "custom",
+        path: ["formulaVersion"],
+        message:
+          "Focused scorecards must carry selected and resolved claim counts; full scorecards must not.",
+      });
+    }
+
+    const denominator = focused ? value.selectedClaimCount : counts.eligibleFactualClaims;
+    if (focused && value.selectedClaimCount !== undefined) {
+      if (counts.eligibleFactualClaims !== value.selectedClaimCount) {
+        context.addIssue({
+          code: "custom",
+          path: ["counts", "eligibleFactualClaims"],
+          message: "Focused eligible factual claims must equal the selected claim count.",
+        });
+      }
+      if (labeled + counts.omittedClaims !== value.selectedClaimCount) {
+        context.addIssue({
+          code: "custom",
+          path: ["counts", "omittedClaims"],
+          message: "Focused verdict and omitted counts must cover every selected claim.",
+        });
+      }
+      if (value.resolvedClaimCount !== resolved) {
+        context.addIssue({
+          code: "custom",
+          path: ["resolvedClaimCount"],
+          message: "Focused resolved claim count must equal supported plus contradicted.",
+        });
+      }
+    } else if (!focused && labeled !== counts.eligibleFactualClaims) {
       context.addIssue({
         code: "custom",
         path: ["counts", "eligibleFactualClaims"],
@@ -1243,17 +1284,19 @@ export const scorecardSchema = z
     }
 
     const expectedCoverage =
-      counts.eligibleFactualClaims === 0 ? null : resolved / counts.eligibleFactualClaims;
+      denominator === undefined || denominator === 0 ? null : resolved / denominator;
     if (!nearlyEqual(value.resolutionCoverage, expectedCoverage)) {
       context.addIssue({
         code: "custom",
         path: ["resolutionCoverage"],
-        message: "Resolution coverage must equal resolved divided by eligible factual claims.",
+        message: focused
+          ? "Resolution coverage must equal resolved divided by selected claims."
+          : "Resolution coverage must equal resolved divided by eligible factual claims.",
       });
     }
 
     const required = new Set<z.infer<typeof scoreNullReasonSchema>>();
-    if (counts.eligibleFactualClaims === 0) required.add("no_checkable_claims");
+    if (denominator === 0) required.add("no_checkable_claims");
     if (resolved === 0) required.add("zero_resolved_denominator");
     if (value.inputStatus !== "complete") required.add("partial_input");
     if (value.extractionStatus !== "complete") required.add("partial_extraction");
@@ -1601,6 +1644,16 @@ function validateRunReportIntegrity(
       );
     }
     const reportClaims = new Map(report.claims.map((claim) => [claim.id, claim]));
+    const selectedClaimIds = new Set(selection.selectedClaimIds);
+    for (const [index, decision] of report.decisions.entries()) {
+      if (!selectedClaimIds.has(decision.claimId)) {
+        addIssue(
+          context,
+          ["decisions", index, "claimId"],
+          "Focused reports cannot publish a decision for an unselected claim.",
+        );
+      }
+    }
     for (const [index, entry] of selection.claims.entries()) {
       const claim = reportClaims.get(entry.claimId);
       if (!claim) {
@@ -1699,12 +1752,60 @@ function validateRunReportIntegrity(
         "Focused reports must use the focused score formula version.",
       );
     }
+    if (
+      report.scorecard !== null &&
+      (report.scorecard.selectedClaimCount === undefined ||
+        report.scorecard.resolvedClaimCount === undefined)
+    ) {
+      addIssue(
+        context,
+        ["scorecard"],
+        "Focused reports must expose selected and resolved claim counts.",
+      );
+    }
+    if (
+      report.scorecard !== null &&
+      report.focusedSelection !== undefined &&
+      report.scorecard.selectedClaimCount !== report.focusedSelection.inventory.analyzedClaims
+    ) {
+      addIssue(
+        context,
+        ["scorecard", "selectedClaimCount"],
+        "Focused selected claim count must match the selection inventory.",
+      );
+    }
   } else if (report.decisions.some(({ focusedPublication }) => focusedPublication !== undefined)) {
     addIssue(
       context,
       ["decisions"],
       "Focused decision gates require a focused publication policy.",
     );
+  }
+
+  if (report.focusedSelection !== undefined && report.focusedPublicationPolicy === undefined) {
+    addIssue(
+      context,
+      ["focusedSelection"],
+      "Focused selection metadata requires a focused publication policy.",
+    );
+  }
+  if (
+    report.focusedSelection !== undefined &&
+    report.scorecard !== null &&
+    report.scorecard.formulaVersion !== CORE_V2_FOCUSED_SCORE_FORMULA_VERSION
+  ) {
+    addIssue(
+      context,
+      ["scorecard", "formulaVersion"],
+      "Focused selection metadata requires the focused score formula.",
+    );
+  }
+
+  if (
+    report.scorecard?.formulaVersion === CORE_V2_FOCUSED_SCORE_FORMULA_VERSION &&
+    report.focusedSelection === undefined
+  ) {
+    addIssue(context, ["scorecard"], "A focused scorecard requires focused selection metadata.");
   }
 
   if (report.status === "canceled" && report.scorecard !== null) {
@@ -2151,7 +2252,7 @@ export const completeRunReportExample: RunReport = {
           snapshotId: "snap_evidence_complete",
           rootKind: "primary_record",
           rank: 1,
-          signals: ["Official register entry", "Earliest observed statement in the searched range"],
+          signals: ["Official register entry", "Earliest observed within the searched scope."],
         },
       ],
       searchLog: [
