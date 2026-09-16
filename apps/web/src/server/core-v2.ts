@@ -29,14 +29,11 @@ import {
 import { parseFirstPartyAnalysisInput, type FirstPartyAnalysisInput } from "./analysis-input";
 import { TRACERA_API_BASE_PATH } from "./base-path";
 import type { Bindings } from "./index";
-import { readAnalysisRequestBody } from "./request-body";
 
 type CoreContext = Context<{ Bindings: Bindings }>;
 
-const TERMINAL_RUN_STATUSES = new Set<CoreRunProgress["status"]>([
+const TERMINAL_JOB_STATUSES = new Set<CoreRunProgress["status"]>([
   "complete",
-  "partial",
-  "unavailable",
   "failed",
   "canceled",
 ]);
@@ -56,16 +53,12 @@ coreV2App.use("*", async (context, next) => {
 });
 
 coreV2App.post("/analyze", async (context) => {
-  const requestBody = await readAnalysisRequestBody(context.req.raw);
-  if (requestBody.tooLarge) {
-    return context.json({ error: "Request body is too large." }, 413);
-  }
   const user = await authenticatedUser(context.req.raw, runtimeEnvironment(context.env));
   if (!user)
     return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
   const idempotency = readIdempotencyKey(context.req.raw);
   if (!idempotency.valid) return context.json({ error: idempotency.message }, 400);
-  const parsed = parseFirstPartyAnalysisInput(requestBody.body);
+  const parsed = parseFirstPartyAnalysisInput(await context.req.json().catch(() => null));
   if (!parsed.success) return context.json({ error: parsed.error }, 400);
   const config = analysisControlConfig(context.env);
   const endpoint = "/v2/analyze";
@@ -175,7 +168,7 @@ coreV2App.get("/runs/:id/events", async (context) => {
             ),
           );
         }
-        if (TERMINAL_RUN_STATUSES.has(state.progress.status)) {
+        if (TERMINAL_JOB_STATUSES.has(state.progress.status)) {
           closed = true;
           controller.close();
         }
@@ -264,11 +257,9 @@ async function runState(scope: CoreAccessScope, runId: string) {
   const progress = await repository().getRunProgress({ scope, runId });
   if (!progress) return null;
   const report =
-    TERMINAL_RUN_STATUSES.has(progress.status) && progress.status !== "canceled"
-      ? await repository().getLatestReport({ scope, runId })
-      : null;
+    progress.status === "complete" ? await repository().getLatestReport({ scope, runId }) : null;
   const completed = new Set(progress.completedStages);
-  const currentStage = TERMINAL_RUN_STATUSES.has(progress.status)
+  const currentStage = TERMINAL_JOB_STATUSES.has(progress.status)
     ? null
     : (stageNameSchema.options.find((stage) => !completed.has(stage)) ?? null);
   return { progress: { ...progress, currentStage }, report };

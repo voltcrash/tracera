@@ -109,24 +109,6 @@ test("long text is explicitly truncated and retained in stable UTF-16 chunks", a
   });
 });
 
-test("a byte-limited UTF-8 text input does not retain a replacement character", async () => {
-  const port = createDocumentAcquisitionPort({
-    now: () => NOW,
-    textByteLimit: 2,
-  });
-  const result = await port.acquireFromText({
-    text: "a😀b",
-    role: "submitted_input",
-    signal: new AbortController().signal,
-  });
-
-  assert.equal(result.status, "partial");
-  assert.equal(result.data?.snapshot.normalizedText, "a");
-  assert.equal(result.data?.snapshot.normalizedText.includes("\uFFFD"), false);
-  assert.equal(result.metrics.externalRequests, 0);
-  assert.equal(result.metrics.costUsd, 0);
-});
-
 test("private redirect targets are rejected before the redirected request", async () => {
   let requests = 0;
   const port = createDocumentAcquisitionPort({

@@ -77,7 +77,6 @@ import {
   type AnalysisControlConfig,
 } from "./analysis-controls";
 import { coreV2App } from "./core-v2";
-import { readAnalysisRequestBody } from "./request-body";
 
 export type Bindings = AuthBindings & {
   DATABASE_URL?: string;
@@ -186,6 +185,7 @@ type ManagedAnalysisResult = {
   status: 200 | 201 | 400 | 409 | 422 | 429 | 503;
 };
 
+const MAX_ANALYSIS_BODY_BYTES = 7_100_000;
 const DEDUP_SAFETY_CAP_HOURS = 24;
 const IMAGE_DEDUP_SIMILARITY = 0.98;
 const RELATED_STORY_SIMILARITY = 0.84;
@@ -193,7 +193,7 @@ const RELATED_STORY_MAX_AGE_HOURS = 24 * 90;
 const CORPUS_SIMILARITY = 0.78;
 
 app.post("/analyze", async (context) => {
-  const requestBody = await readAnalysisRequestBody(context.req.raw);
+  const requestBody = await readAnalysisRequestBody(context);
   if (requestBody.tooLarge) {
     return context.json({ error: "Request body is too large." }, 413);
   }
@@ -214,7 +214,7 @@ app.post("/analyze", async (context) => {
 });
 
 app.post("/analyze/stream", async (context) => {
-  const requestBody = await readAnalysisRequestBody(context.req.raw);
+  const requestBody = await readAnalysisRequestBody(context);
   if (requestBody.tooLarge) {
     return context.json({ error: "Request body is too large." }, 413);
   }
@@ -1063,6 +1063,51 @@ function aiProviderName(value: string | undefined): AiProviderName {
     throw new Error(`AI_PROVIDER must be one of: ${supported.join(", ")}.`);
   }
   return provider as AiProviderName;
+}
+
+function requestBodyIsTooLarge(context: Context<{ Bindings: Bindings }>) {
+  const contentLength = Number(context.req.header("content-length"));
+  return Number.isFinite(contentLength) && contentLength > MAX_ANALYSIS_BODY_BYTES;
+}
+
+async function readAnalysisRequestBody(
+  context: Context<{ Bindings: Bindings }>,
+): Promise<{ tooLarge: true } | { tooLarge: false; body: unknown }> {
+  if (requestBodyIsTooLarge(context)) return { tooLarge: true };
+
+  const stream = context.req.raw.body;
+  if (!stream) return { tooLarge: false, body: null };
+
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_ANALYSIS_BODY_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        return { tooLarge: true };
+      }
+      chunks.push(value);
+    }
+
+    const bytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { tooLarge: false, body: JSON.parse(new TextDecoder().decode(bytes)) };
+  } catch {
+    return { tooLarge: false, body: null };
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 function analysisResponse(payload: AnalysisResponse) {

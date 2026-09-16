@@ -11,28 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Progress = {
-  status:
-    | "queued"
-    | "leased"
-    | "retry"
-    | "complete"
-    | "partial"
-    | "unavailable"
-    | "failed"
-    | "canceled";
+  status: "queued" | "leased" | "retry" | "complete" | "failed" | "canceled";
   currentStage: string | null;
   attempt: number;
   completedStages: string[];
   cancellationRequested: boolean;
 };
 
-const TERMINAL = new Set<Progress["status"]>([
-  "complete",
-  "partial",
-  "unavailable",
-  "failed",
-  "canceled",
-]);
+const TERMINAL = new Set<Progress["status"]>(["complete", "failed", "canceled"]);
 
 export function CoreRunDetail({ id }: { id: string }) {
   const { apiFetch, user, isLoading } = useAuth();
@@ -130,8 +116,6 @@ export function CoreRunDetail({ id }: { id: string }) {
 function headline(progress: Progress) {
   if (progress.status === "canceled") return "Analysis canceled";
   if (progress.status === "failed") return "Analysis could not finish";
-  if (progress.status === "partial") return "Analysis completed with limitations";
-  if (progress.status === "unavailable") return "Analysis unavailable";
   if (progress.cancellationRequested) return "Cancellation requested";
   if (progress.status === "retry") return "Retrying after an interruption";
   return progress.currentStage ? `Stage: ${progress.currentStage.replaceAll("_", " ")}` : "Queued";
