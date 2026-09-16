@@ -14,6 +14,16 @@ export const CORE_V2_SCHEMA_VERSION = 2 as const;
 export const CORE_V2_CONTRACT_VERSION = "2.0.0" as const;
 export const CORE_V2_SCORE_FORMULA_VERSION = "factual-supported-share-1.0.0" as const;
 export const CORE_V2_RESOLUTION_COVERAGE_THRESHOLD = 0.8 as const;
+export const CORE_V2_FOCUSED_POLICY_VERSION = "core-v2-focused-1.0.0" as const;
+export const CORE_V2_FOCUSED_SELECTION_VERSION = "core-v2-focused-selection-1.0.0" as const;
+export const CORE_V2_FOCUSED_MAX_SELECTED_CLAIMS = 3 as const;
+export const CORE_V2_FOCUSED_PUBLICATION_POLICY_VERSION =
+  "core-v2-focused-publication-1.0.0" as const;
+export const CORE_V2_FOCUSED_PUBLICATION_DECISION_VERSION =
+  "core-v2-focused-decision-1.0.0" as const;
+export const CORE_V2_FOCUSED_SCORE_FORMULA_VERSION = "focused-supported-share-1.0.0" as const;
+export const CORE_V2_FOCUSED_NON_CALIBRATION_REASON =
+  "Focused policy is evidence-gated and does not use statistical calibration." as const;
 
 /** Starting evaluation-only caps from the plan. Not a production spend approval. */
 export const CORE_V2_EVALUATION_BUDGET = {
@@ -419,6 +429,256 @@ export const inputCoverageSchema = z
   );
 
 // ---------------------------------------------------------------------------
+// Focused selection
+// ---------------------------------------------------------------------------
+
+export const focusedSelectionStatusSchema = z.enum(["analyzed", "deferred", "excluded"]);
+
+export const focusedSelectionPositionSchema = z.enum([
+  "headline",
+  "heading",
+  "lead",
+  "body",
+  "unknown",
+]);
+
+export const focusedConcreteSignalSchema = z.enum([
+  "entity",
+  "date",
+  "place",
+  "quantity",
+  "measurable_event",
+]);
+
+export const focusedSelectionReasonCodeSchema = z.enum([
+  "selected_material_checkable",
+  "deferred_by_selection_limit",
+  "deferred_by_extraction_limit",
+  "ambiguous_context",
+  "unanswerable",
+  "not_checkable",
+  "uncertain_ocr",
+  "not_material",
+  "duplicate_claim",
+  "not_factual_claim",
+  "opinion",
+  "background",
+  "non_checkable",
+]);
+
+export const focusedSelectionRankingSchema = z.strictObject({
+  position: focusedSelectionPositionSchema,
+  concreteSignals: z.array(focusedConcreteSignalSchema),
+  documentOrder: nonNegativeIntSchema.nullable(),
+  spanStart: nonNegativeIntSchema.nullable(),
+  tieBreaker: z.literal("document_order_then_claim_id"),
+});
+
+export const focusedSelectionClaimSchema = z.strictObject({
+  claimId: z.string().min(1),
+  status: focusedSelectionStatusSchema,
+  rank: z.number().int().positive().nullable(),
+  canonical: z.boolean(),
+  originalCoverageDisposition: coverageDispositionSchema,
+  coverageDisposition: coverageDispositionSchema,
+  checkability: checkabilitySchema,
+  material: z.boolean(),
+  reasonCode: focusedSelectionReasonCodeSchema,
+  reason: z.string().min(1),
+  ranking: focusedSelectionRankingSchema,
+});
+
+export const focusedSelectionInventorySchema = z.strictObject({
+  totalClaims: nonNegativeIntSchema,
+  canonicalClaims: nonNegativeIntSchema,
+  duplicateClaims: nonNegativeIntSchema,
+  canonicalFactualClaims: nonNegativeIntSchema,
+  eligibleClaims: nonNegativeIntSchema,
+  analyzedClaims: nonNegativeIntSchema,
+  deferredClaims: nonNegativeIntSchema,
+  excludedClaims: nonNegativeIntSchema,
+});
+
+export const focusedSelectionCoverageSchema = z.strictObject({
+  documents: nonNegativeIntSchema,
+  completeDocuments: nonNegativeIntSchema,
+  partialDocuments: nonNegativeIntSchema,
+  totalCharacters: nonNegativeIntSchema,
+  coveredCharacters: nonNegativeIntSchema,
+  omittedCharacters: nonNegativeIntSchema,
+});
+
+export const focusedSelectionSchema = z
+  .strictObject({
+    policyVersion: z.literal(CORE_V2_FOCUSED_POLICY_VERSION),
+    selectionVersion: z.literal(CORE_V2_FOCUSED_SELECTION_VERSION),
+    maxSelectedClaims: z.literal(CORE_V2_FOCUSED_MAX_SELECTED_CLAIMS),
+    inputSnapshotHash: contentHashSchema.nullable(),
+    inventoryStatus: stageStatusSchema,
+    inventory: focusedSelectionInventorySchema,
+    coverage: focusedSelectionCoverageSchema,
+    claims: z.array(focusedSelectionClaimSchema),
+    selectedClaimIds: z.array(z.string().min(1)).max(CORE_V2_FOCUSED_MAX_SELECTED_CLAIMS),
+    deferredClaimIds: z.array(z.string().min(1)),
+    excludedClaimIds: z.array(z.string().min(1)),
+    shortfallReason: z.string().min(1).nullable(),
+  })
+  .superRefine((value, context) => {
+    const entries = new Map<string, z.infer<typeof focusedSelectionClaimSchema>>();
+    for (const [index, entry] of value.claims.entries()) {
+      if (entries.has(entry.claimId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["claims", index, "claimId"],
+          message: `Duplicate focused selection claim: ${entry.claimId}.`,
+        });
+      }
+      entries.set(entry.claimId, entry);
+    }
+
+    const selected = value.claims.filter(({ status }) => status === "analyzed");
+    const deferred = value.claims.filter(({ status }) => status === "deferred");
+    const excluded = value.claims.filter(({ status }) => status === "excluded");
+    const canonical = value.claims.filter(({ canonical: isCanonical }) => isCanonical);
+    const canonicalFactual = canonical.filter(
+      ({ originalCoverageDisposition }) => originalCoverageDisposition === "factual_claim",
+    );
+    const eligible = canonicalFactual.filter(
+      ({ checkability, material, reasonCode }) =>
+        checkability === "checkable" && material && reasonCode !== "uncertain_ocr",
+    );
+    const setEquals = (left: string[], right: string[]) =>
+      left.length === right.length && left.every((id) => right.includes(id));
+    if (
+      !setEquals(
+        value.selectedClaimIds,
+        selected.map(({ claimId }) => claimId),
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["selectedClaimIds"],
+        message: "Selected claim IDs must match the analyzed selection entries.",
+      });
+    }
+    if (
+      !setEquals(
+        value.deferredClaimIds,
+        deferred.map(({ claimId }) => claimId),
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["deferredClaimIds"],
+        message: "Deferred claim IDs must match the deferred selection entries.",
+      });
+    }
+    if (
+      !setEquals(
+        value.excludedClaimIds,
+        excluded.map(({ claimId }) => claimId),
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["excludedClaimIds"],
+        message: "Excluded claim IDs must match the excluded selection entries.",
+      });
+    }
+    if (value.inventory.totalClaims !== value.claims.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory", "totalClaims"],
+        message: "Focused inventory total must match its selection entries.",
+      });
+    }
+    if (value.inventory.analyzedClaims !== selected.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory", "analyzedClaims"],
+        message: "Focused analyzed count must match its selection entries.",
+      });
+    }
+    if (value.inventory.deferredClaims !== deferred.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory", "deferredClaims"],
+        message: "Focused deferred count must match its selection entries.",
+      });
+    }
+    if (value.inventory.excludedClaims !== excluded.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory", "excludedClaims"],
+        message: "Focused excluded count must match its selection entries.",
+      });
+    }
+    if (value.selectedClaimIds.some((id, index) => entries.get(id)?.rank !== index + 1)) {
+      context.addIssue({
+        code: "custom",
+        path: ["selectedClaimIds"],
+        message: "Selected claim IDs must be ordered by focused rank.",
+      });
+    }
+    for (const [index, entry] of value.claims.entries()) {
+      if (entry.status !== "analyzed" && entry.rank !== null) {
+        context.addIssue({
+          code: "custom",
+          path: ["claims", index, "rank"],
+          message: "Deferred and excluded focused claims cannot have an analysis rank.",
+        });
+      }
+      if (
+        entry.status === "analyzed" &&
+        (!entry.canonical ||
+          entry.originalCoverageDisposition !== "factual_claim" ||
+          entry.coverageDisposition !== "factual_claim" ||
+          entry.checkability !== "checkable" ||
+          !entry.material)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["claims", index, "status"],
+          message: "Only canonical material checkable factual claims may be analyzed.",
+        });
+      }
+    }
+    [...selected]
+      .sort(
+        (left, right) =>
+          (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER),
+      )
+      .forEach((entry, index) => {
+        if (entry.rank !== index + 1) {
+          context.addIssue({
+            code: "custom",
+            path: ["claims", value.claims.indexOf(entry), "rank"],
+            message: "Focused analyzed claims must have contiguous ranks.",
+          });
+        }
+      });
+    if (value.inventory.canonicalClaims + value.inventory.duplicateClaims !== value.claims.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory"],
+        message: "Focused canonical and duplicate counts must cover the inventory.",
+      });
+    }
+    if (
+      value.inventory.canonicalClaims !== canonical.length ||
+      value.inventory.duplicateClaims !== value.claims.length - canonical.length ||
+      value.inventory.canonicalFactualClaims !== canonicalFactual.length ||
+      value.inventory.eligibleClaims !== eligible.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["inventory"],
+        message: "Focused inventory eligibility counts must match its selection entries.",
+      });
+    }
+  });
+
+// ---------------------------------------------------------------------------
 // Evidence candidates and assessments
 // ---------------------------------------------------------------------------
 
@@ -715,6 +975,7 @@ export const decisionReasonCodeSchema = z.enum([
   "unresolved_challenge_disagreement",
   "calibration_unavailable",
   "calibration_out_of_scope",
+  "focused_evidence_gate_abstained",
   "budget_exhausted_before_resolution",
   "source_unavailable",
   "unsupported_language",
@@ -741,6 +1002,40 @@ export const calibrationSchema = z.discriminatedUnion("applicability", [
   }),
 ]);
 
+export const focusedPublicationGateSchema = z.enum([
+  "passed",
+  "insufficient_evidence",
+  "invalid_citation",
+  "failed_applicability",
+  "unresolved_conflict",
+  "challenge_unresolved",
+  "ambiguous_scope",
+  "evidence_unavailable",
+  "uncertain_evidence",
+]);
+
+export const focusedPublicationCalibrationSchema = z.strictObject({
+  status: z.literal("not_used"),
+  probability: z.null(),
+  reason: z.literal(CORE_V2_FOCUSED_NON_CALIBRATION_REASON),
+});
+
+export const focusedPublicationPolicySchema = z.strictObject({
+  policyVersion: z.literal(CORE_V2_FOCUSED_PUBLICATION_POLICY_VERSION),
+  decisionVersion: z.literal(CORE_V2_FOCUSED_PUBLICATION_DECISION_VERSION),
+  mode: z.literal("evidence_gated"),
+  scoreFormulaVersion: z.literal(CORE_V2_FOCUSED_SCORE_FORMULA_VERSION),
+  calibration: focusedPublicationCalibrationSchema,
+});
+
+export const focusedPublicationDecisionSchema = z.strictObject({
+  policyVersion: z.literal(CORE_V2_FOCUSED_PUBLICATION_POLICY_VERSION),
+  decisionVersion: z.literal(CORE_V2_FOCUSED_PUBLICATION_DECISION_VERSION),
+  status: z.enum(["published", "abstained"]),
+  gate: focusedPublicationGateSchema,
+  calibration: focusedPublicationCalibrationSchema,
+});
+
 export const challengeSchema = z.strictObject({
   status: z.enum(["not_required", "resolved", "unresolved", "failed"]),
   independentLabel: claimLabelSchema.nullable(),
@@ -754,7 +1049,7 @@ export const decisionSchema = z
     claimId: z.string().min(1),
     /** Adjudicated label before release gating. Diagnostic and evaluation use only. */
     diagnosticLabel: claimLabelSchema,
-    /** The label released to users. Gated by calibration, challenge and citations. */
+    /** The label released to users. Gated by the legacy calibration or focused evidence policy. */
     publishedLabel: claimLabelSchema,
     reasonCodes: z.array(decisionReasonCodeSchema).min(1),
     supportingAssessmentIds: z.array(z.string().min(1)),
@@ -763,15 +1058,24 @@ export const decisionSchema = z
     justification: z.string().min(1),
     challenge: challengeSchema,
     calibration: calibrationSchema,
+    /** Additive focused publication proof; absent on historical/full reports. */
+    focusedPublication: focusedPublicationDecisionSchema.optional(),
     /** Model self-reports are diagnostic. They are never a calibrated probability. */
     rawModelConfidence: probabilitySchema.nullable(),
     citationIntegrity: z.enum(["valid", "invalid", "not_checked"]),
   })
   .superRefine((value, context) => {
-    const publishable =
+    const calibratedPublishable =
       value.calibration.applicability === "in_scope" &&
       value.challenge.status === "resolved" &&
       value.citationIntegrity === "valid";
+    const focusedPublishable =
+      value.focusedPublication?.status === "published" &&
+      value.focusedPublication.gate === "passed" &&
+      value.challenge.status === "resolved" &&
+      value.challenge.agreed === true &&
+      value.citationIntegrity === "valid";
+    const publishable = calibratedPublishable || focusedPublishable;
     const isDecisive = (decisiveLabels as readonly string[]).includes(value.publishedLabel);
 
     if (isDecisive && !publishable) {
@@ -779,8 +1083,40 @@ export const decisionSchema = z
         code: "custom",
         path: ["publishedLabel"],
         message:
-          "A decisive published label requires in-scope calibration, a resolved challenge and valid citations.",
+          "A decisive published label requires either the legacy calibrated gate or a passed focused evidence gate.",
       });
+    }
+    if (value.focusedPublication !== undefined) {
+      if (value.calibration.applicability === "in_scope") {
+        context.addIssue({
+          code: "custom",
+          path: ["calibration"],
+          message: "Focused publication cannot carry an in-scope statistical calibration.",
+        });
+      }
+      if (value.focusedPublication.status === "published") {
+        if (!isDecisive) {
+          context.addIssue({
+            code: "custom",
+            path: ["focusedPublication", "status"],
+            message: "Only a decisive focused label can pass the publication gate.",
+          });
+        }
+        if (value.focusedPublication.gate !== "passed") {
+          context.addIssue({
+            code: "custom",
+            path: ["focusedPublication", "gate"],
+            message: "A published focused decision must carry a passed evidence gate.",
+          });
+        }
+      }
+      if (value.focusedPublication.status === "abstained" && isDecisive) {
+        context.addIssue({
+          code: "custom",
+          path: ["publishedLabel"],
+          message: "An abstained focused decision cannot publish a decisive label.",
+        });
+      }
     }
     if (value.publishedLabel === "supported" && value.supportingAssessmentIds.length === 0) {
       context.addIssue({
@@ -831,6 +1167,8 @@ export const scoreNullReasonSchema = z.enum([
   "partial_input",
   "partial_extraction",
   "resolution_coverage_below_threshold",
+  "citation_validation_failed",
+  "unresolved_conflict",
   "material_mixed_or_misleading_open",
   "run_canceled",
   "run_failed",
@@ -871,10 +1209,14 @@ export const evidenceSummarySchema = z.strictObject({
 
 export const scorecardSchema = z
   .strictObject({
-    formulaVersion: z.literal(CORE_V2_SCORE_FORMULA_VERSION),
+    formulaVersion: z.enum([CORE_V2_SCORE_FORMULA_VERSION, CORE_V2_FOCUSED_SCORE_FORMULA_VERSION]),
     /** 100 * supported / (supported + contradicted). Null whenever gated. */
     factualScore: percentageSchema.nullable(),
     nullReasons: z.array(scoreNullReasonSchema),
+    /** Additive focused scope count; absent on historical/full-release scorecards. */
+    selectedClaimCount: nonNegativeIntSchema.optional(),
+    /** Additive focused resolved count; absent on historical/full-release scorecards. */
+    resolvedClaimCount: nonNegativeIntSchema.optional(),
     counts: z.strictObject({
       supported: nonNegativeIntSchema,
       contradicted: nonNegativeIntSchema,
@@ -898,7 +1240,42 @@ export const scorecardSchema = z
     const { counts } = value;
     const resolved = counts.supported + counts.contradicted;
     const labeled = resolved + counts.misleading + counts.mixed + counts.unverified;
-    if (labeled !== counts.eligibleFactualClaims) {
+    const focused = value.formulaVersion === CORE_V2_FOCUSED_SCORE_FORMULA_VERSION;
+    const hasFocusedCounts =
+      value.selectedClaimCount !== undefined || value.resolvedClaimCount !== undefined;
+    if (focused !== hasFocusedCounts) {
+      context.addIssue({
+        code: "custom",
+        path: ["formulaVersion"],
+        message:
+          "Focused scorecards must carry selected and resolved claim counts; full scorecards must not.",
+      });
+    }
+
+    const denominator = focused ? value.selectedClaimCount : counts.eligibleFactualClaims;
+    if (focused && value.selectedClaimCount !== undefined) {
+      if (counts.eligibleFactualClaims !== value.selectedClaimCount) {
+        context.addIssue({
+          code: "custom",
+          path: ["counts", "eligibleFactualClaims"],
+          message: "Focused eligible factual claims must equal the selected claim count.",
+        });
+      }
+      if (labeled + counts.omittedClaims !== value.selectedClaimCount) {
+        context.addIssue({
+          code: "custom",
+          path: ["counts", "omittedClaims"],
+          message: "Focused verdict and omitted counts must cover every selected claim.",
+        });
+      }
+      if (value.resolvedClaimCount !== resolved) {
+        context.addIssue({
+          code: "custom",
+          path: ["resolvedClaimCount"],
+          message: "Focused resolved claim count must equal supported plus contradicted.",
+        });
+      }
+    } else if (!focused && labeled !== counts.eligibleFactualClaims) {
       context.addIssue({
         code: "custom",
         path: ["counts", "eligibleFactualClaims"],
@@ -907,17 +1284,19 @@ export const scorecardSchema = z
     }
 
     const expectedCoverage =
-      counts.eligibleFactualClaims === 0 ? null : resolved / counts.eligibleFactualClaims;
+      denominator === undefined || denominator === 0 ? null : resolved / denominator;
     if (!nearlyEqual(value.resolutionCoverage, expectedCoverage)) {
       context.addIssue({
         code: "custom",
         path: ["resolutionCoverage"],
-        message: "Resolution coverage must equal resolved divided by eligible factual claims.",
+        message: focused
+          ? "Resolution coverage must equal resolved divided by selected claims."
+          : "Resolution coverage must equal resolved divided by eligible factual claims.",
       });
     }
 
     const required = new Set<z.infer<typeof scoreNullReasonSchema>>();
-    if (counts.eligibleFactualClaims === 0) required.add("no_checkable_claims");
+    if (denominator === 0) required.add("no_checkable_claims");
     if (resolved === 0) required.add("zero_resolved_denominator");
     if (value.inputStatus !== "complete") required.add("partial_input");
     if (value.extractionStatus !== "complete") required.add("partial_extraction");
@@ -1018,6 +1397,10 @@ export const runReportSchema = z
     evidenceSetHash: contentHashSchema.nullable(),
     replayManifest: replayManifestSchema,
     cost: runCostSummarySchema,
+    /** Additive focused boundary; omitted on historical/full-release reports. */
+    focusedSelection: focusedSelectionSchema.optional(),
+    /** Versioned evidence-gated publication; omitted on historical/full-release reports. */
+    focusedPublicationPolicy: focusedPublicationPolicySchema.optional(),
   })
   .superRefine(validateRunReportIntegrity);
 
@@ -1039,6 +1422,13 @@ export const versionedRunReportSchema = z.discriminatedUnion("schemaVersion", [
 
 function validateRunReportIntegrity(
   report: {
+    schemaVersion: typeof CORE_V2_SCHEMA_VERSION;
+    contractVersion: typeof CORE_V2_CONTRACT_VERSION;
+    runId: string;
+    createdAt: string;
+    asOfTime: string;
+    engineVersion: string;
+    visibility: z.infer<typeof visibilitySchema>;
     status: z.infer<typeof runStatusSchema>;
     stageOutcomes: Array<z.infer<typeof stageOutcomeSchema>>;
     snapshots: Array<z.infer<typeof documentSnapshotSchema>>;
@@ -1051,6 +1441,8 @@ function validateRunReportIntegrity(
     scorecard: z.infer<typeof scorecardSchema> | null;
     inputCoverage: Array<z.infer<typeof inputCoverageSchema>>;
     replayManifest: z.infer<typeof replayManifestSchema>;
+    focusedSelection?: z.infer<typeof focusedSelectionSchema>;
+    focusedPublicationPolicy?: z.infer<typeof focusedPublicationPolicySchema>;
   },
   context: z.RefinementCtx,
 ) {
@@ -1231,6 +1623,191 @@ function validateRunReportIntegrity(
     }
   }
 
+  if (report.focusedSelection !== undefined) {
+    const selection = report.focusedSelection;
+    const primary =
+      report.primarySnapshotId === null ? null : snapshots.get(report.primarySnapshotId);
+    if (primary === undefined || primary === null) {
+      addIssue(
+        context,
+        ["focusedSelection", "inputSnapshotHash"],
+        "Focused selection requires the report primary snapshot.",
+      );
+    } else if (
+      selection.inputSnapshotHash !== null &&
+      selection.inputSnapshotHash !== primary.contentHash
+    ) {
+      addIssue(
+        context,
+        ["focusedSelection", "inputSnapshotHash"],
+        "Focused selection input hash must match the primary snapshot.",
+      );
+    }
+    const reportClaims = new Map(report.claims.map((claim) => [claim.id, claim]));
+    const selectedClaimIds = new Set(selection.selectedClaimIds);
+    for (const [index, decision] of report.decisions.entries()) {
+      if (!selectedClaimIds.has(decision.claimId)) {
+        addIssue(
+          context,
+          ["decisions", index, "claimId"],
+          "Focused reports cannot publish a decision for an unselected claim.",
+        );
+      }
+    }
+    for (const [index, entry] of selection.claims.entries()) {
+      const claim = reportClaims.get(entry.claimId);
+      if (!claim) {
+        addDangling(context, ["focusedSelection", "claims", index, "claimId"], entry.claimId);
+        continue;
+      }
+      if (entry.coverageDisposition !== claim.coverageDisposition) {
+        addIssue(
+          context,
+          ["focusedSelection", "claims", index, "coverageDisposition"],
+          "Focused selection disposition must match the report claim.",
+        );
+      }
+      if (
+        entry.status === "analyzed" &&
+        (claim.duplicateOfClaimId !== null ||
+          claim.coverageDisposition !== "factual_claim" ||
+          claim.checkability !== "checkable" ||
+          !claim.material)
+      ) {
+        addIssue(
+          context,
+          ["focusedSelection", "claims", index, "status"],
+          "Only canonical, material, checkable factual claims may be analyzed in focused output.",
+        );
+      }
+    }
+    for (const [field, ids] of [
+      ["selectedClaimIds", selection.selectedClaimIds],
+      ["deferredClaimIds", selection.deferredClaimIds],
+      ["excludedClaimIds", selection.excludedClaimIds],
+    ] as const) {
+      for (const [index, id] of ids.entries()) {
+        if (!reportClaims.has(id)) addDangling(context, ["focusedSelection", field, index], id);
+      }
+    }
+    const canonical = report.claims.filter(({ duplicateOfClaimId }) => duplicateOfClaimId === null);
+    const duplicateClaims = report.claims.length - canonical.length;
+    const canonicalFactualClaims = selection.claims.filter(
+      ({ canonical: isCanonical, originalCoverageDisposition }) =>
+        isCanonical && originalCoverageDisposition === "factual_claim",
+    ).length;
+    if (
+      selection.inventory.canonicalClaims !== canonical.length ||
+      selection.inventory.duplicateClaims !== duplicateClaims ||
+      selection.inventory.canonicalFactualClaims !== canonicalFactualClaims
+    ) {
+      addIssue(
+        context,
+        ["focusedSelection", "inventory"],
+        "Focused inventory counts must match the report claims.",
+      );
+    }
+  }
+
+  if (report.focusedPublicationPolicy !== undefined) {
+    if (report.focusedSelection === undefined) {
+      addIssue(
+        context,
+        ["focusedPublicationPolicy"],
+        "Focused publication policy requires focused selection metadata.",
+      );
+    }
+    for (const [index, decision] of report.decisions.entries()) {
+      const publication = decision.focusedPublication;
+      if (publication === undefined) {
+        addIssue(
+          context,
+          ["decisions", index, "focusedPublication"],
+          "A focused report decision must carry its focused publication gate.",
+        );
+        continue;
+      }
+      if (publication.policyVersion !== report.focusedPublicationPolicy.policyVersion) {
+        addIssue(
+          context,
+          ["decisions", index, "focusedPublication", "policyVersion"],
+          "Focused decision policy version must match the report policy.",
+        );
+      }
+      if (publication.decisionVersion !== report.focusedPublicationPolicy.decisionVersion) {
+        addIssue(
+          context,
+          ["decisions", index, "focusedPublication", "decisionVersion"],
+          "Focused decision version must match the report policy.",
+        );
+      }
+    }
+    if (
+      report.scorecard !== null &&
+      report.scorecard.formulaVersion !== report.focusedPublicationPolicy.scoreFormulaVersion
+    ) {
+      addIssue(
+        context,
+        ["scorecard", "formulaVersion"],
+        "Focused reports must use the focused score formula version.",
+      );
+    }
+    if (
+      report.scorecard !== null &&
+      (report.scorecard.selectedClaimCount === undefined ||
+        report.scorecard.resolvedClaimCount === undefined)
+    ) {
+      addIssue(
+        context,
+        ["scorecard"],
+        "Focused reports must expose selected and resolved claim counts.",
+      );
+    }
+    if (
+      report.scorecard !== null &&
+      report.focusedSelection !== undefined &&
+      report.scorecard.selectedClaimCount !== report.focusedSelection.inventory.analyzedClaims
+    ) {
+      addIssue(
+        context,
+        ["scorecard", "selectedClaimCount"],
+        "Focused selected claim count must match the selection inventory.",
+      );
+    }
+  } else if (report.decisions.some(({ focusedPublication }) => focusedPublication !== undefined)) {
+    addIssue(
+      context,
+      ["decisions"],
+      "Focused decision gates require a focused publication policy.",
+    );
+  }
+
+  if (report.focusedSelection !== undefined && report.focusedPublicationPolicy === undefined) {
+    addIssue(
+      context,
+      ["focusedSelection"],
+      "Focused selection metadata requires a focused publication policy.",
+    );
+  }
+  if (
+    report.focusedSelection !== undefined &&
+    report.scorecard !== null &&
+    report.scorecard.formulaVersion !== CORE_V2_FOCUSED_SCORE_FORMULA_VERSION
+  ) {
+    addIssue(
+      context,
+      ["scorecard", "formulaVersion"],
+      "Focused selection metadata requires the focused score formula.",
+    );
+  }
+
+  if (
+    report.scorecard?.formulaVersion === CORE_V2_FOCUSED_SCORE_FORMULA_VERSION &&
+    report.focusedSelection === undefined
+  ) {
+    addIssue(context, ["scorecard"], "A focused scorecard requires focused selection metadata.");
+  }
+
   if (report.status === "canceled" && report.scorecard !== null) {
     addIssue(context, ["scorecard"], "A canceled run cannot publish a scorecard.");
   }
@@ -1300,6 +1877,15 @@ export type TimestampAssertion = z.infer<typeof timestampAssertionSchema>;
 export type DiscoveryHint = z.infer<typeof discoveryHintSchema>;
 export type ClaimV2 = z.infer<typeof claimSchema>;
 export type InputCoverage = z.infer<typeof inputCoverageSchema>;
+export type FocusedSelectionStatus = z.infer<typeof focusedSelectionStatusSchema>;
+export type FocusedSelectionPosition = z.infer<typeof focusedSelectionPositionSchema>;
+export type FocusedConcreteSignal = z.infer<typeof focusedConcreteSignalSchema>;
+export type FocusedSelectionReasonCode = z.infer<typeof focusedSelectionReasonCodeSchema>;
+export type FocusedSelectionRanking = z.infer<typeof focusedSelectionRankingSchema>;
+export type FocusedSelectionClaim = z.infer<typeof focusedSelectionClaimSchema>;
+export type FocusedSelectionInventory = z.infer<typeof focusedSelectionInventorySchema>;
+export type FocusedSelectionCoverage = z.infer<typeof focusedSelectionCoverageSchema>;
+export type FocusedSelection = z.infer<typeof focusedSelectionSchema>;
 export type EvidenceCandidate = z.infer<typeof evidenceCandidateSchema>;
 export type EvidenceAssessment = z.infer<typeof evidenceAssessmentSchema>;
 export type SufficiencyFeedback = z.infer<typeof sufficiencyFeedbackSchema>;
@@ -1307,6 +1893,10 @@ export type ProvenanceGraph = z.infer<typeof provenanceGraphSchema>;
 export type ClaimLabel = z.infer<typeof claimLabelSchema>;
 export type DecisionReasonCode = z.infer<typeof decisionReasonCodeSchema>;
 export type Calibration = z.infer<typeof calibrationSchema>;
+export type FocusedPublicationGate = z.infer<typeof focusedPublicationGateSchema>;
+export type FocusedPublicationCalibration = z.infer<typeof focusedPublicationCalibrationSchema>;
+export type FocusedPublicationPolicy = z.infer<typeof focusedPublicationPolicySchema>;
+export type FocusedPublicationDecision = z.infer<typeof focusedPublicationDecisionSchema>;
 export type Challenge = z.infer<typeof challengeSchema>;
 export type Decision = z.infer<typeof decisionSchema>;
 export type PresentationFinding = z.infer<typeof presentationFindingSchema>;
@@ -1662,7 +2252,7 @@ export const completeRunReportExample: RunReport = {
           snapshotId: "snap_evidence_complete",
           rootKind: "primary_record",
           rank: 1,
-          signals: ["Official register entry", "Earliest observed statement in the searched range"],
+          signals: ["Official register entry", "Earliest observed within the searched scope."],
         },
       ],
       searchLog: [

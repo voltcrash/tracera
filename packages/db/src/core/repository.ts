@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   documentSnapshotSchema,
+  runContextSchema,
   runReportSchema,
   type DocumentSnapshot,
   type RunContext,
@@ -51,6 +52,30 @@ export interface CoreLease {
   cancellationRequested: boolean;
 }
 
+export interface CoreScopedLease extends CoreLease {
+  scope: CoreAccessScope;
+  context: RunContext;
+}
+
+export interface CoreRunProgress {
+  runId: string;
+  status:
+    | "queued"
+    | "leased"
+    | "retry"
+    | "complete"
+    | "partial"
+    | "unavailable"
+    | "failed"
+    | "canceled";
+  stage: StageName;
+  attempt: number;
+  cancellationRequested: boolean;
+  leaseExpiresAt: string | null;
+  completedStages: StageName[];
+  updatedAt: string;
+}
+
 export interface CoreOutboxRecord {
   id: string;
   runId: string;
@@ -85,18 +110,33 @@ async function transaction<Value>(
 ) {
   const client = await pool.connect();
   let open = false;
+  let destroy = false;
   try {
     await client.query("BEGIN");
     open = true;
     const value = await operation(client);
-    await client.query("COMMIT");
+    try {
+      await client.query("COMMIT");
+    } catch (error) {
+      destroy = true;
+      throw error;
+    }
     open = false;
     return value;
   } catch (error) {
-    if (open) await client.query("ROLLBACK");
+    if (open) {
+      try {
+        await client.query("ROLLBACK");
+        open = false;
+      } catch {
+        destroy = true;
+      }
+    } else {
+      destroy = true;
+    }
     throw error;
   } finally {
-    client.release(true);
+    client.release(destroy);
   }
 }
 
@@ -225,6 +265,7 @@ export class CoreStorageRepository {
     scope: CoreAccessScope;
     workerId: string;
     leaseSeconds: number;
+    runId?: string;
   }): Promise<CoreLease | null> {
     if (!Number.isInteger(input.leaseSeconds) || input.leaseSeconds < 1) {
       throw new Error("leaseSeconds must be a positive integer.");
@@ -233,6 +274,7 @@ export class CoreStorageRepository {
       const candidate = await client.query<{ job_id: string }>(
         `SELECT job_id FROM core_jobs
           WHERE tenant_id = $1 AND owner_user_id = $2 AND visibility = $3
+            AND ($4::text IS NULL OR run_id = $4)
             AND cancellation_requested = FALSE
             AND attempt < max_attempts
             AND available_at <= NOW()
@@ -240,7 +282,7 @@ export class CoreStorageRepository {
           ORDER BY available_at, created_at, job_id
           FOR UPDATE SKIP LOCKED
           LIMIT 1`,
-        scopeValues(input.scope),
+        [...scopeValues(input.scope), input.runId ?? null],
       );
       const jobId = candidate.rows[0]?.job_id;
       if (!jobId) return null;
@@ -295,6 +337,244 @@ export class CoreStorageRepository {
         cancellationRequested: row.cancellation_requested,
       };
     });
+  }
+
+  async acquireNextLease(input: {
+    workerId: string;
+    leaseSeconds: number;
+  }): Promise<CoreScopedLease | null> {
+    if (!Number.isInteger(input.leaseSeconds) || input.leaseSeconds < 1) {
+      throw new Error("leaseSeconds must be a positive integer.");
+    }
+    return transaction(this.pool, async (client) => {
+      // Abandoned leases would otherwise stay "leased" forever once no attempt or no
+      // cancellation-free path remains, so they are resolved terminally before selection.
+      const abandoned = await client.query<{
+        job_id: string;
+        run_id: string;
+        stage: StageName;
+        attempt: number;
+        tenant_id: string;
+        owner_user_id: string;
+        visibility: CoreVisibility;
+        outcome: "canceled" | "failed";
+      }>(
+        `SELECT job.job_id, job.run_id, job.stage, job.attempt, job.tenant_id,
+                job.owner_user_id, job.visibility,
+                CASE WHEN job.cancellation_requested THEN 'canceled' ELSE 'failed' END AS outcome
+           FROM core_runs AS run
+           JOIN core_jobs AS job
+             ON job.run_id = run.run_id
+            AND job.tenant_id = run.tenant_id
+            AND job.owner_user_id = run.owner_user_id
+            AND job.visibility = run.visibility
+          WHERE run.finalized_at IS NULL
+            AND job.status = 'leased' AND job.lease_expires_at <= NOW()
+            AND (job.cancellation_requested = TRUE OR job.attempt >= job.max_attempts)
+          ORDER BY job.updated_at, job.job_id
+          FOR UPDATE OF run SKIP LOCKED`,
+      );
+      for (const row of abandoned.rows) {
+        const settled = await client.query(
+          `UPDATE core_jobs AS job
+              SET status = $2, completed_at = NOW(), updated_at = NOW(),
+                  last_error = CASE WHEN $2 = 'canceled' THEN job.last_error
+                                    ELSE 'Lease expired on the final attempt.' END,
+                  fencing_token = NULL, lease_owner = NULL, lease_expires_at = NULL
+            WHERE job.job_id = $1 AND job.status = 'leased' AND job.lease_expires_at <= NOW()
+              AND (job.cancellation_requested = TRUE OR job.attempt >= job.max_attempts)
+            RETURNING job_id`,
+          [row.job_id, row.outcome],
+        );
+        if (!changedOne(settled)) continue;
+        await client.query(
+          `UPDATE core_stage_attempts SET finished_at = NOW(), outcome = $4
+            WHERE run_id = $1 AND stage = $2 AND attempt = $3 AND finished_at IS NULL
+              AND tenant_id = $5 AND owner_user_id = $6 AND visibility = $7`,
+          [
+            row.run_id,
+            row.stage,
+            row.attempt,
+            row.outcome,
+            row.tenant_id,
+            row.owner_user_id,
+            row.visibility,
+          ],
+        );
+        await client.query(
+          `UPDATE core_runs SET status = $2, finalized_at = NOW(), updated_at = NOW()
+            WHERE run_id = $1 AND tenant_id = $3 AND owner_user_id = $4 AND visibility = $5
+              AND finalized_at IS NULL`,
+          [row.run_id, row.outcome, row.tenant_id, row.owner_user_id, row.visibility],
+        );
+      }
+      const candidate = await client.query<{ job_id: string }>(
+        `SELECT job_id FROM core_jobs
+          WHERE cancellation_requested = FALSE
+            AND attempt < max_attempts
+            AND available_at <= NOW()
+            AND (status IN ('queued', 'retry') OR (status = 'leased' AND lease_expires_at <= NOW()))
+          ORDER BY available_at, created_at, job_id
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1`,
+      );
+      const jobId = candidate.rows[0]?.job_id;
+      if (!jobId) return null;
+      await client.query(
+        `UPDATE core_stage_attempts AS attempt
+            SET finished_at = NOW(), outcome = 'failed'
+           FROM core_jobs AS job
+          WHERE job.job_id = $1 AND job.status = 'leased' AND job.lease_expires_at <= NOW()
+            AND attempt.run_id = job.run_id AND attempt.stage = job.stage
+            AND attempt.attempt = job.attempt AND attempt.finished_at IS NULL`,
+        [jobId],
+      );
+      const fencingToken = randomUUID();
+      const leased = await client.query<
+        JobRow & {
+          tenant_id: string;
+          owner_user_id: string;
+          visibility: CoreVisibility;
+          input_hash: string;
+          as_of_time: string;
+          execution_mode: RunContext["executionMode"];
+          versions: RunContext["versions"];
+          budget: RunContext["budget"];
+          cancellation: RunContext["cancellation"];
+          audit_sink_id: string;
+        }
+      >(
+        `UPDATE core_jobs AS job
+            SET status = 'leased', attempt = job.attempt + 1, fencing_token = $2,
+                lease_owner = $3, lease_expires_at = NOW() + ($4 * INTERVAL '1 second'),
+                updated_at = NOW()
+           FROM core_runs AS run
+          WHERE job.job_id = $1 AND run.run_id = job.run_id
+          RETURNING job.job_id, job.run_id, job.stage, job.payload, job.attempt,
+                    job.fencing_token, job.lease_expires_at::text, job.cancellation_requested,
+                    job.tenant_id, job.owner_user_id, job.visibility, run.input_hash,
+                    run.as_of_time::text, run.execution_mode, run.versions, run.budget,
+                    run.cancellation, run.audit_sink_id`,
+        [jobId, fencingToken, input.workerId, input.leaseSeconds],
+      );
+      const row = leased.rows[0];
+      if (!row) throw new CoreStorageAccessError("Lease candidate disappeared.");
+      await client.query(
+        `INSERT INTO core_stage_attempts
+           (run_id, stage, attempt, tenant_id, owner_user_id, visibility, fencing_token,
+            worker_id, lease_started_at, lease_expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
+        [
+          row.run_id,
+          row.stage,
+          row.attempt,
+          row.tenant_id,
+          row.owner_user_id,
+          row.visibility,
+          row.fencing_token,
+          input.workerId,
+          row.lease_expires_at,
+        ],
+      );
+      const scope = {
+        tenantId: row.tenant_id,
+        ownerUserId: row.owner_user_id,
+        visibility: row.visibility,
+      };
+      const context = runContextSchema.parse({
+        runId: row.run_id,
+        ...scope,
+        inputHash: row.input_hash,
+        asOfTime: new Date(row.as_of_time).toISOString(),
+        versions: row.versions,
+        executionMode: row.execution_mode,
+        budget: row.budget,
+        cancellation: row.cancellation,
+        auditSinkId: row.audit_sink_id,
+      });
+      return {
+        scope,
+        context,
+        jobId: row.job_id,
+        runId: row.run_id,
+        stage: row.stage,
+        payload: row.payload,
+        attempt: row.attempt,
+        fencingToken: row.fencing_token,
+        leaseExpiresAt: row.lease_expires_at,
+        cancellationRequested: row.cancellation_requested,
+      };
+    });
+  }
+
+  async getRunProgress(input: {
+    scope: CoreAccessScope;
+    runId: string;
+  }): Promise<CoreRunProgress | null> {
+    const result = await this.pool.query<{
+      run_id: string;
+      status: CoreRunProgress["status"];
+      stage: StageName;
+      attempt: number;
+      cancellation_requested: boolean;
+      lease_expires_at: string | null;
+      updated_at: string;
+      completed_stages: StageName[];
+    }>(
+      `SELECT job.run_id,
+              CASE WHEN job.status = 'complete' THEN run.status ELSE job.status END AS status,
+              job.stage, job.attempt, job.cancellation_requested,
+              job.lease_expires_at::text, job.updated_at::text,
+              COALESCE(array_agg(checkpoint.stage ORDER BY checkpoint.updated_at)
+                FILTER (WHERE checkpoint.stage IS NOT NULL), ARRAY[]::text[]) AS completed_stages
+         FROM core_jobs AS job
+         JOIN core_runs AS run
+           ON run.run_id = job.run_id
+          AND run.tenant_id = job.tenant_id
+          AND run.owner_user_id = job.owner_user_id
+          AND run.visibility = job.visibility
+         LEFT JOIN core_stage_checkpoints AS checkpoint
+           ON checkpoint.run_id = job.run_id
+          AND checkpoint.tenant_id = job.tenant_id
+          AND checkpoint.owner_user_id = job.owner_user_id
+          AND checkpoint.visibility = job.visibility
+        WHERE job.run_id = $1 AND job.tenant_id = $2 AND job.owner_user_id = $3
+          AND job.visibility = $4
+        GROUP BY job.run_id, run.status, job.status, job.stage, job.attempt,
+                 job.cancellation_requested,
+                 job.lease_expires_at, job.updated_at`,
+      [input.runId, ...scopeValues(input.scope)],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          runId: row.run_id,
+          status: row.status,
+          stage: row.stage,
+          attempt: row.attempt,
+          cancellationRequested: row.cancellation_requested,
+          leaseExpiresAt: row.lease_expires_at,
+          completedStages: row.completed_stages,
+          updatedAt: row.updated_at,
+        }
+      : null;
+  }
+
+  async findLatestCompletedReport(input: {
+    scope: CoreAccessScope;
+    inputHash: string;
+  }): Promise<RunReport | null> {
+    const result = await this.pool.query<{ report: RunReport }>(
+      `SELECT report.report
+         FROM core_report_versions AS report
+         JOIN core_runs AS run ON run.run_id = report.run_id
+        WHERE run.input_hash = $1 AND report.tenant_id = $2 AND report.owner_user_id = $3
+          AND report.visibility = $4 AND run.status = 'complete'
+        ORDER BY report.created_at DESC LIMIT 1`,
+      [input.inputHash, ...scopeValues(input.scope)],
+    );
+    const report = result.rows[0]?.report;
+    return report ? runReportSchema.parse(report) : null;
   }
 
   async readPendingOutbox(input: {
@@ -376,20 +656,30 @@ export class CoreStorageRepository {
     fencingToken: string;
     error: string;
     backoffMs: number;
-  }): Promise<void> {
+  }): Promise<{ terminal: boolean }> {
     if (!Number.isFinite(input.backoffMs) || input.backoffMs < 0) {
       throw new Error("backoffMs must be non-negative.");
     }
-    await transaction(this.pool, async (client) => {
-      const result = await client.query(
+    return transaction(this.pool, async (client) => {
+      const run = await client.query<{ run_id: string }>(
+        `SELECT run_id
+           FROM core_runs
+          WHERE run_id = $1 AND tenant_id = $2 AND owner_user_id = $3 AND visibility = $4
+            AND finalized_at IS NULL
+          FOR UPDATE`,
+        [input.runId, ...scopeValues(input.scope)],
+      );
+      if (!changedOne(run)) throw new StaleWorkerError("Retry rejected for finalized run.");
+      const result = await client.query<{ status: "retry" | "failed" }>(
         `UPDATE core_jobs
           SET status = CASE WHEN attempt >= max_attempts THEN 'failed' ELSE 'retry' END,
+              completed_at = CASE WHEN attempt >= max_attempts THEN NOW() ELSE completed_at END,
               available_at = NOW() + ($8 * INTERVAL '1 millisecond'), last_error = $7,
               fencing_token = NULL, lease_owner = NULL, lease_expires_at = NULL, updated_at = NOW()
         WHERE run_id = $1 AND stage = $2 AND attempt = $3 AND fencing_token = $4
           AND tenant_id = $5 AND owner_user_id = $6 AND visibility = $9
           AND status = 'leased' AND lease_expires_at > NOW()
-        RETURNING job_id`,
+        RETURNING status`,
         [
           input.runId,
           input.stage,
@@ -409,6 +699,17 @@ export class CoreStorageRepository {
             AND tenant_id = $5 AND owner_user_id = $6 AND visibility = $7`,
         [input.runId, input.stage, input.attempt, input.fencingToken, ...scopeValues(input.scope)],
       );
+      const terminal = result.rows[0]?.status === "failed";
+      if (terminal) {
+        await client.query(
+          `UPDATE core_runs
+              SET status = 'failed', finalized_at = NOW(), updated_at = NOW()
+            WHERE run_id = $1 AND tenant_id = $2 AND owner_user_id = $3 AND visibility = $4
+              AND finalized_at IS NULL`,
+          [input.runId, ...scopeValues(input.scope)],
+        );
+      }
+      return { terminal };
     });
   }
 
@@ -434,6 +735,27 @@ export class CoreStorageRepository {
             AND status NOT IN ('complete', 'failed', 'canceled')`,
         [input.runId, ...scopeValues(input.scope)],
       );
+      await client.query(
+        `UPDATE core_jobs
+            SET status = 'canceled', completed_at = NOW(), updated_at = NOW()
+          WHERE run_id = $1 AND tenant_id = $2 AND owner_user_id = $3 AND visibility = $4
+            AND status IN ('queued', 'retry')`,
+        [input.runId, ...scopeValues(input.scope)],
+      );
+      const active = await client.query<{ active: string }>(
+        `SELECT COUNT(*)::text AS active FROM core_jobs
+          WHERE run_id = $1 AND tenant_id = $2 AND owner_user_id = $3 AND visibility = $4
+            AND status = 'leased'`,
+        [input.runId, ...scopeValues(input.scope)],
+      );
+      if (Number(active.rows[0]?.active ?? 0) === 0) {
+        await client.query(
+          `UPDATE core_runs
+              SET status = 'canceled', finalized_at = NOW(), updated_at = NOW()
+            WHERE run_id = $1 AND tenant_id = $2 AND owner_user_id = $3 AND visibility = $4`,
+          [input.runId, ...scopeValues(input.scope)],
+        );
+      }
       return true;
     });
   }
@@ -446,6 +768,16 @@ export class CoreStorageRepository {
     fencingToken: string;
   }): Promise<void> {
     await transaction(this.pool, async (client) => {
+      const run = await client.query<{ run_id: string }>(
+        `SELECT run_id
+           FROM core_runs
+          WHERE run_id = $1 AND tenant_id = $2 AND owner_user_id = $3 AND visibility = $4
+            AND finalized_at IS NULL
+          FOR UPDATE`,
+        [input.runId, ...scopeValues(input.scope)],
+      );
+      if (!changedOne(run))
+        throw new StaleWorkerError("Cancellation acknowledgement rejected for finalized run.");
       const canceled = await client.query(
         `UPDATE core_jobs
             SET status = 'canceled', completed_at = NOW(), updated_at = NOW(),
@@ -661,6 +993,15 @@ export class CoreStorageRepository {
       throw new CoreStorageConflictError("Report identity does not match the run storage scope.");
     }
     await transaction(this.pool, async (client) => {
+      const run = await client.query<{ run_id: string }>(
+        `SELECT run_id
+           FROM core_runs
+          WHERE run_id = $1 AND tenant_id = $2 AND owner_user_id = $3 AND visibility = $4
+            AND finalized_at IS NULL
+          FOR UPDATE`,
+        [input.runId, ...scopeValues(input.scope)],
+      );
+      if (!changedOne(run)) throw new StaleWorkerError("Finalization rejected for finalized run.");
       const job = await client.query<{ attempt: number }>(
         `SELECT attempt FROM core_jobs
           WHERE run_id = $1 AND fencing_token = $2

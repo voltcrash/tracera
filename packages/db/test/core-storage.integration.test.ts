@@ -96,6 +96,15 @@ integrationTest("duplicate enqueue is idempotent and emits one scoped outbox rec
     ).length,
     0,
   );
+  const progress = await repository.getRunProgress({ scope, runId: context.runId });
+  assert.equal(progress?.status, "queued");
+  const globalLease = await repository.acquireNextLease({
+    workerId: "durable-worker",
+    leaseSeconds: 60,
+  });
+  assert.equal(globalLease?.runId, context.runId);
+  assert.deepEqual(globalLease?.scope, scope);
+  assert.equal(globalLease?.context.inputHash, context.inputHash);
 });
 
 integrationTest(
@@ -173,6 +182,26 @@ integrationTest(
     const context = uniqueContext("cancel");
     const scope = scopeOf(context);
     const otherScope = { ...scope, ownerUserId: `other-${scope.ownerUserId}` };
+    const queuedContext = uniqueContext("cancel-queued");
+    const queuedScope = scopeOf(queuedContext);
+    await repository.enqueue({
+      context: queuedContext,
+      stage: "normalize_input",
+      payload: { fixture: true },
+      maxAttempts: 2,
+    });
+    assert.equal(
+      await repository.requestCancellation({
+        scope: queuedScope,
+        runId: queuedContext.runId,
+        reason: "user_request",
+      }),
+      true,
+    );
+    assert.equal(
+      (await repository.getRunProgress({ scope: queuedScope, runId: queuedContext.runId }))?.status,
+      "canceled",
+    );
     await repository.enqueue({
       context,
       stage: "normalize_input",
@@ -239,6 +268,50 @@ integrationTest(
     assert.deepEqual(state.rows[0], { run_status: "canceled", job_status: "canceled" });
   },
 );
+
+integrationTest("a terminal retry finalizes the run and rejects later cancellation", async () => {
+  const { pool, repository } = harness();
+  const context = uniqueContext("terminal-retry");
+  const scope = scopeOf(context);
+  await repository.enqueue({
+    context,
+    stage: "normalize_input",
+    payload: { fixture: true },
+    maxAttempts: 1,
+  });
+  const lease = await repository.acquireLease({
+    scope,
+    workerId: "terminal-retry-worker",
+    leaseSeconds: 60,
+  });
+  assert.ok(lease);
+
+  assert.deepEqual(
+    await repository.retry({
+      scope,
+      runId: context.runId,
+      stage: lease.stage,
+      attempt: lease.attempt,
+      fencingToken: lease.fencingToken,
+      error: "synthetic terminal failure",
+      backoffMs: 0,
+    }),
+    { terminal: true },
+  );
+  assert.equal(
+    (await repository.getRunProgress({ scope, runId: context.runId }))?.status,
+    "failed",
+  );
+  const state = await pool.query<{ status: string; finalized: boolean }>(
+    `SELECT status, finalized_at IS NOT NULL AS finalized FROM core_runs WHERE run_id = $1`,
+    [context.runId],
+  );
+  assert.deepEqual(state.rows[0], { status: "failed", finalized: true });
+  assert.equal(
+    await repository.requestCancellation({ scope, runId: context.runId, reason: "user_request" }),
+    false,
+  );
+});
 
 integrationTest(
   "failed finalization rolls back and concurrent completion preserves report values",
@@ -385,4 +458,5 @@ integrationTest("snapshots, checkpoints, and reports remain isolated across tena
     report,
   });
   assert.equal(await repository.getLatestReport({ scope: otherScope, runId: context.runId }), null);
+  assert.equal(await repository.getRunProgress({ scope: otherScope, runId: context.runId }), null);
 });

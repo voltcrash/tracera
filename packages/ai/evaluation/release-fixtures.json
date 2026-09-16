@@ -1,0 +1,25 @@
+{
+  "version": "core-v2-release-fixtures-1.0.0",
+  "seed": 20260910,
+  "humanGoldClaims": 0,
+  "description": "Synthetic security and integrity fixtures for Task 12. They exercise frozen Core v2 validation paths and do not establish empirical accuracy, calibration, cost, or latency.",
+  "cases": [
+    "retrieval_prompt_injection",
+    "ssrf",
+    "source_flooding",
+    "corpus_poisoning",
+    "number_unit_changes",
+    "future_leakage",
+    "missing_ocr_text",
+    "reused_altered_images"
+  ],
+  "requiredLiveEvidence": [
+    "two independent human annotations and adjudication",
+    "development-only stable-model comparison",
+    "frozen calibration artifact and thresholds",
+    "single sealed-test evaluation",
+    "matched live v1/v2 run within explicitly authorized paid budget",
+    "independent human audit of unsupported confident errors",
+    "staging worker, migration, backpressure, deletion, spend, and routing rehearsals"
+  ]
+}

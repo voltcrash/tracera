@@ -1,0 +1,15 @@
+{
+  "version": "core-v2-scoring-fixtures-1.0.0",
+  "seed": 20260910,
+  "humanGoldClaims": 0,
+  "cases": [
+    "zero-claim-null",
+    "all-unverified-null",
+    "partial-null",
+    "all-contradicted-zero",
+    "all-supported-one-hundred",
+    "copied-evidence-and-style-invariant",
+    "material-mixed-blocks-score",
+    "material-misleading-blocks-score"
+  ]
+}

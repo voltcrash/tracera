@@ -1,0 +1,33 @@
+{
+  "observationSetVersion": "core-v2-calibration-observations-1.0.0",
+  "datasetId": "core-invariants",
+  "datasetHash": "sha256:7b4caa72a9b0fa33c1a45d0dd1782aa30d78d2fb48884c61d5890732ea63daae",
+  "versions": {
+    "engine": "core-v2.0.0",
+    "prompt": "core-prompts-2.0.0",
+    "model": "synthetic-fixture-no-model",
+    "retriever": "core-retriever-2.0.0"
+  },
+  "observations": [
+    {
+      "datasetClaimId": "claim-time",
+      "diagnosticLabel": "supported",
+      "language": "en",
+      "features": {
+        "label_supported": 0,
+        "label_contradicted": 0,
+        "label_misleading": 0,
+        "cited_assessments_log1p": 0,
+        "independent_origin_groups": 0,
+        "unknown_dependence_groups": 0,
+        "primary_directness_share": 0,
+        "scope_checks_all_pass": 0,
+        "opposing_applicable_assessments": 0,
+        "challenge_agreed": 0,
+        "targeted_rounds_used": 0,
+        "raw_confidence_present": 0,
+        "raw_confidence": 0
+      }
+    }
+  ]
+}
