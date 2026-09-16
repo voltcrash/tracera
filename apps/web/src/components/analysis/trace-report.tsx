@@ -536,8 +536,8 @@ function Origin({ trace }: { trace: GroundZeroTrace }) {
       count={`${sentenceCase(trace.confidence)} confidence`}
       lede={
         source
-          ? "Tracera followed citations, publication times, and source references back as far as it could."
-          : "The evidence in hand does not establish a first source for this story."
+          ? "Tracera followed citations, publication times, and source references to the earliest observed material within the searched scope."
+          : "The evidence in hand does not establish an earliest observed source within the searched scope."
       }
     >
       <ol className="trace-trail">
@@ -559,11 +559,11 @@ function Origin({ trace }: { trace: GroundZeroTrace }) {
               </p>
               <p className="trace-trail-meta">
                 {source.publisher ?? "Publisher unknown"}
-                <span className="trace-trail-mark">Earliest found</span>
+                <span className="trace-trail-mark">Earliest observed in scope</span>
               </p>
             </>
           ) : (
-            <p className="trace-trail-title">No dependable first source found</p>
+            <p className="trace-trail-title">No dependable earliest observation found in scope</p>
           )}
         </li>
       </ol>

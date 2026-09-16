@@ -8,7 +8,8 @@
     "build": "next build",
     "check-types": "next typegen && tsc --noEmit",
     "test:auth-browser": "playwright test local-auth.e2e.ts",
-    "test:offline-analysis": "playwright test offline-analysis.e2e.ts"
+    "test:offline-analysis": "playwright test offline-analysis.e2e.ts",
+    "test:focused-browser": "playwright test focused-acceptance.e2e.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

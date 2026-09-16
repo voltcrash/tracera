@@ -5,8 +5,8 @@ import {
   type DocumentSnapshot,
   type RunContext,
 } from "@repo/contracts/core-v2";
-import { CoreStorageRepository, type CoreAccessScope } from "@repo/db/core";
-import type { RunStorePort, SnapshotStorePort } from "./types.js";
+import type { CoreAccessScope, CoreStorageRepository } from "@repo/db/core";
+import type { RunStorePort, SnapshotStorePort } from "./types";
 
 export interface RawBlobStore {
   put(request: {
@@ -83,7 +83,7 @@ async function validateSnapshotBytes(
 }
 
 export function createSnapshotStore(input: {
-  repository: CoreStorageRepository;
+  repository: Pick<CoreStorageRepository, "putSnapshot" | "getSnapshot" | "getSnapshots">;
   context: RunContext;
   blobStore?: RawBlobStore;
   bounds?: SnapshotBounds;
@@ -116,7 +116,7 @@ export function createSnapshotStore(input: {
 }
 
 export function createRunStore(input: {
-  repository: CoreStorageRepository;
+  repository: Pick<CoreStorageRepository, "checkpoint" | "readCheckpoint" | "finalize">;
   context: RunContext;
 }): RunStorePort {
   const scope = accessScope(input.context);

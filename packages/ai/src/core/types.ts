@@ -13,6 +13,8 @@ import type {
   Decision,
   EvidenceAssessment,
   EvidenceCandidate,
+  FocusedPublicationPolicy,
+  FocusedSelection,
   InputCoverage,
   PresentationFinding,
   ProvenanceGraph,
@@ -258,7 +260,7 @@ export interface AdjudicateClaimsV2Input {
 }
 
 export interface AdjudicateClaimsV2Data {
-  /** Diagnostic decisions. Publishable labels are set by calibration. */
+  /** Diagnostic decisions. The focused publication boundary sets released labels. */
   decisions: Decision[];
 }
 
@@ -272,12 +274,28 @@ export interface CalibrateDecisionsV2Data {
   decisions: Decision[];
 }
 
+export interface FocusedPublicationV2Input {
+  claims: ClaimV2[];
+  snapshots: DocumentSnapshot[];
+  decisions: Decision[];
+  assessments: EvidenceAssessment[];
+}
+
+export interface FocusedPublicationV2Data {
+  policy: FocusedPublicationPolicy;
+  decisions: Decision[];
+}
+
 export interface ScoreReportV2Input {
   claims: ClaimV2[];
   decisions: Decision[];
   assessments: EvidenceAssessment[];
   graphs: ProvenanceGraph[];
   coverage: InputCoverage[];
+  /** Optional immutable snapshots let scoring re-check exact citation offsets. */
+  snapshots?: DocumentSnapshot[];
+  /** Present only for the selected-claim focused score boundary. */
+  focusedSelection?: FocusedSelection;
   inputStatus: Scorecard["inputStatus"];
   extractionStatus: Scorecard["extractionStatus"];
   /** Clock reading supplied by the orchestrator so scoring stays pure. */
@@ -340,6 +358,12 @@ export type CalibrateDecisionsV2 = (
   input: CalibrateDecisionsV2Input,
   environment: RunEnvironment,
 ) => Promise<StageResult<CalibrateDecisionsV2Data>>;
+
+/** Focused publication is a pure local evidence gate; it never calls a provider. */
+export type FocusedPublicationV2 = (
+  input: FocusedPublicationV2Input,
+  environment: RunEnvironment,
+) => Promise<StageResult<FocusedPublicationV2Data>>;
 
 /** Scoring is a pure versioned function: no ports, no clock, no model calls. */
 export type ScoreReportV2 = (input: ScoreReportV2Input) => StageResult<ScoreReportV2Data>;

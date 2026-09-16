@@ -1,4 +1,4 @@
-import type { AdapterRun, EvaluationDataset, EvaluationPrediction, TruthLabel } from "./schemas.js";
+import type { AdapterRun, EvaluationDataset, EvaluationPrediction, TruthLabel } from "./schemas";
 
 const labels: TruthLabel[] = ["supported", "contradicted", "misleading", "mixed", "unverified"];
 const oneSidedZ = 1.6448536269514722;
