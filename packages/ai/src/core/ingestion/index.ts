@@ -4,10 +4,10 @@ export {
   DEFAULT_TEXT_BYTE_LIMIT,
   SUPPORTED_IMAGES,
   type DocumentAcquisitionOptions,
-} from "./acquisition.js";
-export { extractStructuredHtml, type StructuredHtmlResult } from "./html.js";
-export { normalizeInputV2 } from "./normalize-input.js";
-export { createFilesystemRawBlobStore } from "./raw-blob-store.js";
+} from "./acquisition";
+export { extractStructuredHtml, type StructuredHtmlResult } from "./html";
+export { normalizeInputV2 } from "./normalize-input";
+export { createFilesystemRawBlobStore } from "./raw-blob-store";
 export {
   supportsImageAcquisition,
   type ContentCredentialsPort,
@@ -17,4 +17,4 @@ export {
   type OcrRegion,
   type ReaderFallbackPort,
   type ReverseImageRetrievalPort,
-} from "./types.js";
+} from "./types";

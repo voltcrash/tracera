@@ -2,20 +2,24 @@
 
 ## Purpose
 
-Tracera combats misinformation by evaluating text, links, images, and news sources against reputable evidence. It decomposes a story into atomic claims, traces each claim toward its earliest known source ("Ground Zero"), and reports claim-level verdicts alongside evidence quality and a multi-dimensional Tracera Score.
+Tracera evaluates pasted text, public links, and screenshots against evidence it can name. It selects up to three checkable factual claims, reports each claim's verdict with exact evidence, and shows a scoped supported share only when the resolved evidence is sufficient.
 
-Tracera also preserves verified claims for deduplication, related-context retrieval, score re-evaluation, and timelines that show how a story's credibility changes as new evidence appears.
+Tracera also preserves report artifacts for exact reuse, related context, and immutable timelines of observed timestamps as new evidence appears.
+
+Core v2 Focused is the active product path. The older full-v2 evaluation, calibration, sealed-test,
+staging, and worker-host documents remain in `docs/core-overhaul/` as archived, non-blocking
+historical artifacts; they are not claims about focused-product accuracy or readiness.
 
 ## Features
 
 - **Multi-format analysis:** Check news presented as text, links, or images through one verification flow.
 - **Claim decomposition:** Break a story into atomic, individually verifiable factual claims instead of judging the article as a whole.
-- **Ground Zero tracing:** Identify and surface the earliest known source of a story or claim.
-- **Evidence-backed verdicts:** Cross-check each claim against reputable sources and distinguish supporting, conflicting, and inconclusive evidence.
-- **Evidence-quality confidence:** Show how strong, recent, and complete the available evidence is separately from the claim verdict.
-- **Tracera Score:** Summarize source reputation, factual skew, manipulative language, recency, and cross-source corroboration in a transparent rating.
-- **Trace timelines:** Track previous checks, reappearances, and score changes as a story develops.
-- **Verified claims corpus:** Reuse prior analysis for deduplication and related context.
+- **Scoped provenance:** Show earliest-observed source signals within the searched scope, with unknown history left unresolved.
+- **Evidence-backed verdicts:** Cross-check each selected claim against applicable evidence and distinguish supporting, conflicting, and inconclusive states.
+- **Evidence status:** Show evidence strength, applicability, independence, recency, and completeness separately from the claim verdict when those records exist.
+- **Focused factual score:** Report the supported share of resolved selected claims only; source context, framing, provenance, and recency never become factual truth points.
+- **Trace timelines:** Show immutable published, updated, event, indexed, archived, and captured observations with unknown times left unresolved.
+- **Exact reuse and related context:** Reuse prior analysis only when content, proposition scope, ownership, visibility, versions, evidence, and freshness match; similar stories remain context.
 
 ## Stack
 

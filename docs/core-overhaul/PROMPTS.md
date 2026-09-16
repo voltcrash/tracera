@@ -1,5 +1,11 @@
 # Agent execution prompts
 
+> **Historical context — superseded full-release task prompts.** The task sequence below describes
+> the original full-release program and is retained for provenance only. It is not an instruction
+> source for Core v2 Focused work. Use [`FOCUSED-PLAN.md`](FOCUSED-PLAN.md); do not add focused
+> prerequisites for the old human-gold, calibration, sealed-test, staging, canary, worker-host, or
+> production-cutover program.
+
 Use the universal prompt plus one task block. The plan is authoritative for implementation choices; task blocks specify ownership, work order and completion evidence. Paths below are repository-relative. These are prompts for future tasks; no agents have been dispatched by creating this document.
 
 ## Universal prompt — prepend to every task

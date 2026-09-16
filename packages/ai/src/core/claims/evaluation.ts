@@ -1,12 +1,8 @@
 import { CORE_V2_CONTRACT_VERSION, type ClaimV2, type Span } from "@repo/contracts/core-v2";
-import type { EvaluationAdapter, EvaluationAdapterOptions } from "../../../evaluation/adapter.js";
-import {
-  datasetHash,
-  type AdapterRun,
-  type EvaluationDataset,
-} from "../../../evaluation/schemas.js";
-import type { ExtractClaimsV2, RunEnvironment } from "../types.js";
-import { extractClaimsV2 } from "./extract-claims.js";
+import type { EvaluationAdapter, EvaluationAdapterOptions } from "../../../evaluation/adapter";
+import { datasetHash, type AdapterRun, type EvaluationDataset } from "../../../evaluation/schemas";
+import type { ExtractClaimsV2, RunEnvironment } from "../types";
+import { extractClaimsV2 } from "./extract-claims";
 
 type ExtractionMatch = AdapterRun["extractionMatches"][number];
 type GoldClaim = EvaluationDataset["claims"][number];

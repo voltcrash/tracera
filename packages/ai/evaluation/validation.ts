@@ -1,4 +1,4 @@
-import type { EvaluationDataset, EvaluationSplit } from "./schemas.js";
+import type { EvaluationDataset, EvaluationSplit } from "./schemas";
 
 export interface DatasetValidationIssue {
   code:

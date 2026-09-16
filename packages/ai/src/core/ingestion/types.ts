@@ -1,5 +1,5 @@
 import type { DocumentSnapshot, StageResult } from "@repo/contracts/core-v2";
-import type { DocumentAcquisitionPort } from "../types.js";
+import type { DocumentAcquisitionPort } from "../types";
 
 export interface OcrRegion {
   text: string;

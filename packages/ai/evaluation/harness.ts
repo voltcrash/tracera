@@ -1,4 +1,4 @@
-import { computeMetrics } from "./metrics.js";
+import { computeMetrics } from "./metrics";
 import {
   adapterRunSchema,
   datasetHash,
@@ -6,8 +6,8 @@ import {
   type AdapterRun,
   type EvaluationDataset,
   type EvaluationSplit,
-} from "./schemas.js";
-import { validateSplitLeakage } from "./validation.js";
+} from "./schemas";
+import { validateSplitLeakage } from "./validation";
 
 export function evaluateRun(
   sourceDataset: unknown,

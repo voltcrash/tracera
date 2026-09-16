@@ -1,0 +1,22 @@
+{
+  "version": "core-v2-focused-acceptance-1.0.0",
+  "description": "Deterministic browser acceptance scenarios for the focused user flow. These cases verify UI behavior and explicit states; they do not measure accuracy.",
+  "cases": [
+    "pasted article text",
+    "public link submission",
+    "pasted or uploaded screenshot",
+    "three selected claims",
+    "null score with unresolved evidence",
+    "exact evidence excerpt links",
+    "provider failure messaging",
+    "saved report reload",
+    "legacy report compatibility"
+  ],
+  "invariants": [
+    "A score is labeled Supported share of resolved claims and includes counts and coverage.",
+    "Insufficient evidence is shown when the score is null.",
+    "OCR uncertainty stays separate from factual verdicts.",
+    "Earliest-observed provenance is scoped to the searched scope.",
+    "Framing and source signals stay separate from factual scoring."
+  ]
+}

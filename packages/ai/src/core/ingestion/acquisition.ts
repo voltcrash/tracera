@@ -6,9 +6,9 @@ import {
   type StageMetrics,
   type StageResult,
 } from "@repo/contracts/core-v2";
-import { safeFetch, type SafeFetchOptions } from "../../safe-fetch.js";
-import type { RawBlobStore } from "../storage.js";
-import { extractStructuredHtml } from "./html.js";
+import { safeFetch, type SafeFetchOptions } from "../../safe-fetch";
+import type { RawBlobStore } from "../storage";
+import { extractStructuredHtml } from "./html";
 import type {
   ContentCredentialsPort,
   ImageAcquisitionRequest,
@@ -16,7 +16,7 @@ import type {
   OcrPort,
   ReaderFallbackPort,
   ReverseImageRetrievalPort,
-} from "./types.js";
+} from "./types";
 
 const DEFAULT_CHARACTER_LIMIT = 200_000;
 const DEFAULT_TEXT_BYTE_LIMIT = 5_000_000;
@@ -31,6 +31,8 @@ export interface DocumentAcquisitionOptions {
   rawBlobStore?: RawBlobStore;
   readerFallback?: ReaderFallbackPort;
   ocr?: OcrPort;
+  /** Configured estimate for the OCR call; it is a spend bound, not a provider measurement. */
+  ocrCostUsd?: number;
   reverseImage?: ReverseImageRetrievalPort;
   contentCredentials?: ContentCredentialsPort;
   safeFetchOptions?: SafeFetchOptions;
@@ -182,6 +184,7 @@ export function createDocumentAcquisitionPort(
           startedAt,
           startedMs,
           monotonicMs,
+          externalRequests: 1,
         });
       } catch (error) {
         if (request.signal.aborted) throw request.signal.reason ?? error;
@@ -202,7 +205,7 @@ export function createDocumentAcquisitionPort(
       const fullBytes = new TextEncoder().encode(request.text.replace(/\r\n?/g, "\n"));
       const rawTruncated = fullBytes.byteLength > textByteLimit;
       const bytes = rawTruncated ? fullBytes.subarray(0, textByteLimit) : fullBytes;
-      const boundedText = new TextDecoder("utf-8").decode(bytes);
+      const boundedText = decodeText(bytes, "text/plain; charset=utf-8");
       if (!boundedText.trim()) {
         const snapshot = await buildSnapshot({
           normalizedText: "",
@@ -313,6 +316,7 @@ async function acquireHtml(input: {
   startedAt: string;
   startedMs: number;
   monotonicMs: () => number;
+  externalRequests: number;
 }) {
   const extracted = extractStructuredHtml(input.html, input.finalUrl);
   if (extracted.blocked) {
@@ -339,8 +343,10 @@ async function acquireHtml(input: {
     });
   }
 
+  let externalRequests = input.externalRequests;
   if (!extracted.normalizedText && input.options.readerFallback) {
     const identity = `${input.options.readerFallback.provider}@${input.options.readerFallback.version}`;
+    externalRequests += 1;
     try {
       const fallback = await input.options.readerFallback.extract({
         html: input.html,
@@ -375,7 +381,13 @@ async function acquireHtml(input: {
             ),
           ],
           "partial",
-          metrics(input.options.now, input.startedAt, input.startedMs, input.monotonicMs, 1),
+          metrics(
+            input.options.now,
+            input.startedAt,
+            input.startedMs,
+            input.monotonicMs,
+            externalRequests,
+          ),
         );
       }
     } catch (error) {
@@ -400,6 +412,7 @@ async function acquireHtml(input: {
         startedAt: input.startedAt,
         startedMs: input.startedMs,
         monotonicMs: input.monotonicMs,
+        externalRequests,
       });
     }
   }
@@ -425,6 +438,7 @@ async function acquireHtml(input: {
       startedAt: input.startedAt,
       startedMs: input.startedMs,
       monotonicMs: input.monotonicMs,
+      externalRequests: input.externalRequests,
     });
   }
 
@@ -461,7 +475,13 @@ async function acquireHtml(input: {
       ? [issue("truncation", "The article exceeded an acquisition limit.", input.originalUrl)]
       : [],
     truncated ? "partial" : "complete",
-    metrics(input.options.now, input.startedAt, input.startedMs, input.monotonicMs, 1),
+    metrics(
+      input.options.now,
+      input.startedAt,
+      input.startedMs,
+      input.monotonicMs,
+      externalRequests,
+    ),
   );
 }
 
@@ -545,6 +565,7 @@ async function acquireImageBytes(
   }> = [];
   if (options.ocr) {
     try {
+      externalRequests += 1;
       const result = await options.ocr.recognize({
         bytes: input.bytes,
         mimeType: input.mimeType,
@@ -590,6 +611,7 @@ async function acquireImageBytes(
   }
   if (options.reverseImage) {
     try {
+      externalRequests += 1;
       const reverse = await options.reverseImage.search({
         bytes: input.bytes,
         mimeType: input.mimeType,
@@ -599,7 +621,7 @@ async function acquireImageBytes(
         issues.push(
           issue(
             "capability_unavailable",
-            `Reverse-image connector ${options.reverseImage.connector} was unavailable; visual provenance is unverified.`,
+            `Reverse-image connector ${options.reverseImage.connector} was unavailable; visual provenance is unverified, and its absence is not evidence of fabrication.`,
             input.originalUrl,
           ),
         );
@@ -609,7 +631,7 @@ async function acquireImageBytes(
       issues.push(
         issue(
           "provider_failure",
-          `Reverse-image connector ${options.reverseImage.connector} failed; visual provenance is unverified: ${safeMessage(error)}`,
+          `Reverse-image connector ${options.reverseImage.connector} failed; visual provenance is unverified, and its absence is not evidence of fabrication: ${safeMessage(error)}`,
           input.originalUrl,
         ),
       );
@@ -618,13 +640,14 @@ async function acquireImageBytes(
     issues.push(
       issue(
         "capability_unavailable",
-        "No validated reverse-image connector is configured; visual provenance is unverified.",
+        "No validated reverse-image connector is configured; visual provenance is unverified, and its absence is not evidence of fabrication.",
         input.originalUrl,
       ),
     );
   }
   if (options.contentCredentials) {
     try {
+      externalRequests += 1;
       const credentials = await options.contentCredentials.inspect({
         bytes: input.bytes,
         mimeType: input.mimeType,
@@ -634,7 +657,7 @@ async function acquireImageBytes(
         issues.push(
           issue(
             "capability_unavailable",
-            `Content credentials are ${credentials.status}; image authenticity is not certified.`,
+            `Content credentials are ${credentials.status}; image authenticity is not certified, and missing metadata is not evidence of fabrication.`,
             input.originalUrl,
           ),
         );
@@ -644,7 +667,7 @@ async function acquireImageBytes(
       issues.push(
         issue(
           "provider_failure",
-          `Content-credentials verifier ${options.contentCredentials.verifier} failed; image authenticity is not certified: ${safeMessage(error)}`,
+          `Content-credentials verifier ${options.contentCredentials.verifier} failed; image authenticity is not certified, and missing metadata is not evidence of fabrication: ${safeMessage(error)}`,
           input.originalUrl,
         ),
       );
@@ -653,7 +676,7 @@ async function acquireImageBytes(
     issues.push(
       issue(
         "capability_unavailable",
-        "No content-credentials verifier is configured; image authenticity is not certified.",
+        "No EXIF/C2PA content-credentials verifier is configured; image authenticity is not certified, and missing EXIF/C2PA metadata is not evidence of fabrication.",
         input.originalUrl,
       ),
     );
@@ -714,7 +737,18 @@ async function acquireImageBytes(
     snapshot,
     issues,
     issues.length || extractionStatus !== "complete" ? "partial" : "complete",
-    metrics(options.now, startedAt, startedMs, monotonicMs, externalRequests),
+    metrics(
+      options.now,
+      startedAt,
+      startedMs,
+      monotonicMs,
+      externalRequests,
+      options.ocr && externalRequests === 1
+        ? (options.ocrCostUsd ?? null)
+        : externalRequests === 0
+          ? 0
+          : null,
+    ),
   );
 }
 
@@ -728,7 +762,7 @@ async function imageSource(request: ImageAcquisitionRequest, fetchOptions?: Safe
     if (!response.ok) throw new Error(`The image returned HTTP ${response.status}.`);
     const mimeType = contentType(response.headers.get("content-type"));
     if (!mimeType) throw new Error("The image response did not declare a MIME type.");
-    if (mimeType !== request.mimeType)
+    if (request.mimeType !== "application/octet-stream" && mimeType !== request.mimeType)
       throw new Error("The image response MIME type does not match the submitted type.");
     const read = await readBounded(response, request.maxBytes, request.signal);
     return {
@@ -825,6 +859,7 @@ async function unavailableFromBytes(input: {
   startedAt: string;
   startedMs: number;
   monotonicMs: () => number;
+  externalRequests?: number;
 }) {
   const snapshot = await buildSnapshot({
     normalizedText: "",
@@ -856,7 +891,13 @@ async function unavailableFromBytes(input: {
         : []),
     ],
     "partial",
-    metrics(input.options.now, input.startedAt, input.startedMs, input.monotonicMs, 1),
+    metrics(
+      input.options.now,
+      input.startedAt,
+      input.startedMs,
+      input.monotonicMs,
+      input.externalRequests ?? 1,
+    ),
   );
 }
 
@@ -1061,11 +1102,36 @@ async function readBounded(response: Response, maxBytes: number, signal: AbortSi
 
 function decodeText(bytes: Uint8Array, rawContentType: string | null) {
   const charset = rawContentType?.match(/charset\s*=\s*["']?([^;"'\s]+)/i)?.[1] ?? "utf-8";
+  const input = isUtf8Charset(charset) ? trimIncompleteUtf8(bytes) : bytes;
   try {
-    return new TextDecoder(charset).decode(bytes);
+    return new TextDecoder(charset).decode(input);
   } catch {
-    return new TextDecoder("utf-8").decode(bytes);
+    return new TextDecoder("utf-8").decode(trimIncompleteUtf8(bytes));
   }
+}
+
+function isUtf8Charset(charset: string) {
+  return ["utf-8", "utf8", "unicode-1-1-utf-8"].includes(charset.toLowerCase());
+}
+
+function trimIncompleteUtf8(bytes: Uint8Array) {
+  const start = Math.max(0, bytes.length - 4);
+  for (let index = bytes.length - 1; index >= start; index -= 1) {
+    const byte = bytes[index]!;
+    if ((byte & 0xc0) === 0x80) continue;
+    const expectedLength =
+      byte <= 0x7f
+        ? 1
+        : byte >= 0xc2 && byte <= 0xdf
+          ? 2
+          : byte >= 0xe0 && byte <= 0xef
+            ? 3
+            : byte >= 0xf0 && byte <= 0xf4
+              ? 4
+              : 1;
+    return expectedLength > bytes.length - index ? bytes.subarray(0, index) : bytes;
+  }
+  return bytes;
 }
 
 function truncateText(text: string, limit: number) {
@@ -1154,6 +1220,7 @@ function metrics(
   startedMs: number,
   monotonicMs: () => number,
   externalRequests: number,
+  costUsd: number | null = externalRequests === 0 ? 0 : null,
 ): StageMetrics {
   return {
     startedAt,
@@ -1162,7 +1229,7 @@ function metrics(
     externalRequests,
     inputTokens: null,
     outputTokens: null,
-    costUsd: null,
+    costUsd,
   };
 }
 
