@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Tracera - trace a story to its source",
     description:
-      "Tracera marks the claims in a story, traces them back to their earliest source, and shows the evidence behind each one.",
+      "Tracera marks the claims in a story, traces them to the earliest observed source within the searched scope, and shows the evidence behind each one.",
     type: "website",
     images: [
       {
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Tracera - trace a story to its source",
     description:
-      "Tracera marks the claims in a story, traces them back to their earliest source, and shows the evidence behind each one.",
+      "Tracera marks the claims in a story, traces them to the earliest observed source within the searched scope, and shows the evidence behind each one.",
     images: ["/og.png"],
   },
 };

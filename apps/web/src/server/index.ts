@@ -76,6 +76,8 @@ import {
   spendLimitedAiProvider,
   type AnalysisControlConfig,
 } from "./analysis-controls";
+import { coreV2App } from "./core-v2";
+import { readAnalysisRequestBody } from "./request-body";
 
 export type Bindings = AuthBindings & {
   DATABASE_URL?: string;
@@ -130,6 +132,8 @@ app.get("/health", async (context) => {
   }
 });
 
+app.route("/v2", coreV2App);
+
 app.get("/internal/domains/:domain/trust-history", async (context) => {
   if (!authorizedDomainTrustAdmin(context)) return context.json({ error: "Unauthorized." }, 401);
   return context.json({
@@ -182,15 +186,16 @@ type ManagedAnalysisResult = {
   status: 200 | 201 | 400 | 409 | 422 | 429 | 503;
 };
 
-const MAX_ANALYSIS_BODY_BYTES = 7_100_000;
 const DEDUP_SAFETY_CAP_HOURS = 24;
 const IMAGE_DEDUP_SIMILARITY = 0.98;
 const RELATED_STORY_SIMILARITY = 0.84;
 const RELATED_STORY_MAX_AGE_HOURS = 24 * 90;
 const CORPUS_SIMILARITY = 0.78;
 
+// Legacy v1 analysis endpoints remain for explicit compatibility only. New product submissions
+// use /v2/analyze; saved v1 reports continue through the historical /checks detail path.
 app.post("/analyze", async (context) => {
-  const requestBody = await readAnalysisRequestBody(context);
+  const requestBody = await readAnalysisRequestBody(context.req.raw);
   if (requestBody.tooLarge) {
     return context.json({ error: "Request body is too large." }, 413);
   }
@@ -211,7 +216,7 @@ app.post("/analyze", async (context) => {
 });
 
 app.post("/analyze/stream", async (context) => {
-  const requestBody = await readAnalysisRequestBody(context);
+  const requestBody = await readAnalysisRequestBody(context.req.raw);
   if (requestBody.tooLarge) {
     return context.json({ error: "Request body is too large." }, 413);
   }
@@ -553,7 +558,7 @@ async function runAnalysis(
     signal.throwIfAborted();
     emit({
       stage: "origin",
-      message: "Tracing the earliest known publication.",
+      message: "Tracing the earliest observed publication within the searched scope.",
     });
     const groundZero = traceGroundZero(groundZeroSources, groundZeroHistory, archiveHistory);
     const relatedStory = await findRelatedStoryCheck(
@@ -1060,51 +1065,6 @@ function aiProviderName(value: string | undefined): AiProviderName {
     throw new Error(`AI_PROVIDER must be one of: ${supported.join(", ")}.`);
   }
   return provider as AiProviderName;
-}
-
-function requestBodyIsTooLarge(context: Context<{ Bindings: Bindings }>) {
-  const contentLength = Number(context.req.header("content-length"));
-  return Number.isFinite(contentLength) && contentLength > MAX_ANALYSIS_BODY_BYTES;
-}
-
-async function readAnalysisRequestBody(
-  context: Context<{ Bindings: Bindings }>,
-): Promise<{ tooLarge: true } | { tooLarge: false; body: unknown }> {
-  if (requestBodyIsTooLarge(context)) return { tooLarge: true };
-
-  const stream = context.req.raw.body;
-  if (!stream) return { tooLarge: false, body: null };
-
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-
-      totalBytes += value.byteLength;
-      if (totalBytes > MAX_ANALYSIS_BODY_BYTES) {
-        await reader.cancel().catch(() => undefined);
-        return { tooLarge: true };
-      }
-      chunks.push(value);
-    }
-
-    const bytes = new Uint8Array(totalBytes);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return { tooLarge: false, body: JSON.parse(new TextDecoder().decode(bytes)) };
-  } catch {
-    return { tooLarge: false, body: null };
-  } finally {
-    reader.releaseLock();
-  }
 }
 
 function analysisResponse(payload: AnalysisResponse) {

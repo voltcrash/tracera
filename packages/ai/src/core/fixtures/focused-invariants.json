@@ -1,0 +1,21 @@
+{
+  "version": "core-v2-focused-invariants-1.0.0",
+  "seed": 20260910,
+  "humanGoldClaims": 0,
+  "description": "Deterministic focused Core v2 guardrails for score gating and auxiliary feature boundaries. These fixtures exercise code paths only and establish no population-level accuracy.",
+  "cases": [
+    "focused-empty-selection-is-null",
+    "focused-ratio-and-counts",
+    "focused-unverified-is-not-fractional",
+    "focused-omitted-work-is-explicit",
+    "focused-partial-input-is-null",
+    "focused-conflict-is-null",
+    "focused-misleading-is-not-resolution",
+    "focused-citation-validation-is-null",
+    "provenance-is-scoped-and-dependent",
+    "framing-is-presentation-only",
+    "image-uncertainty-is-explicit",
+    "reuse-is-exact-and-scoped",
+    "timeline-uses-immutable-observations"
+  ]
+}

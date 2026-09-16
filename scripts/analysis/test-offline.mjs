@@ -58,6 +58,10 @@ async function cleanupFixtures() {
       "DELETE FROM checks WHERE owner_user_id IN (SELECT id FROM users WHERE email = ANY($1::text[])) AND analysis ->> 'analysisMode' = 'fixture'",
       [fixtureEmails],
     );
+    await client.query(
+      "DELETE FROM core_runs WHERE owner_user_id IN (SELECT id::text FROM users WHERE email = ANY($1::text[])) AND execution_mode = 'fixture'",
+      [fixtureEmails],
+    );
     await client.query("DELETE FROM users WHERE email = ANY($1::text[])", [fixtureEmails]);
     await client.query("DELETE FROM ai_spend_reservations WHERE provider_key = 'fixture'");
     await client.query("DELETE FROM ai_provider_spend WHERE provider_key = 'fixture'");

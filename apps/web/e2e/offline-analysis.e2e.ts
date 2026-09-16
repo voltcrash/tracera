@@ -57,6 +57,13 @@ test("local analysis uses offline fixtures with real controls and persistence", 
   await page.goto(`/trace/${textResult.check.id}`);
   await expect(page.getByTestId("synthetic-fixture-badge")).toBeVisible();
 
+  const coreSubmission = await analyzeV2(page, { text: coffee }, crypto.randomUUID());
+  expect(coreSubmission.status()).toBe(503);
+  const coreFailure = await coreSubmission.json();
+  expect(coreFailure.schemaVersion).toBe(2);
+  expect(coreFailure.status).toBe("unavailable");
+  expect(coreFailure.code).toBe("core_v2_unavailable");
+
   const graceContext = await browser.newContext();
   const gracePage = await graceContext.newPage();
   await gracePage.goto("/");
@@ -83,6 +90,17 @@ function analyze(
   idempotencyKey: string,
 ) {
   return page.request.post("/api/tracera/analyze", {
+    headers: { "Idempotency-Key": idempotencyKey },
+    data: input,
+  });
+}
+
+function analyzeV2(
+  page: import("@playwright/test").Page,
+  input: Record<string, unknown>,
+  idempotencyKey: string,
+) {
+  return page.request.post("/api/tracera/v2/analyze", {
     headers: { "Idempotency-Key": idempotencyKey },
     data: input,
   });
