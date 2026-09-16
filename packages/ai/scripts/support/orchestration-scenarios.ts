@@ -251,7 +251,10 @@ export class MemoryCoreRepository implements CoreWorkerRepository {
       .map(([id]) => id.split("|").at(-1) as StageName);
     return {
       runId: job.runId,
-      status: job.status,
+      status:
+        job.status === "complete"
+          ? ((this.runStatus.get(job.runId) as CoreRunProgress["status"] | undefined) ?? job.status)
+          : job.status,
       stage: job.stage,
       attempt: job.attempt,
       cancellationRequested: job.cancellationRequested,
@@ -958,6 +961,7 @@ export async function runOrchestrationScenario(id: OrchestrationScenario): Promi
           result.report.cost.externalRequests >= 120,
         "run cost sums every stage",
       );
+      check(result.status === "partial", "an over-budget stage cannot produce a complete run");
       return { id, checks };
     }
     case "deterministic_replay": {

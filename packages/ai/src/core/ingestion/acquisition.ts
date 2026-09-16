@@ -182,6 +182,7 @@ export function createDocumentAcquisitionPort(
           startedAt,
           startedMs,
           monotonicMs,
+          externalRequests: 1,
         });
       } catch (error) {
         if (request.signal.aborted) throw request.signal.reason ?? error;
@@ -202,7 +203,7 @@ export function createDocumentAcquisitionPort(
       const fullBytes = new TextEncoder().encode(request.text.replace(/\r\n?/g, "\n"));
       const rawTruncated = fullBytes.byteLength > textByteLimit;
       const bytes = rawTruncated ? fullBytes.subarray(0, textByteLimit) : fullBytes;
-      const boundedText = new TextDecoder("utf-8").decode(bytes);
+      const boundedText = decodeText(bytes, "text/plain; charset=utf-8");
       if (!boundedText.trim()) {
         const snapshot = await buildSnapshot({
           normalizedText: "",
@@ -313,6 +314,7 @@ async function acquireHtml(input: {
   startedAt: string;
   startedMs: number;
   monotonicMs: () => number;
+  externalRequests: number;
 }) {
   const extracted = extractStructuredHtml(input.html, input.finalUrl);
   if (extracted.blocked) {
@@ -339,8 +341,10 @@ async function acquireHtml(input: {
     });
   }
 
+  let externalRequests = input.externalRequests;
   if (!extracted.normalizedText && input.options.readerFallback) {
     const identity = `${input.options.readerFallback.provider}@${input.options.readerFallback.version}`;
+    externalRequests += 1;
     try {
       const fallback = await input.options.readerFallback.extract({
         html: input.html,
@@ -375,7 +379,13 @@ async function acquireHtml(input: {
             ),
           ],
           "partial",
-          metrics(input.options.now, input.startedAt, input.startedMs, input.monotonicMs, 1),
+          metrics(
+            input.options.now,
+            input.startedAt,
+            input.startedMs,
+            input.monotonicMs,
+            externalRequests,
+          ),
         );
       }
     } catch (error) {
@@ -400,6 +410,7 @@ async function acquireHtml(input: {
         startedAt: input.startedAt,
         startedMs: input.startedMs,
         monotonicMs: input.monotonicMs,
+        externalRequests,
       });
     }
   }
@@ -425,6 +436,7 @@ async function acquireHtml(input: {
       startedAt: input.startedAt,
       startedMs: input.startedMs,
       monotonicMs: input.monotonicMs,
+      externalRequests: input.externalRequests,
     });
   }
 
@@ -461,7 +473,13 @@ async function acquireHtml(input: {
       ? [issue("truncation", "The article exceeded an acquisition limit.", input.originalUrl)]
       : [],
     truncated ? "partial" : "complete",
-    metrics(input.options.now, input.startedAt, input.startedMs, input.monotonicMs, 1),
+    metrics(
+      input.options.now,
+      input.startedAt,
+      input.startedMs,
+      input.monotonicMs,
+      externalRequests,
+    ),
   );
 }
 
@@ -545,6 +563,7 @@ async function acquireImageBytes(
   }> = [];
   if (options.ocr) {
     try {
+      externalRequests += 1;
       const result = await options.ocr.recognize({
         bytes: input.bytes,
         mimeType: input.mimeType,
@@ -590,6 +609,7 @@ async function acquireImageBytes(
   }
   if (options.reverseImage) {
     try {
+      externalRequests += 1;
       const reverse = await options.reverseImage.search({
         bytes: input.bytes,
         mimeType: input.mimeType,
@@ -625,6 +645,7 @@ async function acquireImageBytes(
   }
   if (options.contentCredentials) {
     try {
+      externalRequests += 1;
       const credentials = await options.contentCredentials.inspect({
         bytes: input.bytes,
         mimeType: input.mimeType,
@@ -825,6 +846,7 @@ async function unavailableFromBytes(input: {
   startedAt: string;
   startedMs: number;
   monotonicMs: () => number;
+  externalRequests?: number;
 }) {
   const snapshot = await buildSnapshot({
     normalizedText: "",
@@ -856,7 +878,13 @@ async function unavailableFromBytes(input: {
         : []),
     ],
     "partial",
-    metrics(input.options.now, input.startedAt, input.startedMs, input.monotonicMs, 1),
+    metrics(
+      input.options.now,
+      input.startedAt,
+      input.startedMs,
+      input.monotonicMs,
+      input.externalRequests ?? 1,
+    ),
   );
 }
 
@@ -1061,11 +1089,36 @@ async function readBounded(response: Response, maxBytes: number, signal: AbortSi
 
 function decodeText(bytes: Uint8Array, rawContentType: string | null) {
   const charset = rawContentType?.match(/charset\s*=\s*["']?([^;"'\s]+)/i)?.[1] ?? "utf-8";
+  const input = isUtf8Charset(charset) ? trimIncompleteUtf8(bytes) : bytes;
   try {
-    return new TextDecoder(charset).decode(bytes);
+    return new TextDecoder(charset).decode(input);
   } catch {
-    return new TextDecoder("utf-8").decode(bytes);
+    return new TextDecoder("utf-8").decode(trimIncompleteUtf8(bytes));
   }
+}
+
+function isUtf8Charset(charset: string) {
+  return ["utf-8", "utf8", "unicode-1-1-utf-8"].includes(charset.toLowerCase());
+}
+
+function trimIncompleteUtf8(bytes: Uint8Array) {
+  const start = Math.max(0, bytes.length - 4);
+  for (let index = bytes.length - 1; index >= start; index -= 1) {
+    const byte = bytes[index]!;
+    if ((byte & 0xc0) === 0x80) continue;
+    const expectedLength =
+      byte <= 0x7f
+        ? 1
+        : byte >= 0xc2 && byte <= 0xdf
+          ? 2
+          : byte >= 0xe0 && byte <= 0xef
+            ? 3
+            : byte >= 0xf0 && byte <= 0xf4
+              ? 4
+              : 1;
+    return expectedLength > bytes.length - index ? bytes.subarray(0, index) : bytes;
+  }
+  return bytes;
 }
 
 function truncateText(text: string, limit: number) {
@@ -1162,7 +1215,7 @@ function metrics(
     externalRequests,
     inputTokens: null,
     outputTokens: null,
-    costUsd: null,
+    costUsd: externalRequests === 0 ? 0 : null,
   };
 }
 

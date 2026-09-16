@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
 import { app, type Bindings } from "../src/server/index";
+import { readAnalysisRequestBody } from "../src/server/request-body";
 
 const env = {
   TRACERA_PROFILE: "deployed",
@@ -75,6 +76,18 @@ for (const path of ["/analyze", "/analyze/stream"]) {
     });
   }
 }
+
+test("the shared request-body guard rejects oversized v2 payloads before parsing", async () => {
+  const result = await readAnalysisRequestBody(
+    new Request("https://tracera.test/v2/analyze", {
+      method: "POST",
+      headers: { "content-length": "7100001" },
+      body: JSON.stringify({ text: "A claim to check." }),
+    }),
+  );
+
+  assert.deepEqual(result, { tooLarge: true });
+});
 
 for (const path of ["/checks", "/checks/00000000-0000-4000-8000-000000000000"]) {
   test(`${path} requires a signed-in user`, async () => {

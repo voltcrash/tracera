@@ -1,5 +1,6 @@
-import type { DocumentSnapshot } from "@repo/contracts/core-v2";
+import type { DocumentSnapshot, RunStatus } from "@repo/contracts/core-v2";
 import type { CoreScopedLease, CoreStorageRepository } from "@repo/db/core";
+import { canonicalJson } from "./hashing.js";
 import type { CoreJobPayload } from "./job.js";
 import { createRunAnalysisV2, type RunAnalysisV2Options } from "./run-analysis.js";
 import { createRunStore, createSnapshotStore, type RawBlobStore } from "./storage.js";
@@ -23,7 +24,7 @@ export type CoreWorkerRepository = Pick<
   | "getSnapshots"
 >;
 
-export type CoreTerminalOutcome = "complete" | "canceled" | "failed";
+export type CoreTerminalOutcome = RunStatus;
 
 export interface CoreWorkerOptions {
   repository: CoreWorkerRepository;
@@ -177,7 +178,7 @@ async function processLease(
       report: result.report,
       signal,
     });
-    await options.onTerminal?.(lease, result.status === "failed" ? "failed" : "complete");
+    await options.onTerminal?.(lease, result.status);
   } catch (error) {
     const reason = runController.signal.reason;
     if (reason instanceof LeaseInterrupted && reason.kind === "lease_lost") {
@@ -223,7 +224,7 @@ export function acceptStoredSnapshots(store: CorePorts["snapshots"]): CorePorts[
     if (!existing) return false;
     const { acquiredAt: _existingAcquiredAt, ...existingIdentity } = existing;
     const { acquiredAt: _nextAcquiredAt, ...nextIdentity } = snapshot;
-    if (JSON.stringify(existingIdentity) !== JSON.stringify(nextIdentity))
+    if (canonicalJson(existingIdentity) !== canonicalJson(nextIdentity))
       throw new Error(`Snapshot ${snapshot.id} is already stored with different content.`);
     Object.assign(snapshot, existing);
     return true;
