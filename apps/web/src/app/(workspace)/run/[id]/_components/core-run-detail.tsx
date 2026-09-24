@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { projectReport, type ReportView } from "@repo/ai/core/report-view";
 import { CoreV2Report } from "@/components/analysis/core-v2-report";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -101,11 +100,7 @@ export function CoreRunDetail({ id }: { id: string }) {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
-        {view?.schemaVersion === 1 ? (
-          <Link className="underline" href={view.href}>
-            Open the saved report
-          </Link>
-        ) : !progress ? (
+        {!progress ? (
           <Skeleton className="h-40 rounded-xl" />
         ) : (
           <div className="rounded-3xl bg-panel p-7 text-panel-foreground">

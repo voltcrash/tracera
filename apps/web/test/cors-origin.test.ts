@@ -6,7 +6,7 @@ test("allows the request origin", () => {
   assert.equal(
     allowedCorsOrigin(
       "https://tracera.voltcrash.com",
-      "https://tracera.voltcrash.com/api/tracera/analyze",
+      "https://tracera.voltcrash.com/api/tracera/v2/analyze",
     ),
     "https://tracera.voltcrash.com",
   );
@@ -16,7 +16,7 @@ test("allows preview deployments without configuration", () => {
   assert.equal(
     allowedCorsOrigin(
       "https://preview.tracera.voltcrash.com",
-      "https://preview.tracera.voltcrash.com/api/tracera/analyze",
+      "https://preview.tracera.voltcrash.com/api/tracera/v2/analyze",
     ),
     "https://preview.tracera.voltcrash.com",
   );
@@ -29,7 +29,7 @@ test("allows loopback web development origins", () => {
     "http://127.0.0.1:3000",
     "http://[::1]:3000",
   ]) {
-    assert.equal(allowedCorsOrigin(origin, "http://localhost:3000/api/tracera/analyze"), origin);
+    assert.equal(allowedCorsOrigin(origin, "http://localhost:3000/api/tracera/v2/analyze"), origin);
   }
 });
 
@@ -41,7 +41,7 @@ test("rejects loopback origins for hosted requests", () => {
     "http://[::1]:3000",
   ]) {
     assert.equal(
-      allowedCorsOrigin(origin, "https://tracera.voltcrash.com/api/tracera/analyze"),
+      allowedCorsOrigin(origin, "https://tracera.voltcrash.com/api/tracera/v2/analyze"),
       undefined,
     );
   }
@@ -54,7 +54,7 @@ test("rejects lookalike and unrelated origins", () => {
     "https://attacker.example",
   ]) {
     assert.equal(
-      allowedCorsOrigin(origin, "https://tracera.voltcrash.com/api/tracera/analyze"),
+      allowedCorsOrigin(origin, "https://tracera.voltcrash.com/api/tracera/v2/analyze"),
       undefined,
     );
   }

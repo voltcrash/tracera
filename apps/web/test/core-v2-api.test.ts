@@ -341,14 +341,6 @@ test("an executor failure returns failed without a completed focused report", as
   assert.equal(harness.executions, 1);
 });
 
-test("saved v1 reports still decode through the legacy report projector", () => {
-  assert.deepEqual(projectReport(coreV2Examples.legacy), {
-    schemaVersion: 1,
-    checkId: "chk_legacy_0001",
-    href: "/trace/chk_legacy_0001",
-  });
-});
-
 test("deployed focused policy requires explicit live provider and budget settings", () => {
   const provider = {
     TRACERA_PROFILE: "deployed",
