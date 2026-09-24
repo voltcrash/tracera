@@ -6,7 +6,7 @@
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { runContextExample, type DocumentSnapshot } from "@repo/contracts/core-v2";
+import { runContextExample, type DocumentSnapshot } from "@repo/contracts/analysis";
 import { evaluateRun } from "../evaluation/harness.js";
 import {
   evaluationDatasetSchema,
@@ -15,20 +15,20 @@ import {
 } from "../evaluation/schemas.js";
 import {
   createClaimExtractionAdapter,
-  createExtractClaimsV2,
+  createExtractClaims,
   matchInventoryToGold,
   summarizeInventory,
   type ClaimExtractionAdapterOptions,
-} from "../src/core/claims/index.js";
-import { createDocumentAcquisitionPort } from "../src/core/ingestion/index.js";
-import type { AuditEvent, RunEnvironment } from "../src/core/types.js";
+} from "../src/analysis/claims/index.js";
+import { createDocumentAcquisitionPort } from "../src/analysis/ingestion/index.js";
+import type { AuditEvent, RunEnvironment } from "../src/analysis/types.js";
 import {
   createScriptedClaimGeneration,
   type ClaimScript,
 } from "./support/scripted-claim-generation.js";
 
 const FIXTURE_CLOCK = "2026-09-10T00:00:00.000Z";
-const fixtures = new URL("../src/core/claims/fixtures/", import.meta.url);
+const fixtures = new URL("../src/analysis/claims/fixtures/", import.meta.url);
 const cli = parseArguments(process.argv.slice(2));
 if (cli.mode !== "fixture") {
   throw new Error(
@@ -41,7 +41,7 @@ const dataset = evaluationDatasetSchema.parse(JSON.parse(await readFile(datasetP
 const scripts = JSON.parse(
   await readFile(new URL("claim-inventory.script.json", fixtures), "utf8"),
 ) as Record<string, ClaimScript>;
-const extract = createExtractClaimsV2({ maxChunkCharacters: 200, overlapCharacters: 60 });
+const extract = createExtractClaims({ maxChunkCharacters: 200, overlapCharacters: 60 });
 
 const adapter = createClaimExtractionAdapter({
   id: "core-v2-claim-inventory",

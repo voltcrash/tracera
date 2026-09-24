@@ -9,8 +9,8 @@ import {
   type ChunkExtraction,
   type ChunkPayload,
   type RawClaim,
-} from "../../src/core/claims/index.js";
-import type { GenerationPort, GenerationRequest } from "../../src/core/types.js";
+} from "../../src/analysis/claims/index.js";
+import type { GenerationPort, GenerationRequest } from "../../src/analysis/types.js";
 
 export interface ScriptedQuote {
   quote: string;

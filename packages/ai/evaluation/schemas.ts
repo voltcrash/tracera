@@ -1,4 +1,4 @@
-import { claimLabelSchema } from "@repo/contracts/core-v2";
+import { claimLabelSchema } from "@repo/contracts/analysis";
 import { z } from "zod";
 
 export const splitIdSchema = z.enum(["development", "calibration", "test", "temporal"]);

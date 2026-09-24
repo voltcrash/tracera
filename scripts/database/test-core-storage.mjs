@@ -38,7 +38,7 @@ try {
   log(`Provisioned empty run database ${databaseName} in ${describeTarget(target)}.`);
 
   const migrationEnvironment = withTestRunDatabase(target.environments.migration, runId);
-  const runtimeEnvironment = coreStorageEnvironment(
+  const runtimeEnvironment = analysisStorageEnvironment(
     withTestRunDatabase(target.environments.runtime, runId),
   );
   migrate(migrationEnvironment);
@@ -83,7 +83,7 @@ function acquireLock() {
   }
 }
 
-function coreStorageEnvironment(environment) {
+function analysisStorageEnvironment(environment) {
   const derived = {
     ...environment,
     CORE_STORAGE_TEST_DATABASE_URL: environment.DATABASE_URL,

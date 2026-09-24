@@ -22,7 +22,7 @@ if (split !== "all") throw new Error("The focused invariant fixture has only the
 if (seed !== 20260910) throw new Error("The focused invariant fixture requires seed 20260910.");
 
 const fixtureBytes = await readFile(
-  fileURLToPath(new URL("../src/core/fixtures/focused-invariants.json", import.meta.url)),
+  fileURLToPath(new URL("../src/analysis/fixtures/focused-invariants.json", import.meta.url)),
 );
 const fixture = JSON.parse(fixtureBytes.toString("utf8")) as {
   version: string;

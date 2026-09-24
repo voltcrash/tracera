@@ -6,9 +6,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./connection": "./src/connection.ts",
-    "./core": "./src/core/index.ts",
-    "./core/repository": "./src/core/repository.ts",
-    "./core/schema": "./src/core/schema.ts",
+    "./analysis": "./src/analysis/index.ts",
+    "./analysis/repository": "./src/analysis/repository.ts",
+    "./analysis/schema": "./src/analysis/schema.ts",
     "./schema": "./src/schema.ts"
   },
   "scripts": {

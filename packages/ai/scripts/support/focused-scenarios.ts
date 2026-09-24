@@ -1,24 +1,24 @@
 import assert from "node:assert/strict";
 import {
-  coreV2Examples,
+  analysisExamples,
   decisionSchema,
   focusedSelectionSchema,
   inputCoverageSchema,
   type ClaimLabel,
-  type ClaimV2,
+  type Claim,
   type DocumentSnapshot,
   type EvidenceAssessment,
-} from "@repo/contracts/core-v2";
+} from "@repo/contracts/analysis";
 import {
   buildImmutableTimeline,
   projectReport,
   publishFocusedDecisions,
-  scoreReportV2,
+  scoreReport,
   selectTopClaims,
-} from "../../src/core/index.js";
-import { buildPresentationFindings } from "../../src/core/framing/index.js";
-import { createDocumentAcquisitionPort } from "../../src/core/ingestion/index.js";
-import { createTraceOriginsV2, rankRoots } from "../../src/core/provenance/index.js";
+} from "../../src/analysis/index.js";
+import { buildPresentationFindings } from "../../src/analysis/framing/index.js";
+import { createDocumentAcquisitionPort } from "../../src/analysis/ingestion/index.js";
+import { createTraceOrigins, rankRoots } from "../../src/analysis/provenance/index.js";
 import { scoringAssessment, scoringClaim, scoringDecision } from "./scripted-scoring.js";
 import {
   createProvenanceEnvironment,
@@ -259,7 +259,7 @@ export async function runFocusedScenario(id: FocusedScenario) {
         ` Cites ${inaccessibleUrl}`,
       );
       const fixture = createProvenanceEnvironment();
-      const traced = await createTraceOriginsV2({
+      const traced = await createTraceOrigins({
         retrieval: scriptedProvenanceRetrieval(new Map()),
       })(
         {
@@ -275,10 +275,10 @@ export async function runFocusedScenario(id: FocusedScenario) {
       ]);
 
       const view = projectReport({
-        ...coreV2Examples.complete,
+        ...analysisExamples.complete,
         provenance: [
           {
-            ...coreV2Examples.complete.provenance[0]!,
+            ...analysisExamples.complete.provenance[0]!,
             coverageStatus: "partial",
             inaccessibleOriginals: [
               { url: inaccessibleUrl, reason: "content_unavailable" as const },
@@ -311,19 +311,19 @@ export async function runFocusedScenario(id: FocusedScenario) {
       assert.equal(finding[0]!.evidenceBacked, false);
 
       const withRating = projectReport({
-        ...coreV2Examples.complete,
+        ...analysisExamples.complete,
         candidates: [
           {
-            ...coreV2Examples.complete.candidates[0]!,
+            ...analysisExamples.complete.candidates[0]!,
             providerRating: "high",
           },
         ],
       });
       const withDifferentRating = projectReport({
-        ...coreV2Examples.complete,
+        ...analysisExamples.complete,
         candidates: [
           {
-            ...coreV2Examples.complete.candidates[0]!,
+            ...analysisExamples.complete.candidates[0]!,
             providerRating: "low",
           },
         ],
@@ -376,8 +376,8 @@ export async function runFocusedScenario(id: FocusedScenario) {
       );
       assert.ok(result.issues.some(({ message }) => message.includes("EXIF/C2PA")));
       const view = projectReport({
-        ...coreV2Examples.complete,
-        snapshots: [...coreV2Examples.complete.snapshots, snapshot],
+        ...analysisExamples.complete,
+        snapshots: [...analysisExamples.complete.snapshots, snapshot],
       });
       assert.equal(view.schemaVersion, 2);
       if (view.schemaVersion === 2) {
@@ -564,7 +564,7 @@ function makeFocusedRun(
   };
 }
 
-function createAssessment(claim: ClaimV2, id: string, relation: EvidenceAssessment["relation"]) {
+function createAssessment(claim: Claim, id: string, relation: EvidenceAssessment["relation"]) {
   const snapshot = evidenceSnapshot(id, `Immutable evidence for ${claim.id}.`);
   return {
     ...scoringAssessment(claim, id, relation),
@@ -585,7 +585,7 @@ function scoreFocused(
     extractionStatus?: "complete" | "partial" | "unavailable" | "failed";
   } = {},
 ) {
-  return scoreReportV2({
+  return scoreReport({
     claims: run.claims,
     decisions: run.decisions,
     assessments: run.assessments,

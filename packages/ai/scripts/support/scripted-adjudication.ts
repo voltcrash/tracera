@@ -4,7 +4,7 @@ import {
   type EvidenceAssessment,
   type RunContext,
   type StageMetrics,
-} from "@repo/contracts/core-v2";
+} from "@repo/contracts/analysis";
 import {
   ADJUDICATION_CHALLENGE_SCHEMA_NAME,
   ADJUDICATION_DRAFT_SCHEMA_NAME,
@@ -12,8 +12,8 @@ import {
   type DraftProposal,
   type TargetedEvidence,
   type TargetedReassessment,
-} from "../../src/core/adjudication/index.js";
-import type { AuditEvent, GenerationRequest, RunEnvironment } from "../../src/core/types.js";
+} from "../../src/analysis/adjudication/index.js";
+import type { AuditEvent, GenerationRequest, RunEnvironment } from "../../src/analysis/types.js";
 import { evidenceClaim, evidenceSnapshot } from "./scripted-evidence.js";
 
 export const ADJUDICATION_FIXTURE_NOW = "2026-09-14T00:00:00.000Z";

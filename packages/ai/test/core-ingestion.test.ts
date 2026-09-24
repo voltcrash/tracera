@@ -9,7 +9,7 @@ import {
   createFilesystemRawBlobStore,
   extractStructuredHtml,
   type OcrPort,
-} from "../src/core/ingestion/index.js";
+} from "../src/analysis/ingestion/index.js";
 
 const NOW = "2026-09-14T00:00:00.000Z";
 const publicResolver = async () => ["8.8.8.8"];

@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
-import { coreV2Examples, runReportSchema, type RunReport } from "@repo/contracts/core-v2";
+import { analysisExamples, runReportSchema, type RunReport } from "@repo/contracts/analysis";
 import { test } from "vite-plus/test";
 
 function mutate(change: (report: RunReport) => void) {
-  const report = structuredClone(coreV2Examples.complete);
+  const report = structuredClone(analysisExamples.complete);
   change(report);
   return runReportSchema.safeParse(report);
 }
 
 test("every canonical core v2 example is valid", () => {
-  for (const [name, example] of Object.entries(coreV2Examples)) {
+  for (const [name, example] of Object.entries(analysisExamples)) {
     const result = runReportSchema.safeParse(example);
     assert.equal(result.success, true, `${name}: ${JSON.stringify(result.error?.issues)}`);
   }
@@ -50,8 +50,8 @@ test("core v2 rejects inconsistent and ungated score states", () => {
   assert.equal(scoredWhileGated.success, false);
 
   const scoredWhileCanceled = runReportSchema.safeParse({
-    ...structuredClone(coreV2Examples.canceled),
-    scorecard: structuredClone(coreV2Examples.complete).scorecard,
+    ...structuredClone(analysisExamples.canceled),
+    scorecard: structuredClone(analysisExamples.complete).scorecard,
   });
   assert.equal(scoredWhileCanceled.success, false);
 });

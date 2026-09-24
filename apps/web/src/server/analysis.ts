@@ -1,11 +1,11 @@
 import { Hono, type Context } from "hono";
-import { runReportSchema, stageNameSchema } from "@repo/contracts/core-v2";
+import { runReportSchema, stageNameSchema } from "@repo/contracts/analysis";
 import { finishAnalysisAdmission, pool, type AnalysisAdmission, type AuthUser } from "@repo/db";
 import {
-  CoreStorageRepository,
-  type CoreAccessScope,
-  type CoreRunProgress,
-} from "@repo/db/core/repository";
+  AnalysisRepository,
+  type AnalysisAccessScope,
+  type AnalysisRunProgress,
+} from "@repo/db/analysis/repository";
 import { authenticatedUser } from "./auth";
 import {
   admitAnalysis,
@@ -25,13 +25,13 @@ import {
   executeFocusedRun,
   focusedRunContext,
   focusedRuntimePolicy,
-  type CoreRuntimeRepository,
+  type AnalysisRuntimeRepository,
   type FocusedRuntimePolicyResult,
 } from "./analysis-runtime";
 
-type CoreContext = Context<{ Bindings: Bindings }>;
+type AnalysisContext = Context<{ Bindings: Bindings }>;
 
-const TERMINAL_RUN_STATUSES = new Set<CoreRunProgress["status"]>([
+const TERMINAL_RUN_STATUSES = new Set<AnalysisRunProgress["status"]>([
   "complete",
   "partial",
   "unavailable",
@@ -45,7 +45,7 @@ type Finish = typeof finishAnalysisAdmission;
 type Execute = typeof executeFocusedRun;
 
 export interface AnalysisDependencies {
-  repository?: CoreRuntimeRepository;
+  repository?: AnalysisRuntimeRepository;
   authenticate?: Authenticate;
   admit?: Admit;
   finish?: Finish;
@@ -56,7 +56,7 @@ export interface AnalysisDependencies {
 export function createAnalysisApp(dependencies: AnalysisDependencies = {}) {
   const app = new Hono<{ Bindings: Bindings }>();
   const configuredRepository = dependencies.repository;
-  const storage = () => configuredRepository ?? new CoreStorageRepository(pool);
+  const storage = () => configuredRepository ?? new AnalysisRepository(pool);
   const authenticate = dependencies.authenticate ?? authenticatedUser;
   const admit = dependencies.admit ?? admitAnalysis;
   const finish = dependencies.finish ?? finishAnalysisAdmission;
@@ -111,7 +111,7 @@ export function createAnalysisApp(dependencies: AnalysisDependencies = {}) {
       );
     }
 
-    const input = coreInput(parsed.data);
+    const input = analysisInput(parsed.data);
     const runContext = focusedRunContext(user.id, input, runtime.policy);
     const finishAdmission = (responseBody: Record<string, unknown>, responseStatus: number) =>
       finish({
@@ -323,7 +323,11 @@ export function createAnalysisApp(dependencies: AnalysisDependencies = {}) {
 
 export const analysisApp = createAnalysisApp();
 
-async function runState(repository: CoreRuntimeRepository, scope: CoreAccessScope, runId: string) {
+async function runState(
+  repository: AnalysisRuntimeRepository,
+  scope: AnalysisAccessScope,
+  runId: string,
+) {
   const progress = await repository.getRunProgress({ scope, runId });
   if (!progress) return null;
   const report =
@@ -337,7 +341,7 @@ async function runState(repository: CoreRuntimeRepository, scope: CoreAccessScop
   return { progress: { ...progress, currentStage }, report };
 }
 
-function coreInput(body: FirstPartyAnalysisInput) {
+function analysisInput(body: FirstPartyAnalysisInput) {
   if ("text" in body) return { kind: "text" as const, text: body.text };
   if ("url" in body) return { kind: "link" as const, url: body.url };
   const match = /^data:([^;,]+);base64,(.*)$/s.exec(body.image);
@@ -351,15 +355,15 @@ function coreInput(body: FirstPartyAnalysisInput) {
 }
 
 async function accessFor(
-  context: CoreContext,
+  context: AnalysisContext,
   authenticate: Authenticate,
-): Promise<CoreAccessScope | null> {
+): Promise<AnalysisAccessScope | null> {
   const user = await authenticate(context.req.raw, runtimeEnvironment(context.env));
   return user ? { tenantId: `user:${user.id}`, ownerUserId: user.id, visibility: "private" } : null;
 }
 
 function focusedUnavailableResponse(
-  context: CoreContext,
+  context: AnalysisContext,
   runtime: Extract<FocusedRuntimePolicyResult, { enabled: false }>,
 ) {
   return context.json(

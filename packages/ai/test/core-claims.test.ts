@@ -3,10 +3,10 @@ import {
   completeRunReportExample,
   runContextExample,
   runReportSchema,
-  type ClaimV2,
+  type Claim,
   type DocumentSnapshot,
   type StageResult,
-} from "@repo/contracts/core-v2";
+} from "@repo/contracts/analysis";
 import { test } from "vite-plus/test";
 import { computeMetrics } from "../evaluation/metrics.js";
 import {
@@ -23,13 +23,13 @@ import {
 } from "../scripts/support/scripted-claim-generation.js";
 import {
   createClaimExtractionAdapter,
-  createExtractClaimsV2,
-  extractClaimsV2,
+  createExtractClaims,
+  extractClaims,
   matchInventoryToGold,
   summarizeInventory,
-} from "../src/core/claims/index.js";
-import { createDocumentAcquisitionPort, type OcrPort } from "../src/core/ingestion/index.js";
-import type { AuditEvent, ExtractClaimsV2Data, RunEnvironment } from "../src/core/types.js";
+} from "../src/analysis/claims/index.js";
+import { createDocumentAcquisitionPort, type OcrPort } from "../src/analysis/ingestion/index.js";
+import type { AuditEvent, ExtractClaimsData, RunEnvironment } from "../src/analysis/types.js";
 
 const NOW = "2026-09-14T00:00:00.000Z";
 
@@ -69,7 +69,7 @@ test("a long multi-claim document is fully inventoried across overlapping paragr
   const snapshot = await textSnapshot(text);
   assert.ok(snapshot.normalizedText.length > 16_384);
 
-  const result = await createExtractClaimsV2({ maxChunkCharacters: 2_000, overlapCharacters: 300 })(
+  const result = await createExtractClaims({ maxChunkCharacters: 2_000, overlapCharacters: 300 })(
     { snapshots: [snapshot], primarySnapshotId: snapshot.id },
     environment,
   );
@@ -121,7 +121,7 @@ test("an analysis limit persists every claim and defers the remainder explicitly
     ),
   };
   const { environment } = await fixture(createScriptedClaimGeneration(script));
-  const result = await createExtractClaimsV2({ maxAnalyzedClaims: 4 })(
+  const result = await createExtractClaims({ maxAnalyzedClaims: 4 })(
     { snapshots: [snapshot], primarySnapshotId: snapshot.id },
     environment,
   );
@@ -174,7 +174,7 @@ test("an exhausted extraction budget defers unread segments instead of dropping 
   };
   const generation = createScriptedClaimGeneration(script);
   const { environment, audit } = await fixture(generation);
-  const result = await createExtractClaimsV2({
+  const result = await createExtractClaims({
     maxChunkCharacters: 300,
     overlapCharacters: 0,
     maxGenerationRequests: 2,
@@ -440,7 +440,7 @@ test("unsupported-language input is reported unavailable without calling the mod
   );
   const generation = createScriptedClaimGeneration({ segments: [], claims: [] });
   const { environment } = await fixture(generation);
-  const result = await extractClaimsV2(
+  const result = await extractClaims(
     { snapshots: [spanish], primarySnapshotId: spanish.id },
     environment,
   );
@@ -510,7 +510,7 @@ test("duplicate propositions merge occurrences while different scopes stay separ
   const generation = createScriptedClaimGeneration(script);
   const { environment } = await fixture(generation);
   // The repeated sentence lands in two chunks, so the scripted model emits it twice.
-  const result = await createExtractClaimsV2({ maxChunkCharacters: 200, overlapCharacters: 0 })(
+  const result = await createExtractClaims({ maxChunkCharacters: 200, overlapCharacters: 0 })(
     { snapshots: [snapshot], primarySnapshotId: snapshot.id },
     environment,
   );
@@ -527,7 +527,7 @@ test("duplicate propositions merge occurrences while different scopes stay separ
   assert.notEqual(claims[1]!.id, merged.id);
   assert.equal(summarizeInventory(result.data!).inventoriedClaims, 2);
 
-  const again = await createExtractClaimsV2({ maxChunkCharacters: 200, overlapCharacters: 0 })(
+  const again = await createExtractClaims({ maxChunkCharacters: 200, overlapCharacters: 0 })(
     { snapshots: [snapshot], primarySnapshotId: snapshot.id },
     (
       await fixture(
@@ -624,7 +624,7 @@ test("unavailable originals, captions and uncertain OCR never become verified cl
   ).data!.snapshot;
   const generation = createScriptedClaimGeneration({ segments: [], claims: [] });
   const { environment } = await fixture(generation);
-  const unavailable = await extractClaimsV2(
+  const unavailable = await extractClaims(
     { snapshots: [blocked], primarySnapshotId: blocked.id },
     environment,
   );
@@ -632,7 +632,7 @@ test("unavailable originals, captions and uncertain OCR never become verified cl
   assert.equal(unavailable.issues[0]!.code, "blocked_page");
 
   const captionOnly = await imageSnapshot(null, "Mars photographed from Delhi yesterday");
-  const captionResult = await extractClaimsV2(
+  const captionResult = await extractClaims(
     { snapshots: [captionOnly], primarySnapshotId: captionOnly.id },
     environment,
   );
@@ -651,7 +651,7 @@ test("unavailable originals, captions and uncertain OCR never become verified cl
       }),
     ],
   });
-  const ocrResult = await extractClaimsV2(
+  const ocrResult = await extractClaims(
     { snapshots: [ocr], primarySnapshotId: ocr.id },
     (await fixture(ocrGeneration)).environment,
   );
@@ -681,7 +681,7 @@ test("cancellation and provider failure are explicit stage outcomes", async () =
     createScriptedClaimGeneration({ segments: [], claims: [] }),
     controller.signal,
   );
-  const canceled = await extractClaimsV2(
+  const canceled = await extractClaims(
     { snapshots: [snapshot], primarySnapshotId: snapshot.id },
     environment,
   );
@@ -694,7 +694,7 @@ test("cancellation and provider failure are explicit stage outcomes", async () =
     { segments: [], claims: [] },
     { beforeResponse: () => midway.abort() },
   );
-  const midwayResult = await extractClaimsV2(
+  const midwayResult = await extractClaims(
     { snapshots: [snapshot], primarySnapshotId: snapshot.id },
     (await fixture(aborting, midway.signal)).environment,
   );
@@ -721,7 +721,7 @@ test("cancellation and provider failure are explicit stage outcomes", async () =
     ],
   };
   const flaky = createScriptedClaimGeneration(script, { failOnCalls: [2] });
-  const partial = await createExtractClaimsV2({ maxChunkCharacters: 200, overlapCharacters: 0 })(
+  const partial = await createExtractClaims({ maxChunkCharacters: 200, overlapCharacters: 0 })(
     { snapshots: [snapshot], primarySnapshotId: snapshot.id },
     (await fixture(flaky)).environment,
   );
@@ -732,7 +732,7 @@ test("cancellation and provider failure are explicit stage outcomes", async () =
     partial.data!.coverage[0]!.charactersCovered < partial.data!.coverage[0]!.charactersTotal,
   );
 
-  const down = await extractClaimsV2(
+  const down = await extractClaims(
     { snapshots: [snapshot], primarySnapshotId: snapshot.id },
     (await fixture(createScriptedClaimGeneration(script, { failOnCalls: [1] }))).environment,
   );
@@ -793,9 +793,9 @@ test("extraction evaluation aligns with gold spans only and never grades itself"
   );
   const snapshot = await textSnapshot(text);
   const partialInventory = (
-    await extractClaimsV2({ snapshots: [snapshot], primarySnapshotId: snapshot.id }, environment)
+    await extractClaims({ snapshots: [snapshot], primarySnapshotId: snapshot.id }, environment)
   ).data!;
-  const selfReportedComplete: ExtractClaimsV2Data = {
+  const selfReportedComplete: ExtractClaimsData = {
     claims: partialInventory.claims,
     coverage: partialInventory.coverage.map((document) => ({
       ...document,
@@ -826,7 +826,7 @@ test("extraction evaluation aligns with gold spans only and never grades itself"
   assert.equal(metrics.claimExtraction.semanticPrecision.status, "not_evaluated");
 });
 
-function assertExactSpans(snapshot: DocumentSnapshot, claims: ClaimV2[], script: ClaimScript) {
+function assertExactSpans(snapshot: DocumentSnapshot, claims: Claim[], script: ClaimScript) {
   const quotes = new Set(
     script.claims.flatMap((claim) =>
       claim.sourceQuotes.map((q) => (typeof q === "string" ? q : q.quote)),
@@ -839,7 +839,7 @@ function assertExactSpans(snapshot: DocumentSnapshot, claims: ClaimV2[], script:
   }
 }
 
-function assertContractReport(snapshot: DocumentSnapshot, data: ExtractClaimsV2Data) {
+function assertContractReport(snapshot: DocumentSnapshot, data: ExtractClaimsData) {
   const report = {
     ...completeRunReportExample,
     status: "partial",
@@ -866,7 +866,7 @@ function assertContractReport(snapshot: DocumentSnapshot, data: ExtractClaimsV2D
 
 async function extract(snapshot: DocumentSnapshot, script: ClaimScript) {
   const { environment } = await fixture(createScriptedClaimGeneration(script));
-  return extractClaimsV2({ snapshots: [snapshot], primarySnapshotId: snapshot.id }, environment);
+  return extractClaims({ snapshots: [snapshot], primarySnapshotId: snapshot.id }, environment);
 }
 
 async function fixture(generation: ScriptedGeneration, signal = new AbortController().signal) {

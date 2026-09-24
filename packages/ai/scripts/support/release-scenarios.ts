@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createSafeFetch } from "../../src/safe-fetch.js";
-import { buildAssessmentRequest, createAssessEvidenceV2 } from "../../src/core/evidence/index.js";
-import { createDocumentAcquisitionPort, type OcrPort } from "../../src/core/ingestion/index.js";
-import { hashValue } from "../../src/core/index.js";
-import { buildPropositionKey, createRetrieveEvidenceV2 } from "../../src/core/retrieval/index.js";
+import { buildAssessmentRequest, createAssessEvidence } from "../../src/analysis/evidence/index.js";
+import { createDocumentAcquisitionPort, type OcrPort } from "../../src/analysis/ingestion/index.js";
+import { hashValue } from "../../src/analysis/index.js";
+import { buildPropositionKey, createRetrieveEvidence } from "../../src/analysis/retrieval/index.js";
 import { runInvariantFixture } from "../../evaluation/harness.js";
 import { evaluationDatasetSchema } from "../../evaluation/schemas.js";
 import {
@@ -107,7 +107,7 @@ async function sourceFlooding(): Promise<ReleaseFixtureResult> {
     sources,
     budget: { maxExternalRequests: 2 },
   });
-  const result = await createRetrieveEvidenceV2()(
+  const result = await createRetrieveEvidence()(
     { claims: [retrievalClaim()], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );
@@ -164,7 +164,7 @@ async function corpusPoisoning(): Promise<ReleaseFixtureResult> {
       };
     },
   };
-  const result = await createRetrieveEvidenceV2({ searchPorts: [], corpus })(
+  const result = await createRetrieveEvidence({ searchPorts: [], corpus })(
     { claims: [claim], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );
@@ -198,7 +198,7 @@ async function numberUnitChanges(): Promise<ReleaseFixtureResult> {
   const scripted = createScriptedEvidenceEnvironment(({ claim, snapshotId }) =>
     assessmentResponse(claim, snapshotId, altered),
   );
-  const result = await createAssessEvidenceV2()(
+  const result = await createAssessEvidence()(
     { claims: [claim], snapshots: [snapshot], admittedSnapshotIds: [snapshot.id] },
     scripted.environment,
   );

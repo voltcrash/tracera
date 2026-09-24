@@ -9,8 +9,8 @@ import {
 import {
   assignSourceDependence,
   buildChallengeInput,
-  createAssessEvidenceV2,
-} from "../src/core/evidence/index.js";
+  createAssessEvidence,
+} from "../src/analysis/evidence/index.js";
 
 async function run(
   text: string,
@@ -19,7 +19,7 @@ async function run(
 ) {
   const snapshot = evidenceSnapshot("snap_evidence", text);
   const { environment, audits } = createScriptedEvidenceEnvironment(response);
-  const result = await createAssessEvidenceV2()(
+  const result = await createAssessEvidence()(
     { claims: [claim], snapshots: [snapshot], admittedSnapshotIds: [snapshot.id] },
     environment,
   );
@@ -122,7 +122,7 @@ test("ten syndicated copies collapse to one known origin group", async () => {
     const { environment } = createScriptedEvidenceEnvironment(({ claim, snapshotId }) =>
       assessmentResponse(claim, snapshotId, quote),
     );
-    const result = await createAssessEvidenceV2()(
+    const result = await createAssessEvidence()(
       { claims: [claim], snapshots: [snapshot], admittedSnapshotIds: [snapshot.id] },
       environment,
     );
@@ -150,7 +150,7 @@ test("unknown dependence, submitted assertions, and conflicting evidence remain 
       directness: "secondary",
     }),
   );
-  const result = await createAssessEvidenceV2()(
+  const result = await createAssessEvidence()(
     {
       claims: [claim],
       snapshots: [support, contradiction],
@@ -214,7 +214,7 @@ test("same-publisher documents share a non-independent group", async () => {
   const { environment } = createScriptedEvidenceEnvironment(({ claim, snapshotId, passage }) =>
     assessmentResponse(claim, snapshotId, passage),
   );
-  const result = await createAssessEvidenceV2()(
+  const result = await createAssessEvidence()(
     {
       claims: [claim],
       snapshots: [first, second],
@@ -244,7 +244,7 @@ test("multiple passages from one snapshot never inflate independent-origin count
   const { environment } = createScriptedEvidenceEnvironment(({ claim, snapshotId, passage }) =>
     assessmentResponse(claim, snapshotId, passage),
   );
-  const result = await createAssessEvidenceV2()(
+  const result = await createAssessEvidence()(
     { claims: [claim], snapshots: [snapshot], admittedSnapshotIds: [snapshot.id] },
     environment,
   );
@@ -262,7 +262,7 @@ test("unknown admitted IDs fail closed and cancellation produces no data", async
   const scripted = createScriptedEvidenceEnvironment(({ claim, snapshotId, passage }) =>
     assessmentResponse(claim, snapshotId, passage),
   );
-  const missing = await createAssessEvidenceV2()(
+  const missing = await createAssessEvidence()(
     { claims: [claim], snapshots: [snapshot], admittedSnapshotIds: ["missing"] },
     scripted.environment,
   );
@@ -272,7 +272,7 @@ test("unknown admitted IDs fail closed and cancellation produces no data", async
     ({ claim, snapshotId, passage }) => assessmentResponse(claim, snapshotId, passage),
     { cancelRequested: true },
   );
-  const result = await createAssessEvidenceV2()(
+  const result = await createAssessEvidence()(
     { claims: [claim], snapshots: [snapshot], admittedSnapshotIds: [snapshot.id] },
     canceled.environment,
   );

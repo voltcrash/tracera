@@ -7,7 +7,7 @@ import {
   retrievalClaim,
   type ScriptedRetrievalSource,
 } from "./support/scripted-retrieval.js";
-import { createRetrieveEvidenceV2 } from "../src/core/retrieval/index.js";
+import { createRetrieveEvidence } from "../src/analysis/retrieval/index.js";
 
 const cli = parseArguments(process.argv.slice(2));
 if (cli.mode !== "fixture" && cli.mode !== "replay") {
@@ -16,7 +16,10 @@ if (cli.mode !== "fixture" && cli.mode !== "replay") {
   );
 }
 
-const fixtureUrl = new URL("../src/core/retrieval/fixtures/retrieval-replay.json", import.meta.url);
+const fixtureUrl = new URL(
+  "../src/analysis/retrieval/fixtures/retrieval-replay.json",
+  import.meta.url,
+);
 const fixtureBytes = await readFile(fixtureUrl);
 const manifest = JSON.parse(fixtureBytes.toString()) as Manifest;
 if (cli.seed !== manifest.seed) throw new Error(`Replay seed must be ${manifest.seed}.`);
@@ -28,7 +31,7 @@ for (const replayCase of manifest.cases) {
     outage: replayCase.outage,
     budget: replayCase.budget === null ? undefined : { maxExternalRequests: replayCase.budget },
   });
-  const result = await createRetrieveEvidenceV2()(
+  const result = await createRetrieveEvidence()(
     {
       claims: [retrievalClaim()],
       snapshots: [inputSnapshot()],

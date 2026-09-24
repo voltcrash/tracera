@@ -1,6 +1,6 @@
 "use client";
 
-import type { AnalysisReportView } from "@repo/ai/core/report-view";
+import type { AnalysisReportView } from "@repo/ai/analysis/report-view";
 import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 

@@ -1,21 +1,21 @@
 import { createHash } from "node:crypto";
 import {
   runContextExample,
-  type ClaimV2,
+  type Claim,
   type DocumentSnapshot,
   type EvidenceAssessment,
   type StageMetrics,
-} from "@repo/contracts/core-v2";
-import type { GenerationRequest, RunEnvironment } from "../../src/core/types.js";
+} from "@repo/contracts/analysis";
+import type { GenerationRequest, RunEnvironment } from "../../src/analysis/types.js";
 import type {
   ArchiveLookupPort,
   ProvenanceRetrievalController,
-} from "../../src/core/provenance/index.js";
+} from "../../src/analysis/provenance/index.js";
 
 export const PROVENANCE_NOW = "2026-09-14T00:00:00.000Z";
 export const PROVENANCE_CLAIM_TEXT = "Northbridge recorded 42 incidents in 1998.";
 
-export function provenanceClaim(): ClaimV2 {
+export function provenanceClaim(): Claim {
   return {
     id: "claim_provenance_fixture",
     documentId: "snap_input_provenance",
@@ -156,7 +156,7 @@ export function createProvenanceEnvironment(options: { signal?: AbortSignal } = 
         promptVersion: "evidence-assessment-v2.0.0",
         async generate<Value>(request: GenerationRequest<Value>) {
           assessmentCalls += 1;
-          const claim = JSON.parse(request.untrustedContent[0]!.text) as ClaimV2;
+          const claim = JSON.parse(request.untrustedContent[0]!.text) as Claim;
           const passage = JSON.parse(request.untrustedContent[1]!.text) as {
             snapshotId: string;
             passage: string;

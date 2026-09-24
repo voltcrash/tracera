@@ -3,15 +3,15 @@ import { test } from "vite-plus/test";
 import {
   decisionSchema,
   type ClaimLabel,
-  type ClaimV2,
+  type Claim,
   type Decision,
   type EvidenceAssessment,
   type DocumentSnapshot,
-} from "@repo/contracts/core-v2";
+} from "@repo/contracts/analysis";
 import {
-  createFocusedPublicationV2,
+  createFocusedPublication,
   publishFocusedDecisions,
-} from "../src/core/publication/index.js";
+} from "../src/analysis/publication/index.js";
 import {
   adjudicationAssessment,
   adjudicationClaim,
@@ -135,7 +135,7 @@ test("challenge disagreement preserves mixed evidence or abstains", () => {
 test("the focused stage is local and makes no provider requests", async () => {
   const fixture = supportedFixture();
   const environmentFixture = createAdjudicationEnvironment({ snapshots: fixture.snapshots });
-  const result = await createFocusedPublicationV2()(
+  const result = await createFocusedPublication()(
     {
       claims: fixture.claims,
       snapshots: fixture.snapshots,
@@ -151,7 +151,7 @@ test("the focused stage is local and makes no provider requests", async () => {
 });
 
 interface PublicationFixture {
-  claims: ClaimV2[];
+  claims: Claim[];
   snapshots: DocumentSnapshot[];
   assessments: EvidenceAssessment[];
   decision: Decision;
@@ -221,7 +221,7 @@ function misleadingFixture(): PublicationFixture {
   };
 }
 
-function decisionFor(claim: ClaimV2, overrides: Partial<Decision> = {}): Decision {
+function decisionFor(claim: Claim, overrides: Partial<Decision> = {}): Decision {
   return decisionSchema.parse({
     claimId: claim.id,
     diagnosticLabel: "supported",

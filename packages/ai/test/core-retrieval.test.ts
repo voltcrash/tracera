@@ -9,9 +9,9 @@ import {
   buildPropositionKey,
   buildRetrievalQuestions,
   createExistingDiscoveryAdapters,
-  createRetrieveEvidenceV2,
+  createRetrieveEvidence,
   selectPassageCandidates,
-} from "../src/core/retrieval/index.js";
+} from "../src/analysis/retrieval/index.js";
 
 test("questions preserve scope and include neutral, counterevidence, primary, and historical plans", () => {
   const claim = retrievalClaim();
@@ -118,7 +118,7 @@ test("full primary and disconfirming records are acquired while snippets remain 
   const { environment, audits, stored } = createScriptedRetrievalEnvironment({
     sources: [primary, counter, snippetOnly],
   });
-  const result = await createRetrieveEvidenceV2()(
+  const result = await createRetrieveEvidence()(
     { claims: [retrievalClaim()], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );
@@ -139,7 +139,7 @@ test("historical evidence is retained and passage overlap is never an admissibil
     publishedAt: "1998-12-31T00:00:00.000Z",
   };
   const { environment } = createScriptedRetrievalEnvironment({ sources: [source] });
-  const result = await createRetrieveEvidenceV2()(
+  const result = await createRetrieveEvidence()(
     { claims: [retrievalClaim()], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );
@@ -152,7 +152,7 @@ test("historical evidence is retained and passage overlap is never an admissibil
 
 test("a total search API outage is unavailable rather than a completed empty search", async () => {
   const { environment } = createScriptedRetrievalEnvironment({ outage: true });
-  const result = await createRetrieveEvidenceV2()(
+  const result = await createRetrieveEvidence()(
     { claims: [retrievalClaim()], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );
@@ -163,14 +163,14 @@ test("a total search API outage is unavailable rather than a completed empty sea
 
 test("a successful empty search is complete no-results, distinct from unsupported capability", async () => {
   const { environment } = createScriptedRetrievalEnvironment({ sources: [] });
-  const noResults = await createRetrieveEvidenceV2()(
+  const noResults = await createRetrieveEvidence()(
     { claims: [retrievalClaim()], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );
   assert.equal(noResults.status, "complete");
   assert.equal(noResults.data?.stoppingReason, "no_results");
 
-  const unsupported = await createRetrieveEvidenceV2({ searchPorts: [] })(
+  const unsupported = await createRetrieveEvidence({ searchPorts: [] })(
     { claims: [retrievalClaim()], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );
@@ -225,7 +225,7 @@ test("corpus proposals are revalidated against exact tenant, owner, scope, hash,
       };
     },
   };
-  const result = await createRetrieveEvidenceV2({ searchPorts: [], corpus })(
+  const result = await createRetrieveEvidence({ searchPorts: [], corpus })(
     { claims: [claim], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );
@@ -244,7 +244,7 @@ test("the global budget reserves a fetch and reports omitted queries", async () 
     sources: [source],
     budget: { maxExternalRequests: 2 },
   });
-  const result = await createRetrieveEvidenceV2()(
+  const result = await createRetrieveEvidence()(
     { claims: [retrievalClaim()], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );
@@ -268,7 +268,7 @@ test("duplicates and deferred claims are not retrieved and targeted rounds stop 
   const claim = retrievalClaim();
   const duplicate = retrievalClaim({ id: "claim_duplicate", duplicateOfClaimId: claim.id });
   const deferred = retrievalClaim({ id: "claim_deferred", coverageDisposition: "deferred" });
-  const result = await createRetrieveEvidenceV2()(
+  const result = await createRetrieveEvidence()(
     {
       claims: [claim, duplicate, deferred],
       snapshots: [inputSnapshot()],
@@ -289,7 +289,7 @@ test("duplicates and deferred claims are not retrieved and targeted rounds stop 
     environment,
   );
   assert.ok(result.data?.candidates.every(({ claimId }) => claimId === claim.id));
-  const tooLate = await createRetrieveEvidenceV2()(
+  const tooLate = await createRetrieveEvidence()(
     { claims: [claim], snapshots: [inputSnapshot()], round: 3, sufficiency: [] },
     environment,
   );
@@ -317,7 +317,7 @@ test("submitted input and truncated fetches cannot enter the admitted snapshot s
     finalUrl: inputUrl,
     canonicalUrl: inputUrl,
   };
-  const result = await createRetrieveEvidenceV2()(
+  const result = await createRetrieveEvidence()(
     { claims: [retrievalClaim()], snapshots: [input], round: 0, sufficiency: [] },
     environment,
   );
@@ -332,7 +332,7 @@ test("cancellation is terminal and performs no discovery or acquisition", async 
   const { environment, audits, stored } = createScriptedRetrievalEnvironment({
     signal: controller.signal,
   });
-  const result = await createRetrieveEvidenceV2()(
+  const result = await createRetrieveEvidence()(
     { claims: [retrievalClaim()], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );
@@ -356,7 +356,7 @@ test("counterevidence and acquisition capacity are preserved for later claims", 
   });
   const first = retrievalClaim({ id: "claim_first" });
   const second = retrievalClaim({ id: "claim_second" });
-  const result = await createRetrieveEvidenceV2()(
+  const result = await createRetrieveEvidence()(
     { claims: [first, second], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
     environment,
   );

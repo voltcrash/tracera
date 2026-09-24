@@ -9,7 +9,7 @@ import {
   scriptedArchive,
   scriptedProvenanceRetrieval,
 } from "../scripts/support/scripted-provenance.js";
-import { createTraceOriginsV2 } from "../src/core/provenance/index.js";
+import { createTraceOrigins } from "../src/analysis/provenance/index.js";
 
 const instant = (type: "published" | "updated", value: string) => ({
   type,
@@ -26,7 +26,7 @@ test("a known citation chain is traversed through retrieval and every new snapsh
   const middle = provenanceSnapshot("middle", middleUrl, ` Cites ${recordUrl}`);
   const record = provenanceSnapshot("record", recordUrl, "", [], "primary_record");
   const fixture = createProvenanceEnvironment();
-  const result = await createTraceOriginsV2({
+  const result = await createTraceOrigins({
     retrieval: scriptedProvenanceRetrieval(
       new Map([
         [middleUrl, middle],
@@ -54,7 +54,7 @@ test("a backdated update remains an explicit chronology conflict", async () => {
     instant("updated", "2020-01-01T00:00:00.000Z"),
   ]);
   const { environment } = createProvenanceEnvironment();
-  const result = await createTraceOriginsV2()(
+  const result = await createTraceOrigins()(
     {
       claims: [provenanceClaim()],
       snapshots: [snapshot],
@@ -80,7 +80,7 @@ test("an archive before the declared date is claim-level evidence only after con
     "archive_capture",
   );
   const fixture = createProvenanceEnvironment();
-  const result = await createTraceOriginsV2({
+  const result = await createTraceOrigins({
     retrieval: scriptedProvenanceRetrieval(new Map([[captureUrl, capture]])),
     archive: scriptedArchive(
       new Map([
@@ -122,7 +122,7 @@ test("an archive URL without the claim remains document history, not claim-level
     false,
   );
   const { environment } = createProvenanceEnvironment();
-  const result = await createTraceOriginsV2({
+  const result = await createTraceOrigins({
     retrieval: scriptedProvenanceRetrieval(new Map([[captureUrl, capture]])),
     archive: scriptedArchive(
       new Map([
@@ -151,7 +151,7 @@ test("simultaneous statements remain tied earliest-observed candidates", async (
   const first = provenanceSnapshot("simultaneous_a", "https://a.example/report", "", [time]);
   const second = provenanceSnapshot("simultaneous_b", "https://b.example/report", "", [time]);
   const { environment } = createProvenanceEnvironment();
-  const result = await createTraceOriginsV2()(
+  const result = await createTraceOrigins()(
     {
       claims: [provenanceClaim()],
       snapshots: [first, second],
@@ -185,7 +185,7 @@ test("syndicated copies retain one dependency group and do not become independen
     ],
   };
   const { environment } = createProvenanceEnvironment();
-  const result = await createTraceOriginsV2()(
+  const result = await createTraceOrigins()(
     {
       claims: [provenanceClaim()],
       snapshots: [first, second],
@@ -206,7 +206,7 @@ test("citation cycles are retained without recursive overrun", async () => {
   const first = provenanceSnapshot("cycle_a", firstUrl, ` Cites ${secondUrl}`);
   const second = provenanceSnapshot("cycle_b", secondUrl, ` Cites ${firstUrl}`);
   const { environment } = createProvenanceEnvironment();
-  const result = await createTraceOriginsV2()(
+  const result = await createTraceOrigins()(
     {
       claims: [provenanceClaim()],
       snapshots: [first, second],
@@ -226,7 +226,7 @@ test("an inaccessible original is explicit and never becomes a candidate root", 
     ` Cites ${missingUrl}`,
   );
   const { environment } = createProvenanceEnvironment();
-  const result = await createTraceOriginsV2({
+  const result = await createTraceOrigins({
     retrieval: scriptedProvenanceRetrieval(new Map()),
   })(
     {
@@ -249,7 +249,7 @@ test("an inaccessible original is explicit and never becomes a candidate root", 
 test("an unavailable archive capability is recorded without inventing a capture", async () => {
   const source = provenanceSnapshot("archive_unavailable", "https://report.example/archive");
   const { environment } = createProvenanceEnvironment();
-  const result = await createTraceOriginsV2({
+  const result = await createTraceOrigins({
     archive: {
       provider: "unavailable-archive",
       async lookup(request) {
@@ -302,7 +302,7 @@ test("invalid validated assessment offsets are rejected and unknown dates stay u
     },
   });
   const { environment } = createProvenanceEnvironment();
-  const result = await createTraceOriginsV2()(
+  const result = await createTraceOrigins()(
     { claims: [provenanceClaim()], snapshots: [source], assessments: [invalid] },
     environment,
   );
@@ -317,7 +317,7 @@ test("cancellation fails closed without returning partial provenance", async () 
   controller.abort();
   const snapshot = provenanceSnapshot("canceled", "https://report.example/canceled");
   const { environment } = createProvenanceEnvironment({ signal: controller.signal });
-  const result = await createTraceOriginsV2()(
+  const result = await createTraceOrigins()(
     {
       claims: [provenanceClaim()],
       snapshots: [snapshot],

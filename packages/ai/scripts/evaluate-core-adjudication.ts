@@ -27,7 +27,7 @@ if (seed !== 20260910)
 
 const fixtureBytes = await readFile(
   fileURLToPath(
-    new URL("../src/core/adjudication/fixtures/adjudication-invariants.json", import.meta.url),
+    new URL("../src/analysis/adjudication/fixtures/adjudication-invariants.json", import.meta.url),
   ),
 );
 const fixture = JSON.parse(fixtureBytes.toString("utf8")) as {

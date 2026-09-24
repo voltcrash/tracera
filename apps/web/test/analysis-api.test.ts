@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import type { RunAnalysisV2Result } from "@repo/ai/core/types";
-import { coreV2Examples, runReportSchema, type RunReport } from "@repo/contracts/core-v2";
+import type { RunAnalysisResult } from "@repo/ai/analysis/types";
+import { analysisExamples, runReportSchema, type RunReport } from "@repo/contracts/analysis";
 import { test } from "vite-plus/test";
 import type { AuthUser } from "@repo/db";
-import type { CoreRunProgress } from "@repo/db/core/repository";
+import type { AnalysisRunProgress } from "@repo/db/analysis/repository";
 import { createAnalysisApp, type AnalysisDependencies } from "../src/server/analysis";
 import {
   focusedRuntimePolicy,
-  type CoreRuntimeRepository,
+  type AnalysisRuntimeRepository,
   type FocusedRunExecutionInput,
 } from "../src/server/analysis-runtime";
 import { app, type Bindings } from "../src/server/index";
@@ -25,10 +25,10 @@ const env = {
   BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long",
 } satisfies Bindings;
 
-function createHarness(execute: (input: FocusedRunExecutionInput) => Promise<RunAnalysisV2Result>) {
+function createHarness(execute: (input: FocusedRunExecutionInput) => Promise<RunAnalysisResult>) {
   let savedResponse: { body: unknown; status: number } | null = null;
   let executions = 0;
-  const progress = new Map<string, CoreRunProgress>();
+  const progress = new Map<string, AnalysisRunProgress>();
   const reports = new Map<string, RunReport>();
   const repository = {
     enqueue: async () => ({ jobId: "job", created: true }),
@@ -58,7 +58,7 @@ function createHarness(execute: (input: FocusedRunExecutionInput) => Promise<Run
     putSnapshot: async () => undefined,
     getSnapshot: async () => null,
     getSnapshots: async () => [],
-  } as unknown as CoreRuntimeRepository;
+  } as unknown as AnalysisRuntimeRepository;
   const authenticate = async (request: Request): Promise<AuthUser | null> => {
     const id = request.headers.get("x-test-user");
     return id ? { id, email: `${id}@test.example`, createdAt: "2026-09-15T00:00:00.000Z" } : null;
@@ -126,10 +126,10 @@ function reportFor(
 ) {
   const source =
     status === "complete"
-      ? coreV2Examples.complete
+      ? analysisExamples.complete
       : status === "partial"
-        ? coreV2Examples.partial
-        : coreV2Examples.unavailable;
+        ? analysisExamples.partial
+        : analysisExamples.unavailable;
   const report = structuredClone(source);
   report.runId = input.context.runId;
   report.createdAt = input.context.asOfTime;
@@ -254,7 +254,7 @@ test("authentication is required before focused analysis starts", async () => {
 
 test("focused run history is owner scoped and summarized", async () => {
   const harness = createHarness(async (input) => completeResult(input));
-  const report = structuredClone(coreV2Examples.complete);
+  const report = structuredClone(analysisExamples.complete);
   report.runId = "run-history";
   harness.reports.set(report.runId, report);
 
@@ -283,7 +283,7 @@ test("focused run history is owner scoped and summarized", async () => {
 
 test("owner isolation applies to saved focused runs", async () => {
   const harness = createHarness(async (input) => completeResult(input));
-  const progress: CoreRunProgress = {
+  const progress: AnalysisRunProgress = {
     runId: "run-owned-by-ada",
     status: "complete",
     stage: "score_report",
@@ -356,14 +356,14 @@ test("deployed focused policy requires explicit live provider and budget setting
     AI_EMBEDDING_MODEL: "configured-embedding-model",
   };
   const budget = {
-    CORE_V2_MAX_EXTERNAL_REQUESTS: "120",
-    CORE_V2_MAX_DISCOVERY_QUERIES_PER_CLAIM: "12",
-    CORE_V2_MAX_FETCHED_CANDIDATES_PER_CLAIM: "20",
-    CORE_V2_MAX_PROVENANCE_HOPS: "3",
-    CORE_V2_MAX_TARGETED_RETRIEVAL_ROUNDS: "2",
-    CORE_V2_MAX_ELAPSED_MS: "120000",
-    CORE_V2_MAX_CONCURRENT_EXTERNAL_CALLS: "3",
-    CORE_V2_MAX_COST_USD: "1.00",
+    ANALYSIS_MAX_EXTERNAL_REQUESTS: "120",
+    ANALYSIS_MAX_DISCOVERY_QUERIES_PER_CLAIM: "12",
+    ANALYSIS_MAX_FETCHED_CANDIDATES_PER_CLAIM: "20",
+    ANALYSIS_MAX_PROVENANCE_HOPS: "3",
+    ANALYSIS_MAX_TARGETED_RETRIEVAL_ROUNDS: "2",
+    ANALYSIS_MAX_ELAPSED_MS: "120000",
+    ANALYSIS_MAX_CONCURRENT_EXTERNAL_CALLS: "3",
+    ANALYSIS_MAX_COST_USD: "1.00",
   };
   const spend = {
     AI_DAILY_SPEND_LIMIT_USD: "25",

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import type { DocumentSnapshot, EvidenceAssessment } from "@repo/contracts/core-v2";
+import type { DocumentSnapshot, EvidenceAssessment } from "@repo/contracts/analysis";
 import {
-  createAdjudicateClaimsV2,
+  createAdjudicateClaims,
   type AdjudicationOptions,
-} from "../../src/core/adjudication/index.js";
+} from "../../src/analysis/adjudication/index.js";
 import {
   DRAFT_JUSTIFICATION_MARKER,
   adjudicationAssessment,
@@ -34,7 +34,7 @@ export async function adjudicate(
   options: AdjudicationOptions = {},
 ) {
   const fixture = createAdjudicationEnvironment({ ...scripted, snapshots });
-  const result = await createAdjudicateClaimsV2(options)(
+  const result = await createAdjudicateClaims(options)(
     { claims: [adjudicationClaim()], assessments, graphs: [] },
     fixture.environment,
   );

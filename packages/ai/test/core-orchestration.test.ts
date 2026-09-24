@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, test } from "vite-plus/test";
-import { coreV2Examples } from "@repo/contracts/core-v2";
-import { acceptStoredSnapshots } from "../src/core/index.js";
+import { analysisExamples } from "@repo/contracts/analysis";
+import { acceptStoredSnapshots } from "../src/analysis/index.js";
 
 describe("Core v2 stored artifacts", () => {
   test("stored snapshot IDs accept only identical immutable content", async () => {
-    const [stored] = coreV2Examples.complete.snapshots;
+    const [stored] = analysisExamples.complete.snapshots;
     const writes: string[] = [];
     const store = acceptStoredSnapshots({
       put: async (snapshot) => {

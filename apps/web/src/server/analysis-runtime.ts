@@ -2,37 +2,37 @@ import { randomUUID } from "node:crypto";
 import { createAiProvider, safeFetch, type AiProviderConfig, type AiProviderName } from "@repo/ai";
 import {
   acceptStoredSnapshots,
-  createCoreEmbeddingPort,
-  createCoreGenerationPort,
+  createAnalysisEmbeddingPort,
+  createAnalysisGenerationPort,
   createProviderOcrPort,
-  createRunAnalysisV2,
+  createRunAnalysis,
   createRunStore,
   createSnapshotStore,
   createSystemClock,
-  runAnalysisV2,
-} from "@repo/ai/core";
-import { hashValue } from "@repo/ai/core/hashing";
-import { createDocumentAcquisitionPort } from "@repo/ai/core/ingestion";
+  runAnalysis,
+} from "@repo/ai/analysis";
+import { hashValue } from "@repo/ai/analysis/hashing";
+import { createDocumentAcquisitionPort } from "@repo/ai/analysis/ingestion";
 import {
   createExistingDiscoveryAdapters,
   type CandidateDiscoveryClient,
   type CandidateDiscoveryResult,
   type ExistingDiscoveryClients,
-} from "@repo/ai/core/retrieval";
-import type { CoreInput, RunAnalysisV2Result } from "@repo/ai/core/types";
+} from "@repo/ai/analysis/retrieval";
+import type { RunInput, RunAnalysisResult } from "@repo/ai/analysis/types";
 import {
-  CORE_V2_CONTRACT_VERSION,
-  CORE_V2_EVALUATION_BUDGET,
-  CORE_V2_SCHEMA_VERSION,
+  ANALYSIS_CONTRACT_VERSION,
+  ANALYSIS_EVALUATION_BUDGET,
+  ANALYSIS_SCHEMA_VERSION,
   runContextSchema,
   runReportSchema,
-  type CoreIssue,
+  type AnalysisIssue,
   type RunBudget,
   type RunContext,
   type RunReport,
   type StageName,
-} from "@repo/contracts/core-v2";
-import type { CoreStorageRepository, CoreAccessScope } from "@repo/db/core/repository";
+} from "@repo/contracts/analysis";
+import type { AnalysisRepository, AnalysisAccessScope } from "@repo/db/analysis/repository";
 import { spendLimitedAiProvider, type AnalysisControlConfig } from "./analysis-controls";
 
 const FOCUSED_PROMPT_VERSION = "core-v2-prompts-1.0.0";
@@ -41,7 +41,7 @@ const FOCUSED_EMBEDDING_PREPROCESSING = "core-v2-normalized-text-1.0.0";
 const EMBEDDING_DIMENSIONS = 1024;
 
 const TEST_FOCUSED_BUDGET: RunBudget = {
-  ...CORE_V2_EVALUATION_BUDGET,
+  ...ANALYSIS_EVALUATION_BUDGET,
   maxCostUsd: 1,
 };
 
@@ -175,8 +175,8 @@ export function focusedRuntimePolicy(environment: RuntimeEnvironment): FocusedRu
   };
 }
 
-export type CoreRuntimeRepository = Pick<
-  CoreStorageRepository,
+export type AnalysisRuntimeRepository = Pick<
+  AnalysisRepository,
   | "enqueue"
   | "acquireLease"
   | "renewLease"
@@ -195,9 +195,9 @@ export type CoreRuntimeRepository = Pick<
 >;
 
 export interface FocusedRunExecutionInput {
-  repository: CoreRuntimeRepository;
+  repository: AnalysisRuntimeRepository;
   context: RunContext;
-  analysis: { input: CoreInput; seed: number };
+  analysis: { input: RunInput; seed: number };
   policy: FocusedRuntimePolicy;
   controls: AnalysisControlConfig;
   environment: RuntimeEnvironment;
@@ -206,12 +206,12 @@ export interface FocusedRunExecutionInput {
 
 export async function executeFocusedRun(
   input: FocusedRunExecutionInput,
-): Promise<RunAnalysisV2Result> {
+): Promise<RunAnalysisResult> {
   if (input.policy.mode !== "live" || input.policy.providerConfig === null) {
     throw new Error("The request-scoped focused runtime has no live provider configuration.");
   }
 
-  const scope: CoreAccessScope = {
+  const scope: AnalysisAccessScope = {
     tenantId: input.context.tenantId,
     ownerUserId: input.context.ownerUserId,
     visibility: input.context.visibility,
@@ -284,7 +284,7 @@ export async function executeFocusedRun(
     );
     const runs = createRunStore({ repository: input.repository, context: input.context });
     const searchPorts = createLiveSearchPorts(input.environment, clock);
-    const engine = createRunAnalysisV2({
+    const engine = createRunAnalysis({
       attempt: lease.attempt,
       fencingToken: lease.fencingToken,
       retrieval: { searchPorts },
@@ -292,14 +292,14 @@ export async function executeFocusedRun(
     const environment = {
       context: input.context,
       ports: {
-        generation: createCoreGenerationPort({
+        generation: createAnalysisGenerationPort({
           provider,
           modelId: input.context.versions.model,
           promptVersion: input.context.versions.prompt,
           estimatedGenerationCostUsd: input.controls.generationCostUsd,
           estimatedImageCostUsd: input.controls.imageCostUsd,
         }),
-        embeddings: createCoreEmbeddingPort({
+        embeddings: createAnalysisEmbeddingPort({
           provider,
           modelId: input.context.versions.embedding.model,
           dimensions: input.context.versions.embedding.dimensions,
@@ -317,7 +317,7 @@ export async function executeFocusedRun(
         },
       },
       signal,
-    } satisfies Parameters<typeof runAnalysisV2>[1];
+    } satisfies Parameters<typeof runAnalysis>[1];
 
     const runPromise = engine(input.analysis, environment);
     const timeout = timeoutSignal(input.context.budget.maxElapsedMs);
@@ -470,7 +470,7 @@ function createRuntimeDocuments(
   }
 }
 
-function resultForReport(report: RunReport): RunAnalysisV2Result {
+function resultForReport(report: RunReport): RunAnalysisResult {
   return {
     status: report.status,
     report,
@@ -483,7 +483,7 @@ function resultForReport(report: RunReport): RunAnalysisV2Result {
 function createBoundedReport(
   context: RunContext,
   status: "unavailable" | "failed",
-  failure: CoreIssue,
+  failure: AnalysisIssue,
 ): RunReport {
   const now = new Date().toISOString();
   const metrics = {
@@ -496,8 +496,8 @@ function createBoundedReport(
     costUsd: null,
   } as const;
   const report = {
-    schemaVersion: CORE_V2_SCHEMA_VERSION,
-    contractVersion: CORE_V2_CONTRACT_VERSION,
+    schemaVersion: ANALYSIS_SCHEMA_VERSION,
+    contractVersion: ANALYSIS_CONTRACT_VERSION,
     runId: context.runId,
     createdAt: now,
     asOfTime: context.asOfTime,
@@ -545,9 +545,9 @@ function emptyCost() {
 }
 
 async function terminalRetry(
-  repository: CoreRuntimeRepository,
+  repository: AnalysisRuntimeRepository,
   identity: {
-    scope: CoreAccessScope;
+    scope: AnalysisAccessScope;
     runId: string;
     stage: StageName;
     attempt: number;
@@ -559,8 +559,8 @@ async function terminalRetry(
 }
 
 async function cancellationRequested(
-  repository: CoreRuntimeRepository,
-  scope: CoreAccessScope,
+  repository: AnalysisRuntimeRepository,
+  scope: AnalysisAccessScope,
   runId: string,
 ) {
   return (
@@ -767,26 +767,26 @@ function isPublicHttpUrl(value: string) {
 
 function readLiveBudget(environment: RuntimeEnvironment) {
   const values = {
-    maxExternalRequests: readPositiveInteger(environment, "CORE_V2_MAX_EXTERNAL_REQUESTS"),
+    maxExternalRequests: readPositiveInteger(environment, "ANALYSIS_MAX_EXTERNAL_REQUESTS"),
     maxDiscoveryQueriesPerClaim: readPositiveInteger(
       environment,
-      "CORE_V2_MAX_DISCOVERY_QUERIES_PER_CLAIM",
+      "ANALYSIS_MAX_DISCOVERY_QUERIES_PER_CLAIM",
     ),
     maxFetchedCandidatesPerClaim: readPositiveInteger(
       environment,
-      "CORE_V2_MAX_FETCHED_CANDIDATES_PER_CLAIM",
+      "ANALYSIS_MAX_FETCHED_CANDIDATES_PER_CLAIM",
     ),
-    maxProvenanceHops: readPositiveInteger(environment, "CORE_V2_MAX_PROVENANCE_HOPS"),
+    maxProvenanceHops: readPositiveInteger(environment, "ANALYSIS_MAX_PROVENANCE_HOPS"),
     maxTargetedRetrievalRounds: readNonNegativeInteger(
       environment,
-      "CORE_V2_MAX_TARGETED_RETRIEVAL_ROUNDS",
+      "ANALYSIS_MAX_TARGETED_RETRIEVAL_ROUNDS",
     ),
-    maxElapsedMs: readPositiveInteger(environment, "CORE_V2_MAX_ELAPSED_MS"),
+    maxElapsedMs: readPositiveInteger(environment, "ANALYSIS_MAX_ELAPSED_MS"),
     maxConcurrentExternalCalls: readPositiveInteger(
       environment,
-      "CORE_V2_MAX_CONCURRENT_EXTERNAL_CALLS",
+      "ANALYSIS_MAX_CONCURRENT_EXTERNAL_CALLS",
     ),
-    maxCostUsd: readPositiveMoney(environment, "CORE_V2_MAX_COST_USD"),
+    maxCostUsd: readPositiveMoney(environment, "ANALYSIS_MAX_COST_USD"),
   };
   const invalid = Object.entries(values).find(([, value]) => value === null);
   if (invalid) {
@@ -798,7 +798,7 @@ function readLiveBudget(environment: RuntimeEnvironment) {
   if (values.maxElapsedMs! > 300_000) {
     return {
       ok: false as const,
-      message: "CORE_V2_MAX_ELAPSED_MS cannot exceed the existing 300-second web request bound.",
+      message: "ANALYSIS_MAX_ELAPSED_MS cannot exceed the existing 300-second web request bound.",
     };
   }
   return { ok: true as const, value: values as RunBudget };
@@ -885,7 +885,7 @@ function testVersions(): RunContext["versions"] {
 
 export function focusedRunContext(
   ownerUserId: string,
-  input: CoreInput,
+  input: RunInput,
   policy: FocusedRuntimePolicy,
 ): RunContext {
   return runContextSchema.parse({

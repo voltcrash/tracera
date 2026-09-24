@@ -4,22 +4,22 @@ import {
   documentSnapshotSchema,
   inputCoverageSchema,
   runContextExample,
-  type ClaimV2,
+  type Claim,
   type DocumentSnapshot,
   type InputCoverage,
   type StageResult,
-} from "@repo/contracts/core-v2";
+} from "@repo/contracts/analysis";
 import { test } from "vite-plus/test";
 import {
-  createFocusedPublicationV2,
-  createRunAnalysisV2,
+  createFocusedPublication,
+  createRunAnalysis,
   hashValue,
   projectReport,
   selectTopClaims,
-  type RunAnalysisV2StageFactories,
+  type RunAnalysisStageFactories,
   type RunEnvironment,
-} from "../src/core/index.js";
-import { scoreReportV2 } from "../src/core/scoring/index.js";
+} from "../src/analysis/index.js";
+import { scoreReport } from "../src/analysis/scoring/index.js";
 
 const NOW = "2026-09-15T00:00:00.000Z";
 const EMPTY_INTERVAL = {
@@ -509,10 +509,10 @@ test("the orchestration pipeline sends only selected claims to evidence-bearing 
   );
   const coverage = makeCoverage(snapshot, claims);
   const observed = new Map<string, string[][]>();
-  const observe = (stage: string, input: ClaimV2[]) => {
+  const observe = (stage: string, input: Claim[]) => {
     observed.set(stage, [...(observed.get(stage) ?? []), input.map(({ id }) => id)]);
   };
-  const stages: Partial<RunAnalysisV2StageFactories> = {
+  const stages: Partial<RunAnalysisStageFactories> = {
     normalizeInput: () => async () =>
       stageResult({ snapshots: [snapshot], primarySnapshotId: snapshot.id }),
     extractClaims: () => async () => stageResult({ claims, coverage }),
@@ -548,15 +548,15 @@ test("the orchestration pipeline sends only selected claims to evidence-bearing 
       },
     publishFocusedDecisions: () => async (input, environment) => {
       observe("publish", input.claims);
-      return createFocusedPublicationV2()(input, environment);
+      return createFocusedPublication()(input, environment);
     },
     scoreReport: () => (input) => {
       observe("score", input.claims);
-      return scoreReportV2(input);
+      return scoreReport(input);
     },
   };
   const environment = makeEnvironment(snapshot);
-  const result = await createRunAnalysisV2({ stages })(
+  const result = await createRunAnalysis({ stages })(
     { input: { kind: "text", text }, seed: 20260915 },
     environment,
   );
@@ -597,13 +597,13 @@ function makeClaim(input: {
   documentId: string;
   text: string;
   start: number;
-  coverageDisposition?: ClaimV2["coverageDisposition"];
-  checkability?: ClaimV2["checkability"];
+  coverageDisposition?: Claim["coverageDisposition"];
+  checkability?: Claim["checkability"];
   material?: boolean;
   duplicateOfClaimId?: string | null;
-  proposition?: ClaimV2["proposition"];
-  quantities?: ClaimV2["quantities"];
-  time?: ClaimV2["time"];
+  proposition?: Claim["proposition"];
+  quantities?: Claim["quantities"];
+  time?: Claim["time"];
   place?: string | null;
 }) {
   return claimSchema.parse({
@@ -762,7 +762,7 @@ function paragraphLocators(text: string) {
 
 function makeCoverage(
   snapshot: DocumentSnapshot,
-  claims: ClaimV2[],
+  claims: Claim[],
   extractionStatus: InputCoverage["extractionStatus"] = "complete",
 ) {
   return [

@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
-import { projectReport, type AnalysisReportView } from "@repo/ai/core/report-view";
+import { projectReport, type AnalysisReportView } from "@repo/ai/analysis/report-view";
 import Image from "next/image";
 import { Check, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";

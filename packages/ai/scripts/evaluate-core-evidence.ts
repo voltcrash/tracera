@@ -7,10 +7,10 @@ import {
   evidenceClaim,
   evidenceSnapshot,
 } from "./support/scripted-evidence.js";
-import { assignSourceDependence, createAssessEvidenceV2 } from "../src/core/evidence/index.js";
+import { assignSourceDependence, createAssessEvidence } from "../src/analysis/evidence/index.js";
 
 const fixtureUrl = new URL(
-  "../src/core/evidence/fixtures/evidence-invariants.json",
+  "../src/analysis/evidence/fixtures/evidence-invariants.json",
   import.meta.url,
 );
 const bytes = await readFile(fileURLToPath(fixtureUrl));
@@ -48,7 +48,7 @@ for (const fixtureCase of fixture.cases) {
       const { environment } = createScriptedEvidenceEnvironment(({ claim, snapshotId }) =>
         assessmentResponse(claim, snapshotId, fixtureCase.quote),
       );
-      const result = await createAssessEvidenceV2()(
+      const result = await createAssessEvidence()(
         { claims: [claim], snapshots: [snapshot], admittedSnapshotIds: [snapshot.id] },
         environment,
       );
@@ -95,7 +95,7 @@ for (const fixtureCase of fixture.cases) {
       fixtureCase.mutation === "excerpt" ? "Invented excerpt." : fixtureCase.quote,
     ),
   );
-  const result = await createAssessEvidenceV2()(
+  const result = await createAssessEvidence()(
     { claims: [claim], snapshots: [snapshot], admittedSnapshotIds: [snapshot.id] },
     environment,
   );

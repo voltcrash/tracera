@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
-import { buildPresentationFindings } from "../src/core/framing/index.js";
+import { buildPresentationFindings } from "../src/analysis/framing/index.js";
 import {
   scoringAssessment,
   scoringClaim,

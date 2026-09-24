@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { projectReport, type AnalysisReportView } from "@repo/ai/core/report-view";
+import { projectReport, type AnalysisReportView } from "@repo/ai/analysis/report-view";
 import { AnalysisReport } from "@/components/analysis/analysis-report";
 import { useAuth } from "@/components/providers/auth-provider";
 import { apiUrl } from "@/lib/api";

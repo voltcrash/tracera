@@ -5,16 +5,16 @@ import {
   runContextExample,
   type RunContext,
   type RunReport,
-} from "@repo/contracts/core-v2";
+} from "@repo/contracts/analysis";
 import { assertCoreStorageTestDatabase } from "@repo/environment";
 import { afterAll, test } from "vite-plus/test";
 import {
-  CoreStorageConflictError,
-  CoreStorageRepository,
+  AnalysisStorageConflictError,
+  AnalysisRepository,
   StaleWorkerError,
-  type CoreAccessScope,
-  type CorePool,
-} from "../src/core/index.js";
+  type AnalysisAccessScope,
+  type AnalysisPool,
+} from "../src/analysis/index.js";
 import { createDatabasePool } from "../src/connection.js";
 
 const databaseUrl = process.env.CORE_STORAGE_TEST_DATABASE_URL
@@ -37,7 +37,7 @@ function fixtureContext(runId: string, tenantId: string, ownerUserId: string): R
   };
 }
 
-function scopeOf(context: RunContext): CoreAccessScope {
+function scopeOf(context: RunContext): AnalysisAccessScope {
   return {
     tenantId: context.tenantId,
     ownerUserId: context.ownerUserId,
@@ -58,7 +58,7 @@ function harness() {
   const pool = database.pool;
   return {
     pool,
-    repository: new CoreStorageRepository(pool as unknown as CorePool),
+    repository: new AnalysisRepository(pool as unknown as AnalysisPool),
   };
 }
 
@@ -341,7 +341,7 @@ integrationTest(
         reportHash: context.inputHash,
         report,
       }),
-      CoreStorageConflictError,
+      AnalysisStorageConflictError,
     );
     const rolledBack = await pool.query<{ reports: string; status: string }>(
       `SELECT (SELECT COUNT(*)::text FROM core_report_versions WHERE run_id = $1) AS reports,

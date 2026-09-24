@@ -1,16 +1,16 @@
-import type { ClaimLabel, ClaimV2, Decision, EvidenceAssessment } from "@repo/contracts/core-v2";
+import type { ClaimLabel, Claim, Decision, EvidenceAssessment } from "@repo/contracts/analysis";
 import {
   adjudicationAssessment,
   adjudicationClaim,
   adjudicationSnapshot,
 } from "./scripted-adjudication.js";
 
-export function scoringClaim(overrides: Partial<ClaimV2> = {}) {
+export function scoringClaim(overrides: Partial<Claim> = {}) {
   return adjudicationClaim(overrides);
 }
 
 export function scoringAssessment(
-  claim: ClaimV2,
+  claim: Claim,
   id: string,
   relation: EvidenceAssessment["relation"],
   overrides: Partial<EvidenceAssessment> = {},
@@ -25,7 +25,7 @@ export function scoringAssessment(
 }
 
 export function scoringDecision(
-  claim: ClaimV2,
+  claim: Claim,
   publishedLabel: ClaimLabel,
   assessments: EvidenceAssessment[] = [],
 ): Decision {

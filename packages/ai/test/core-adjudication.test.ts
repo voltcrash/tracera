@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
-import { runContextExample, type EvidenceAssessment } from "@repo/contracts/core-v2";
-import { createAdjudicateClaimsV2 } from "../src/core/adjudication/index.js";
+import { runContextExample, type EvidenceAssessment } from "@repo/contracts/analysis";
+import { createAdjudicateClaims } from "../src/analysis/adjudication/index.js";
 import {
   ADJUDICATION_SCENARIOS,
   adjudicate,
@@ -29,7 +29,7 @@ test("needs-context claims abstain before any evidence or model is consulted", a
     unresolvedContext: ["'It' has no antecedent."],
   });
   const fixture = createAdjudicationEnvironment({ snapshots: [] });
-  const result = await createAdjudicateClaimsV2()(
+  const result = await createAdjudicateClaims()(
     { claims: [claim], assessments: [], graphs: [] },
     fixture.environment,
   );
@@ -94,7 +94,7 @@ test("provenance evidence that was not reassessed prevents adjudicating stale as
     coverageStatus: "complete" as const,
     globalOriginClaimed: false as const,
   };
-  const result = await createAdjudicateClaimsV2()(
+  const result = await createAdjudicateClaims()(
     { claims: [adjudicationClaim()], assessments, graphs: [graph] },
     fixture.environment,
   );
@@ -153,7 +153,7 @@ test("cancellation fails adjudication without partial decisions", async () => {
   const controller = new AbortController();
   controller.abort();
   const fixture = createAdjudicationEnvironment({ snapshots, signal: controller.signal });
-  const adjudicated = await createAdjudicateClaimsV2()(
+  const adjudicated = await createAdjudicateClaims()(
     { claims: [adjudicationClaim()], assessments, graphs: [] },
     fixture.environment,
   );

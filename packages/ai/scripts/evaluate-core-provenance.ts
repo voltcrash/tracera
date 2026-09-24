@@ -10,7 +10,7 @@ import {
   scriptedArchive,
   scriptedProvenanceRetrieval,
 } from "./support/scripted-provenance.js";
-import { createTraceOriginsV2 } from "../src/core/provenance/index.js";
+import { createTraceOrigins } from "../src/analysis/provenance/index.js";
 
 const arguments_ = new Map(
   process.argv
@@ -27,7 +27,7 @@ if (split !== "all") throw new Error("The provenance invariant fixture has only 
 if (seed !== 20260910) throw new Error("The provenance invariant fixture requires seed 20260910.");
 
 const fixturePath = fileURLToPath(
-  new URL("../src/core/provenance/fixtures/provenance-invariants.json", import.meta.url),
+  new URL("../src/analysis/provenance/fixtures/provenance-invariants.json", import.meta.url),
 );
 const fixtureBytes = await readFile(fixturePath);
 const fixture = JSON.parse(fixtureBytes.toString()) as { cases: string[]; humanGoldClaims: number };
@@ -85,7 +85,7 @@ async function runCase(id: string) {
     const middle = provenanceSnapshot("middle", middleUrl, ` Cites ${recordUrl}`);
     const record = provenanceSnapshot("record", recordUrl, "", [], "primary_record");
     const fixtureEnvironment = createProvenanceEnvironment();
-    const result = await createTraceOriginsV2({
+    const result = await createTraceOrigins({
       retrieval: scriptedProvenanceRetrieval(
         new Map([
           [middleUrl, middle],
@@ -106,7 +106,7 @@ async function runCase(id: string) {
       day("updated", "2020-01-01T00:00:00.000Z"),
     ]);
     const { environment } = createProvenanceEnvironment();
-    const result = await createTraceOriginsV2()(
+    const result = await createTraceOrigins()(
       { claims: [claim], snapshots: [snapshot], assessments: [provenanceAssessment(snapshot)] },
       environment,
     );
@@ -127,7 +127,7 @@ async function runCase(id: string) {
       "archive_capture",
     );
     const { environment } = createProvenanceEnvironment();
-    const result = await createTraceOriginsV2({
+    const result = await createTraceOrigins({
       retrieval: scriptedProvenanceRetrieval(new Map([[captureUrl, capture]])),
       archive: scriptedArchive(
         new Map([
@@ -160,7 +160,7 @@ async function runCase(id: string) {
           }
         : {};
     const { environment } = createProvenanceEnvironment();
-    const result = await createTraceOriginsV2()(
+    const result = await createTraceOrigins()(
       {
         claims: [claim],
         snapshots: [first, second],
@@ -187,7 +187,7 @@ async function runCase(id: string) {
     const first = provenanceSnapshot("cycle_a", firstUrl, ` Cites ${secondUrl}`);
     const second = provenanceSnapshot("cycle_b", secondUrl, ` Cites ${firstUrl}`);
     const { environment } = createProvenanceEnvironment();
-    const result = await createTraceOriginsV2()(
+    const result = await createTraceOrigins()(
       {
         claims: [claim],
         snapshots: [first, second],
@@ -206,7 +206,7 @@ async function runCase(id: string) {
       ` Cites ${missingUrl}`,
     );
     const { environment } = createProvenanceEnvironment();
-    const result = await createTraceOriginsV2({
+    const result = await createTraceOrigins({
       retrieval: scriptedProvenanceRetrieval(new Map()),
     })(
       { claims: [claim], snapshots: [source], assessments: [provenanceAssessment(source)] },

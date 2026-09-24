@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { runContextExample, type DocumentSnapshot } from "@repo/contracts/core-v2";
+import { runContextExample, type DocumentSnapshot } from "@repo/contracts/analysis";
 import {
-  CoreStorageRepository,
-  type CoreTransactionClient,
+  AnalysisRepository,
+  type AnalysisTransactionClient,
   StaleWorkerError,
-  type CorePool,
-  type CoreQueryResult,
-} from "@repo/db/core";
+  type AnalysisPool,
+  type AnalysisQueryResult,
+} from "@repo/db/analysis";
 import { test } from "vite-plus/test";
-import { createSnapshotStore } from "../src/core/storage.js";
+import { createSnapshotStore } from "../src/analysis/storage.js";
 
 const hash = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 
@@ -48,15 +48,15 @@ test("snapshot storage validates bytes before issuing a tenant-bound immutable i
     async query<Row = Record<string, unknown>>(
       text: string,
       values: unknown[] = [],
-    ): Promise<CoreQueryResult<Row>> {
+    ): Promise<AnalysisQueryResult<Row>> {
       calls.push({ text, values });
       return { rows: [{ snapshot_id: "stored" } as Row], rowCount: 1 };
     },
     async connect() {
       throw new Error("A transaction is not expected by this fixture.");
     },
-  } satisfies CorePool;
-  const repository = new CoreStorageRepository(pool);
+  } satisfies AnalysisPool;
+  const repository = new AnalysisRepository(pool);
   const store = createSnapshotStore({ repository, context: runContextExample });
   const valid = snapshot("A complete UTF-8 snapshot: café.");
   await store.put(valid, new AbortController().signal);
@@ -82,15 +82,15 @@ test("snapshot storage validates bytes before issuing a tenant-bound immutable i
 test("stored raw blobs require a hash that matches resolved bytes", async () => {
   const raw = new TextEncoder().encode("raw source bytes");
   const pool = {
-    async query<Row = Record<string, unknown>>(): Promise<CoreQueryResult<Row>> {
+    async query<Row = Record<string, unknown>>(): Promise<AnalysisQueryResult<Row>> {
       return { rows: [{ snapshot_id: "stored" } as Row], rowCount: 1 };
     },
     async connect() {
       throw new Error("A transaction is not expected by this fixture.");
     },
-  } satisfies CorePool;
+  } satisfies AnalysisPool;
   const store = createSnapshotStore({
-    repository: new CoreStorageRepository(pool),
+    repository: new AnalysisRepository(pool),
     context: runContextExample,
     blobStore: {
       async put() {
@@ -118,7 +118,7 @@ test("checkpoint writes fail closed when attempt and fencing validation changes 
     async query<Row = Record<string, unknown>>(
       text: string,
       values: unknown[] = [],
-    ): Promise<CoreQueryResult<Row>> {
+    ): Promise<AnalysisQueryResult<Row>> {
       assert.match(text, /attempt = \$3 AND fencing_token = \$4/);
       assert.deepEqual(values.slice(4, 7), [
         runContextExample.tenantId,
@@ -130,8 +130,8 @@ test("checkpoint writes fail closed when attempt and fencing validation changes 
     async connect() {
       throw new Error("A transaction is not expected by this fixture.");
     },
-  } satisfies CorePool;
-  const repository = new CoreStorageRepository(pool);
+  } satisfies AnalysisPool;
+  const repository = new AnalysisRepository(pool);
   await assert.rejects(
     repository.checkpoint({
       scope: {
@@ -153,7 +153,7 @@ test("checkpoint writes fail closed when attempt and fencing validation changes 
 test("successful core transactions return healthy pool connections", async () => {
   let destroyed: boolean | undefined;
   const client = {
-    async query<Row = Record<string, unknown>>(text: string): Promise<CoreQueryResult<Row>> {
+    async query<Row = Record<string, unknown>>(text: string): Promise<AnalysisQueryResult<Row>> {
       if (text === "BEGIN" || text === "COMMIT") return { rows: [] };
       if (text.includes("SELECT run_id") && text.includes("FROM core_runs"))
         return {
@@ -178,7 +178,7 @@ test("successful core transactions return healthy pool connections", async () =>
     release(destroy = false) {
       destroyed = destroy;
     },
-  } satisfies CoreTransactionClient;
+  } satisfies AnalysisTransactionClient;
   const pool = {
     async query() {
       throw new Error("The transaction fixture should use its connected client.");
@@ -186,9 +186,9 @@ test("successful core transactions return healthy pool connections", async () =>
     async connect() {
       return client;
     },
-  } satisfies CorePool;
+  } satisfies AnalysisPool;
 
-  await new CoreStorageRepository(pool).enqueue({
+  await new AnalysisRepository(pool).enqueue({
     context: runContextExample,
     stage: "normalize_input",
     payload: { fixture: true },
