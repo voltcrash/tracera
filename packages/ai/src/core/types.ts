@@ -282,10 +282,9 @@ export interface ScoreReportV2Input {
   assessments: EvidenceAssessment[];
   graphs: ProvenanceGraph[];
   coverage: InputCoverage[];
-  /** Optional immutable snapshots let scoring re-check exact citation offsets. */
-  snapshots?: DocumentSnapshot[];
-  /** Present only for the selected-claim focused score boundary. */
-  focusedSelection?: FocusedSelection;
+  /** Immutable snapshots let scoring re-check exact citation offsets. */
+  snapshots: DocumentSnapshot[];
+  focusedSelection: FocusedSelection;
   inputStatus: Scorecard["inputStatus"];
   extractionStatus: Scorecard["extractionStatus"];
   /** Clock reading supplied by the orchestrator so scoring stays pure. */

@@ -30,7 +30,6 @@
     "evaluate:core-focused": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-focused.ts",
     "evaluate:core-provenance": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-provenance.ts",
     "evaluate:core-retrieval": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-retrieval.ts",
-    "evaluate:core-scoring": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-scoring.ts",
     "test:core-adjudication": "vp test --run test/core-adjudication.test.ts",
     "test:core-claims": "vp test --run test/core-claims.test.ts",
     "test:core-evidence": "vp test --run test/core-evidence.test.ts",

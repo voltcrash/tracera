@@ -1,7 +1,6 @@
 import {
   CORE_V2_FOCUSED_SCORE_FORMULA_VERSION,
   CORE_V2_RESOLUTION_COVERAGE_THRESHOLD,
-  CORE_V2_SCORE_FORMULA_VERSION,
   claimSchema,
   decisionSchema,
   documentSnapshotSchema,
@@ -44,14 +43,12 @@ export const scoreReportV2: ScoreReportV2 = (input) => {
     const coverage = input.coverage.map((item) => inputCoverageSchema.parse(item));
     const claimById = uniqueById(claims, "claim");
     const decisions = input.decisions.map((decision) => decisionSchema.parse(decision));
-    const decisionByClaim = uniqueByClaimId(decisions);
+    uniqueByClaimId(decisions);
     const assessmentsById = uniqueById(assessments, "assessment");
     uniqueByClaimId(graphs);
-    const focusedSelection = input.focusedSelection
-      ? focusedSelectionSchema.parse(input.focusedSelection)
-      : undefined;
-    const snapshots = input.snapshots?.map((snapshot) => documentSnapshotSchema.parse(snapshot));
-    const snapshotsById = snapshots === undefined ? null : uniqueById(snapshots, "snapshot");
+    const focusedSelection = focusedSelectionSchema.parse(input.focusedSelection);
+    const snapshots = input.snapshots.map((snapshot) => documentSnapshotSchema.parse(snapshot));
+    const snapshotsById = uniqueById(snapshots, "snapshot");
 
     for (const claim of claims) {
       if (claim.parentClaimId !== null) requireClaimLink(claimById, claim, claim.parentClaimId);
@@ -61,7 +58,7 @@ export const scoreReportV2: ScoreReportV2 = (input) => {
 
     for (const assessment of assessments) requireClaim(claimById, assessment.claimId);
     validateDecisionReferences(decisions, assessments);
-    if (snapshotsById !== null) validateSnapshotCitations(assessments, graphs, snapshotsById);
+    validateSnapshotCitations(assessments, graphs, snapshotsById);
     for (const graph of graphs) requireClaim(claimById, graph.claimId);
     for (const item of coverage) {
       for (const segment of item.segments) {
@@ -78,48 +75,29 @@ export const scoreReportV2: ScoreReportV2 = (input) => {
         throw new Error(`Decision ${decision.claimId} is not for a canonical factual claim.`);
     }
 
-    const selected = focusedSelection
-      ? focusedClaims(focusedSelection, claimById, canonicalFactual, decisions)
-      : null;
-    const scopedClaims = selected?.claims ?? canonicalFactual;
+    const selected = focusedClaims(focusedSelection, claimById, canonicalFactual, decisions);
+    const scopedClaims = selected.claims;
     const scopedClaimIds = new Set(scopedClaims.map(({ id }) => id));
-    const scopedDecisions = selected
-      ? decisions
-      : decisions.filter((decision) => scopedClaimIds.has(decision.claimId));
+    const scopedDecisions = decisions;
     const decisionForScopedClaims = new Map(
       scopedDecisions.map((decision) => [decision.claimId, decision]),
     );
-    const eligible = selected
-      ? scopedClaims
-      : scopedClaims.filter((claim) => decisionByClaim.has(claim.id));
-    const selectedClaimCount = selected?.count;
-    const omittedClaims = selected
-      ? selected.count - scopedDecisions.length
-      : scopedClaims.length - eligible.length;
-    const deferredClaims =
-      selected?.selection.inventory.deferredClaims ??
-      claims.filter(
-        (claim) => claim.duplicateOfClaimId === null && claim.coverageDisposition === "deferred",
-      ).length;
+    const omittedClaims = selected.count - scopedDecisions.length;
+    const deferredClaims = selected.selection.inventory.deferredClaims;
     const counts = verdictCounts(scopedDecisions);
     const resolved = counts.supported + counts.contradicted;
-    const denominator = selectedClaimCount ?? eligible.length;
+    const denominator = selected.count;
     const resolutionCoverage = denominator === 0 ? null : resolved / denominator;
-    const materialMixedOrMisleadingOpen = eligible.some((claim) => {
+    const materialMixedOrMisleadingOpen = scopedClaims.some((claim) => {
       const label = decisionForScopedClaims.get(claim.id)?.publishedLabel;
       return claim.material && (label === "mixed" || label === "misleading");
     });
-    const focusedCitationFailure = selected
-      ? hasFocusedCitationFailure(scopedDecisions, assessmentsById)
-      : false;
-    const focusedConflict = selected
-      ? hasFocusedConflict(scopedClaims, scopedDecisions, assessments, graphs)
-      : false;
+    const focusedCitationFailure = hasFocusedCitationFailure(scopedDecisions, assessmentsById);
+    const focusedConflict = hasFocusedConflict(scopedClaims, scopedDecisions, assessments, graphs);
     const focusedCoverageIncomplete =
-      selected !== null &&
-      (selected.selection.coverage.partialDocuments > 0 ||
-        selected.selection.coverage.omittedCharacters > 0);
-    const focusedSnapshotsUnavailable = selected !== null && (snapshotsById?.size ?? 0) === 0;
+      selected.selection.coverage.partialDocuments > 0 ||
+      selected.selection.coverage.omittedCharacters > 0;
+    const focusedSnapshotsUnavailable = snapshotsById.size === 0;
     const nullReasons = scoreNullReasons({
       eligibleFactualClaims: denominator,
       resolved,
@@ -129,24 +107,21 @@ export const scoreReportV2: ScoreReportV2 = (input) => {
       materialMixedOrMisleadingOpen,
       citationValidationFailed: focusedCitationFailure,
       unresolvedConflict: focusedConflict,
-      inventoryStatus: focusedSelection?.inventoryStatus,
+      inventoryStatus: focusedSelection.inventoryStatus,
       focusedCoverageIncomplete,
       focusedSnapshotsUnavailable,
     });
     const presentationFindings = buildPresentationFindings({
-      claims: selected ? scopedClaims : claims,
-      decisions: selected ? scopedDecisions : decisions,
-      assessments: selected
-        ? assessments.filter(({ claimId }) => scopedClaimIds.has(claimId))
-        : assessments,
+      claims: scopedClaims,
+      decisions: scopedDecisions,
+      assessments: assessments.filter(({ claimId }) => scopedClaimIds.has(claimId)),
     });
     const scorecard = scorecardSchema.parse({
-      formulaVersion: selected
-        ? CORE_V2_FOCUSED_SCORE_FORMULA_VERSION
-        : CORE_V2_SCORE_FORMULA_VERSION,
+      formulaVersion: CORE_V2_FOCUSED_SCORE_FORMULA_VERSION,
       factualScore: nullReasons.length === 0 ? (100 * counts.supported) / resolved : null,
       nullReasons,
-      ...(selected ? { selectedClaimCount: selected.count, resolvedClaimCount: resolved } : {}),
+      selectedClaimCount: selected.count,
+      resolvedClaimCount: resolved,
       counts: {
         ...counts,
         eligibleFactualClaims: denominator,
@@ -158,12 +133,8 @@ export const scoreReportV2: ScoreReportV2 = (input) => {
       inputStatus: input.inputStatus,
       extractionStatus: input.extractionStatus,
       materialMixedOrMisleadingOpen,
-      evidence: evidenceSummary(
-        selected ? assessments.filter(({ claimId }) => scopedClaimIds.has(claimId)) : assessments,
-      ),
-      origin: originSummary(
-        selected ? graphs.filter(({ claimId }) => scopedClaimIds.has(claimId)) : graphs,
-      ),
+      evidence: evidenceSummary(assessments.filter(({ claimId }) => scopedClaimIds.has(claimId))),
+      origin: originSummary(graphs.filter(({ claimId }) => scopedClaimIds.has(claimId))),
       presentationFindings,
     });
     return { status: "complete", data: { scorecard, presentationFindings }, issues: [], metrics };
@@ -178,29 +149,6 @@ export const scoreReportV2: ScoreReportV2 = (input) => {
     };
     return { status: "failed", data: null, issues: [issue], metrics };
   }
-};
-
-/** Focused scoring is explicit at the call site and never falls back to a full score. */
-export const scoreFocusedReportV2: ScoreReportV2 = (input) => {
-  if (input.focusedSelection === undefined) {
-    const metrics = zeroMetrics(input.at);
-    return {
-      status: "failed",
-      data: null,
-      issues: [
-        {
-          code: "citation_validation_failed",
-          severity: "error",
-          message: "Focused scoring requires focused selection metadata.",
-          claimId: null,
-          snapshotId: null,
-          url: null,
-        },
-      ],
-      metrics,
-    };
-  }
-  return scoreReportV2(input);
 };
 
 function verdictCounts(decisions: Array<{ publishedLabel: ClaimLabel }>) {
@@ -218,7 +166,7 @@ function scoreNullReasons(input: {
   materialMixedOrMisleadingOpen: boolean;
   citationValidationFailed: boolean;
   unresolvedConflict: boolean;
-  inventoryStatus?: FocusedSelection["inventoryStatus"];
+  inventoryStatus: FocusedSelection["inventoryStatus"];
   focusedCoverageIncomplete: boolean;
   focusedSnapshotsUnavailable: boolean;
 }) {
@@ -239,7 +187,7 @@ function scoreNullReasons(input: {
   if (input.materialMixedOrMisleadingOpen) reasons.push("material_mixed_or_misleading_open");
   if (input.focusedCoverageIncomplete) reasons.push("partial_extraction");
   if (input.focusedSnapshotsUnavailable) reasons.push("citation_validation_failed");
-  if (input.inventoryStatus !== undefined && input.inventoryStatus !== "complete") {
+  if (input.inventoryStatus !== "complete") {
     reasons.push("partial_input");
     if (input.inventoryStatus === "failed") reasons.push("run_failed");
   }
@@ -427,18 +375,6 @@ function sameIds(left: string[], right: string[]) {
     new Set(left).size === new Set(right).size &&
     left.every((id) => right.includes(id))
   );
-}
-
-function zeroMetrics(at: string) {
-  return {
-    startedAt: at,
-    completedAt: at,
-    durationMs: 0,
-    externalRequests: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    costUsd: 0,
-  };
 }
 
 function extractionCoverage(coverage: Parameters<ScoreReportV2>[0]["coverage"]) {

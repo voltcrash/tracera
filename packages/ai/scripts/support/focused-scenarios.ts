@@ -19,7 +19,7 @@ import {
 import { buildPresentationFindings } from "../../src/core/framing/index.js";
 import { createDocumentAcquisitionPort } from "../../src/core/ingestion/index.js";
 import { createTraceOriginsV2, rankRoots } from "../../src/core/provenance/index.js";
-import { scoringAssessment, scoringClaim, scoringDecision } from "./scoring-scenarios.js";
+import { scoringAssessment, scoringClaim, scoringDecision } from "./scripted-scoring.js";
 import {
   createProvenanceEnvironment,
   provenanceAssessment,

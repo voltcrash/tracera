@@ -8,7 +8,7 @@ export {
   type FocusedSelectionInput,
   type FocusedSelectionResult,
 } from "./selection/index";
-export { scoreFocusedReportV2, scoreReportV2 } from "./scoring/index";
+export { scoreReportV2 } from "./scoring/index";
 export { projectReport, type CoreV2ReportView } from "./report-view";
 export {
   buildImmutableTimeline,
