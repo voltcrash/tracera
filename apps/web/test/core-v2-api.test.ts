@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import type { RunAnalysisV2Result } from "@repo/ai/core/types";
 import { coreV2Examples, runReportSchema, type RunReport } from "@repo/contracts/core-v2";
-import { projectReport } from "@repo/ai/core/report-view";
 import { test } from "vite-plus/test";
 import type { AuthUser } from "@repo/db";
 import type { CoreRunProgress } from "@repo/db/core/repository";
