@@ -6,7 +6,7 @@ import {
   type RunContext,
   type RunReport,
 } from "@repo/contracts/analysis";
-import { assertCoreStorageTestDatabase } from "@repo/environment";
+import { assertAnalysisStorageTestDatabase } from "@repo/environment";
 import { afterAll, test } from "vite-plus/test";
 import {
   AnalysisStorageConflictError,
@@ -17,8 +17,8 @@ import {
 } from "../src/analysis/index.js";
 import { createDatabasePool } from "../src/connection.js";
 
-const databaseUrl = process.env.CORE_STORAGE_TEST_DATABASE_URL
-  ? assertCoreStorageTestDatabase(process.env)
+const databaseUrl = process.env.ANALYSIS_STORAGE_TEST_DATABASE_URL
+  ? assertAnalysisStorageTestDatabase(process.env)
   : undefined;
 const database = databaseUrl ? createDatabasePool(databaseUrl, process.env) : undefined;
 const integrationTest = database ? test : test.skip;

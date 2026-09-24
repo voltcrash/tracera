@@ -964,7 +964,7 @@ export class AnalysisRepository {
     embedding: number[];
   }): Promise<void> {
     if (input.dimensions !== 1024 || input.embedding.length !== 1024) {
-      throw new Error("Core v2 embeddings require the existing 1024-dimensional index.");
+      throw new Error("Analysis embeddings require the existing 1024-dimensional index.");
     }
     if (!input.embedding.every(Number.isFinite)) {
       throw new Error("Embedding contains a non-finite value.");

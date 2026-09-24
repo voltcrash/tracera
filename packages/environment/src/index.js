@@ -15,7 +15,7 @@ export const MANAGED_ENVIRONMENT_KEYS = [
   "DATABASE_URL",
   "DATABASE_MIGRATOR_URL",
   "TEST_DATABASE_PROVISIONER_URL",
-  "CORE_STORAGE_TEST_DATABASE_URL",
+  "ANALYSIS_STORAGE_TEST_DATABASE_URL",
   "BETTER_AUTH_SECRET",
   "DEV_AUTH_BYPASS",
   "GOOGLE_CLIENT_ID",
@@ -96,7 +96,7 @@ const DATABASE_KEYS = new Set([
   "DATABASE_URL",
   "DATABASE_MIGRATOR_URL",
   "TEST_DATABASE_PROVISIONER_URL",
-  "CORE_STORAGE_TEST_DATABASE_URL",
+  "ANALYSIS_STORAGE_TEST_DATABASE_URL",
 ]);
 
 export class EnvironmentConfigurationError extends Error {
@@ -187,21 +187,21 @@ function assertApplicationOrigin(environment) {
   }
 }
 
-export function assertCoreStorageTestDatabase(environment) {
+export function assertAnalysisStorageTestDatabase(environment) {
   const { profile } = assertEnvironmentConfiguration(environment, "runtime");
   if (profile !== "test") {
     throw new EnvironmentConfigurationError(
-      "CORE_STORAGE_TEST_DATABASE_URL can only be used with the test profile.",
+      "ANALYSIS_STORAGE_TEST_DATABASE_URL can only be used with the test profile.",
     );
   }
-  requireSetting(environment, "CORE_STORAGE_TEST_DATABASE_URL");
+  requireSetting(environment, "ANALYSIS_STORAGE_TEST_DATABASE_URL");
   assertDatabaseUrl(
-    environment.CORE_STORAGE_TEST_DATABASE_URL,
+    environment.ANALYSIS_STORAGE_TEST_DATABASE_URL,
     environment,
     "runtime",
-    "CORE_STORAGE_TEST_DATABASE_URL",
+    "ANALYSIS_STORAGE_TEST_DATABASE_URL",
   );
-  return environment.CORE_STORAGE_TEST_DATABASE_URL;
+  return environment.ANALYSIS_STORAGE_TEST_DATABASE_URL;
 }
 
 /**
@@ -300,7 +300,7 @@ function assertRoleSeparation(environment, role) {
   const allowedDatabaseKeys = {
     runtime:
       environment.TRACERA_PROFILE === "test"
-        ? ["DATABASE_URL", "CORE_STORAGE_TEST_DATABASE_URL"]
+        ? ["DATABASE_URL", "ANALYSIS_STORAGE_TEST_DATABASE_URL"]
         : ["DATABASE_URL"],
     migration: ["DATABASE_MIGRATOR_URL"],
     "test-provisioning": ["TEST_DATABASE_PROVISIONER_URL"],
@@ -441,7 +441,7 @@ function assertDatabaseUrl(value, environment, role, key = databaseKeyForRole(ro
     databaseName.startsWith(`${expectedDatabase}_`) &&
     TEST_RUN_ID_PATTERN.test(databaseName.slice(expectedDatabase.length + 1));
   const matchesDatabase =
-    key === "CORE_STORAGE_TEST_DATABASE_URL"
+    key === "ANALYSIS_STORAGE_TEST_DATABASE_URL"
       ? isRunDatabase
       : databaseName === expectedDatabase ||
         (environment.TRACERA_PROFILE === "test" && role !== "test-provisioning" && isRunDatabase);

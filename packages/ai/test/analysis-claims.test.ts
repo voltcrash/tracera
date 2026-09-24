@@ -954,7 +954,7 @@ function syntheticDataset(
 ): EvaluationDataset {
   return evaluationDatasetSchema.parse({
     schemaVersion: "1.0.0",
-    datasetId: "core-claims-unit",
+    datasetId: "analysis-claims-unit",
     datasetVersion: "1.0.0",
     license: {
       name: "Synthetic fixture; repository license",

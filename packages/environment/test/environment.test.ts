@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "vite-plus/test";
 import {
-  assertCoreStorageTestDatabase,
+  assertAnalysisStorageTestDatabase,
   assertEnvironmentConfiguration,
   createEnvironmentSeal,
   redactedEnvironmentDiagnostic,
@@ -223,14 +223,14 @@ test("setup and loading detect every Next.js environment file variant", () => {
 
 test("core storage integration targets must be disposable loopback test databases", () => {
   const target = (url: string, profile = "test") =>
-    localRuntimeEnvironment({ TRACERA_PROFILE: profile, CORE_STORAGE_TEST_DATABASE_URL: url });
+    localRuntimeEnvironment({ TRACERA_PROFILE: profile, ANALYSIS_STORAGE_TEST_DATABASE_URL: url });
   const disposable =
     "postgresql://tracera_runtime:password@127.0.0.1:25432/tracera_worktree_dev_run1";
 
-  assert.equal(assertCoreStorageTestDatabase(target(disposable)), disposable);
+  assert.equal(assertAnalysisStorageTestDatabase(target(disposable)), disposable);
   assert.throws(
     () =>
-      assertCoreStorageTestDatabase(
+      assertAnalysisStorageTestDatabase(
         target(
           "postgresql://tracera_runtime:password@production.example/tracera_worktree_dev_run1",
         ),
@@ -239,17 +239,17 @@ test("core storage integration targets must be disposable loopback test database
   );
   assert.throws(
     () =>
-      assertCoreStorageTestDatabase(
+      assertAnalysisStorageTestDatabase(
         target("postgresql://tracera_runtime:password@127.0.0.1:25432/tracera_worktree_dev"),
       ),
     /does not match this worktree's provisioned database/,
   );
   assert.throws(
-    () => assertCoreStorageTestDatabase(target(disposable, "local")),
-    /runtime configuration cannot contain CORE_STORAGE_TEST_DATABASE_URL/,
+    () => assertAnalysisStorageTestDatabase(target(disposable, "local")),
+    /runtime configuration cannot contain ANALYSIS_STORAGE_TEST_DATABASE_URL/,
   );
   assert.throws(
-    () => assertCoreStorageTestDatabase({ CORE_STORAGE_TEST_DATABASE_URL: disposable }),
+    () => assertAnalysisStorageTestDatabase({ ANALYSIS_STORAGE_TEST_DATABASE_URL: disposable }),
     /TRACERA_PROFILE/,
   );
 });

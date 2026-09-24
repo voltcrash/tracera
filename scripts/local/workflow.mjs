@@ -31,9 +31,9 @@ function runIntegration() {
       "db:local:start",
       "db:local:migrate",
       "db:rehearse",
-      "test:core-storage",
+      "test:analysis-storage",
       "test:auth-browser",
-      "evaluate:core-focused:fixture",
+      "evaluate:analysis-focused:fixture",
     ]);
     console.error("[test:integration] All required local integration suites passed.");
   } finally {

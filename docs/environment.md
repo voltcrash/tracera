@@ -63,7 +63,7 @@ Local/test database URLs must:
 - match the generated worktree host, port, and database name;
 - use `tracera_runtime`, `tracera_migrator`, or `tracera_test_provisioner` according to the selected role.
 
-`CORE_STORAGE_TEST_DATABASE_URL` is accepted only by the `test` profile's runtime role. It must satisfy the same rules as the runtime URL, except that its database name must be a disposable database prefixed with the generated test database name (`<name>_<run>`). The Core storage integration test validates it before opening a pool; setting it without the test profile fails instead of connecting. The Core storage runner that creates such databases belongs to L03.
+`ANALYSIS_STORAGE_TEST_DATABASE_URL` is accepted only by the `test` profile's runtime role. It must satisfy the same rules as the runtime URL, except that its database name must be a disposable database prefixed with the generated test database name (`<name>_<run>`). The Analysis storage integration test validates it before opening a pool; setting it without the test profile fails instead of connecting. The Analysis storage runner that creates such databases belongs to L03.
 
 The test profile's runtime and migration URLs may also target a run database `<name>_<run>`, where `<run>` is 1–16 lowercase letters or digits. Tooling derives these URLs only through `withTestRunDatabase`, which rewrites the database name of the sealed generated URL and reseals it; local profiles never accept a suffix.
 
@@ -93,16 +93,16 @@ vp run db:local:reset    # delete this worktree's local container and volume, re
 vp run db:test:start     # start the disposable test cluster
 vp run db:test:stop      # stop and discard the test cluster
 vp run db:rehearse       # full migration and runtime-privilege rehearsal (see below)
-vp run test:core-storage # fresh database, real Core storage integration suite, cleanup
+vp run test:analysis-storage # fresh database, real Analysis storage integration suite, cleanup
 ```
 
 `vp run dev` and `vp run db:local:migrate` fail with a start instruction unless this worktree's container is running and healthy.
 
 `vp run dev` prints the generated local web origin. Open that exact `http://localhost:<port>` URL rather than assuming port 3000.
 
-`vp run test:core-storage` exclusively locks this worktree's disposable test cluster,
+`vp run test:analysis-storage` exclusively locks this worktree's disposable test cluster,
 recreates it, applies the full migration history to a fresh run database, runs the
-Core storage suite as `tracera_runtime`, and removes the run database and cluster even
+Analysis storage suite as `tracera_runtime`, and removes the run database and cluster even
 after failure. It accepts no URLs or database names, fails when any test is skipped or
 when zero tests execute, and never uses runtime `DELETE` privileges for cleanup.
 
@@ -139,11 +139,11 @@ Deployment examples are split by role:
 - `config/environment/deployed.migration.env.example`
 - `config/environment/deployed.analysis.env.example`
 
-**Deployment prerequisite.** `next.config.js`, the request proxy, and database configuration now fail closed when Tracera settings are present without a profile. Before deploying this change, the hosted web environment (build and runtime) must set `TRACERA_PROFILE=deployed` and `TRACERA_CONFIG_ROLE=runtime`, and must not contain `DATABASE_MIGRATOR_URL`, `TEST_DATABASE_PROVISIONER_URL`, or `CORE_STORAGE_TEST_DATABASE_URL`.
+**Deployment prerequisite.** `next.config.js`, the request proxy, and database configuration now fail closed when Tracera settings are present without a profile. Before deploying this change, the hosted web environment (build and runtime) must set `TRACERA_PROFILE=deployed` and `TRACERA_CONFIG_ROLE=runtime`, and must not contain `DATABASE_MIGRATOR_URL`, `TEST_DATABASE_PROVISIONER_URL`, or `ANALYSIS_STORAGE_TEST_DATABASE_URL`.
 
 Do not combine them. The web deployment should receive the runtime example's settings only. The operator migration environment should receive the migration example's settings only. AI validation scripts are live-capable only under an explicitly selected and valid environment; local/test profiles reject their credentials before the script runs.
 
-Core deployed values include:
+Analysis deployment values include:
 
 - `DATABASE_URL` — the least-privileged `tracera_runtime` connection.
 - `BETTER_AUTH_SECRET` — the Better Auth signing secret.

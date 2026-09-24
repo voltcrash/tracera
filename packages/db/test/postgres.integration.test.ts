@@ -113,7 +113,7 @@ integrationTest("analysis admission and spend controls run under runtime grants"
   await database.settleProviderSpend({ reservationId: spend.reservation.id, actualUsd: 0.005 });
 });
 
-integrationTest("Core storage operations run under the runtime grants from 0029", async () => {
+integrationTest("Analysis storage operations run under the runtime grants from 0029", async () => {
   const suffix = randomUUID();
   const context: RunContext = {
     ...structuredClone(runContextExample),

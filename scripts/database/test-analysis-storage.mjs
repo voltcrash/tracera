@@ -18,13 +18,13 @@ import {
 import { createRunDatabase, dropRunDatabase, newRunId } from "./provision.mjs";
 
 const databaseDirectory = join(rootDirectory, "packages/db");
-const lockDirectory = join(rootDirectory, ".tracera", "core-storage-test.lock");
+const lockDirectory = join(rootDirectory, ".tracera", "analysis-storage-test.lock");
 let target;
 let runId;
 let databaseCreated = false;
 
 if (process.argv.length > 2) {
-  throw new Error("test:core-storage accepts no database URLs, names, or other arguments.");
+  throw new Error("test:analysis-storage accepts no database URLs, names, or other arguments.");
 }
 acquireLock();
 try {
@@ -44,10 +44,10 @@ try {
   migrate(migrationEnvironment);
   syncRuntimeRole(target);
   runSuite(runtimeEnvironment);
-  log("Core storage PostgreSQL validation passed.");
+  log("Analysis storage PostgreSQL validation passed.");
 } catch (error) {
   console.error(
-    `Core storage PostgreSQL validation failed: ${error instanceof Error ? error.message : String(error)}`,
+    `Analysis storage PostgreSQL validation failed: ${error instanceof Error ? error.message : String(error)}`,
   );
   process.exitCode = 1;
 } finally {
@@ -58,7 +58,7 @@ try {
     }
   } catch (error) {
     console.error(
-      `Core storage database cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+      `Analysis storage database cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
     );
     process.exitCode = 1;
   } finally {
@@ -76,7 +76,7 @@ function acquireLock() {
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "EEXIST") {
       throw new Error(
-        "Another Core storage validation owns this worktree's disposable test cluster.",
+        "Another Analysis storage validation owns this worktree's disposable test cluster.",
       );
     }
     throw error;
@@ -86,7 +86,7 @@ function acquireLock() {
 function analysisStorageEnvironment(environment) {
   const derived = {
     ...environment,
-    CORE_STORAGE_TEST_DATABASE_URL: environment.DATABASE_URL,
+    ANALYSIS_STORAGE_TEST_DATABASE_URL: environment.DATABASE_URL,
   };
   derived.TRACERA_CONFIG_SEAL = createEnvironmentSeal(derived);
   return derived;
@@ -104,7 +104,7 @@ function migrate(environment) {
 }
 
 function runSuite(environment) {
-  const reportDirectory = mkdtempSync(join(tmpdir(), "tracera-core-storage-"));
+  const reportDirectory = mkdtempSync(join(tmpdir(), "tracera-analysis-storage-"));
   const reportPath = join(reportDirectory, "report.json");
   try {
     const result = spawnSync(
@@ -112,7 +112,7 @@ function runSuite(environment) {
       [
         "test",
         "--run",
-        "test/core-storage.integration.test.ts",
+        "test/analysis-storage.integration.test.ts",
         "--reporter=default",
         "--reporter=json",
         `--outputFile.json=${reportPath}`,
@@ -120,12 +120,12 @@ function runSuite(environment) {
       { cwd: databaseDirectory, env: { ...process.env, ...environment }, stdio: "inherit" },
     );
     if (!existsSync(reportPath)) {
-      throw new Error("The Core storage suite exited without producing a test report.");
+      throw new Error("The Analysis storage suite exited without producing a test report.");
     }
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
     const skipped = report.numPendingTests + report.numTodoTests;
     log(
-      `Core storage integration suite: ${report.numPassedTests} passed, ${report.numFailedTests} failed, ${skipped} skipped.`,
+      `Analysis storage integration suite: ${report.numPassedTests} passed, ${report.numFailedTests} failed, ${skipped} skipped.`,
     );
     if (
       result.status !== 0 ||
@@ -133,7 +133,7 @@ function runSuite(environment) {
       skipped > 0 ||
       report.numPassedTests === 0
     ) {
-      throw new Error("The Core storage integration suite did not pass completely.");
+      throw new Error("The Analysis storage integration suite did not pass completely.");
     }
   } finally {
     rmSync(reportDirectory, { recursive: true, force: true });
@@ -141,5 +141,5 @@ function runSuite(environment) {
 }
 
 function log(message) {
-  console.error(`[test:core-storage] ${message}`);
+  console.error(`[test:analysis-storage] ${message}`);
 }

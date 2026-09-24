@@ -15,7 +15,7 @@
     "check-types": "tsc --noEmit",
     "db:generate": "node ../../scripts/environment/guard.mjs --role migration -- drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "node ../../scripts/environment/guard.mjs --role migration -- drizzle-kit migrate --config=drizzle.config.ts",
-    "test:core-storage": "node ../../scripts/database/test-core-storage.mjs"
+    "test:analysis-storage": "node ../../scripts/database/test-analysis-storage.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
