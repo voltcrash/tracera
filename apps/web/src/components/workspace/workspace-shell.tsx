@@ -54,7 +54,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     const controller = new AbortController();
     const cached = readSessionCache<RunSummary[]>(user.id, HISTORY_CACHE_KEY, HISTORY_CACHE_AGE);
     if (cached) queueMicrotask(() => setTraces(cached));
-    apiFetch(`${apiUrl}/v2/runs`, { signal: controller.signal })
+    apiFetch(`${apiUrl}/runs`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Unable to load your traces.");
         const data = (await response.json()) as { runs: RunSummary[] };

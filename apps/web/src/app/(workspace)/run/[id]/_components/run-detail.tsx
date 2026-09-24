@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { projectReport, type CoreV2ReportView } from "@repo/ai/core/report-view";
-import { CoreV2Report } from "@/components/analysis/core-v2-report";
+import { projectReport, type AnalysisReportView } from "@repo/ai/core/report-view";
+import { AnalysisReport } from "@/components/analysis/analysis-report";
 import { useAuth } from "@/components/providers/auth-provider";
 import { apiUrl } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -33,10 +33,10 @@ const TERMINAL = new Set<Progress["status"]>([
   "canceled",
 ]);
 
-export function CoreRunDetail({ id }: { id: string }) {
+export function RunDetail({ id }: { id: string }) {
   const { apiFetch, user, isLoading } = useAuth();
   const [progress, setProgress] = useState<Progress | null>(null);
-  const [view, setView] = useState<CoreV2ReportView | null>(null);
+  const [view, setView] = useState<AnalysisReportView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Leaving the page only stops polling; the on-demand run continues until it finishes or is
@@ -47,7 +47,7 @@ export function CoreRunDetail({ id }: { id: string }) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async () => {
       try {
-        const response = await apiFetch(`${apiUrl}/v2/runs/${encodeURIComponent(id)}`, {
+        const response = await apiFetch(`${apiUrl}/runs/${encodeURIComponent(id)}`, {
           signal: controller.signal,
         });
         const data = (await response.json()) as {
@@ -75,7 +75,7 @@ export function CoreRunDetail({ id }: { id: string }) {
   }, [apiFetch, id, isLoading, user]);
 
   async function cancel() {
-    const response = await apiFetch(`${apiUrl}/v2/runs/${encodeURIComponent(id)}/cancel`, {
+    const response = await apiFetch(`${apiUrl}/runs/${encodeURIComponent(id)}/cancel`, {
       method: "POST",
     });
     if (!response.ok) {
@@ -89,7 +89,7 @@ export function CoreRunDetail({ id }: { id: string }) {
   if (view?.schemaVersion === 2)
     return (
       <main className="trace-page min-h-screen bg-background text-foreground">
-        <CoreV2Report view={view} />
+        <AnalysisReport view={view} />
       </main>
     );
   return (

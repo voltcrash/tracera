@@ -62,7 +62,7 @@ integrationTest("runtime uses node-postgres as the unprivileged runtime role", a
 
 integrationTest("analysis admission and spend controls run under runtime grants", async () => {
   const userId = await createUser();
-  const endpoint = "/api/tracera/v2/analyze";
+  const endpoint = "/api/tracera/analyze";
   const idempotencyKey = randomUUID();
   const request = {
     userId,

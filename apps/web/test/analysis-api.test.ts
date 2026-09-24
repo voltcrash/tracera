@@ -4,13 +4,19 @@ import { coreV2Examples, runReportSchema, type RunReport } from "@repo/contracts
 import { test } from "vite-plus/test";
 import type { AuthUser } from "@repo/db";
 import type { CoreRunProgress } from "@repo/db/core/repository";
-import { createCoreV2App, type CoreV2Dependencies } from "../src/server/core-v2";
+import { createAnalysisApp, type AnalysisDependencies } from "../src/server/analysis";
 import {
   focusedRuntimePolicy,
   type CoreRuntimeRepository,
   type FocusedRunExecutionInput,
-} from "../src/server/core-v2-runtime";
-import type { Bindings } from "../src/server/index";
+} from "../src/server/analysis-runtime";
+import { app, type Bindings } from "../src/server/index";
+
+test("analysis routes mount without a version prefix", () => {
+  assert.ok(app.routes.some(({ path }) => path === "/analyze"));
+  assert.ok(app.routes.some(({ path }) => path === "/runs"));
+  assert.ok(app.routes.every(({ path }) => !path.startsWith("/v2/")));
+});
 
 const env = {
   TRACERA_PROFILE: "test",
@@ -57,7 +63,7 @@ function createHarness(execute: (input: FocusedRunExecutionInput) => Promise<Run
     const id = request.headers.get("x-test-user");
     return id ? { id, email: `${id}@test.example`, createdAt: "2026-09-15T00:00:00.000Z" } : null;
   };
-  const dependencies: CoreV2Dependencies = {
+  const dependencies: AnalysisDependencies = {
     repository,
     authenticate,
     admit: async () => {
@@ -92,7 +98,7 @@ function createHarness(execute: (input: FocusedRunExecutionInput) => Promise<Run
     },
   };
   return {
-    app: createCoreV2App(dependencies),
+    app: createAnalysisApp(dependencies),
     repository,
     progress,
     reports,
@@ -157,7 +163,7 @@ function reportFor(
 }
 
 async function submit(
-  app: ReturnType<typeof createCoreV2App>,
+  app: ReturnType<typeof createAnalysisApp>,
   body: Record<string, unknown>,
   user = "ada",
   key = crypto.randomUUID(),

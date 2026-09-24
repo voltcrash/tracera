@@ -18,7 +18,7 @@ import {
 export const RELATED_CONTEXT_NOTICE =
   "Related stories and similar images are context only; they are not identical submissions or verified evidence.";
 
-export interface CoreV2ReportView {
+export interface AnalysisReportView {
   schemaVersion: 2;
   runId: string;
   status: RunReport["status"];
@@ -103,12 +103,12 @@ export interface CoreV2ReportView {
   relatedContextNotice: string;
 }
 
-export function projectReport(value: unknown, apiBase = "/api/tracera"): CoreV2ReportView {
+export function projectReport(value: unknown, apiBase = "/api/tracera"): AnalysisReportView {
   const report = runReportSchema.parse(value);
-  return projectCoreV2Report(report, apiBase);
+  return projectAnalysisReport(report, apiBase);
 }
 
-function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportView {
+function projectAnalysisReport(report: RunReport, apiBase: string): AnalysisReportView {
   const snapshots = new Map(report.snapshots.map((item) => [item.id, item]));
   const assessments = new Map(report.assessments.map((item) => [item.id, item]));
   const decisions = new Map(report.decisions.map((item) => [item.claimId, item]));
@@ -236,7 +236,7 @@ function projectCoreV2Report(report: RunReport, apiBase: string): CoreV2ReportVi
                 end: span.end,
                 sourceUrl:
                   snapshot?.canonicalUrl ?? snapshot?.finalUrl ?? snapshot?.originalUrl ?? null,
-                excerptHref: `${apiBase}/v2/runs/${encodeURIComponent(report.runId)}/evidence/${encodeURIComponent(assessment.snapshotId)}?start=${span.start}&end=${span.end}`,
+                excerptHref: `${apiBase}/runs/${encodeURIComponent(report.runId)}/evidence/${encodeURIComponent(assessment.snapshotId)}?start=${span.start}&end=${span.end}`,
               },
             ];
           }),

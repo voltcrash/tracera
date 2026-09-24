@@ -276,7 +276,7 @@ what is needed:
 These are deployed runtime settings; local and test runtime files may set them
 when needed.
 
-`/api/tracera/v2/analyze` requires an
+`/api/tracera/analyze` requires an
 `Idempotency-Key` header. Reusing a key with the same request replays the
 stored response; reusing it for a different request is rejected. The browser
 client creates a key for each submission.

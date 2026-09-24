@@ -38,7 +38,7 @@ test.describe("Core v2 Focused acceptance fixture", () => {
 
     const complete = structuredClone(coreV2Examples.complete);
     complete.runId = "run_focused_acceptance";
-    await page.route("**/api/tracera/v2/analyze", (route) =>
+    await page.route("**/api/tracera/analyze", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",

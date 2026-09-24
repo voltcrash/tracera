@@ -27,7 +27,7 @@ import {
   focusedRuntimePolicy,
   type CoreRuntimeRepository,
   type FocusedRuntimePolicyResult,
-} from "./core-v2-runtime";
+} from "./analysis-runtime";
 
 type CoreContext = Context<{ Bindings: Bindings }>;
 
@@ -44,7 +44,7 @@ type Admit = typeof admitAnalysis;
 type Finish = typeof finishAnalysisAdmission;
 type Execute = typeof executeFocusedRun;
 
-export interface CoreV2Dependencies {
+export interface AnalysisDependencies {
   repository?: CoreRuntimeRepository;
   authenticate?: Authenticate;
   admit?: Admit;
@@ -53,7 +53,7 @@ export interface CoreV2Dependencies {
   policy?: (environment: Record<string, string | undefined>) => FocusedRuntimePolicyResult;
 }
 
-export function createCoreV2App(dependencies: CoreV2Dependencies = {}) {
+export function createAnalysisApp(dependencies: AnalysisDependencies = {}) {
   const app = new Hono<{ Bindings: Bindings }>();
   const configuredRepository = dependencies.repository;
   const storage = () => configuredRepository ?? new CoreStorageRepository(pool);
@@ -79,7 +79,7 @@ export function createCoreV2App(dependencies: CoreV2Dependencies = {}) {
     const idempotency = readIdempotencyKey(context.req.raw);
     if (!idempotency.valid) return context.json({ error: idempotency.message }, 400);
     const config = analysisControlConfig(context.env);
-    const endpoint = "/v2/analyze";
+    const endpoint = "/analyze";
     let admission: AnalysisAdmission;
     try {
       admission = await admit({
@@ -150,7 +150,7 @@ export function createCoreV2App(dependencies: CoreV2Dependencies = {}) {
       }
 
       const report = runReportSchema.parse(result.report);
-      const runPath = `${TRACERA_API_BASE_PATH}/v2/runs/${runContext.runId}`;
+      const runPath = `${TRACERA_API_BASE_PATH}/runs/${runContext.runId}`;
       const response = {
         schemaVersion: 2 as const,
         engineVersion: runContext.versions.engine,
@@ -321,7 +321,7 @@ export function createCoreV2App(dependencies: CoreV2Dependencies = {}) {
   return app;
 }
 
-export const coreV2App = createCoreV2App();
+export const analysisApp = createAnalysisApp();
 
 async function runState(repository: CoreRuntimeRepository, scope: CoreAccessScope, runId: string) {
   const progress = await repository.getRunProgress({ scope, runId });

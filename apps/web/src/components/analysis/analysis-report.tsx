@@ -1,10 +1,10 @@
 "use client";
 
-import type { CoreV2ReportView } from "@repo/ai/core/report-view";
+import type { AnalysisReportView } from "@repo/ai/core/report-view";
 import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
+export function AnalysisReport({ view }: { view: AnalysisReportView }) {
   const { score } = view;
   const counts = score.counts;
   const denominatorLabel = score.selectedClaimCount === null ? "eligible" : "selected";

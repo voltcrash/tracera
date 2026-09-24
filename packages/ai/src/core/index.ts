@@ -9,7 +9,7 @@ export {
   type FocusedSelectionResult,
 } from "./selection/index";
 export { scoreReportV2 } from "./scoring/index";
-export { projectReport, type CoreV2ReportView } from "./report-view";
+export { projectReport, type AnalysisReportView } from "./report-view";
 export {
   buildImmutableTimeline,
   IMMUTABLE_TIMELINE_NOTICE,
