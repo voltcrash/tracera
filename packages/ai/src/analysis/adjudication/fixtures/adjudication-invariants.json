@@ -1,0 +1,12 @@
+{
+  "version": "tracera-adjudication-fixture-1.0.0",
+  "seed": 20260910,
+  "goldKind": "synthetic_invariant",
+  "humanGoldClaims": 0,
+  "cases": [
+    "deterministic-abstention",
+    "genuine-contradiction",
+    "misleading-corrective-context",
+    "unresolved-conflict"
+  ]
+}

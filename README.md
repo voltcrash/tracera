@@ -4,11 +4,11 @@
 
 Tracera evaluates pasted text, public links, and screenshots against evidence it can name. It selects up to three checkable factual claims, reports each claim's verdict with exact evidence, and shows a scoped supported share only when the resolved evidence is sufficient.
 
-Tracera also preserves report artifacts for exact reuse, related context, and immutable timelines of observed timestamps as new evidence appears.
+Tracera also preserves report artifacts, related context, and immutable timelines of observed timestamps as new evidence appears.
 
-Core v2 Focused is the active product path. The older full-v2 evaluation, calibration, sealed-test,
-staging, and worker-host documents remain in `docs/core-overhaul/` as archived, non-blocking
-historical artifacts; they are not claims about focused-product accuracy or readiness.
+Analysis is part of Tracera's main product flow. Older evaluation, calibration, staging, and
+worker documents remain in `docs/core-overhaul/` as archived historical artifacts; they are not
+claims about current accuracy or readiness.
 
 ## Features
 
@@ -17,9 +17,9 @@ historical artifacts; they are not claims about focused-product accuracy or read
 - **Scoped provenance:** Show earliest-observed source signals within the searched scope, with unknown history left unresolved.
 - **Evidence-backed verdicts:** Cross-check each selected claim against applicable evidence and distinguish supporting, conflicting, and inconclusive states.
 - **Evidence status:** Show evidence strength, applicability, independence, recency, and completeness separately from the claim verdict when those records exist.
-- **Focused factual score:** Report the supported share of resolved selected claims only; source context, framing, provenance, and recency never become factual truth points.
+- **Factual score:** Report the supported share of resolved selected claims only; source context, framing, provenance, and recency never become factual truth points.
 - **Trace timelines:** Show immutable published, updated, event, indexed, archived, and captured observations with unknown times left unresolved.
-- **Exact reuse and related context:** Reuse prior analysis only when content, proposition scope, ownership, visibility, versions, evidence, and freshness match; similar stories remain context.
+- **Related context:** Similar stories remain context and do not stand in for evidence about the submitted claim.
 
 ## Stack
 
@@ -59,7 +59,7 @@ vp run db:local:start
 vp run db:local:migrate
 ```
 
-Local sign-in uses generated development identities. Focused Core v2 evaluation is available
+Local sign-in uses generated development identities. Analysis evaluation is available
 through deterministic fixtures; interactive analysis requires deployed live-provider settings.
 
 The website uses the Next.js CLI, so its workspace commands run through Vite Task rather than Vite's built-in app commands:

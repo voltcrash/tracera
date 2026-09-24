@@ -1,15 +1,15 @@
 import { createHash } from "node:crypto";
-import { runContextExample, type ClaimV2, type DocumentSnapshot } from "@repo/contracts/core-v2";
+import { runContextExample, type Claim, type DocumentSnapshot } from "@repo/contracts/analysis";
 import {
   EVIDENCE_ASSESSMENT_PROMPT_VERSION,
   EVIDENCE_ASSESSMENT_SCHEMA_NAME,
   type RawAssessment,
-} from "../../src/core/evidence/index.js";
-import type { AuditEvent, GenerationRequest, RunEnvironment } from "../../src/core/types.js";
+} from "../../src/analysis/evidence/index.js";
+import type { AuditEvent, GenerationRequest, RunEnvironment } from "../../src/analysis/types.js";
 
 export const EVIDENCE_FIXTURE_NOW = "2026-09-14T00:00:00.000Z";
 
-export function evidenceClaim(overrides: Partial<ClaimV2> = {}): ClaimV2 {
+export function evidenceClaim(overrides: Partial<Claim> = {}): Claim {
   return {
     id: "claim_evidence_fixture",
     documentId: "snap_input_evidence",
@@ -99,7 +99,7 @@ export function evidenceSnapshot(
 
 export function createScriptedEvidenceEnvironment(
   responder: (request: {
-    claim: ClaimV2;
+    claim: Claim;
     snapshotId: string;
     passage: string;
     call: number;
@@ -128,7 +128,7 @@ export function createScriptedEvidenceEnvironment(
           if (request.schemaName !== EVIDENCE_ASSESSMENT_SCHEMA_NAME)
             throw new Error(`Unsupported schema ${request.schemaName}.`);
           calls += 1;
-          const claim = JSON.parse(request.untrustedContent[0]!.text) as ClaimV2;
+          const claim = JSON.parse(request.untrustedContent[0]!.text) as Claim;
           const passage = JSON.parse(request.untrustedContent[1]!.text) as {
             snapshotId: string;
             passage: string;
@@ -192,7 +192,7 @@ export function createScriptedEvidenceEnvironment(
 }
 
 export function assessmentResponse(
-  claim: ClaimV2,
+  claim: Claim,
   snapshotId: string,
   quote: string,
   overrides: Partial<RawAssessment> = {},

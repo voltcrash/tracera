@@ -1,10 +1,10 @@
-# Tracera core evaluation annotation guide
+# Tracera analysis annotation guide
 
 Version: 1.0.0
 
 Frozen: 2026-09-10
 
-Applies to: core-overhaul evaluation datasets with schema version 1.0.0
+Applies to: analysis evaluation datasets with schema version 1.0.0
 
 ## Unit of annotation
 

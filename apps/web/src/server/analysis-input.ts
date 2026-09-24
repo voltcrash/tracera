@@ -26,12 +26,12 @@ export function parseFirstPartyAnalysisInput(
   ];
   if (hasUnknownKeys(body, allowed)) return invalid("The request contains unsupported fields.");
 
-  const core = Object.fromEntries(
+  const analysis = Object.fromEntries(
     ["text", "url", "image", "imageMimeType"]
       .filter((key) => body[key] !== undefined)
       .map((key) => [key, body[key]]),
   );
-  const parsed = parseAnalysisInput(core);
+  const parsed = parseAnalysisInput(analysis);
   if (!parsed.success) return parsed;
   if (body.forceReanalysis !== undefined && typeof body.forceReanalysis !== "boolean") {
     return invalid("forceReanalysis must be a boolean.");

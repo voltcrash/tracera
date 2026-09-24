@@ -1,0 +1,352 @@
+{
+  "schemaVersion": "1.0.0",
+  "datasetId": "tracera-claim-inventory-fixture",
+  "datasetVersion": "1.0.0",
+  "license": {
+    "name": "Synthetic fixture; repository license",
+    "url": null,
+    "redistributionAllowed": true,
+    "notes": "All content and inventory entries are synthetic. They are not human gold and are excluded from empirical metrics."
+  },
+  "documents": [
+    {
+      "id": "doc-attribution",
+      "text": "The ministry said unemployment fell to 4.1% in 2025.",
+      "contentHash": "sha256:42f49778ebc0160e45891e1e2ccad4f0c67107ea6ed23970e1921a318d687846",
+      "language": "en",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "development",
+      "eventGroupId": "claims-doc-attribution",
+      "sourceFamilyId": "synthetic-claims-doc-attribution"
+    },
+    {
+      "id": "doc-negation",
+      "text": "The council did not approve the budget in 2024.",
+      "contentHash": "sha256:69d8c37bf4c6cdb62270ffd99459b27ca1296d7c364b349838ea14ab29f491cd",
+      "language": "en",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "development",
+      "eventGroupId": "claims-doc-negation",
+      "sourceFamilyId": "synthetic-claims-doc-negation"
+    },
+    {
+      "id": "doc-denominator",
+      "text": "Unemployment reached 12% among adults under 25 in 2025.",
+      "contentHash": "sha256:5035c958a545cde8e4b8c821398e53feb83b5f3926cc00a50c7fb75237610f79",
+      "language": "en",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "calibration",
+      "eventGroupId": "claims-doc-denominator",
+      "sourceFamilyId": "synthetic-claims-doc-denominator"
+    },
+    {
+      "id": "doc-duplicate",
+      "text": "The port handled 40 ships on Monday. Officials praised the crews. The port handled 40 ships on Monday.",
+      "contentHash": "sha256:eb0249b0851cefbaaed3cbea1a3d5af05817f34da73db5b59c83107b6358160d",
+      "language": "en",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "calibration",
+      "eventGroupId": "claims-doc-duplicate",
+      "sourceFamilyId": "synthetic-claims-doc-duplicate"
+    },
+    {
+      "id": "doc-multi",
+      "text": "Plant 1 in Town 1 employs 3 workers.\n\nPlant 2 in Town 2 employs 6 workers.\n\nPlant 3 in Town 3 employs 9 workers.\n\nPlant 4 in Town 4 employs 12 workers.\n\nPlant 5 in Town 5 employs 15 workers.\n\nPlant 6 in Town 6 employs 18 workers.\n\nPlant 7 in Town 7 employs 21 workers.\n\nPlant 8 in Town 8 employs 24 workers.",
+      "contentHash": "sha256:30d6fe766090ec1e65834612a10fdadfd27ba9e991c6270ecf4795179d00e15d",
+      "language": "en",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "test",
+      "eventGroupId": "claims-doc-multi",
+      "sourceFamilyId": "synthetic-claims-doc-multi"
+    },
+    {
+      "id": "doc-opinion",
+      "text": "What a wonderful plan. I love the new park design.",
+      "contentHash": "sha256:444a522f0c7b8274d8a51d685854a7c5ebf82b202bf52ec9a2c6bf626a59d9b9",
+      "language": "en",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "test",
+      "eventGroupId": "claims-doc-opinion",
+      "sourceFamilyId": "synthetic-claims-doc-opinion"
+    },
+    {
+      "id": "doc-unsupported",
+      "text": "El ministerio dijo que el desempleo bajó al cuatro por ciento durante el año pasado en todo el país.",
+      "contentHash": "sha256:5d0b7e0e2aeb0a974cd404aff1d256b53ec70395beaebe673a2a22635fd94d85",
+      "language": "es",
+      "asOfTime": "2026-01-01T00:00:00Z",
+      "acquiredAt": "2025-12-01T00:00:00Z",
+      "sourceUrl": null,
+      "splitId": "temporal",
+      "eventGroupId": "claims-doc-unsupported",
+      "sourceFamilyId": "synthetic-claims-doc-unsupported"
+    }
+  ],
+  "evidenceDocuments": [],
+  "excerpts": [],
+  "claims": [
+    {
+      "id": "gold-attribution-statement",
+      "documentId": "doc-attribution",
+      "text": "The ministry said unemployment fell to 4.1% in 2025.",
+      "spans": [
+        {
+          "start": 0,
+          "end": 52
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-attribution-embedded",
+      "documentId": "doc-attribution",
+      "text": "unemployment fell to 4.1% in 2025",
+      "spans": [
+        {
+          "start": 18,
+          "end": 51
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-negation",
+      "documentId": "doc-negation",
+      "text": "The council did not approve the budget in 2024.",
+      "spans": [
+        {
+          "start": 0,
+          "end": 47
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-denominator",
+      "documentId": "doc-denominator",
+      "text": "Unemployment reached 12% among adults under 25 in 2025.",
+      "spans": [
+        {
+          "start": 0,
+          "end": 55
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-duplicate",
+      "documentId": "doc-duplicate",
+      "text": "The port handled 40 ships on Monday.",
+      "spans": [
+        {
+          "start": 0,
+          "end": 36
+        },
+        {
+          "start": 66,
+          "end": 102
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-plant-1",
+      "documentId": "doc-multi",
+      "text": "Plant 1 in Town 1 employs 3 workers.",
+      "spans": [
+        {
+          "start": 0,
+          "end": 36
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-plant-2",
+      "documentId": "doc-multi",
+      "text": "Plant 2 in Town 2 employs 6 workers.",
+      "spans": [
+        {
+          "start": 38,
+          "end": 74
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-plant-3",
+      "documentId": "doc-multi",
+      "text": "Plant 3 in Town 3 employs 9 workers.",
+      "spans": [
+        {
+          "start": 76,
+          "end": 112
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-plant-4",
+      "documentId": "doc-multi",
+      "text": "Plant 4 in Town 4 employs 12 workers.",
+      "spans": [
+        {
+          "start": 114,
+          "end": 151
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-plant-5",
+      "documentId": "doc-multi",
+      "text": "Plant 5 in Town 5 employs 15 workers.",
+      "spans": [
+        {
+          "start": 153,
+          "end": 190
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-plant-6",
+      "documentId": "doc-multi",
+      "text": "Plant 6 in Town 6 employs 18 workers.",
+      "spans": [
+        {
+          "start": 192,
+          "end": 229
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-plant-7",
+      "documentId": "doc-multi",
+      "text": "Plant 7 in Town 7 employs 21 workers.",
+      "spans": [
+        {
+          "start": 231,
+          "end": 268
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    },
+    {
+      "id": "gold-plant-8",
+      "documentId": "doc-multi",
+      "text": "Plant 8 in Town 8 employs 24 workers.",
+      "spans": [
+        {
+          "start": 270,
+          "end": 307
+        }
+      ],
+      "material": true,
+      "checkability": "checkable",
+      "label": null,
+      "evidenceExcerptIds": [],
+      "origin": "not_applicable",
+      "goldStatus": "synthetic",
+      "annotations": [],
+      "adjudication": null
+    }
+  ]
+}

@@ -1,13 +1,13 @@
 "use client";
 
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
-import { projectReport, type CoreV2ReportView } from "@repo/ai/core/report-view";
+import { projectReport, type AnalysisReportView } from "@repo/ai/analysis/report-view";
 import Image from "next/image";
 import { Check, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { apiUrl } from "@/lib/api";
-import { CoreV2Report } from "@/components/analysis/core-v2-report";
+import { AnalysisReport } from "@/components/analysis/analysis-report";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ export default function Home() {
     mimeType: string;
     name: string;
   } | null>(null);
-  const [result, setResult] = useState<CoreV2ReportView | null>(null);
+  const [result, setResult] = useState<AnalysisReportView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("Preparing the evidence trace.");
@@ -38,7 +38,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResult(null);
-    setProgress("Preparing focused claim checks.");
+    setProgress("Preparing claim checks.");
     try {
       const value = text.trim();
       const request = image
@@ -46,7 +46,7 @@ export default function Home() {
         : isHttpUrl(value)
           ? { url: value }
           : { text: value };
-      const response = await apiFetch(`${apiUrl}/v2/analyze`, {
+      const response = await apiFetch(`${apiUrl}/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -67,14 +67,12 @@ export default function Home() {
         error?: unknown;
       };
       if (!data.report) {
-        throw new Error(
-          typeof data.error === "string" ? data.error : "No focused report was saved.",
-        );
+        throw new Error(typeof data.error === "string" ? data.error : "No report was saved.");
       }
       const view = projectReport(data.report, apiUrl);
-      if (view.schemaVersion !== 2) throw new Error("The focused report format was unavailable.");
+      if (view.schemaVersion !== 2) throw new Error("The report format was unavailable.");
       setResult(view);
-      setProgress("Focused claim checks saved.");
+      setProgress("Claim checks saved.");
       refreshHistory();
     } catch (requestError) {
       setError(
@@ -235,10 +233,10 @@ export default function Home() {
             <p className="mb-6 flex items-center gap-2.5 text-sm text-ink-soft">
               <Check className="size-4 text-brand-lime-ink" />
               {result.status === "complete"
-                ? "Focused evidence trace assembled"
-                : `Focused evidence trace saved · ${result.status}`}
+                ? "Evidence trace assembled"
+                : `Evidence trace saved · ${result.status}`}
             </p>
-            <CoreV2Report view={result} />
+            <AnalysisReport view={result} />
           </section>
         )}
       </div>

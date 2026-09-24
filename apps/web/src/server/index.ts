@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { checkDatabase, configureDatabase } from "@repo/db";
 import { authenticatedUser, type AuthBindings } from "./auth";
 import { apiRelativePath } from "./base-path";
-import { coreV2App } from "./core-v2";
+import { analysisApp } from "./analysis";
 import { allowedCorsOrigin } from "./cors-origin";
 import {
   healthErrorResponse,
@@ -64,7 +64,7 @@ app.get("/health", async (context) => {
   }
 });
 
-app.route("/v2", coreV2App);
+app.route("/", analysisApp);
 
 function currentUser(context: Context<{ Bindings: Bindings }>) {
   const request = context.req.raw;

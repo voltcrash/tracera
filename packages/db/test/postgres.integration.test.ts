@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { runContextExample, type RunContext } from "@repo/contracts/core-v2";
+import { runContextExample, type RunContext } from "@repo/contracts/analysis";
 import pg from "pg";
 import { afterAll, test } from "vite-plus/test";
-import { CoreStorageRepository, type CoreAccessScope, type CorePool } from "../src/core/index.js";
+import {
+  AnalysisRepository,
+  type AnalysisAccessScope,
+  type AnalysisPool,
+} from "../src/analysis/index.js";
 import * as database from "../src/index.js";
 
 // Runs only inside `vp run db:rehearse`, which provisions a migrated run database
@@ -62,7 +66,7 @@ integrationTest("runtime uses node-postgres as the unprivileged runtime role", a
 
 integrationTest("analysis admission and spend controls run under runtime grants", async () => {
   const userId = await createUser();
-  const endpoint = "/api/tracera/v2/analyze";
+  const endpoint = "/api/tracera/analyze";
   const idempotencyKey = randomUUID();
   const request = {
     userId,
@@ -109,7 +113,7 @@ integrationTest("analysis admission and spend controls run under runtime grants"
   await database.settleProviderSpend({ reservationId: spend.reservation.id, actualUsd: 0.005 });
 });
 
-integrationTest("Core storage operations run under the runtime grants from 0029", async () => {
+integrationTest("Analysis storage operations run under the runtime grants from 0029", async () => {
   const suffix = randomUUID();
   const context: RunContext = {
     ...structuredClone(runContextExample),
@@ -118,12 +122,12 @@ integrationTest("Core storage operations run under the runtime grants from 0029"
     ownerUserId: `owner-${suffix}`,
     visibility: "private",
   };
-  const scope: CoreAccessScope = {
+  const scope: AnalysisAccessScope = {
     tenantId: context.tenantId,
     ownerUserId: context.ownerUserId,
     visibility: context.visibility,
   };
-  const repository = new CoreStorageRepository(database.pool as unknown as CorePool);
+  const repository = new AnalysisRepository(database.pool as unknown as AnalysisPool);
 
   const job = await repository.enqueue({
     context,

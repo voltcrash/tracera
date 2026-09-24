@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { coreV2Examples } from "@repo/contracts/core-v2";
+import { analysisExamples } from "@repo/contracts/analysis";
 
 const acceptance = {
-  version: "core-v2-focused-acceptance-1.0.0",
+  version: "tracera-analysis-acceptance-1.0.0",
   cases: [
     "pasted article text",
     "public link submission",
@@ -15,9 +15,9 @@ const acceptance = {
   ],
 } as const;
 
-test.describe("Core v2 Focused acceptance fixture", () => {
+test.describe("Tracera analysis acceptance fixture", () => {
   test("keeps the browser acceptance scope explicit", async () => {
-    expect(acceptance.version).toBe("core-v2-focused-acceptance-1.0.0");
+    expect(acceptance.version).toBe("tracera-analysis-acceptance-1.0.0");
     expect(acceptance.cases).toEqual([
       "pasted article text",
       "public link submission",
@@ -28,7 +28,7 @@ test.describe("Core v2 Focused acceptance fixture", () => {
       "provider failure messaging",
       "saved report reload",
     ]);
-    expect(coreV2Examples.complete.schemaVersion).toBe(2);
+    expect(analysisExamples.complete.schemaVersion).toBe(2);
   });
 
   test("renders a saved focused report with evidence and safe score language", async ({ page }) => {
@@ -36,9 +36,9 @@ test.describe("Core v2 Focused acceptance fixture", () => {
     await page.getByRole("button", { name: "Continue as Ada Local" }).click();
     await expect(page).toHaveURL(/\/home$/);
 
-    const complete = structuredClone(coreV2Examples.complete);
+    const complete = structuredClone(analysisExamples.complete);
     complete.runId = "run_focused_acceptance";
-    await page.route("**/api/tracera/v2/analyze", (route) =>
+    await page.route("**/api/tracera/analyze", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",

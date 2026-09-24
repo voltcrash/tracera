@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import {
   runContextExample,
-  type ClaimV2,
+  type Claim,
   type DocumentSnapshot,
   type RunBudget,
   type StageResult,
-} from "@repo/contracts/core-v2";
-import { createCandidateSearchAdapter } from "../../src/core/retrieval/index.js";
-import type { AuditEvent, CorePorts, RunEnvironment } from "../../src/core/types.js";
+} from "@repo/contracts/analysis";
+import { createCandidateSearchAdapter } from "../../src/analysis/retrieval/index.js";
+import type { AuditEvent, AnalysisPorts, RunEnvironment } from "../../src/analysis/types.js";
 
 export const RETRIEVAL_FIXTURE_NOW = "2026-09-14T00:00:00.000Z";
 
@@ -21,7 +21,7 @@ export interface ScriptedRetrievalSource {
   publishedAt?: string;
 }
 
-export function retrievalClaim(overrides: Partial<ClaimV2> = {}): ClaimV2 {
+export function retrievalClaim(overrides: Partial<Claim> = {}): Claim {
   return {
     id: "claim_retrieval_fixture",
     documentId: "snap_input_retrieval",
@@ -102,7 +102,7 @@ export function createScriptedRetrievalEnvironment(options: {
       },
     },
   });
-  const ports: CorePorts = {
+  const ports: AnalysisPorts = {
     search: [search],
     clock,
     audit: {
@@ -192,7 +192,7 @@ export function createScriptedRetrievalEnvironment(options: {
     context: {
       ...runContextExample,
       runId: "run_retrieval_fixture",
-      versions: { ...runContextExample.versions, retriever: "core-retriever-2.0.0" },
+      versions: { ...runContextExample.versions, retriever: "tracera-retrieval-1.0.0" },
       budget: { ...runContextExample.budget, ...options.budget },
     },
     ports,

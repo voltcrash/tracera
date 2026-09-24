@@ -1,0 +1,15 @@
+{
+  "version": "tracera-provenance-fixture-1.0.0",
+  "seed": 20260910,
+  "goldKind": "synthetic_invariant",
+  "humanGoldClaims": 0,
+  "cases": [
+    "known-citation-chain",
+    "backdated-update",
+    "archive-before-declared-date",
+    "simultaneous-sources",
+    "syndication",
+    "citation-cycle",
+    "inaccessible-original"
+  ]
+}

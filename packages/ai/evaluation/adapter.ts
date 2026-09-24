@@ -1,8 +1,8 @@
-import type { CORE_V2_CONTRACT_VERSION } from "@repo/contracts/core-v2";
+import type { ANALYSIS_CONTRACT_VERSION } from "@repo/contracts/analysis";
 import type { AdapterRun, EvaluationDataset, EvaluationSplit } from "./schemas";
 
 /** Which frozen contract an adapter's predictions are expressed in. */
-export type EvaluationContractVersion = typeof CORE_V2_CONTRACT_VERSION;
+export type EvaluationContractVersion = typeof ANALYSIS_CONTRACT_VERSION;
 
 export interface EvaluationAdapterOptions {
   mode: "fixture" | "replay" | "live";
