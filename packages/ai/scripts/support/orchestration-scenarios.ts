@@ -440,7 +440,6 @@ export class OrchestrationWorld {
       signal: controller.signal,
       engineOptions: {
         stages: this.stageFactories(),
-        calibratorArtifact: this.calibratorArtifact,
       },
       createPorts: ({ lease }) => this.ports(lease.runId),
       onError: (error) => this.errors.push(error instanceof Error ? error.message : String(error)),
@@ -1114,7 +1113,6 @@ async function runEngineDirectly(
   };
   return createRunAnalysisV2({
     stages: world.stageFactories(),
-    calibratorArtifact: syntheticCalibratorArtifact(),
     ...(attempt === null ? {} : { attempt, fencingToken: `direct-${attempt}` }),
   })({ input: { kind: "text", text: ORIGINAL_ARTICLE }, seed: 20260910 }, environment);
 }

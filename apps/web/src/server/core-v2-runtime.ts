@@ -285,7 +285,6 @@ export async function executeFocusedRun(
     const runs = createRunStore({ repository: input.repository, context: input.context });
     const searchPorts = createLiveSearchPorts(input.environment, clock);
     const engine = createRunAnalysisV2({
-      focused: true,
       attempt: lease.attempt,
       fencingToken: lease.fencingToken,
       retrieval: { searchPorts },
