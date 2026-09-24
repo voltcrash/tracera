@@ -12,11 +12,10 @@ import { validateSplitLeakage } from "./validation";
 export function evaluateRun(
   sourceDataset: unknown,
   sourceRun: unknown,
-  options: { split: EvaluationSplit | "all"; seed: number; baseline?: unknown },
+  options: { split: EvaluationSplit | "all"; seed: number },
 ) {
   const fullDataset = evaluationDatasetSchema.parse(sourceDataset);
   const run = adapterRunSchema.parse(sourceRun);
-  const baseline = options.baseline ? adapterRunSchema.parse(options.baseline) : undefined;
   const dataset = selectSplit(fullDataset, options.split);
   const expectedHash = datasetHash(fullDataset);
   const integrityIssues = validateSplitLeakage(fullDataset);
@@ -38,7 +37,7 @@ export function evaluateRun(
       syntheticClaims: dataset.claims.filter((claim) => claim.goldStatus === "synthetic").length,
     },
     integrityIssues,
-    metrics: computeMetrics(dataset, run, baseline, options.seed),
+    metrics: computeMetrics(dataset, run),
   };
 }
 

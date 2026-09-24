@@ -636,7 +636,7 @@ export interface DeterministicReplayResult {
 }
 
 /**
- * Recomputes focused publication (or legacy calibration) and scoring from persisted immutable
+ * Recomputes focused publication (or statistical calibration) and scoring from persisted immutable
  * artifacts only. It never calls a model, search, or acquisition port; a stochastic rerun is a
  * new durable run.
  */

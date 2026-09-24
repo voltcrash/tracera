@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "vite-plus/test";
 import { runInvariantFixture } from "../evaluation/harness.js";
-import { clusteredBootstrap, wilsonLowerBound } from "../evaluation/metrics.js";
+import { wilsonLowerBound } from "../evaluation/metrics.js";
 import { contentHash, evaluationDatasetSchema } from "../evaluation/schemas.js";
 
 const dataset = evaluationDatasetSchema.parse(
@@ -28,17 +28,11 @@ test("core fixture detects required harness violations", () => {
   );
 });
 
-test("statistical helpers are deterministic and reject empty evidence", () => {
+test("statistical helpers reject empty evidence", () => {
   assert.equal(
     contentHash("abc"),
     "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
   );
   assert.equal(wilsonLowerBound(0, 0), null);
   assert.ok((wilsonLowerBound(97, 100) ?? 0) < 0.95);
-  const values = [
-    { cluster: "story-a", delta: 1 },
-    { cluster: "story-b", delta: 0 },
-    { cluster: "story-c", delta: 1 },
-  ];
-  assert.deepEqual(clusteredBootstrap(values, 42, 10_000), clusteredBootstrap(values, 42, 10_000));
 });

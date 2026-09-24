@@ -49,15 +49,9 @@ export interface EvaluationMetrics {
     riskCoverage: Array<{ coverage: number; risk: number }>;
   };
   origin: { precision: MetricResult; coverage: MetricResult; globalOverclaims: number };
-  improvement: MetricResult & { bootstrapSamples: number; seed: number };
 }
 
-export function computeMetrics(
-  dataset: EvaluationDataset,
-  run: AdapterRun,
-  baseline: AdapterRun | undefined,
-  seed: number,
-): EvaluationMetrics {
+export function computeMetrics(dataset: EvaluationDataset, run: AdapterRun): EvaluationMetrics {
   const goldClaims = dataset.claims.filter((claim) => claim.goldStatus === "adjudicated_human");
   const goldById = new Map(goldClaims.map((claim) => [claim.id, claim]));
   const predictions = run.predictions.filter((prediction) => goldById.has(prediction.claimId));
@@ -119,24 +113,6 @@ export function computeMetrics(
   const originCorrect = originPredictions.filter(
     (prediction) => prediction.originCandidateCorrect === true,
   ).length;
-  const baselineById = new Map(
-    baseline?.predictions.map((prediction) => [prediction.claimId, prediction]) ?? [],
-  );
-  const paired = goldClaims.flatMap((claim) => {
-    const current = predictionsById.get(claim.id);
-    const previous = baselineById.get(claim.id);
-    const document = dataset.documents.find((item) => item.id === claim.documentId);
-    if (!current || !previous || !document || !claim.label) return [];
-    return [
-      {
-        cluster: document.eventGroupId,
-        delta:
-          Number(jointSuccess(current, claim.label)) - Number(jointSuccess(previous, claim.label)),
-      },
-    ];
-  });
-  const improvement = clusteredBootstrap(paired, seed, 10_000);
-
   return {
     claimExtraction: {
       recall: threshold(matchedGold, materialClaims.length, 0.95, matches.length - matchedGold),
@@ -195,24 +171,6 @@ export function computeMetrics(
       globalOverclaims: predictions.filter((prediction) => prediction.emittedGlobalOriginClaim)
         .length,
     },
-    improvement: {
-      status:
-        improvement.lowerBound === null
-          ? "not_evaluated"
-          : improvement.lowerBound > 0
-            ? "pass"
-            : "fail",
-      numerator: paired.reduce((sum, item) => sum + item.delta, 0),
-      denominator: paired.length,
-      value: improvement.mean,
-      lowerBound: improvement.lowerBound,
-      target: "paired story-cluster bootstrap 95% lower bound > 0",
-      omissions: goldClaims.length - paired.length,
-      notes:
-        improvement.lowerBound === null ? ["Matched v1/v2 human-gold pairs are required."] : [],
-      bootstrapSamples: 10_000,
-      seed,
-    },
   };
 }
 
@@ -223,32 +181,6 @@ export function wilsonLowerBound(successes: number, total: number, z = oneSidedZ
   const center = probability + (z * z) / (2 * total);
   const margin = z * Math.sqrt((probability * (1 - probability) + (z * z) / (4 * total)) / total);
   return (center - margin) / denominator;
-}
-
-export function clusteredBootstrap(
-  values: Array<{ cluster: string; delta: number }>,
-  seed: number,
-  samples: number,
-) {
-  if (values.length === 0) return { mean: null, lowerBound: null };
-  const clusters = new Map<string, number[]>();
-  for (const value of values)
-    clusters.set(value.cluster, [...(clusters.get(value.cluster) ?? []), value.delta]);
-  const groups = [...clusters.values()];
-  if (groups.length < 2)
-    return { mean: mean(values.map((value) => value.delta)), lowerBound: null };
-  const random = mulberry32(seed);
-  const estimates = Array.from({ length: samples }, () => {
-    const sampled = Array.from(
-      { length: groups.length },
-      () => groups[Math.floor(random() * groups.length)] ?? [],
-    );
-    return mean(sampled.flat());
-  }).sort((left, right) => left - right);
-  return {
-    mean: mean(values.map((value) => value.delta)),
-    lowerBound: estimates[Math.floor(samples * 0.05)] ?? null,
-  };
 }
 
 function calibrationMetrics(
@@ -333,15 +265,6 @@ function confusionMatrix(
     if (actual) matrix[actual][prediction.label] += 1;
   }
   return matrix;
-}
-
-function jointSuccess(prediction: EvaluationPrediction, label: TruthLabel) {
-  return (
-    prediction.label === label &&
-    prediction.evidenceSufficient &&
-    prediction.evidenceApplicable &&
-    prediction.citedExcerptIds.length > 0
-  );
 }
 
 function threshold(
@@ -463,15 +386,4 @@ function proportion(numerator: number, denominator: number, target: string): Met
 
 function mean(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function mulberry32(seed: number) {
-  let state = seed;
-  return () => {
-    state += 0x6d2b79f5;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
-  };
 }
