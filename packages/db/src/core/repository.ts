@@ -577,7 +577,12 @@ export class CoreStorageRepository {
       created_at: string;
       report: RunReport | null;
     }>(
-      `SELECT run.run_id, run.status, run.created_at::text, latest.report
+      `SELECT run.run_id,
+              CASE
+                WHEN latest_job.status IS NULL OR latest_job.status = 'complete' THEN run.status
+                ELSE latest_job.status
+              END AS status,
+              run.created_at::text, latest.report
          FROM core_runs AS run
          LEFT JOIN LATERAL (
            SELECT report.report
@@ -589,6 +594,16 @@ export class CoreStorageRepository {
             ORDER BY report.version DESC
             LIMIT 1
          ) AS latest ON TRUE
+         LEFT JOIN LATERAL (
+           SELECT job.status
+             FROM core_jobs AS job
+            WHERE job.run_id = run.run_id
+              AND job.tenant_id = run.tenant_id
+              AND job.owner_user_id = run.owner_user_id
+              AND job.visibility = run.visibility
+            ORDER BY job.updated_at DESC, job.created_at DESC
+            LIMIT 1
+         ) AS latest_job ON TRUE
         WHERE run.tenant_id = $1 AND run.owner_user_id = $2 AND run.visibility = $3
         ORDER BY run.created_at DESC, run.run_id DESC
         LIMIT $4`,
