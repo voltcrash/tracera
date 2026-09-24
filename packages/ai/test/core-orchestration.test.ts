@@ -7,19 +7,8 @@ import {
   hashValue,
   propositionScopeHash,
 } from "../src/core/index.js";
-import {
-  ORCHESTRATION_SCENARIOS,
-  runOrchestrationScenario,
-} from "../scripts/support/orchestration-scenarios.js";
 
-describe("Core v2 durable orchestration", () => {
-  for (const scenario of ORCHESTRATION_SCENARIOS) {
-    test(scenario.replaceAll("_", " "), async () => {
-      const result = await runOrchestrationScenario(scenario);
-      assert.ok(result.checks.length > 0);
-    });
-  }
-
+describe("Core v2 stored artifacts", () => {
   test("stored snapshot IDs accept only identical immutable content", async () => {
     const [stored] = coreV2Examples.complete.snapshots;
     const writes: string[] = [];

@@ -6,6 +6,7 @@ import {
   type RunContext,
 } from "@repo/contracts/core-v2";
 import type { CoreAccessScope, CoreStorageRepository } from "@repo/db/core";
+import { canonicalJson } from "./hashing";
 import type { RunStorePort, SnapshotStorePort } from "./types";
 
 export interface RawBlobStore {
@@ -15,6 +16,32 @@ export interface RawBlobStore {
     signal: AbortSignal;
   }): Promise<{ status: "stored"; uri: string } | { status: "unavailable"; uri: null }>;
   read(uri: string, signal: AbortSignal): Promise<Uint8Array | null>;
+}
+
+export function acceptStoredSnapshots(store: SnapshotStorePort): SnapshotStorePort {
+  const sameDocument = async (snapshot: DocumentSnapshot, signal: AbortSignal) => {
+    const existing = await store.get(snapshot.id, signal);
+    if (!existing) return false;
+    const { acquiredAt: _existingAcquiredAt, ...existingIdentity } = existing;
+    const { acquiredAt: _nextAcquiredAt, ...nextIdentity } = snapshot;
+    if (canonicalJson(existingIdentity) !== canonicalJson(nextIdentity))
+      throw new Error(`Snapshot ${snapshot.id} is already stored with different content.`);
+    Object.assign(snapshot, existing);
+    return true;
+  };
+  return {
+    get: (id, signal) => store.get(id, signal),
+    getMany: (ids, signal) => store.getMany(ids, signal),
+    async put(snapshot, signal) {
+      if (await sameDocument(snapshot, signal)) return;
+      try {
+        await store.put(snapshot, signal);
+      } catch (error) {
+        if (await sameDocument(snapshot, signal)) return;
+        throw error;
+      }
+    },
+  };
 }
 
 export interface SnapshotBounds {

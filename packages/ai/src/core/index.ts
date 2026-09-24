@@ -20,7 +20,6 @@ export {
   type FocusedSelectionResult,
 } from "./selection/index";
 export { scoreFocusedReportV2, scoreReportV2 } from "./scoring/index";
-export { createCoreJobPayload, type CoreJobPayload } from "./job";
 export {
   decideReportReuse,
   propositionScopeHash,
@@ -35,15 +34,7 @@ export {
   IMMUTABLE_TIMELINE_NOTICE,
   type ImmutableTimelineEntry,
 } from "./timeline";
-export {
-  acceptStoredSnapshots,
-  runCoreWorker,
-  type CoreTerminalOutcome,
-  type CoreWorkerOptions,
-  type CoreWorkerRepository,
-  type DurableCoreLease,
-} from "./worker";
-export { createRunStore, createSnapshotStore } from "./storage";
+export { acceptStoredSnapshots, createRunStore, createSnapshotStore } from "./storage";
 export type { RawBlobStore } from "./storage";
 export {
   FOCUSED_PUBLICATION_POLICY,
@@ -53,11 +44,7 @@ export {
 export {
   createCoreEmbeddingPort,
   createCoreGenerationPort,
-  createOperationalAudit,
   createProviderOcrPort,
-  createReservedExternalCall,
-  deterministicReservationId,
-  createRuntimeDocumentPort,
   createSystemClock,
 } from "./runtime-ports";
 export * from "./types";

@@ -13,7 +13,6 @@
     "./core/framing": "./src/core/framing/index.ts",
     "./core/ingestion": "./src/core/ingestion/index.ts",
     "./core/hashing": "./src/core/hashing.ts",
-    "./core/job": "./src/core/job.ts",
     "./core/provenance": "./src/core/provenance/index.ts",
     "./core/publication": "./src/core/publication/index.ts",
     "./core/report-view": "./src/core/report-view.ts",
@@ -45,9 +44,7 @@
     "test:core-orchestration": "vp test --run test/core-orchestration.test.ts",
     "test:core-publication": "vp test --run test/core-publication.test.ts",
     "test:core-release": "vp test --run test/core-release-evaluation.test.ts",
-    "worker:core": "node ../../scripts/environment/guard.mjs --role runtime -- node --import tsx scripts/core-worker.ts",
     "replay:core": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/replay-core.ts",
-    "evaluate:core-orchestration": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-orchestration.ts",
     "test:live": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/live-test.ts"
   },
   "dependencies": {
