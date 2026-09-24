@@ -44,8 +44,9 @@ vp run env:setup
 vp run env:diagnose:local
 ```
 
-Profiles, process roles, deployed examples, and the safe migration away from a
-shared root `.env` are documented in [docs/environment.md](docs/environment.md).
+Profiles, process roles, and deployed examples are documented in
+[docs/environment.md](docs/environment.md). The day-to-day workflow is in
+[docs/local-development.md](docs/local-development.md).
 
 Start this worktree's PostgreSQL (Docker-compatible engine required) and apply
 migrations before running the server:
