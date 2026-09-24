@@ -1,7 +1,7 @@
 /*
- * Frozen v2 stage interfaces and ports.
+ * Analysis stage interfaces and ports.
  *
- * Core stage logic depends only on this module and on @repo/contracts/analysis.
+ * Stage logic depends only on this module and on @repo/contracts/analysis.
  * It must not import database globals, read process.env, or call fetch
  * directly: every side effect travels through a port on RunEnvironment, so a
  * fixture run needs no network, credentials or production database.
@@ -33,7 +33,7 @@ import type { z } from "zod";
 
 export type { StageResult } from "@repo/contracts/analysis";
 
-export const ANALYSIS_ENGINE_VERSION = "core-v2.0.0" as const;
+export const ANALYSIS_ENGINE_VERSION = "tracera-analysis-1.0.0" as const;
 
 // ---------------------------------------------------------------------------
 // Ports
@@ -136,7 +136,7 @@ export interface RunStorePort {
 }
 
 export interface ClockPort {
-  /** ISO-8601 with offset. The only source of time in core stage logic. */
+  /** ISO-8601 with offset. The only source of time in analysis stage logic. */
   now(): string;
   monotonicMs(): number;
 }
@@ -174,7 +174,7 @@ export interface AnalysisPorts {
   audit: AuditPort;
 }
 
-/** Everything a stage may touch. Nothing else is in scope for core logic. */
+/** Everything an analysis stage may touch. */
 export interface RunEnvironment {
   context: RunContext;
   ports: AnalysisPorts;

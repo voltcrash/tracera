@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createAiProvider, safeFetch, type AiProviderConfig, type AiProviderName } from "@repo/ai";
 import {
+  ANALYSIS_ENGINE_VERSION,
   acceptStoredSnapshots,
   createAnalysisEmbeddingPort,
   createAnalysisGenerationPort,
@@ -35,9 +36,9 @@ import {
 import type { AnalysisRepository, AnalysisAccessScope } from "@repo/db/analysis/repository";
 import { spendLimitedAiProvider, type AnalysisControlConfig } from "./analysis-controls";
 
-const FOCUSED_PROMPT_VERSION = "core-v2-prompts-1.0.0";
-const FOCUSED_RETRIEVER_VERSION = "core-v2-retrieval-1.0.0";
-const FOCUSED_EMBEDDING_PREPROCESSING = "core-v2-normalized-text-1.0.0";
+const ANALYSIS_PROMPT_VERSION = "tracera-prompts-1.0.0";
+const ANALYSIS_RETRIEVER_VERSION = "tracera-retrieval-1.0.0";
+const ANALYSIS_EMBEDDING_PREPROCESSING = "tracera-normalized-text-1.0.0";
 const EMBEDDING_DIMENSIONS = 1024;
 
 const TEST_FOCUSED_BUDGET: RunBudget = {
@@ -47,18 +48,20 @@ const TEST_FOCUSED_BUDGET: RunBudget = {
 
 type RuntimeEnvironment = Record<string, string | undefined>;
 
-export interface FocusedRuntimePolicy {
+export interface AnalysisRuntimePolicy {
   mode: "fixture" | "live";
   providerConfig: AiProviderConfig | null;
   versions: RunContext["versions"];
   budget: RunBudget;
 }
 
-export type FocusedRuntimePolicyResult =
-  | { enabled: true; policy: FocusedRuntimePolicy }
-  | { enabled: false; code: "core_v2_unavailable"; message: string };
+export type AnalysisRuntimePolicyResult =
+  | { enabled: true; policy: AnalysisRuntimePolicy }
+  | { enabled: false; code: "analysis_unavailable"; message: string };
 
-export function focusedRuntimePolicy(environment: RuntimeEnvironment): FocusedRuntimePolicyResult {
+export function analysisRuntimePolicy(
+  environment: RuntimeEnvironment,
+): AnalysisRuntimePolicyResult {
   const profile = environment.TRACERA_PROFILE?.trim();
   const mode = environment.TRACERA_ANALYSIS_MODE?.trim();
 
@@ -159,14 +162,14 @@ export function focusedRuntimePolicy(environment: RuntimeEnvironment): FocusedRu
       mode: "live",
       providerConfig,
       versions: {
-        engine: "core-v2.0.0",
-        prompt: FOCUSED_PROMPT_VERSION,
+        engine: ANALYSIS_ENGINE_VERSION,
+        prompt: ANALYSIS_PROMPT_VERSION,
         model,
-        retriever: FOCUSED_RETRIEVER_VERSION,
+        retriever: ANALYSIS_RETRIEVER_VERSION,
         embedding: {
           model: embeddingModel,
           dimensions: EMBEDDING_DIMENSIONS,
-          preprocessing: FOCUSED_EMBEDDING_PREPROCESSING,
+          preprocessing: ANALYSIS_EMBEDDING_PREPROCESSING,
         },
         calibration: null,
       },
@@ -194,18 +197,18 @@ export type AnalysisRuntimeRepository = Pick<
   | "getSnapshots"
 >;
 
-export interface FocusedRunExecutionInput {
+export interface AnalysisRunExecutionInput {
   repository: AnalysisRuntimeRepository;
   context: RunContext;
   analysis: { input: RunInput; seed: number };
-  policy: FocusedRuntimePolicy;
+  policy: AnalysisRuntimePolicy;
   controls: AnalysisControlConfig;
   environment: RuntimeEnvironment;
   signal: AbortSignal;
 }
 
 export async function executeFocusedRun(
-  input: FocusedRunExecutionInput,
+  input: AnalysisRunExecutionInput,
 ): Promise<RunAnalysisResult> {
   if (input.policy.mode !== "live" || input.policy.providerConfig === null) {
     throw new Error("The request-scoped focused runtime has no live provider configuration.");
@@ -225,7 +228,7 @@ export async function executeFocusedRun(
   const lease = await input.repository.acquireLease({
     scope,
     runId: input.context.runId,
-    workerId: `core-http:${process.pid}:${randomUUID()}`,
+    workerId: `analysis-http:${process.pid}:${randomUUID()}`,
     leaseSeconds: input.controls.leaseSeconds,
   });
   if (!lease) {
@@ -437,7 +440,7 @@ export async function executeFocusedRun(
 
 function createRuntimeDocuments(
   provider: ReturnType<typeof spendLimitedAiProvider>,
-  input: FocusedRunExecutionInput,
+  input: AnalysisRunExecutionInput,
   clock: ReturnType<typeof createSystemClock>,
 ) {
   const documents = createDocumentAcquisitionPort({
@@ -864,29 +867,29 @@ function optional(environment: RuntimeEnvironment, name: string) {
   return value || undefined;
 }
 
-function unavailable(message: string): FocusedRuntimePolicyResult {
-  return { enabled: false, code: "core_v2_unavailable", message };
+function unavailable(message: string): AnalysisRuntimePolicyResult {
+  return { enabled: false, code: "analysis_unavailable", message };
 }
 
 function testVersions(): RunContext["versions"] {
   return {
-    engine: "core-v2.0.0",
-    prompt: "core-v2-test-fixture-prompts-1.0.0",
+    engine: ANALYSIS_ENGINE_VERSION,
+    prompt: "tracera-test-fixture-prompts-1.0.0",
     model: "test-fixture-model",
-    retriever: FOCUSED_RETRIEVER_VERSION,
+    retriever: ANALYSIS_RETRIEVER_VERSION,
     embedding: {
       model: "test-fixture-embedding",
       dimensions: EMBEDDING_DIMENSIONS,
-      preprocessing: FOCUSED_EMBEDDING_PREPROCESSING,
+      preprocessing: ANALYSIS_EMBEDDING_PREPROCESSING,
     },
     calibration: null,
   };
 }
 
-export function focusedRunContext(
+export function analysisRunContext(
   ownerUserId: string,
   input: RunInput,
-  policy: FocusedRuntimePolicy,
+  policy: AnalysisRuntimePolicy,
 ): RunContext {
   return runContextSchema.parse({
     runId: randomUUID(),
@@ -899,7 +902,7 @@ export function focusedRunContext(
     executionMode: policy.mode,
     budget: policy.budget,
     cancellation: { requested: false, requestedAt: null, reason: null },
-    auditSinkId: `core-audit:${ownerUserId}`,
+    auditSinkId: `analysis-audit:${ownerUserId}`,
   });
 }
 

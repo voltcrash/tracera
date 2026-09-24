@@ -85,7 +85,7 @@ export function validateAssessment(
     dependence: "unknown",
     dependenceLocators: [],
     method: {
-      name: "entailment-v2",
+      name: "evidence-assessment",
       model: method.model,
       promptVersion: EVIDENCE_ASSESSMENT_PROMPT_VERSION,
       engineVersion: method.engineVersion,

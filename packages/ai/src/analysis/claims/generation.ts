@@ -3,8 +3,8 @@ import { z } from "zod";
 import type { GenerationRequest } from "../types";
 import type { ExtractionChunk, InventorySegment } from "./segmentation";
 
-export const CLAIM_EXTRACTION_SCHEMA_NAME = "core-v2-claim-inventory-chunk";
-export const CLAIM_EXTRACTION_PROMPT_VERSION = "core-v2-claims-1.0.0";
+export const CLAIM_EXTRACTION_SCHEMA_NAME = "tracera-claim-inventory-chunk";
+export const CLAIM_EXTRACTION_PROMPT_VERSION = "tracera-claims-1.0.0";
 
 const text = z.string().min(1);
 

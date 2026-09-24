@@ -773,7 +773,7 @@ test("extraction evaluation aligns with gold spans only and never grades itself"
     ],
   };
   const adapter = createClaimExtractionAdapter({
-    id: "core-v2-claims-fixture",
+    id: "tracera-claims-fixture",
     version: "1.0.0",
     modes: ["fixture"],
     createEnvironment: () => fixtureEnvironment(createScriptedClaimGeneration(script)).environment,

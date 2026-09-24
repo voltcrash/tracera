@@ -19,7 +19,7 @@ const split = arguments_.get("split") ?? "all";
 const seed = Number(arguments_.get("seed") ?? 20260910);
 if (mode !== "fixture")
   throw new Error(
-    "Core adjudication evaluation supports fixture mode only; no production generation connector or adjudicated calibration data exists.",
+    "Adjudication evaluation supports fixture mode only; no production generation connector or adjudicated calibration data exists.",
   );
 if (split !== "all") throw new Error("The adjudication invariant fixture has only the all split.");
 if (seed !== 20260910)

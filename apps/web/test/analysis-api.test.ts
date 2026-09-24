@@ -6,9 +6,9 @@ import type { AuthUser } from "@repo/db";
 import type { AnalysisRunProgress } from "@repo/db/analysis/repository";
 import { createAnalysisApp, type AnalysisDependencies } from "../src/server/analysis";
 import {
-  focusedRuntimePolicy,
+  analysisRuntimePolicy,
   type AnalysisRuntimeRepository,
-  type FocusedRunExecutionInput,
+  type AnalysisRunExecutionInput,
 } from "../src/server/analysis-runtime";
 import { app, type Bindings } from "../src/server/index";
 
@@ -25,7 +25,7 @@ const env = {
   BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long",
 } satisfies Bindings;
 
-function createHarness(execute: (input: FocusedRunExecutionInput) => Promise<RunAnalysisResult>) {
+function createHarness(execute: (input: AnalysisRunExecutionInput) => Promise<RunAnalysisResult>) {
   let savedResponse: { body: unknown; status: number } | null = null;
   let executions = 0;
   const progress = new Map<string, AnalysisRunProgress>();
@@ -108,7 +108,7 @@ function createHarness(execute: (input: FocusedRunExecutionInput) => Promise<Run
   };
 }
 
-function completeResult(input: FocusedRunExecutionInput) {
+function completeResult(input: AnalysisRunExecutionInput) {
   const report = reportFor(input, "complete");
   return {
     status: "complete" as const,
@@ -120,7 +120,7 @@ function completeResult(input: FocusedRunExecutionInput) {
 }
 
 function reportFor(
-  input: FocusedRunExecutionInput,
+  input: AnalysisRunExecutionInput,
   status: "complete" | "partial" | "unavailable" | "failed",
   issueCode?: "provider_failure" | "content_unavailable" | "timeout" | "budget_exhausted",
 ) {
@@ -371,35 +371,40 @@ test("deployed focused policy requires explicit live provider and budget setting
     AI_ESTIMATED_IMAGE_COST_USD: "0.02",
     AI_ESTIMATED_EMBEDDING_COST_USD: "0.0001",
   };
-  const missing = focusedRuntimePolicy(provider);
+  const missing = analysisRuntimePolicy(provider);
   assert.equal(missing.enabled, false);
-  const missingSpend = focusedRuntimePolicy({ ...provider, ...budget });
+  const missingSpend = analysisRuntimePolicy({ ...provider, ...budget });
   assert.equal(missingSpend.enabled, false);
 
-  const enabled = focusedRuntimePolicy({ ...provider, ...budget, ...spend });
+  const enabled = analysisRuntimePolicy({ ...provider, ...budget, ...spend });
   assert.equal(enabled.enabled, true);
   if (enabled.enabled) {
     assert.equal(enabled.policy.mode, "live");
     assert.equal(enabled.policy.providerConfig?.model, "configured-model");
     assert.equal(enabled.policy.budget.maxCostUsd, 1);
+    assert.equal(enabled.policy.versions.engine, "tracera-analysis-1.0.0");
+    assert.equal(enabled.policy.versions.prompt, "tracera-prompts-1.0.0");
   }
 });
 
 test("deterministic focused fixtures are limited to the test profile", () => {
-  const testPolicy = focusedRuntimePolicy({
+  const testPolicy = analysisRuntimePolicy({
     TRACERA_PROFILE: "test",
     TRACERA_ANALYSIS_MODE: "fixture",
   });
-  const deployedFixture = focusedRuntimePolicy({
+  const deployedFixture = analysisRuntimePolicy({
     TRACERA_PROFILE: "deployed",
     TRACERA_ANALYSIS_MODE: "fixture",
   });
-  const unknownMode = focusedRuntimePolicy({
+  const unknownMode = analysisRuntimePolicy({
     TRACERA_PROFILE: "deployed",
     TRACERA_ANALYSIS_MODE: "shadow",
   });
 
   assert.equal(testPolicy.enabled, true);
+  if (testPolicy.enabled) {
+    assert.equal(testPolicy.policy.versions.engine, "tracera-analysis-1.0.0");
+  }
   assert.equal(deployedFixture.enabled, false);
   assert.equal(unknownMode.enabled, false);
 });

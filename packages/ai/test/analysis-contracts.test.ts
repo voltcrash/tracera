@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { analysisExamples, runReportSchema, type RunReport } from "@repo/contracts/analysis";
+import {
+  analysisExamples,
+  focusedPublicationDecisionSchema,
+  focusedPublicationPolicySchema,
+  focusedSelectionSchema,
+  runReportSchema,
+  type RunReport,
+} from "@repo/contracts/analysis";
 import { test } from "vite-plus/test";
 
 function mutate(change: (report: RunReport) => void) {
@@ -8,14 +15,14 @@ function mutate(change: (report: RunReport) => void) {
   return runReportSchema.safeParse(report);
 }
 
-test("every canonical core v2 example is valid", () => {
+test("every saved report example is valid", () => {
   for (const [name, example] of Object.entries(analysisExamples)) {
     const result = runReportSchema.safeParse(example);
     assert.equal(result.success, true, `${name}: ${JSON.stringify(result.error?.issues)}`);
   }
 });
 
-test("core v2 rejects dangling and invalid citations", () => {
+test("analysis rejects dangling and invalid citations", () => {
   const dangling = mutate((report) => {
     report.decisions[0]!.supportingAssessmentIds = ["assess_missing"];
   });
@@ -32,7 +39,7 @@ test("core v2 rejects dangling and invalid citations", () => {
   assert.equal(unvalidated.success, false);
 });
 
-test("core v2 rejects inconsistent and ungated score states", () => {
+test("analysis rejects inconsistent and ungated score states", () => {
   const wrongScore = mutate((report) => {
     report.scorecard!.factualScore = 80;
   });
@@ -56,7 +63,7 @@ test("core v2 rejects inconsistent and ungated score states", () => {
   assert.equal(scoredWhileCanceled.success, false);
 });
 
-test("core v2 gates decisive labels behind calibration and challenge", () => {
+test("saved reports gate decisive labels behind calibration and challenge", () => {
   const uncalibrated = mutate((report) => {
     report.decisions[0]!.calibration = {
       applicability: "unavailable",
@@ -71,4 +78,43 @@ test("core v2 gates decisive labels behind calibration and challenge", () => {
     report.decisions[0]!.challenge.status = "unresolved";
   });
   assert.equal(unresolvedChallenge.success, false);
+});
+
+test("saved selection and publication identifiers remain readable", () => {
+  assert.equal(
+    focusedSelectionSchema.shape.policyVersion.parse("core-v2-focused-1.0.0"),
+    "core-v2-focused-1.0.0",
+  );
+  assert.equal(
+    focusedSelectionSchema.shape.selectionVersion.parse("core-v2-focused-selection-1.0.0"),
+    "core-v2-focused-selection-1.0.0",
+  );
+  const calibration = {
+    status: "not_used",
+    probability: null,
+    reason: "Focused policy is evidence-gated and does not use statistical calibration.",
+  };
+  const policy = focusedPublicationPolicySchema.parse({
+    policyVersion: "core-v2-focused-publication-1.0.0",
+    decisionVersion: "core-v2-focused-decision-1.0.0",
+    mode: "evidence_gated",
+    scoreFormulaVersion: "focused-supported-share-1.0.0",
+    calibration,
+  });
+  assert.equal(policy.policyVersion, "core-v2-focused-publication-1.0.0");
+  assert.equal(
+    focusedPublicationPolicySchema.safeParse({
+      ...policy,
+      policyVersion: "tracera-publication-1.0.0",
+    }).success,
+    false,
+  );
+  const decision = focusedPublicationDecisionSchema.parse({
+    policyVersion: policy.policyVersion,
+    decisionVersion: policy.decisionVersion,
+    status: "published",
+    gate: "passed",
+    calibration,
+  });
+  assert.equal(decision.decisionVersion, "core-v2-focused-decision-1.0.0");
 });

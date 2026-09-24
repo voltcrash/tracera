@@ -1,11 +1,6 @@
 /*
- * Frozen v2 core contracts. Every downstream core stage imports these schemas
- * and types; parallel models are not permitted.
- *
- * Offsets are half-open UTF-16 code-unit ranges into the referenced snapshot
- * text. Unknown values are explicit null, never a fabricated timestamp, score
- * or confidence. Core evidence objects are strict: there is no free-form JSON
- * escape hatch anywhere in this file.
+ * Analysis contracts. Offsets are half-open UTF-16 code-unit ranges into the
+ * referenced snapshot text. Unknown values are explicit null.
  */
 import { z } from "zod";
 
@@ -13,13 +8,15 @@ export const ANALYSIS_SCHEMA_VERSION = 2 as const;
 export const ANALYSIS_CONTRACT_VERSION = "2.0.0" as const;
 export const ANALYSIS_SCORE_FORMULA_VERSION = "factual-supported-share-1.0.0" as const;
 export const ANALYSIS_RESOLUTION_COVERAGE_THRESHOLD = 0.8 as const;
-export const ANALYSIS_FOCUSED_POLICY_VERSION = "core-v2-focused-1.0.0" as const;
-export const ANALYSIS_FOCUSED_SELECTION_VERSION = "core-v2-focused-selection-1.0.0" as const;
+export const ANALYSIS_FOCUSED_POLICY_VERSION = "tracera-selection-1.0.0" as const;
+export const ANALYSIS_FOCUSED_SELECTION_VERSION = "tracera-claim-selection-1.0.0" as const;
 export const ANALYSIS_FOCUSED_MAX_SELECTED_CLAIMS = 3 as const;
-export const ANALYSIS_FOCUSED_PUBLICATION_POLICY_VERSION =
-  "core-v2-focused-publication-1.0.0" as const;
-export const ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION =
-  "core-v2-focused-decision-1.0.0" as const;
+export const ANALYSIS_FOCUSED_PUBLICATION_POLICY_VERSION = "tracera-publication-1.0.0" as const;
+export const ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION = "tracera-decision-1.0.0" as const;
+const LEGACY_SELECTION_POLICY_VERSION = "core-v2-focused-1.0.0" as const;
+const LEGACY_SELECTION_VERSION = "core-v2-focused-selection-1.0.0" as const;
+const LEGACY_PUBLICATION_POLICY_VERSION = "core-v2-focused-publication-1.0.0" as const;
+const LEGACY_PUBLICATION_DECISION_VERSION = "core-v2-focused-decision-1.0.0" as const;
 export const ANALYSIS_FOCUSED_SCORE_FORMULA_VERSION = "focused-supported-share-1.0.0" as const;
 export const ANALYSIS_FOCUSED_NON_CALIBRATION_REASON =
   "Focused policy is evidence-gated and does not use statistical calibration." as const;
@@ -509,8 +506,8 @@ export const focusedSelectionCoverageSchema = z.strictObject({
 
 export const focusedSelectionSchema = z
   .strictObject({
-    policyVersion: z.literal(ANALYSIS_FOCUSED_POLICY_VERSION),
-    selectionVersion: z.literal(ANALYSIS_FOCUSED_SELECTION_VERSION),
+    policyVersion: z.enum([ANALYSIS_FOCUSED_POLICY_VERSION, LEGACY_SELECTION_POLICY_VERSION]),
+    selectionVersion: z.enum([ANALYSIS_FOCUSED_SELECTION_VERSION, LEGACY_SELECTION_VERSION]),
     maxSelectedClaims: z.literal(ANALYSIS_FOCUSED_MAX_SELECTED_CLAIMS),
     inputSnapshotHash: contentHashSchema.nullable(),
     inventoryStatus: stageStatusSchema,
@@ -523,6 +520,16 @@ export const focusedSelectionSchema = z
     shortfallReason: z.string().min(1).nullable(),
   })
   .superRefine((value, context) => {
+    if (
+      (value.policyVersion === ANALYSIS_FOCUSED_POLICY_VERSION) !==
+      (value.selectionVersion === ANALYSIS_FOCUSED_SELECTION_VERSION)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["selectionVersion"],
+        message: "Selection and policy versions must belong to the same release.",
+      });
+    }
     const entries = new Map<string, z.infer<typeof focusedSelectionClaimSchema>>();
     for (const [index, entry] of value.claims.entries()) {
       if (entries.has(entry.claimId)) {
@@ -1019,21 +1026,47 @@ export const focusedPublicationCalibrationSchema = z.strictObject({
   reason: z.literal(ANALYSIS_FOCUSED_NON_CALIBRATION_REASON),
 });
 
-export const focusedPublicationPolicySchema = z.strictObject({
-  policyVersion: z.literal(ANALYSIS_FOCUSED_PUBLICATION_POLICY_VERSION),
-  decisionVersion: z.literal(ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION),
-  mode: z.literal("evidence_gated"),
-  scoreFormulaVersion: z.literal(ANALYSIS_FOCUSED_SCORE_FORMULA_VERSION),
-  calibration: focusedPublicationCalibrationSchema,
-});
+export const focusedPublicationPolicySchema = z
+  .strictObject({
+    policyVersion: z.enum([
+      ANALYSIS_FOCUSED_PUBLICATION_POLICY_VERSION,
+      LEGACY_PUBLICATION_POLICY_VERSION,
+    ]),
+    decisionVersion: z.enum([
+      ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION,
+      LEGACY_PUBLICATION_DECISION_VERSION,
+    ]),
+    mode: z.literal("evidence_gated"),
+    scoreFormulaVersion: z.literal(ANALYSIS_FOCUSED_SCORE_FORMULA_VERSION),
+    calibration: focusedPublicationCalibrationSchema,
+  })
+  .refine(
+    ({ policyVersion, decisionVersion }) =>
+      (policyVersion === ANALYSIS_FOCUSED_PUBLICATION_POLICY_VERSION) ===
+      (decisionVersion === ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION),
+    { path: ["decisionVersion"], message: "Publication versions must belong to the same release." },
+  );
 
-export const focusedPublicationDecisionSchema = z.strictObject({
-  policyVersion: z.literal(ANALYSIS_FOCUSED_PUBLICATION_POLICY_VERSION),
-  decisionVersion: z.literal(ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION),
-  status: z.enum(["published", "abstained"]),
-  gate: focusedPublicationGateSchema,
-  calibration: focusedPublicationCalibrationSchema,
-});
+export const focusedPublicationDecisionSchema = z
+  .strictObject({
+    policyVersion: z.enum([
+      ANALYSIS_FOCUSED_PUBLICATION_POLICY_VERSION,
+      LEGACY_PUBLICATION_POLICY_VERSION,
+    ]),
+    decisionVersion: z.enum([
+      ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION,
+      LEGACY_PUBLICATION_DECISION_VERSION,
+    ]),
+    status: z.enum(["published", "abstained"]),
+    gate: focusedPublicationGateSchema,
+    calibration: focusedPublicationCalibrationSchema,
+  })
+  .refine(
+    ({ policyVersion, decisionVersion }) =>
+      (policyVersion === ANALYSIS_FOCUSED_PUBLICATION_POLICY_VERSION) ===
+      (decisionVersion === ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION),
+    { path: ["decisionVersion"], message: "Decision versions must belong to the same release." },
+  );
 
 export const challengeSchema = z.strictObject({
   status: z.enum(["not_required", "resolved", "unresolved", "failed"]),

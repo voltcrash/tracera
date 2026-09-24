@@ -221,7 +221,7 @@ test("setup and loading detect every Next.js environment file variant", () => {
   ]);
 });
 
-test("core storage integration targets must be disposable loopback test databases", () => {
+test("analysis storage integration targets must be disposable loopback test databases", () => {
   const target = (url: string, profile = "test") =>
     localRuntimeEnvironment({ TRACERA_PROFILE: profile, ANALYSIS_STORAGE_TEST_DATABASE_URL: url });
   const disposable =

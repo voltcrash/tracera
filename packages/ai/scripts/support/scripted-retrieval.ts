@@ -192,7 +192,7 @@ export function createScriptedRetrievalEnvironment(options: {
     context: {
       ...runContextExample,
       runId: "run_retrieval_fixture",
-      versions: { ...runContextExample.versions, retriever: "core-retriever-2.0.0" },
+      versions: { ...runContextExample.versions, retriever: "tracera-retrieval-1.0.0" },
       budget: { ...runContextExample.budget, ...options.budget },
     },
     ports,

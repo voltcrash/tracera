@@ -58,7 +58,7 @@ export function adjudicationAssessment(
       name: "adjudication-fixture",
       model: null,
       promptVersion: null,
-      engineVersion: "core-v2.0.0",
+      engineVersion: "tracera-analysis-1.0.0",
     },
     checks: [
       { check: "citation_reference", result: "pass", detail: "Fixture IDs match." },

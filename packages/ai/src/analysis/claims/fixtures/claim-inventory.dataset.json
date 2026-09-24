@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "datasetId": "core-claim-inventory-fixture",
+  "datasetId": "tracera-claim-inventory-fixture",
   "datasetVersion": "1.0.0",
   "license": {
     "name": "Synthetic fixture; repository license",

@@ -4,10 +4,10 @@ import type { ChallengeInput } from "../evidence/index";
 import type { GenerationRequest } from "../types";
 import type { ChallengeProposal, DraftProposal } from "./types";
 
-export const ADJUDICATION_DRAFT_SCHEMA_NAME = "core-v2-adjudication-draft";
-export const ADJUDICATION_CHALLENGE_SCHEMA_NAME = "core-v2-adjudication-challenge";
-export const ADJUDICATION_PROMPT_VERSION = "core-v2-adjudication-1.0.0";
-export const CHALLENGE_PROMPT_VERSION = "core-v2-challenge-1.0.0";
+export const ADJUDICATION_DRAFT_SCHEMA_NAME = "tracera-adjudication-draft";
+export const ADJUDICATION_CHALLENGE_SCHEMA_NAME = "tracera-adjudication-challenge";
+export const ADJUDICATION_PROMPT_VERSION = "tracera-adjudication-1.0.0";
+export const CHALLENGE_PROMPT_VERSION = "tracera-challenge-1.0.0";
 
 const idsSchema = z.array(z.string().min(1));
 

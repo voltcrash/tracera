@@ -7,8 +7,8 @@ import { z } from "zod";
 import type { Claim, DocumentSnapshot } from "@repo/contracts/analysis";
 import type { EvidenceGenerationRequest, RawAssessment } from "./types";
 
-export const EVIDENCE_ASSESSMENT_SCHEMA_NAME = "core-v2-evidence-assessment";
-export const EVIDENCE_ASSESSMENT_PROMPT_VERSION = "core-v2-evidence-1.0.0";
+export const EVIDENCE_ASSESSMENT_SCHEMA_NAME = "tracera-evidence-assessment";
+export const EVIDENCE_ASSESSMENT_PROMPT_VERSION = "tracera-evidence-1.0.0";
 
 export const rawAssessmentSchema = z.strictObject({
   claimId: z.string().min(1),

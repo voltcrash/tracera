@@ -21,7 +21,7 @@ export const RUNTIME_TABLE_GRANTS = {
   analysis_force_cooldowns: READ_WRITE,
   ai_provider_spend: READ_WRITE,
   ai_spend_reservations: READ_WRITE,
-  // 0029: Core v2 storage.
+  // 0029: analysis storage.
   core_runs: READ_WRITE,
   core_jobs: READ_WRITE,
   core_outbox: READ_WRITE,

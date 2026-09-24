@@ -1,5 +1,5 @@
 {
-  "version": "core-v2-focused-acceptance-1.0.0",
+  "version": "tracera-analysis-acceptance-1.0.0",
   "description": "Deterministic browser acceptance scenarios for the focused user flow. These cases verify UI behavior and explicit states; they do not measure accuracy.",
   "cases": [
     "pasted article text",

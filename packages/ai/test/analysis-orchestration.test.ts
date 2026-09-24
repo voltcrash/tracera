@@ -3,7 +3,7 @@ import { describe, test } from "vite-plus/test";
 import { analysisExamples } from "@repo/contracts/analysis";
 import { acceptStoredSnapshots } from "../src/analysis/index.js";
 
-describe("Core v2 stored artifacts", () => {
+describe("stored analysis artifacts", () => {
   test("stored snapshot IDs accept only identical immutable content", async () => {
     const [stored] = analysisExamples.complete.snapshots;
     const writes: string[] = [];

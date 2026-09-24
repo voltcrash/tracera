@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "datasetId": "core-invariants",
+  "datasetId": "tracera-analysis-invariants",
   "datasetVersion": "1.0.0",
   "license": {
     "name": "Synthetic fixture; repository license",

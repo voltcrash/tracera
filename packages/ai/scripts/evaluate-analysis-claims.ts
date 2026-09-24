@@ -1,6 +1,6 @@
 /*
  * Claim-inventory evaluation. Fixture mode replays scripted generation output
- * through the real v2 extractor and aligns the result with a synthetic
+ * through the claim extractor and aligns the result with a synthetic
  * inventory. Synthetic entries are excluded from empirical metrics, so those
  * stay not_evaluated until adjudicated human gold exists.
  */
@@ -44,7 +44,7 @@ const scripts = JSON.parse(
 const extract = createExtractClaims({ maxChunkCharacters: 200, overlapCharacters: 60 });
 
 const adapter = createClaimExtractionAdapter({
-  id: "core-v2-claim-inventory",
+  id: "tracera-claim-inventory",
   version: "1.0.0",
   modes: ["fixture"],
   extract,

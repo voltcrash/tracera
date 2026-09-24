@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { analysisExamples } from "@repo/contracts/analysis";
 
 const acceptance = {
-  version: "core-v2-focused-acceptance-1.0.0",
+  version: "tracera-analysis-acceptance-1.0.0",
   cases: [
     "pasted article text",
     "public link submission",
@@ -15,9 +15,9 @@ const acceptance = {
   ],
 } as const;
 
-test.describe("Core v2 Focused acceptance fixture", () => {
+test.describe("Tracera analysis acceptance fixture", () => {
   test("keeps the browser acceptance scope explicit", async () => {
-    expect(acceptance.version).toBe("core-v2-focused-acceptance-1.0.0");
+    expect(acceptance.version).toBe("tracera-analysis-acceptance-1.0.0");
     expect(acceptance.cases).toEqual([
       "pasted article text",
       "public link submission",

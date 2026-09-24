@@ -133,7 +133,7 @@ export function provenanceAssessment(
       name: "provenance-fixture",
       model: null,
       promptVersion: null,
-      engineVersion: "core-v2.0.0",
+      engineVersion: "tracera-analysis-1.0.0",
     },
     checks: [{ check: "quote_offsets", result: "pass", detail: "Exact fixture quote." }],
     calculation: null,
@@ -153,7 +153,7 @@ export function createProvenanceEnvironment(options: { signal?: AbortSignal } = 
     ports: {
       generation: {
         modelId: "provenance-fixture",
-        promptVersion: "evidence-assessment-v2.0.0",
+        promptVersion: "evidence-assessment-1.0.0",
         async generate<Value>(request: GenerationRequest<Value>) {
           assessmentCalls += 1;
           const claim = JSON.parse(request.untrustedContent[0]!.text) as Claim;

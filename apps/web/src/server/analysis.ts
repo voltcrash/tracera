@@ -23,10 +23,10 @@ import type { Bindings } from "./index";
 import { readAnalysisRequestBody } from "./request-body";
 import {
   executeFocusedRun,
-  focusedRunContext,
-  focusedRuntimePolicy,
+  analysisRunContext,
+  analysisRuntimePolicy,
   type AnalysisRuntimeRepository,
-  type FocusedRuntimePolicyResult,
+  type AnalysisRuntimePolicyResult,
 } from "./analysis-runtime";
 
 type AnalysisContext = Context<{ Bindings: Bindings }>;
@@ -50,7 +50,7 @@ export interface AnalysisDependencies {
   admit?: Admit;
   finish?: Finish;
   execute?: Execute;
-  policy?: (environment: Record<string, string | undefined>) => FocusedRuntimePolicyResult;
+  policy?: (environment: Record<string, string | undefined>) => AnalysisRuntimePolicyResult;
 }
 
 export function createAnalysisApp(dependencies: AnalysisDependencies = {}) {
@@ -61,7 +61,7 @@ export function createAnalysisApp(dependencies: AnalysisDependencies = {}) {
   const admit = dependencies.admit ?? admitAnalysis;
   const finish = dependencies.finish ?? finishAnalysisAdmission;
   const execute = dependencies.execute ?? executeFocusedRun;
-  const policy = dependencies.policy ?? focusedRuntimePolicy;
+  const policy = dependencies.policy ?? analysisRuntimePolicy;
 
   app.post("/analyze", async (context) => {
     const requestBody = await readAnalysisRequestBody(context.req.raw);
@@ -112,7 +112,7 @@ export function createAnalysisApp(dependencies: AnalysisDependencies = {}) {
     }
 
     const input = analysisInput(parsed.data);
-    const runContext = focusedRunContext(user.id, input, runtime.policy);
+    const runContext = analysisRunContext(user.id, input, runtime.policy);
     const finishAdmission = (responseBody: Record<string, unknown>, responseStatus: number) =>
       finish({
         userId: user.id,
@@ -364,7 +364,7 @@ async function accessFor(
 
 function focusedUnavailableResponse(
   context: AnalysisContext,
-  runtime: Extract<FocusedRuntimePolicyResult, { enabled: false }>,
+  runtime: Extract<AnalysisRuntimePolicyResult, { enabled: false }>,
 ) {
   return context.json(
     {

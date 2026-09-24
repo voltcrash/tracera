@@ -1,8 +1,8 @@
 {
-  "version": "core-v2-focused-invariants-1.0.0",
+  "version": "tracera-analysis-invariants-1.0.0",
   "seed": 20260910,
   "humanGoldClaims": 0,
-  "description": "Deterministic focused Core v2 guardrails for score gating and auxiliary feature boundaries. These fixtures exercise code paths only and establish no population-level accuracy.",
+  "description": "Deterministic analysis guardrails for score gating and auxiliary feature boundaries. These fixtures exercise code paths only and establish no population-level accuracy.",
   "cases": [
     "focused-empty-selection-is-null",
     "focused-ratio-and-counts",

@@ -1,5 +1,5 @@
 {
-  "version": "core-v2-provenance-fixture-1.0.0",
+  "version": "tracera-provenance-fixture-1.0.0",
   "seed": 20260910,
   "goldKind": "synthetic_invariant",
   "humanGoldClaims": 0,

@@ -1,8 +1,8 @@
 {
-  "version": "core-v2-release-fixtures-1.0.0",
+  "version": "tracera-analysis-release-fixtures-1.0.0",
   "seed": 20260910,
   "humanGoldClaims": 0,
-  "description": "Synthetic security and integrity fixtures for Task 12. They exercise frozen Core v2 validation paths and do not establish empirical accuracy, calibration, cost, or latency.",
+  "description": "Synthetic security and integrity fixtures for Task 12. They exercise analysis validation paths and do not establish empirical accuracy, calibration, cost, or latency.",
   "cases": [
     "retrieval_prompt_injection",
     "ssrf",

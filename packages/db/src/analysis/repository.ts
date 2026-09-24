@@ -252,7 +252,7 @@ export class AnalysisRepository {
       await client.query(
         `INSERT INTO core_outbox
            (id, tenant_id, owner_user_id, visibility, run_id, topic, deduplication_key, payload)
-         VALUES ($1, $2, $3, $4, $5, 'core.job.queued', $6, $7::jsonb)
+         VALUES ($1, $2, $3, $4, $5, 'analysis.job.queued', $6, $7::jsonb)
          ON CONFLICT (tenant_id, owner_user_id, visibility, deduplication_key) DO NOTHING`,
         [
           `outbox:${jobId}`,

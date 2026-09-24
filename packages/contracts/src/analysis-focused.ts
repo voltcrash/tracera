@@ -1,7 +1,4 @@
-/**
- * Additive Core v2 Focused contract surface. The compatibility baseline remains
- * available from `@repo/contracts/analysis` and is not reinterpreted here.
- */
+/** Selection and publication contracts for analysis. */
 export {
   ANALYSIS_FOCUSED_NON_CALIBRATION_REASON,
   ANALYSIS_FOCUSED_MAX_SELECTED_CLAIMS,

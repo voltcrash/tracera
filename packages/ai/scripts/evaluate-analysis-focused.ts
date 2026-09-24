@@ -17,7 +17,7 @@ const arguments_ = new Map(
 const mode = arguments_.get("mode") ?? "fixture";
 const split = arguments_.get("split") ?? "all";
 const seed = Number(arguments_.get("seed") ?? 20260910);
-if (mode !== "fixture") throw new Error("Focused Core v2 evaluation supports fixture mode only.");
+if (mode !== "fixture") throw new Error("Analysis evaluation supports fixture mode only.");
 if (split !== "all") throw new Error("The focused invariant fixture has only the all split.");
 if (seed !== 20260910) throw new Error("The focused invariant fixture requires seed 20260910.");
 

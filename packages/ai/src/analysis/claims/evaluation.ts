@@ -126,7 +126,7 @@ export interface ClaimExtractionAdapterOptions {
   extract?: ExtractClaims;
 }
 
-/** Extraction-only v2 adapter. It emits no verdict predictions. */
+/** Claim extraction adapter. It emits no verdict predictions. */
 export function createClaimExtractionAdapter(
   adapterOptions: ClaimExtractionAdapterOptions,
 ): EvaluationAdapter {
