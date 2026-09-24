@@ -15,7 +15,6 @@
     "provenance-is-scoped-and-dependent",
     "framing-is-presentation-only",
     "image-uncertainty-is-explicit",
-    "reuse-is-exact-and-scoped",
     "timeline-uses-immutable-observations"
   ]
 }

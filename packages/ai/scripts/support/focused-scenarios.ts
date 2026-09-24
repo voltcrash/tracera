@@ -11,9 +11,6 @@ import {
 } from "@repo/contracts/core-v2";
 import {
   buildImmutableTimeline,
-  decideReportReuse,
-  hashValue,
-  propositionScopeHash,
   projectReport,
   publishFocusedDecisions,
   scoreReportV2,
@@ -44,7 +41,6 @@ export const FOCUSED_SCENARIOS = [
   "provenance-is-scoped-and-dependent",
   "framing-is-presentation-only",
   "image-uncertainty-is-explicit",
-  "reuse-is-exact-and-scoped",
   "timeline-uses-immutable-observations",
 ] as const;
 
@@ -390,66 +386,6 @@ export async function runFocusedScenario(id: FocusedScenario) {
         assert.equal(view.visualVerification.observations[0]!.transcriptionUncertain, true);
         assert.equal(view.visualVerification.visualProvenance, "not_verified");
       }
-      return;
-    }
-    case "reuse-is-exact-and-scoped": {
-      const example = coreV2Examples.complete;
-      const identity = {
-        contentHash: example.snapshots[0]!.contentHash,
-        propositionScopeHash: hashValue(
-          "the exact proposition scope from the owner and tenant fixture",
-        ),
-        versions: example.replayManifest.versions,
-        visibility: example.visibility,
-        asOfTime: example.asOfTime,
-        maxAgeMs: 60_000,
-      } as const;
-      const exact = decideReportReuse(example, {
-        ...identity,
-        propositionScopeHash: hashValue(
-          JSON.stringify(
-            example.claims
-              .filter(({ duplicateOfClaimId }) => duplicateOfClaimId === null)
-              .map(({ id }) => id),
-          ),
-        ),
-      });
-      assert.equal(exact.reason, "proposition_scope_changed");
-
-      const compatible = decideReportReuse(example, {
-        ...identity,
-        propositionScopeHash: propositionScopeHash(example.claims),
-      });
-      assert.equal(compatible.reusable, true);
-      assert.equal(
-        decideReportReuse(
-          {
-            ...example,
-            evidenceSetHash: hashValue("changed evidence"),
-          },
-          {
-            ...identity,
-            propositionScopeHash: propositionScopeHash(example.claims),
-          },
-        ).reason,
-        "incomplete",
-      );
-      assert.equal(
-        decideReportReuse(example, {
-          ...identity,
-          propositionScopeHash: propositionScopeHash(example.claims),
-          visibility: "public",
-        }).reason,
-        "visibility_changed",
-      );
-      assert.equal(
-        decideReportReuse(example, {
-          ...identity,
-          propositionScopeHash: propositionScopeHash(example.claims),
-          asOfTime: "2026-09-11T00:00:00.000Z",
-        }).reason,
-        "stale",
-      );
       return;
     }
     case "timeline-uses-immutable-observations": {

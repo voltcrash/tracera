@@ -44,7 +44,6 @@
     "test:core-orchestration": "vp test --run test/core-orchestration.test.ts",
     "test:core-publication": "vp test --run test/core-publication.test.ts",
     "test:core-release": "vp test --run test/core-release-evaluation.test.ts",
-    "replay:core": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/replay-core.ts",
     "test:live": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/live-test.ts"
   },
   "dependencies": {

@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { coreV2Examples } from "@repo/contracts/core-v2";
 import { createSafeFetch } from "../../src/safe-fetch.js";
 import { buildAssessmentRequest, createAssessEvidenceV2 } from "../../src/core/evidence/index.js";
 import { createDocumentAcquisitionPort, type OcrPort } from "../../src/core/ingestion/index.js";
-import { decideReportReuse, hashValue, propositionScopeHash } from "../../src/core/index.js";
+import { hashValue } from "../../src/core/index.js";
 import { buildPropositionKey, createRetrieveEvidenceV2 } from "../../src/core/retrieval/index.js";
 import { runInvariantFixture } from "../../evaluation/harness.js";
 import { evaluationDatasetSchema } from "../../evaluation/schemas.js";
@@ -29,7 +28,6 @@ export const RELEASE_FIXTURE_SCENARIOS = [
   "number_unit_changes",
   "future_leakage",
   "missing_ocr_text",
-  "reused_altered_images",
 ] as const;
 
 export type ReleaseFixtureScenario = (typeof RELEASE_FIXTURE_SCENARIOS)[number];
@@ -56,8 +54,6 @@ export async function runReleaseFixtureScenario(
       return futureLeakage();
     case "missing_ocr_text":
       return missingOcrText();
-    case "reused_altered_images":
-      return reusedAlteredImages();
   }
 }
 
@@ -280,26 +276,6 @@ async function missingOcrText(): Promise<ReleaseFixtureResult> {
       "uncertain_ocr_is_not_visual_verification",
     ],
   };
-}
-
-function reusedAlteredImages(): ReleaseFixtureResult {
-  const report = coreV2Examples.complete;
-  const identity = {
-    contentHash: report.snapshots[0]!.contentHash,
-    propositionScopeHash: propositionScopeHash(report.claims),
-    versions: report.replayManifest.versions,
-    visibility: report.visibility,
-    asOfTime: report.asOfTime,
-    maxAgeMs: 60_000,
-  } as const;
-  const altered = decideReportReuse(report, {
-    ...identity,
-    contentHash: hashValue("altered-image-bytes"),
-  });
-
-  assert.equal(altered.reusable, false);
-  assert.equal(altered.reason, "content_changed");
-  return { checks: ["altered_image_content_cannot_be_reused", "similarity_is_not_identity"] };
 }
 
 function requireFixtureDataset() {

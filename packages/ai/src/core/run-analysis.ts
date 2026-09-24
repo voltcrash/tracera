@@ -23,7 +23,6 @@ import {
 } from "@repo/contracts/core-v2";
 import { z } from "zod";
 import { createAdjudicateClaimsV2, type TargetedEvidence } from "./adjudication/index";
-import { createCalibrateDecisionsV2 } from "./calibration/index";
 import { createExtractClaimsV2 } from "./claims/index";
 import { createAssessEvidenceV2 } from "./evidence/index";
 import { canonicalJson, evidenceSetHash, hashValue, snapshotIdentity } from "./hashing";
@@ -31,19 +30,12 @@ import { normalizeInputV2 } from "./ingestion/index";
 import { createFocusedPublicationV2, FOCUSED_PUBLICATION_POLICY } from "./publication/index";
 import { createTraceOriginsV2, type ArchiveLookupPort } from "./provenance/index";
 import { createRetrieveEvidenceV2, type RetrievalOptions } from "./retrieval/index";
-import {
-  decideReportReuse,
-  propositionScopeHash,
-  type ReportReuseLookup,
-  type ReuseDecision,
-} from "./reuse-policy";
 import { scoreReportV2 } from "./scoring/index";
 import { coverageForSelectedClaims, selectTopClaims } from "./selection/index";
 import type {
   AdjudicateClaimsV2,
   AssessEvidenceV2,
   AssessEvidenceV2Data,
-  CalibrateDecisionsV2,
   ExtractClaimsV2,
   FocusedPublicationV2,
   FocusedPublicationV2Data,
@@ -92,7 +84,6 @@ export interface RunAnalysisV2Options {
   stages?: Partial<RunAnalysisV2StageFactories>;
   retrieval?: Omit<RetrievalOptions, "priorExternalRequests" | "priorCostUsd">;
   archive?: ArchiveLookupPort;
-  reuse?: ReportReuseLookup;
 }
 
 interface RunState {
@@ -243,26 +234,6 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
     state.issues.push(...focused.issues);
     const analyzedClaims = () =>
       state.claims.filter((claim) => state.selectedClaimIds.includes(claim.id));
-
-    if (
-      options.reuse &&
-      normalized.result.status === "complete" &&
-      extracted.result.status === "complete"
-    ) {
-      const decision = await reuseDecision(options.reuse, environment, state);
-      await environment.ports.audit.record({
-        runId: environment.context.runId,
-        stage: "run",
-        kind: "stage_finished",
-        message: decision.reusable
-          ? `Reused compatible report ${decision.report.runId}.`
-          : `Report reuse declined: ${decision.reason}.`,
-        claimId: null,
-        snapshotId: primarySnapshotId,
-        at: clock.now(),
-      });
-      if (decision.reusable) return reusedResult(decision.report, environment, state, startedMs);
-    }
 
     const beforeRetrieve = interrupted("retrieve_evidence");
     if (beforeRetrieve) return beforeRetrieve;
@@ -600,124 +571,6 @@ export function createRunAnalysisV2(options: RunAnalysisV2Options = {}): RunAnal
 
 export const runAnalysisV2: RunAnalysisV2 = createRunAnalysisV2();
 
-export interface DeterministicReplayResult {
-  mode: "deterministic_replay";
-  sourceRunId: string;
-  evidenceSetHash: string;
-  evidenceSetHashVerified: true;
-  decisionsMatch: boolean;
-  scorecardMatch: boolean;
-  report: RunReport;
-}
-
-/**
- * Recomputes focused publication (or statistical calibration) and scoring from persisted immutable
- * artifacts only. It never calls a model, search, or acquisition port; a stochastic rerun is a
- * new durable run.
- */
-export async function replayAnalysisV2(input: {
-  report: RunReport;
-  environment: RunEnvironment;
-  calibrateDecisions?: CalibrateDecisionsV2;
-  publishFocusedDecisions?: FocusedPublicationV2;
-  scoreReport?: ScoreReportV2;
-}): Promise<DeterministicReplayResult> {
-  const source = runReportSchema.parse(input.report);
-  const { environment } = input;
-  if (environment.context.executionMode !== "replay")
-    throw new Error("Deterministic replay requires executionMode replay.");
-  environment.signal.throwIfAborted();
-  const adjudication = source.stageOutcomes.find(({ stage }) => stage === "adjudicate_claims");
-  if (
-    source.evidenceSetHash === null ||
-    !adjudication ||
-    (adjudication.status !== "complete" && adjudication.status !== "partial")
-  ) {
-    throw new Error("The persisted run stopped before adjudication and cannot be replayed.");
-  }
-  const recomputed = evidenceSetHash(source.snapshots, source.assessments);
-  if (recomputed !== source.evidenceSetHash) {
-    throw new Error("Persisted evidence does not match the report's evidence-set hash.");
-  }
-  const selectedClaimIds = new Set(source.focusedSelection?.selectedClaimIds ?? []);
-  const claims = source.focusedSelection
-    ? source.claims.filter(({ id }) => selectedClaimIds.has(id))
-    : source.claims;
-  const focusedMode =
-    source.focusedSelection !== undefined || source.focusedPublicationPolicy !== undefined;
-  const decisionStage = focusedMode
-    ? await (input.publishFocusedDecisions ?? createFocusedPublicationV2())(
-        {
-          claims,
-          snapshots: source.snapshots,
-          decisions: source.decisions,
-          assessments: source.assessments,
-        },
-        environment,
-      )
-    : await (input.calibrateDecisions ?? createCalibrateDecisionsV2({ artifact: null }))(
-        { claims, decisions: source.decisions, assessments: source.assessments },
-        environment,
-      );
-  if (!decisionStage.data)
-    throw new Error(
-      focusedMode
-        ? "Deterministic replay could not publish focused decisions."
-        : "Deterministic replay could not calibrate persisted decisions.",
-    );
-  const score = (input.scoreReport ?? scoreReportV2)({
-    claims,
-    decisions: decisionStage.data.decisions,
-    assessments: source.assessments,
-    graphs: source.provenance,
-    snapshots: source.snapshots,
-    coverage: source.focusedSelection
-      ? coverageForSelectedClaims(source.inputCoverage, selectedClaimIds)
-      : source.inputCoverage,
-    ...(source.focusedSelection ? { focusedSelection: source.focusedSelection } : {}),
-    inputStatus: source.scorecard?.inputStatus ?? stageStatus(source, "normalize_input"),
-    extractionStatus: source.scorecard?.extractionStatus ?? stageStatus(source, "extract_claims"),
-    at: environment.ports.clock.now(),
-  });
-  if (!score.data) throw new Error("Deterministic replay could not score persisted artifacts.");
-  const focusedScore = score;
-  const retained = source.stageOutcomes.filter(
-    ({ stage }) => stage !== "calibrate_decisions" && stage !== "score_report",
-  );
-  const stageOutcomes = [
-    ...retained,
-    outcome("calibrate_decisions", decisionStage),
-    outcome("score_report", focusedScore),
-  ];
-  const report = runReportSchema.parse({
-    ...source,
-    createdAt: environment.ports.clock.now(),
-    status: overallStatus(stageOutcomes),
-    stageOutcomes,
-    decisions: decisionStage.data.decisions,
-    scorecard: focusedScore.data?.scorecard ?? null,
-    ...(focusedMode
-      ? {
-          focusedPublicationPolicy: (decisionStage.data as FocusedPublicationV2Data).policy,
-        }
-      : {}),
-    unresolvedReasons: uniqueIssues([
-      ...source.unresolvedReasons,
-      ...decisionStage.issues,
-      ...focusedScore.issues,
-    ]),
-  });
-  return {
-    mode: "deterministic_replay",
-    sourceRunId: source.runId,
-    evidenceSetHash: recomputed,
-    evidenceSetHashVerified: true,
-    decisionsMatch: canonicalJson(report.decisions) === canonicalJson(source.decisions),
-    scorecardMatch: canonicalJson(report.scorecard) === canonicalJson(source.scorecard),
-    report,
-  };
-}
-
 function defaultStageFactories(options: RunAnalysisV2Options): RunAnalysisV2StageFactories {
   return {
     normalizeInput: () => normalizeInputV2,
@@ -803,85 +656,6 @@ async function executeStage<Value, Extra>(
     });
   }
   return executed;
-}
-
-async function reuseDecision(
-  lookup: ReportReuseLookup,
-  environment: RunEnvironment,
-  state: RunState,
-): Promise<ReuseDecision> {
-  const primary = state.snapshots.find(({ id }) => id === state.primarySnapshotId);
-  if (!primary) return { reusable: false, report: null, reason: "no_candidate" };
-  const candidate = await lookup.findCandidate({
-    inputHash: environment.context.inputHash,
-    contentHash: primary.contentHash,
-    scope: {
-      tenantId: environment.context.tenantId,
-      ownerUserId: environment.context.ownerUserId,
-      visibility: environment.context.visibility,
-    },
-    signal: environment.signal,
-  });
-  return decideReportReuse(candidate, {
-    inputHash: environment.context.inputHash,
-    contentHash: primary.contentHash,
-    propositionScopeHash: propositionScopeHash(state.claims),
-    versions: environment.context.versions,
-    visibility: environment.context.visibility,
-    asOfTime: environment.context.asOfTime,
-    maxAgeMs: lookup.maxAgeMs,
-    ...(state.focusedSelection === null
-      ? {}
-      : {
-          focusedSelectionIdentity: {
-            policyVersion: state.focusedSelection.policyVersion,
-            selectionVersion: state.focusedSelection.selectionVersion,
-            maxSelectedClaims: state.focusedSelection.maxSelectedClaims,
-            publicationPolicyVersion:
-              state.focusedPublicationPolicy?.policyVersion ??
-              FOCUSED_PUBLICATION_POLICY.policyVersion,
-            publicationDecisionVersion:
-              state.focusedPublicationPolicy?.decisionVersion ??
-              FOCUSED_PUBLICATION_POLICY.decisionVersion,
-          },
-        }),
-  });
-}
-
-/**
- * The reused report keeps the source replay manifest and as-of time, so its evidence stays
- * attributable to the run that acquired it; `replayManifest.runId` names that source run.
- */
-function reusedResult(
-  source: RunReport,
-  environment: RunEnvironment,
-  state: RunState,
-  startedMs: number,
-): RunAnalysisV2Result {
-  const now = environment.ports.clock.now();
-  const reusedOutcomes = source.stageOutcomes
-    .filter(({ stage }) => stage !== "normalize_input" && stage !== "extract_claims")
-    .map((item) => ({ ...item, metrics: zeroMetrics(now) }));
-  const stageOutcomes = [...state.outcomes, ...reusedOutcomes];
-  const cost = costSummary(state.outcomes, environment.ports.clock.monotonicMs() - startedMs);
-  const report = runReportSchema.parse({
-    ...source,
-    runId: environment.context.runId,
-    createdAt: now,
-    engineVersion: CORE_V2_ENGINE_VERSION,
-    status: overallStatus(stageOutcomes),
-    stageOutcomes,
-    snapshots: uniqueById([...source.snapshots, ...state.snapshots]),
-    unresolvedReasons: uniqueIssues([...state.issues, ...source.unresolvedReasons]),
-    cost,
-  });
-  return {
-    status: report.status,
-    report,
-    issues: report.unresolvedReasons,
-    replayManifest: report.replayManifest,
-    cost,
-  };
 }
 
 function finishResult(
@@ -1215,8 +989,4 @@ function sumNullable(values: Array<number | null>) {
   return values.some((value) => value === null)
     ? null
     : values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
-}
-
-function stageStatus(report: RunReport, stage: StageName) {
-  return report.stageOutcomes.find((item) => item.stage === stage)?.status ?? "failed";
 }
