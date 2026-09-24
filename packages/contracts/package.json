@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
     "./avatar": "./src/avatar.ts",
     "./core-v2": "./src/core-v2.ts",
     "./core-v2-focused": "./src/core-v2-focused.ts"

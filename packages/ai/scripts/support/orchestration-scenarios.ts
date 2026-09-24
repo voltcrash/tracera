@@ -52,7 +52,7 @@ export const ORCHESTRATION_SCENARIOS = [
   "explicit_cancel",
   "cached_exact_repeat",
   "url_content_change",
-  "legacy_report_rendering",
+  "report_rendering",
   "owner_isolation",
   "checkpoint_invalidation",
   "shared_run_budget",
@@ -834,17 +834,11 @@ export async function runOrchestrationScenario(id: OrchestrationScenario): Promi
       check(world.count("adjudicate_claims") === 2, "the changed content is fully reanalyzed");
       return { id, checks };
     }
-    case "legacy_report_rendering": {
-      const legacy = projectReport(coreV2Examples.legacy);
-      check(
-        legacy.schemaVersion === 1 && legacy.href.startsWith("/trace/"),
-        "v1 reports keep the legacy renderer",
-      );
+    case "report_rendering": {
       const { runId } = await world.submit({ kind: "text", text: ORIGINAL_ARTICLE });
       await world.drain([runId]);
       const view = projectReport(await world.report(runId));
-      check(view.schemaVersion === 2, "v2 reports use the version-discriminated renderer");
-      if (view.schemaVersion !== 2) return { id, checks };
+      check(view.schemaVersion === 2, "reports use the Core v2 renderer");
       check(
         view.score.label === "Supported share of resolved claims" &&
           view.score.formulaVersion !== null &&
