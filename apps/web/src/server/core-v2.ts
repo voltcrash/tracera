@@ -165,7 +165,7 @@ export function createCoreV2App(dependencies: CoreV2Dependencies = {}) {
       await finishAdmission(response, 200);
       return context.json(response, 200, analysisRateHeaders(admission));
     } catch (error) {
-      console.error("Focused Core v2 request failed", error);
+      console.error("Analysis request failed", error);
       const failure = {
         schemaVersion: 2 as const,
         runId: runContext.runId,

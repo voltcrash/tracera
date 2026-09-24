@@ -15,7 +15,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
       <header className="trace-verdict" id="verdict">
         <div className="trace-masthead">
           <div>
-            <Badge variant="violet">Core v2 · {humanize(view.status)}</Badge>
+            <Badge variant="violet">Analysis · {humanize(view.status)}</Badge>
             <h1 className="trace-headline mt-4">Evidence-backed analysis</h1>
             {view.reusedFromRunId ? (
               <p className="mt-2 text-sm text-ink-soft">
@@ -51,7 +51,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
           <Metric
             label="Evidence as of"
             value={new Date(view.asOfTime).toLocaleString()}
-            detail={score.formulaVersion ?? "No score computed"}
+            detail={score.formulaVersion ? "Selected claims" : "No score computed"}
           />
         </div>
         {view.focusedSelection ? (
@@ -67,7 +67,7 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
         ) : null}
         {view.focusedPublicationPolicy ? (
           <p className="mt-3 text-sm text-ink-soft">
-            Focused checking uses evidence-gated decisions. Scores cover selected claims only.
+            Decisions pass an evidence check. Scores cover selected claims only.
           </p>
         ) : null}
         {counts ? (
@@ -193,11 +193,11 @@ export function CoreV2Report({ view }: { view: CoreV2ReportView }) {
       {view.excludedClaims.length > 0 ? (
         <section className="trace-section" id="excluded">
           <header className="trace-section-head">
-            <h2 className="trace-section-title">Excluded from focused factual work</h2>
+            <h2 className="trace-section-title">Claims outside this analysis</h2>
             <p className="trace-section-count">{view.excludedClaims.length}</p>
             <p className="trace-section-lede">
               These inventoried items are retained for transparency but are not selected factual
-              claims and do not affect the focused score.
+              claims and do not affect the score.
             </p>
           </header>
           <ul className="space-y-2 text-sm">

@@ -104,7 +104,7 @@ export function CoreRunDetail({ id }: { id: string }) {
           <Skeleton className="h-40 rounded-xl" />
         ) : (
           <div className="rounded-3xl bg-panel p-7 text-panel-foreground">
-            <p className="text-sm text-white/60">Core v2 focused run</p>
+            <p className="text-sm text-white/60">Analysis in progress</p>
             <h1 className="mt-2 text-2xl font-bold">{headline(progress)}</h1>
             <p className="mt-3 text-sm text-white/60">
               Attempt {progress.attempt} · {progress.completedStages.length} of 8 stages recorded

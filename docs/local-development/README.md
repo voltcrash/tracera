@@ -1,7 +1,7 @@
 # Local development
 
 Tracera's local workflow uses a worktree-specific PostgreSQL/pgvector container, real
-database-backed Better Auth sessions, and deterministic Core v2 evaluation fixtures. It needs no
+database-backed Better Auth sessions, and deterministic analysis fixtures. It needs no
 production credentials, hosted database, social-auth provider, paid AI provider, Redis,
 cloud storage, or local language model.
 
@@ -45,14 +45,14 @@ vp run test:integration
 ```
 
 `test:integration` starts and migrates the local database, then runs the empty-database
-migration/privilege rehearsal, Core storage integration, Better Auth browser smoke test,
-and focused Core v2 fixture evaluator. The database suites create and
+migration/privilege rehearsal, analysis storage integration, Better Auth browser smoke test,
+and analysis fixture evaluator. The database suites create and
 drop fresh databases in the disposable test cluster. Browser fixtures use the persistent
 development database through the least-privileged runtime role and delete only their
 reserved synthetic rows. If the command started the local container, it stops it afterward
 without deleting its volume; a container that was already running remains running.
 
-The migration rehearsal and Core storage runner fail when provisioning fails, no tests
+The migration rehearsal and analysis storage runner fail when provisioning fails, no tests
 execute, or any integration test is skipped. Playwright likewise fails when its selected
 test file executes no tests.
 
@@ -65,7 +65,7 @@ names, recreates the database, and applies migrations. `local:down` is non-destr
 The web process receives only `tracera_runtime` credentials. Bootstrap, migrator, and
 test-provisioner access remain in separate processes; the exact grants are documented in
 `docs/environment.md`. The two browser identities are `ada@tracera.local` and
-`grace@tracera.local`. Focused evaluation fixtures use scripted inputs and never fall back to a
+`grace@tracera.local`. Analysis evaluation fixtures use scripted inputs and never fall back to a
 live provider.
 
 CI generates fresh synthetic secrets and has no step that imports repository secrets. It

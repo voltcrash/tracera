@@ -242,14 +242,14 @@ generated migrator profile separately to remove only users with the two syntheti
 addresses and traces carrying the reserved `L04 browser fixture:` prefix; it never
 accepts a URL or database name.
 
-## Deterministic Core v2 evaluation
+## Deterministic analysis evaluation
 
-Local and test profiles run the registered Core v2 evaluators with scripted ports. These
+Local and test profiles run the registered analysis evaluators with scripted ports. These
 fixtures use no hosted AI credentials, external retrieval services, or arbitrary document URLs.
 They exercise contract and orchestration behavior only and are not accuracy evidence.
 
-The focused browser acceptance suite mocks the Core v2 API response. Local interactive
-submissions remain unavailable unless the focused live runtime is configured in a deployed
+The browser acceptance suite mocks the analysis API response. Local interactive
+submissions remain unavailable unless the live runtime is configured in a deployed
 profile.
 
 ## AI provider overrides

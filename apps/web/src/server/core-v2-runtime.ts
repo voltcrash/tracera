@@ -76,11 +76,11 @@ export function focusedRuntimePolicy(environment: RuntimeEnvironment): FocusedRu
 
   if (profile !== "deployed") {
     return unavailable(
-      "Focused Core v2 is available only in the deployed live profile or the test fixture profile.",
+      "Analysis is available only in the deployed live profile or the test fixture profile.",
     );
   }
   if (mode === "fixture") {
-    return unavailable("The deployed profile cannot run deterministic Core v2 fixtures.");
+    return unavailable("The deployed profile cannot run deterministic analysis fixtures.");
   }
   if (mode !== undefined && mode !== "live") {
     return unavailable("The deployed focused runtime requires TRACERA_ANALYSIS_MODE=live.");
@@ -123,7 +123,7 @@ export function focusedRuntimePolicy(environment: RuntimeEnvironment): FocusedRu
   }
   if (provider === "anthropic" && !embeddingProvider) {
     return unavailable(
-      "Anthropic needs an explicit AI_EMBEDDING_PROVIDER, key, and model for the Core v2 runtime.",
+      "Anthropic needs an explicit AI_EMBEDDING_PROVIDER, key, and model for analysis.",
     );
   }
 

@@ -38,7 +38,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResult(null);
-    setProgress("Preparing focused claim checks.");
+    setProgress("Preparing claim checks.");
     try {
       const value = text.trim();
       const request = image
@@ -67,14 +67,12 @@ export default function Home() {
         error?: unknown;
       };
       if (!data.report) {
-        throw new Error(
-          typeof data.error === "string" ? data.error : "No focused report was saved.",
-        );
+        throw new Error(typeof data.error === "string" ? data.error : "No report was saved.");
       }
       const view = projectReport(data.report, apiUrl);
-      if (view.schemaVersion !== 2) throw new Error("The focused report format was unavailable.");
+      if (view.schemaVersion !== 2) throw new Error("The report format was unavailable.");
       setResult(view);
-      setProgress("Focused claim checks saved.");
+      setProgress("Claim checks saved.");
       refreshHistory();
     } catch (requestError) {
       setError(
@@ -235,8 +233,8 @@ export default function Home() {
             <p className="mb-6 flex items-center gap-2.5 text-sm text-ink-soft">
               <Check className="size-4 text-brand-lime-ink" />
               {result.status === "complete"
-                ? "Focused evidence trace assembled"
-                : `Focused evidence trace saved · ${result.status}`}
+                ? "Evidence trace assembled"
+                : `Evidence trace saved · ${result.status}`}
             </p>
             <CoreV2Report view={result} />
           </section>

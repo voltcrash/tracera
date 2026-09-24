@@ -52,7 +52,7 @@ const trail = [
 
 const scoreParts = [
   {
-    label: "Focused factual score",
+    label: "Factual score",
     value: "Not available",
     detail: "Requires resolved selected claims and valid evidence.",
   },
