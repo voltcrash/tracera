@@ -13,12 +13,6 @@ export const RUNTIME_TABLE_GRANTS = {
   sessions: CRUD,
   accounts: CRUD,
   verifications: CRUD,
-  // 0024: append-only trace history and domain trust.
-  checks: APPEND,
-  claims: APPEND,
-  trace_appearances: APPEND,
-  domains: READ_WRITE,
-  domain_trust_events: APPEND,
   // 0024: analysis controls and spend accounting.
   analysis_rate_limits: READ_WRITE,
   analysis_leases: READ_WRITE,
@@ -27,9 +21,6 @@ export const RUNTIME_TABLE_GRANTS = {
   analysis_force_cooldowns: READ_WRITE,
   ai_provider_spend: READ_WRITE,
   ai_spend_reservations: READ_WRITE,
-  // Legacy tables with no runtime code path.
-  alert_subscriptions: [],
-  decay_events: [],
   // 0029: Core v2 storage.
   core_runs: READ_WRITE,
   core_jobs: READ_WRITE,

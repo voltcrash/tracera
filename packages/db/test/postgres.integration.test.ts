@@ -27,13 +27,6 @@ const limits = {
   idempotencyTtlSeconds: 600,
 };
 
-function embedding(primary: number, secondary = primary, weight = 1) {
-  const values = Array.from({ length: database.EMBEDDING_DIMENSIONS }, () => 0);
-  values[primary] = weight;
-  values[secondary] = (values[secondary] ?? 0) + Math.sqrt(1 - weight * weight);
-  return values;
-}
-
 async function createUser() {
   const suffix = randomUUID();
   const result = await database.pool.query<{ id: string }>(
@@ -43,29 +36,6 @@ async function createUser() {
   const id = result.rows[0]?.id;
   assert.ok(id);
   return id;
-}
-
-function storedCheck(ownerUserId: string, claimEmbedding = embedding(7)) {
-  return {
-    rawInput: "Volcanic ash grounded flights across northern Europe",
-    headline: "Volcanic ash grounds flights",
-    inputEmbedding: embedding(3),
-    traceraScore: { score: 72 },
-    analysis: { claims: [], score: {} },
-    claims: [
-      {
-        claimText: "Volcanic ash grounded flights across northern Europe",
-        claimType: "factual_assertion",
-        checkability: "checkable",
-        verdict: "supported",
-        confidence: 0.9,
-        reasoning: ["Synthetic integration fixture"],
-        evidenceQuality: 0.8,
-        embedding: claimEmbedding,
-      },
-    ],
-    ownerUserId,
-  };
 }
 
 integrationTest("runtime uses node-postgres as the unprivileged runtime role", async () => {
@@ -90,52 +60,9 @@ integrationTest("runtime uses node-postgres as the unprivileged runtime role", a
   });
 });
 
-integrationTest("pgvector similarity and full-text search stay owner-scoped", async () => {
-  const owner = await createUser();
-  const otherOwner = await createUser();
-  await database.persistCheck(storedCheck(owner));
-
-  const related = await database.findRelatedClaimsByEmbedding(embedding(7, 8, 0.95), 0.9, 5, owner);
-  assert.equal(related.length, 1);
-  assert.ok(related[0] && related[0].similarity > 0.9 && related[0].similarity < 1);
-  assert.deepEqual(
-    await database.findRelatedClaimsByEmbedding(embedding(7, 8, 0.95), 0.9, 5, otherOwner),
-    [],
-  );
-
-  assert.equal((await database.listChecks(1, 10, "volcanic flights", owner)).total, 1);
-  assert.equal((await database.listChecks(1, 10, "earthquake", owner)).total, 0);
-  assert.equal((await database.listChecks(1, 10, "volcanic flights", otherOwner)).total, 0);
-});
-
-integrationTest("failed transactions roll back every statement", async () => {
-  const owner = await createUser();
-  await assert.rejects(
-    database.persistCheck(storedCheck(owner, [1, 2, 3])),
-    /must have 1024 dimensions/,
-  );
-  assert.equal((await database.listChecks(1, 10, "", owner)).total, 0);
-
-  const domain = `rollback-${randomUUID()}.example`;
-  const client = await database.pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("INSERT INTO domains (domain, trust_score) VALUES ($1, 0.5)", [domain]);
-    await assert.rejects(
-      client.query("INSERT INTO domains (domain, trust_score) VALUES ($1, 0.5)", [domain]),
-      { code: "23505" },
-    );
-    await client.query("ROLLBACK");
-  } finally {
-    client.release(true);
-  }
-  const persisted = await database.pool.query("SELECT 1 FROM domains WHERE domain = $1", [domain]);
-  assert.equal(persisted.rowCount, 0);
-});
-
 integrationTest("analysis admission and spend controls run under runtime grants", async () => {
   const userId = await createUser();
-  const endpoint = "/api/analyze";
+  const endpoint = "/api/tracera/v2/analyze";
   const idempotencyKey = randomUUID();
   const request = {
     userId,
