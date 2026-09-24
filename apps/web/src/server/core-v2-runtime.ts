@@ -842,8 +842,8 @@ function readPositiveMoney(environment: RuntimeEnvironment, name: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function parseProvider(value: string | undefined): Exclude<AiProviderName, "fixture"> | null {
-  const supported: Array<Exclude<AiProviderName, "fixture">> = [
+function parseProvider(value: string | undefined): AiProviderName | null {
+  const supported: AiProviderName[] = [
     "anthropic",
     "gemini",
     "openai",
@@ -851,8 +851,8 @@ function parseProvider(value: string | undefined): Exclude<AiProviderName, "fixt
     "openai-compatible",
   ];
   const normalized = value?.trim().toLowerCase();
-  return normalized && supported.includes(normalized as Exclude<AiProviderName, "fixture">)
-    ? (normalized as Exclude<AiProviderName, "fixture">)
+  return normalized && supported.includes(normalized as AiProviderName)
+    ? (normalized as AiProviderName)
     : null;
 }
 

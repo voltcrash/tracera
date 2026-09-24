@@ -27,7 +27,6 @@
     "calibration:evaluate": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/core-calibration.ts evaluate",
     "calibration:fit": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/core-calibration.ts fit",
     "check-types": "tsc --noEmit",
-    "evaluate:core": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core.ts",
     "evaluate:core-release": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-release.ts",
     "evaluate:core-adjudication": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-adjudication.ts",
     "evaluate:core-claims": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-claims.ts",
@@ -49,9 +48,7 @@
     "worker:core": "node ../../scripts/environment/guard.mjs --role runtime -- node --import tsx scripts/core-worker.ts",
     "replay:core": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/replay-core.ts",
     "evaluate:core-orchestration": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-orchestration.ts",
-    "test:live": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/live-test.ts",
-    "test:pipeline": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/pipeline-live-test.ts",
-    "validate:model": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/model-validation.ts"
+    "test:live": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/live-test.ts"
   },
   "dependencies": {
     "@repo/contracts": "workspace:*",
