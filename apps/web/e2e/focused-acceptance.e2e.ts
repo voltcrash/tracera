@@ -12,7 +12,6 @@ const acceptance = {
     "exact evidence excerpt links",
     "provider failure messaging",
     "saved report reload",
-    "legacy report compatibility",
   ],
 } as const;
 
@@ -28,9 +27,8 @@ test.describe("Core v2 Focused acceptance fixture", () => {
       "exact evidence excerpt links",
       "provider failure messaging",
       "saved report reload",
-      "legacy report compatibility",
     ]);
-    expect(coreV2Examples.legacy.schemaVersion).toBe(1);
+    expect(coreV2Examples.complete.schemaVersion).toBe(2);
   });
 
   test("renders a saved focused report with evidence and safe score language", async ({ page }) => {

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import type { RunAnalysisV2Result } from "@repo/ai/core/types";
 import { coreV2Examples, runReportSchema, type RunReport } from "@repo/contracts/core-v2";
-import { projectReport } from "@repo/ai/core/report-view";
 import { test } from "vite-plus/test";
 import type { AuthUser } from "@repo/db";
 import type { CoreRunProgress } from "@repo/db/core/repository";
@@ -34,6 +33,15 @@ function createHarness(execute: (input: FocusedRunExecutionInput) => Promise<Run
     acknowledgeCancellation: async () => undefined,
     getRunProgress: async ({ runId, scope }: { runId: string; scope: { ownerUserId: string } }) =>
       scope.ownerUserId === "ada" ? (progress.get(runId) ?? null) : null,
+    listRuns: async ({ scope }: { scope: { ownerUserId: string } }) =>
+      scope.ownerUserId === "ada"
+        ? [...reports.entries()].map(([runId, report]) => ({
+            runId,
+            status: report.status,
+            createdAt: report.createdAt,
+            report,
+          }))
+        : [],
     getLatestReport: async ({ runId, scope }: { runId: string; scope: { ownerUserId: string } }) =>
       scope.ownerUserId === "ada" ? (reports.get(runId) ?? null) : null,
     checkpoint: async () => undefined,
@@ -238,6 +246,35 @@ test("authentication is required before focused analysis starts", async () => {
   assert.equal(harness.executions, 0);
 });
 
+test("focused run history is owner scoped and summarized", async () => {
+  const harness = createHarness(async (input) => completeResult(input));
+  const report = structuredClone(coreV2Examples.complete);
+  report.runId = "run-history";
+  harness.reports.set(report.runId, report);
+
+  const response = await harness.app.request("/runs", { headers: { "x-test-user": "ada" } }, env);
+  const payload = (await response.json()) as {
+    runs: Array<{ runId: string; headline: string; score: number | null }>;
+  };
+  assert.equal(response.status, 200);
+  assert.deepEqual(payload.runs, [
+    {
+      runId: "run-history",
+      headline: report.claims[0]!.text,
+      score: report.scorecard!.factualScore,
+      status: report.status,
+      createdAt: report.createdAt,
+    },
+  ]);
+
+  const otherOwner = await harness.app.request(
+    "/runs",
+    { headers: { "x-test-user": "grace" } },
+    env,
+  );
+  assert.deepEqual(await otherOwner.json(), { schemaVersion: 2, runs: [] });
+});
+
 test("owner isolation applies to saved focused runs", async () => {
   const harness = createHarness(async (input) => completeResult(input));
   const progress: CoreRunProgress = {
@@ -301,14 +338,6 @@ test("an executor failure returns failed without a completed focused report", as
   assert.equal(payload.status, "failed");
   assert.equal(payload.report, undefined);
   assert.equal(harness.executions, 1);
-});
-
-test("saved v1 reports still decode through the legacy report projector", () => {
-  assert.deepEqual(projectReport(coreV2Examples.legacy), {
-    schemaVersion: 1,
-    checkId: "chk_legacy_0001",
-    href: "/trace/chk_legacy_0001",
-  });
 });
 
 test("deployed focused policy requires explicit live provider and budget settings", () => {

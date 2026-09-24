@@ -51,7 +51,7 @@ test("server error logs include the request ID without the raw error object", ()
     logServerError(
       "Database request failed",
       new Error("postgresql://admin:super-secret@private-db/tracera"),
-      new Request("https://tracera.test/api/tracera/checks", {
+      new Request("https://tracera.test/api/tracera/v2/runs", {
         headers: { "x-request-id": "support-43" },
       }),
     );

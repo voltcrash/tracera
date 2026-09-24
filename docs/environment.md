@@ -242,41 +242,15 @@ generated migrator profile separately to remove only users with the two syntheti
 addresses and traces carrying the reserved `L04 browser fixture:` prefix; it never
 accepts a URL or database name.
 
-## Deterministic offline analysis
+## Deterministic Core v2 evaluation
 
-Local and test profiles use a deterministic provider for structured generation, image
-text extraction, and normalized 1024-dimensional embeddings. The application selects
-fixture acquisition before any live transport: no request reaches hosted AI, Google or
-Bing News, GDELT, Google Fact Check, NewsAPI, Internet Archive, Jina, or an arbitrary
-document URL. `safeFetch` and its SSRF policy are unchanged for deployed live analysis.
+Local and test profiles run the registered Core v2 evaluators with scripted ports. These
+fixtures use no hosted AI credentials, external retrieval services, or arbitrary document URLs.
+They exercise contract and orchestration behavior only and are not accuracy evidence.
 
-The local UI's example coffee claim is a supported text fixture. Additional synthetic
-inputs are exported by `@repo/ai` for automated tests:
-
-- `OFFLINE_FIXTURE_URL` exercises fixture-backed link acquisition.
-- `OFFLINE_FIXTURE_IMAGE` exercises image analysis without a vision call.
-- `OFFLINE_INACCESSIBLE_URL` returns the explicit `fixture_unavailable` response.
-- the Harbor City 10,000-tree statement exercises conflicting evidence;
-- the Atlas Transit provider-failure statement exercises a deterministic provider error.
-
-Unregistered text, links, and images return `fixture_unavailable`; they never fall back
-to the network. Successful reports persist `analysisMode: "fixture"` in the analysis
-artifact and show “Synthetic offline fixture — not real-world evidence” in both the
-fresh and saved-report UI. Real Better Auth sessions, PostgreSQL persistence, tenant
-scope, idempotency, rate/concurrency limits, daily quota, and provider-spend reservations
-still wrap fixture execution.
-
-Run `vp run test:offline-analysis` with the local database running and migrated. It runs
-one Chromium test covering text, link, image, conflicting, inaccessible, missing, and
-provider-failure scenarios, idempotent replay, persistence, spend controls, synthetic
-labeling, and cross-user isolation. Cleanup uses the migrator connection separately and
-deletes only fixture-marked checks, the two fixed synthetic identities, and the `fixture`
-spend records.
-
-The current v1 image flow stores its submitted data URI in PostgreSQL and does not call
-the Core v2 `RawBlobStore`. L05 therefore defines no filesystem blob implementation.
-Core Task 04 must implement that boundary when acquisition produces stored raw bytes;
-this task does not resume or pre-implement that Core stage.
+The focused browser acceptance suite mocks the Core v2 API response. Local interactive
+submissions remain unavailable unless the focused live runtime is configured in a deployed
+profile.
 
 ## AI provider overrides
 
@@ -302,7 +276,7 @@ what is needed:
 These are deployed runtime settings; local and test runtime files may set them
 when needed.
 
-Both `/api/tracera/analyze` and `/api/tracera/analyze/stream` require an
+`/api/tracera/v2/analyze` requires an
 `Idempotency-Key` header. Reusing a key with the same request replays the
 stored response; reusing it for a different request is rejected. The browser
 client creates a key for each submission.

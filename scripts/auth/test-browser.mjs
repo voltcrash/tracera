@@ -7,7 +7,6 @@ import { rootDirectory } from "../environment/worktree.mjs";
 const require = createRequire(new URL("../../packages/db/package.json", import.meta.url));
 const { Client } = require("pg");
 const fixtureEmails = ["ada@tracera.local", "grace@tracera.local"];
-const fixturePrefix = "L04 browser fixture:%";
 
 const migration = loadProfileEnvironment({
   rootDirectory,
@@ -55,10 +54,6 @@ async function cleanupFixtures() {
   await client.connect();
   try {
     await client.query("BEGIN");
-    await client.query(
-      "DELETE FROM checks WHERE raw_input LIKE $1 AND owner_user_id IN (SELECT id FROM users WHERE email = ANY($2::text[]))",
-      [fixturePrefix, fixtureEmails],
-    );
     await client.query("DELETE FROM users WHERE email = ANY($1::text[])", [fixtureEmails]);
     await client.query("COMMIT");
   } catch (error) {

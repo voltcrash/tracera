@@ -59,8 +59,8 @@ vp run db:local:start
 vp run db:local:migrate
 ```
 
-Local sign-in without OAuth credentials and offline analysis are not available
-yet (L04 and L05).
+Local sign-in uses generated development identities. Focused Core v2 evaluation is available
+through deterministic fixtures; interactive analysis requires deployed live-provider settings.
 
 The website uses the Next.js CLI, so its workspace commands run through Vite Task rather than Vite's built-in app commands:
 

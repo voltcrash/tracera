@@ -29,7 +29,7 @@ export {
   type ReuseDecision,
   type ReuseIdentity,
 } from "./reuse-policy";
-export { projectReport, type CoreV2ReportView, type ReportView } from "./report-view";
+export { projectReport, type CoreV2ReportView } from "./report-view";
 export {
   buildImmutableTimeline,
   IMMUTABLE_TIMELINE_NOTICE,

@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { projectReport, type ReportView } from "@repo/ai/core/report-view";
+import { projectReport, type CoreV2ReportView } from "@repo/ai/core/report-view";
 import { CoreV2Report } from "@/components/analysis/core-v2-report";
 import { useAuth } from "@/components/providers/auth-provider";
 import { apiUrl } from "@/lib/api";
@@ -37,7 +36,7 @@ const TERMINAL = new Set<Progress["status"]>([
 export function CoreRunDetail({ id }: { id: string }) {
   const { apiFetch, user, isLoading } = useAuth();
   const [progress, setProgress] = useState<Progress | null>(null);
-  const [view, setView] = useState<ReportView | null>(null);
+  const [view, setView] = useState<CoreV2ReportView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Leaving the page only stops polling; the on-demand run continues until it finishes or is
@@ -101,11 +100,7 @@ export function CoreRunDetail({ id }: { id: string }) {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
-        {view?.schemaVersion === 1 ? (
-          <Link className="underline" href={view.href}>
-            Open the saved report
-          </Link>
-        ) : !progress ? (
+        {!progress ? (
           <Skeleton className="h-40 rounded-xl" />
         ) : (
           <div className="rounded-3xl bg-panel p-7 text-panel-foreground">

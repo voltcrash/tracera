@@ -820,7 +820,7 @@ test("extraction evaluation aligns with gold spans only and never grades itself"
     },
   );
 
-  const metrics = computeMetrics(dataset, run, undefined, 20260910);
+  const metrics = computeMetrics(dataset, run);
   assert.equal(metrics.claimExtraction.recall.status, "not_evaluated");
   assert.equal(metrics.claimExtraction.recall.denominator, 0);
   assert.equal(metrics.claimExtraction.semanticPrecision.status, "not_evaluated");

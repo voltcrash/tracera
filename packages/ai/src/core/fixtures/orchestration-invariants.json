@@ -9,7 +9,7 @@
     "explicit_cancel",
     "cached_exact_repeat",
     "url_content_change",
-    "legacy_report_rendering",
+    "report_rendering",
     "owner_isolation",
     "checkpoint_invalidation",
     "shared_run_budget",
