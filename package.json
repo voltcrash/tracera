@@ -23,8 +23,6 @@
     "test:integration": "node scripts/local/workflow.mjs integration",
     "test:core-storage": "vp run @repo/db#test:core-storage",
     "test:auth-browser": "node scripts/auth/test-browser.mjs",
-    "test:offline-analysis": "node scripts/analysis/test-offline.mjs",
-    "evaluate:core:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core --mode fixture --split all --seed 20260910",
     "evaluate:core-release:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-release --mode fixture --split all --seed 20260910",
     "evaluate:core-adjudication:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-adjudication --mode fixture --split all --seed 20260910",
     "evaluate:core-claims:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-claims --mode fixture --split all --seed 20260910",
@@ -35,7 +33,6 @@
     "evaluate:core-retrieval:replay": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-retrieval --mode replay --split all --seed 20260910",
     "evaluate:core-scoring:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-scoring --mode fixture --split all --seed 20260910",
     "evaluate:core-orchestration:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:core-orchestration --mode fixture --split all --seed 20260910",
-    "worker:core": "node scripts/environment/run.mjs --profile local --role runtime --require-database -- vp run @repo/ai#worker:core",
     "prepare": "vp config"
   },
   "devDependencies": {

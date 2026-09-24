@@ -44,7 +44,6 @@ Run the fixture-only release checks with no external network or provider credent
 ```sh
 vp run test:core-release
 vp run evaluate:core-release:fixture
-vp run evaluate:core:fixture
 vp run evaluate:core-orchestration:fixture
 ```
 

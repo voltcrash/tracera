@@ -431,8 +431,7 @@ Focused implementation retains the correctness and safety properties already bui
 - idempotency, request/concurrency/daily quotas, spend reservations, deadlines, and cancellation;
 - explicit `complete`, `partial`, `unavailable`, `failed`, and `canceled` distinctions with typed
   issues and audit events; and
-- backward-compatible decoding and rendering of saved v1 reports, without relabeling v1 scores as
-  focused or v2.
+- strict Core v2 report decoding and rendering.
 
 The active focused path must not depend on a human-gold release bundle or on a statistical
 calibrator. This does not permit weaker runtime safety, lower validation standards, fabricated
