@@ -6,10 +6,6 @@ Tracera evaluates pasted text, public links, and screenshots against evidence it
 
 Tracera also preserves report artifacts, related context, and immutable timelines of observed timestamps as new evidence appears.
 
-Analysis is part of Tracera's main product flow. Older evaluation, calibration, staging, and
-worker documents remain in `docs/core-overhaul/` as archived historical artifacts; they are not
-claims about current accuracy or readiness.
-
 ## Features
 
 - **Multi-format analysis:** Check news presented as text, links, or images through one verification flow.
