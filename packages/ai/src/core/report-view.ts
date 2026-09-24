@@ -1,5 +1,5 @@
 import {
-  versionedRunReportSchema,
+  runReportSchema,
   type ClaimLabel,
   type ClaimV2,
   type DocumentSnapshot,
@@ -17,8 +17,6 @@ import {
 
 export const RELATED_CONTEXT_NOTICE =
   "Related stories and similar images are context only; they are not identical submissions or verified evidence.";
-
-export type ReportView = { schemaVersion: 1; checkId: string; href: string } | CoreV2ReportView;
 
 export interface CoreV2ReportView {
   schemaVersion: 2;
@@ -105,15 +103,8 @@ export interface CoreV2ReportView {
   relatedContextNotice: string;
 }
 
-export function projectReport(value: unknown, apiBase = "/api/tracera"): ReportView {
-  const report = versionedRunReportSchema.parse(value);
-  if (report.schemaVersion === 1) {
-    return {
-      schemaVersion: 1,
-      checkId: report.checkId,
-      href: `/trace/${encodeURIComponent(report.checkId)}`,
-    };
-  }
+export function projectReport(value: unknown, apiBase = "/api/tracera"): CoreV2ReportView {
+  const report = runReportSchema.parse(value);
   return projectCoreV2Report(report, apiBase);
 }
 

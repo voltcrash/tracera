@@ -257,7 +257,7 @@ export function coverageForSelectedClaims(
   }));
 }
 
-/** Adds the focused selected-claim denominator when a custom scorer returns legacy-shaped data. */
+/** Adds the focused selected-claim denominator when a custom scorer returns unscoped data. */
 export function accountFocusedScore(
   result: StageResult<ScoreReportV2Data>,
   selection: FocusedSelection,

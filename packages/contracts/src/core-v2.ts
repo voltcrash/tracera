@@ -1,7 +1,6 @@
 /*
  * Frozen v2 core contracts. Every downstream core stage imports these schemas
- * and types; parallel models are not permitted. Legacy v1 contracts in
- * ./index.ts stay operational and are unchanged.
+ * and types; parallel models are not permitted.
  *
  * Offsets are half-open UTF-16 code-unit ranges into the referenced snapshot
  * text. Unknown values are explicit null, never a fabricated timestamp, score
@@ -1404,18 +1403,6 @@ export const runReportSchema = z
   })
   .superRefine(validateRunReportIntegrity);
 
-/** Legacy stored reports keep v1 decoding and rendering. */
-export const legacyRunReportSchema = z.looseObject({
-  schemaVersion: z.literal(1),
-  checkId: z.string().min(1),
-  createdAt: instantSchema,
-});
-
-export const versionedRunReportSchema = z.discriminatedUnion("schemaVersion", [
-  legacyRunReportSchema,
-  runReportSchema,
-]);
-
 // ---------------------------------------------------------------------------
 // Referential and offset integrity
 // ---------------------------------------------------------------------------
@@ -1906,8 +1893,6 @@ export type StageOutcome = z.infer<typeof stageOutcomeSchema>;
 export type ReplayManifest = z.infer<typeof replayManifestSchema>;
 export type RunCostSummary = z.infer<typeof runCostSummarySchema>;
 export type RunReport = z.infer<typeof runReportSchema>;
-export type LegacyRunReport = z.infer<typeof legacyRunReportSchema>;
-export type VersionedRunReport = z.infer<typeof versionedRunReportSchema>;
 export type QueryIntent = z.infer<typeof queryIntentSchema>;
 export type EvidenceRelation = z.infer<typeof evidenceRelationSchema>;
 
@@ -2841,15 +2826,6 @@ export const noClaimRunReportExample: RunReport = {
   cost: exampleCost(0),
 };
 
-/** Saved v1 reports keep rendering through the legacy branch. */
-export const legacyRunReportExample: LegacyRunReport = {
-  schemaVersion: 1,
-  checkId: "chk_legacy_0001",
-  createdAt: "2026-02-14T10:00:00.000Z",
-  headline: "Aurora Labs plant claim",
-  traceraScore: { overall: 72 },
-};
-
 export const coreV2Examples = {
   complete: completeRunReportExample,
   partial: partialRunReportExample,
@@ -2857,5 +2833,4 @@ export const coreV2Examples = {
   ambiguous: ambiguousRunReportExample,
   canceled: canceledRunReportExample,
   noClaim: noClaimRunReportExample,
-  legacy: legacyRunReportExample,
 } as const;

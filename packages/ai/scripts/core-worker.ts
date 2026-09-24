@@ -68,14 +68,7 @@ await runCoreWorker({
         withExternalCall,
       }),
       search: [],
-      documents: createRuntimeDocumentPort(
-        clock,
-        providerConfig.provider === "fixture"
-          ? async () => {
-              throw new Error("Fixture-mode Core v2 document acquisition has no network fallback.");
-            }
-          : undefined,
-      ),
+      documents: createRuntimeDocumentPort(clock),
       clock,
       audit: createOperationalAudit(lease.context.auditSinkId),
     };
@@ -101,14 +94,6 @@ await runCoreWorker({
 await pool.end();
 
 function configuration(environment: NodeJS.ProcessEnv): AiProviderConfig {
-  if (environment.TRACERA_ANALYSIS_MODE === "fixture") {
-    return {
-      provider: "fixture",
-      model: "deterministic-fixture-v1",
-      embeddingModel: "deterministic-fixture-1024-v1",
-      embeddingDimensions: EMBEDDING_DIMENSIONS,
-    };
-  }
   const provider = providerName(required(environment, "AI_PROVIDER"));
   const apiKey = required(environment, "AI_API_KEY");
   return {

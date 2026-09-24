@@ -106,7 +106,6 @@ evaluation. Test failures must not be used for tuning; a material change require
 | Calibration ECE / Brier / risk coverage | No fitted adjudicated calibrator                         |                                   `null / 0` | `not_evaluated`     |
 | Origin                                  | No known-root held-out subset                            |                                   `null / 0` | `not_evaluated`     |
 | Robustness                              | Eight Task 12 fixture cases, 18 checks                   |                  8 / 8 cases; 18 / 18 checks | `PASS` fixture-only |
-| v2 minus v1 improvement                 | No matched live story clusters                           |                                   `null / 0` | `not_evaluated`     |
 
 Confidence intervals are `null` for every empirical metric because no valid adjudicated
 denominator exists. No Wilson bound or story-cluster bootstrap result is claimed.

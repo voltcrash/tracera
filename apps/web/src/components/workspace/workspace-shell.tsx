@@ -20,9 +20,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiUrl } from "@/lib/api";
-import type { TraceSummary } from "@/lib/trace";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import { cn } from "@/lib/utils";
+
+type RunSummary = {
+  runId: string;
+  headline: string;
+  status: string;
+  score: number | null;
+  createdAt: string;
+};
 
 /** Lets a screen tell the rail that the history it is showing is now stale. */
 const HistoryRefreshContext = createContext<() => void>(() => {});
@@ -35,7 +42,7 @@ export function useHistoryRefresh() {
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
-  const [traces, setTraces] = useState<TraceSummary[] | null>(null);
+  const [traces, setTraces] = useState<RunSummary[] | null>(null);
   const [version, setVersion] = useState(0);
   const [railOpen, setRailOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -45,14 +52,14 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isAuthLoading || !user) return;
     const controller = new AbortController();
-    const cached = readSessionCache<TraceSummary[]>(user.id, HISTORY_CACHE_KEY, HISTORY_CACHE_AGE);
+    const cached = readSessionCache<RunSummary[]>(user.id, HISTORY_CACHE_KEY, HISTORY_CACHE_AGE);
     if (cached) queueMicrotask(() => setTraces(cached));
-    apiFetch(`${apiUrl}/checks?scope=mine&page=1&pageSize=30`, { signal: controller.signal })
+    apiFetch(`${apiUrl}/v2/runs`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Unable to load your traces.");
-        const data = (await response.json()) as { checks: TraceSummary[] };
-        setTraces(data.checks);
-        writeSessionCache(user.id, HISTORY_CACHE_KEY, data.checks);
+        const data = (await response.json()) as { runs: RunSummary[] };
+        setTraces(data.runs);
+        writeSessionCache(user.id, HISTORY_CACHE_KEY, data.runs);
       })
       .catch(() => {
         if (!controller.signal.aborted) setTraces([]);
@@ -115,7 +122,7 @@ function Rail({
   onClose,
   onCollapse,
 }: {
-  traces: TraceSummary[] | null;
+  traces: RunSummary[] | null;
   isLoading: boolean;
   open: boolean;
   onClose: () => void;
@@ -182,21 +189,22 @@ function Rail({
               <h2 className="rail-group">{group.label}</h2>
               {group.traces.map((trace) => (
                 <Link
-                  key={trace.id}
-                  href={`/trace/${trace.id}`}
+                  key={trace.runId}
+                  href={`/run/${trace.runId}`}
                   onClick={onClose}
                   className="rail-trace"
-                  aria-current={pathname === `/trace/${trace.id}` ? "page" : undefined}
+                  aria-current={pathname === `/run/${trace.runId}` ? "page" : undefined}
                 >
                   <span className="rail-trace-claim">{trace.headline}</span>
                   <span className="rail-trace-meta">
                     <span>{shortAge(trace.createdAt)}</span>
-                    <span
-                      className="rail-trace-score"
-                      data-tone={scoreTone(trace.traceraScore.overall)}
-                    >
-                      {Math.round(trace.traceraScore.overall)}
-                    </span>
+                    {trace.score === null ? (
+                      <span>{trace.status}</span>
+                    ) : (
+                      <span className="rail-trace-score" data-tone={scoreTone(trace.score)}>
+                        {Math.round(trace.score)}
+                      </span>
+                    )}
                   </span>
                 </Link>
               ))}
@@ -282,8 +290,8 @@ function scoreTone(score: number) {
 
 const DAY = 86_400_000;
 
-function groupByAge(traces: TraceSummary[]) {
-  const buckets: { label: string; traces: TraceSummary[] }[] = [
+function groupByAge(traces: RunSummary[]) {
+  const buckets: { label: string; traces: RunSummary[] }[] = [
     { label: "Today", traces: [] },
     { label: "This week", traces: [] },
     { label: "Earlier", traces: [] },

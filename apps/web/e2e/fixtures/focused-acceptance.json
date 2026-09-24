@@ -9,8 +9,7 @@
     "null score with unresolved evidence",
     "exact evidence excerpt links",
     "provider failure messaging",
-    "saved report reload",
-    "legacy report compatibility"
+    "saved report reload"
   ],
   "invariants": [
     "A score is labeled Supported share of resolved claims and includes counts and coverage.",

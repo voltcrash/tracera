@@ -33,10 +33,8 @@ import type { RunEnvironment, RunAnalysisV2 } from "@repo/ai/src/core/types";
 
 Runtime schemas and inferred types live in `packages/contracts/src/core-v2.ts`,
 exported through the `@repo/contracts/core-v2` subpath. Ports and stage
-signatures live in `packages/ai/src/core/types.ts`. Legacy v1 contracts in
-`packages/contracts/src/index.ts` are untouched and remain operational; the
-default `@repo/contracts` entry point is unchanged, so existing consumers
-type-check exactly as before.
+signatures live in `packages/ai/src/core/types.ts`. Core v2 is the only analysis and report
+contract; there is no default legacy contracts entry point.
 
 The additive focused schemas and inferred types are also available from
 `@repo/contracts/core-v2-focused`; their definitions remain in the shared
@@ -78,8 +76,6 @@ The additive focused schemas and inferred types are also available from
 | `stageOutcomeSchema`               | `StageOutcome`               | Per-stage status recorded on the report                                          |
 | `replayManifestSchema`             | `ReplayManifest`             | Everything needed to recompute deterministic decisions                           |
 | `runReportSchema`                  | `RunReport`                  | Versioned public report, schema version 2                                        |
-| `legacyRunReportSchema`            | `LegacyRunReport`            | Saved v1 reports, schema version 1, decoded and rendered unchanged               |
-| `versionedRunReportSchema`         | `VersionedRunReport`         | Discriminated union on `schemaVersion`                                           |
 
 ## Frozen enumerations
 
@@ -181,9 +177,7 @@ Stage results:
     reasons. Focused publication is a pure local policy stage and makes zero provider calls.
 
 There is no `z.any`, `z.unknown` or open record anywhere in the core evidence objects.
-Every core entity is a `strictObject`, so unknown keys are rejected. The only loose
-schema in the file is `legacyRunReportSchema`, which exists solely to keep saved v1
-reports decodable.
+Every core entity is a `strictObject`, so unknown keys are rejected.
 
 ## Ports
 
@@ -264,8 +258,8 @@ must feed back through assessment before adjudication.
 
 The authoritative examples are the exported constants `coreV2Examples` and
 `runContextExample` in `packages/contracts/src/core-v2.ts`, covering `complete`,
-`partial`, `unavailable`, `ambiguous`, `canceled`, `noClaim` and `legacy`. A test parses
-every one of them through `versionedRunReportSchema`. They illustrate contract shape
+`partial`, `unavailable`, `ambiguous`, `canceled`, and `noClaim`. A test parses every one of
+them through `runReportSchema`. They illustrate contract shape
 only: no calibrator has been fitted and no evaluation has been run, so
 `example-calibrator-0` is a placeholder demonstrating the `in_scope` branch, not
 evidence that a calibrator exists.
@@ -1489,7 +1483,6 @@ retrieval budgets in practice (task 06), dependence detection (task 07), root ra
 (task 08), the calibrator and its thresholds (tasks 09 and 12), and the API and UI
 projections of `RunReport` (task 11).
 
-Task 01's evaluation adapter now types its truth labels from `claimLabelSchema` and
-declares an `EvaluationContractVersion`; the v1 adapter reports `legacy-v1`. The six-case
-model-validation runner, the fixture dataset and the `not_evaluated` semantics for
-zero-denominator metrics are unchanged.
+The evaluation adapter types its truth labels from `claimLabelSchema` and declares the frozen
+Core v2 `EvaluationContractVersion`. Fixture datasets retain `not_evaluated` semantics for
+zero-denominator metrics.

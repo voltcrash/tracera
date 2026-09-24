@@ -18,7 +18,6 @@
     "development-only stable-model comparison",
     "frozen calibration artifact and thresholds",
     "single sealed-test evaluation",
-    "matched live v1/v2 run within explicitly authorized paid budget",
     "independent human audit of unsupported confident errors",
     "staging worker, migration, backpressure, deletion, spend, and routing rehearsals"
   ]
