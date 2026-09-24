@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, PenLine, Settings, X } from "lucide-react";
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, PenLine, Settings, X } from "lucide-react";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { accountLabel, useAuth } from "@/components/providers/auth-provider";
 import { ThemeToggle } from "@/components/navigation/theme-toggle";
@@ -45,6 +45,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const [traces, setTraces] = useState<RunSummary[] | null>(null);
   const [version, setVersion] = useState(0);
   const [railOpen, setRailOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const refresh = useCallback(() => setVersion((current) => current + 1), []);
 
@@ -68,7 +69,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   return (
     <HistoryRefreshContext.Provider value={refresh}>
-      <div className="workspace">
+      <div className="workspace" data-sidebar-collapsed={sidebarCollapsed || undefined}>
         <button
           type="button"
           className="rail-scrim"
@@ -82,8 +83,21 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           isLoading={isAuthLoading || traces === null}
           open={railOpen}
           onClose={() => setRailOpen(false)}
+          onCollapse={() => setSidebarCollapsed(true)}
         />
         <div className="workspace-canvas">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="rail-desktop-open-button"
+            onClick={() => setSidebarCollapsed(false)}
+            aria-label="Show sidebar"
+            aria-controls="workspace-rail"
+            aria-expanded={!sidebarCollapsed}
+          >
+            <PanelLeftOpen />
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -106,21 +120,35 @@ function Rail({
   isLoading,
   open,
   onClose,
+  onCollapse,
 }: {
   traces: RunSummary[] | null;
   isLoading: boolean;
   open: boolean;
   onClose: () => void;
+  onCollapse: () => void;
 }) {
   const pathname = usePathname();
   const groups = useMemo(() => groupByAge(traces ?? []), [traces]);
 
   return (
-    <aside className="rail" data-open={open || undefined} aria-label="Traces">
+    <aside id="workspace-rail" className="rail" data-open={open || undefined} aria-label="Traces">
       <div className="rail-head">
         <Link href="/home" aria-label="Tracera home" onClick={onClose}>
           <BrandLockup markClassName="h-7 w-7" className="h-8 text-xl" />
         </Link>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="rail-collapse-button"
+          onClick={onCollapse}
+          aria-label="Hide sidebar"
+          aria-controls="workspace-rail"
+          aria-expanded="true"
+        >
+          <PanelLeftClose />
+        </Button>
         <Button
           type="button"
           variant="ghost"

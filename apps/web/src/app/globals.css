@@ -710,6 +710,12 @@
   padding: 0 0.375rem 0.75rem;
 }
 
+.rail-collapse-button,
+.rail-desktop-open-button {
+  display: none;
+  color: var(--ink-soft);
+}
+
 .rail-actions {
   display: grid;
   gap: 0.125rem;
@@ -990,9 +996,29 @@
 
 @media (min-width: 1024px) {
   .rail-scrim,
-  .rail-open-button,
   .rail-close-button {
     display: none;
+  }
+
+  .rail-open-button,
+  .workspace[data-sidebar-collapsed] .rail {
+    display: none;
+  }
+
+  .rail-collapse-button {
+    display: inline-flex;
+  }
+
+  .workspace[data-sidebar-collapsed] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace[data-sidebar-collapsed] .rail-desktop-open-button {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 40;
+    display: inline-flex;
   }
 }
 
