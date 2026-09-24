@@ -1,24 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
-import {
-  decisionSchema,
-  runContextExample,
-  type EvidenceAssessment,
-} from "@repo/contracts/core-v2";
+import { runContextExample, type EvidenceAssessment } from "@repo/contracts/core-v2";
 import { createAdjudicateClaimsV2 } from "../src/core/adjudication/index.js";
-import {
-  CALIBRATION_FEATURE_NAMES,
-  CALIBRATION_OBSERVATION_SET_VERSION,
-  RELEASE_CALIBRATION_POLICY,
-  checkCalibratorArtifact,
-  createCalibrateDecisionsV2,
-  fitCorrectnessCalibrator,
-} from "../src/core/calibration/index.js";
-import { contentHash, datasetHash, type EvaluationDataset } from "../evaluation/schemas.js";
 import {
   ADJUDICATION_SCENARIOS,
   adjudicate,
-  calibrate,
   contradictionEvidence,
   runAdjudicationScenario,
 } from "../scripts/support/adjudication-scenarios.js";
@@ -29,7 +15,6 @@ import {
   challenge,
   createAdjudicationEnvironment,
   draft,
-  syntheticCalibratorArtifact,
 } from "../scripts/support/scripted-adjudication.js";
 
 for (const scenario of ADJUDICATION_SCENARIOS) {
@@ -151,38 +136,6 @@ test("disagreement without a targeted-retrieval capability stays unresolved and 
   assert.ok(result.issues.some(({ code }) => code === "capability_unavailable"));
 });
 
-test("an in-scope probability below the frozen threshold publishes unverified and keeps the probability", async () => {
-  const { snapshots, assessments } = contradictionEvidence();
-  const ids = assessments.map(({ id }) => id);
-  const { result } = await adjudicate(assessments, snapshots, {
-    draft: () => draft("contradicted", { contradictingAssessmentIds: ids }),
-    challenge: () => challenge("contradicted", ids),
-  });
-  const calibrated = await calibrate(
-    result.data!.decisions,
-    assessments,
-    snapshots,
-    syntheticCalibratorArtifact({ intercept: 0 }),
-  );
-  const decision = calibrated.data!.decisions[0]!;
-  assert.equal(decision.calibration.applicability, "in_scope");
-  assert.equal(decision.calibration.calibratedCorrectness, 0.5);
-  assert.equal(decision.publishedLabel, "unverified");
-  assert.ok(decision.reasonCodes.includes("calibration_out_of_scope"));
-  assert.throws(() =>
-    decisionSchema.parse({
-      ...decision,
-      publishedLabel: "contradicted",
-      calibration: {
-        applicability: "unavailable",
-        calibratedCorrectness: null,
-        calibratorVersion: null,
-        reason: "none",
-      },
-    }),
-  );
-});
-
 test("an exhausted shared request cap abstains with an explicit budget reason", async () => {
   const { snapshots, assessments } = contradictionEvidence();
   const { result, fixture } = await adjudicate(
@@ -195,7 +148,7 @@ test("an exhausted shared request cap abstains with an explicit budget reason", 
   assert.equal(fixture.requests.length, 0);
 });
 
-test("cancellation fails both stages without partial decisions", async () => {
+test("cancellation fails adjudication without partial decisions", async () => {
   const { snapshots, assessments } = contradictionEvidence();
   const controller = new AbortController();
   controller.abort();
@@ -206,129 +159,5 @@ test("cancellation fails both stages without partial decisions", async () => {
   );
   assert.equal(adjudicated.status, "failed");
   assert.equal(adjudicated.data, null);
-  const calibrated = await createCalibrateDecisionsV2({ artifact: null })(
-    { claims: [adjudicationClaim()], decisions: [], assessments },
-    fixture.environment,
-  );
-  assert.equal(calibrated.status, "failed");
   assert.ok(fixture.audits.some(({ kind }) => kind === "cancellation"));
 });
-
-test("fitting uses grouped out-of-fold calibration data deterministically and never escapes fixture mode", () => {
-  const dataset = syntheticCalibrationDataset(12, 6);
-  const observations = {
-    observationSetVersion: CALIBRATION_OBSERVATION_SET_VERSION,
-    datasetId: dataset.datasetId,
-    datasetHash: datasetHash(dataset),
-    versions: {
-      engine: runContextExample.versions.engine,
-      prompt: runContextExample.versions.prompt,
-      model: runContextExample.versions.model,
-      retriever: runContextExample.versions.retriever,
-    },
-    observations: dataset.claims.map((claim, index) => ({
-      datasetClaimId: claim.id,
-      diagnosticLabel: "supported" as const,
-      language: "en",
-      features: Object.fromEntries(
-        CALIBRATION_FEATURE_NAMES.map((name) => [
-          name,
-          name === "independent_origin_groups" ? index % 3 : 0,
-        ]),
-      ),
-    })),
-  };
-  const policy = {
-    ...RELEASE_CALIBRATION_POLICY,
-    minGoldObservations: 10,
-    minSliceObservations: 10,
-    folds: 3,
-    allowSyntheticLabels: true,
-  };
-  const input = {
-    dataset,
-    observations,
-    policy,
-    seed: 20260910,
-    fittedAt: "2026-09-10T00:00:00.000Z",
-  };
-  const first = fitCorrectnessCalibrator(input);
-  const second = fitCorrectnessCalibrator(input);
-  assert.equal(first.status, "fitted");
-  assert.deepEqual(first, second);
-  if (first.status !== "fitted") return;
-  assert.equal(first.artifact.goldKind, "synthetic_fixture");
-  assert.equal(first.artifact.dataset.split, "calibration");
-  assert.equal(first.artifact.outOfFold.count, 12);
-  const context = {
-    ...runContextExample,
-    versions: { ...runContextExample.versions, calibration: first.artifact.calibratorVersion },
-  };
-  assert.equal(
-    checkCalibratorArtifact(first.artifact, context, "2026-09-14T00:00:00.000Z").status,
-    "valid",
-  );
-  assert.equal(
-    checkCalibratorArtifact(
-      first.artifact,
-      { ...context, executionMode: "live" },
-      "2026-09-14T00:00:00.000Z",
-    ).status,
-    "invalidated",
-  );
-  assert.equal(
-    fitCorrectnessCalibrator({ ...input, policy: RELEASE_CALIBRATION_POLICY }).status,
-    "blocked",
-  );
-
-  const leaked = structuredClone(dataset);
-  leaked.documents[0]!.splitId = "development";
-  const refused = fitCorrectnessCalibrator({ ...input, dataset: leaked });
-  assert.equal(refused.status, "refused");
-});
-
-function syntheticCalibrationDataset(claims: number, groups: number): EvaluationDataset {
-  const documents = Array.from({ length: claims }, (_, index) => {
-    const text = `Synthetic calibration claim ${index}.`;
-    return {
-      id: `doc-${index}`,
-      text,
-      contentHash: contentHash(text),
-      language: "en",
-      asOfTime: "2026-01-01T00:00:00.000Z",
-      acquiredAt: "2026-01-01T00:00:00.000Z",
-      sourceUrl: null,
-      splitId: "calibration" as const,
-      eventGroupId: `event-${index % groups}`,
-      sourceFamilyId: `family-${index % groups}`,
-    };
-  });
-  return {
-    schemaVersion: "1.0.0",
-    datasetId: "synthetic-calibration",
-    datasetVersion: "1.0.0",
-    license: {
-      name: "synthetic",
-      url: null,
-      redistributionAllowed: true,
-      notes: "Synthetic fixture.",
-    },
-    documents,
-    evidenceDocuments: [],
-    excerpts: [],
-    claims: documents.map((document, index) => ({
-      id: `claim-${index}`,
-      documentId: document.id,
-      text: document.text,
-      spans: [{ start: 0, end: document.text.length }],
-      material: true,
-      checkability: "checkable" as const,
-      label: index % 4 === 0 ? ("contradicted" as const) : ("supported" as const),
-      evidenceExcerptIds: [],
-      origin: "not_applicable" as const,
-      goldStatus: "synthetic" as const,
-      annotations: [],
-      adjudication: null,
-    })),
-  };
-}

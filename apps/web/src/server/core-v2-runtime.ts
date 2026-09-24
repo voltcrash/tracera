@@ -219,7 +219,7 @@ export async function executeFocusedRun(
   await input.repository.enqueue({
     context: input.context,
     stage: "normalize_input",
-    payload: { input: input.analysis.input, seed: input.analysis.seed, allowReuse: false },
+    payload: { input: input.analysis.input, seed: input.analysis.seed },
     maxAttempts: 1,
   });
   const lease = await input.repository.acquireLease({

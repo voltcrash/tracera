@@ -72,12 +72,6 @@ console.log(
       },
       coverage: notEvaluated(">= 0.70"),
       macroF1: notEvaluated(">= 0.85"),
-      calibration: { ece: notEvaluated("<= 0.05"), brier: notEvaluated("report only") },
-      calibrator: {
-        status: "not_fitted",
-        reason:
-          "No independently adjudicated calibration partition exists; the fixture calibrator is synthetic.",
-      },
       empiricalGateStatus: "not_evaluated",
       releaseApproved: false,
     },

@@ -8,7 +8,6 @@ import {
   type EvidenceAssessment,
   type DocumentSnapshot,
 } from "@repo/contracts/core-v2";
-import { createCalibrateDecisionsV2 } from "../src/core/calibration/index.js";
 import {
   createFocusedPublicationV2,
   publishFocusedDecisions,
@@ -149,24 +148,6 @@ test("the focused stage is local and makes no provider requests", async () => {
   assert.equal(result.data?.decisions[0]?.publishedLabel, "supported");
   assert.equal(result.metrics.externalRequests, 0);
   assert.equal(environmentFixture.requests.length, 0);
-});
-
-test("the old calibrated policy still abstains without its artifact", async () => {
-  const fixture = supportedFixture();
-  const environmentFixture = createAdjudicationEnvironment({ snapshots: fixture.snapshots });
-  const result = await createCalibrateDecisionsV2({ artifact: null })(
-    {
-      claims: fixture.claims,
-      decisions: [fixture.decision],
-      assessments: fixture.assessments,
-    },
-    environmentFixture.environment,
-  );
-  const decision = result.data!.decisions[0]!;
-  assert.equal(decision.publishedLabel, "unverified");
-  assert.equal(decision.calibration.applicability, "unavailable");
-  assert.ok(decision.reasonCodes.includes("calibration_unavailable"));
-  assert.equal(decision.focusedPublication, undefined);
 });
 
 interface PublicationFixture {

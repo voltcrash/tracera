@@ -1,30 +1,18 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import type { Decision, DocumentSnapshot, EvidenceAssessment } from "@repo/contracts/core-v2";
+import type { DocumentSnapshot, EvidenceAssessment } from "@repo/contracts/core-v2";
 import {
   createAdjudicateClaimsV2,
   type AdjudicationOptions,
 } from "../../src/core/adjudication/index.js";
 import {
-  CALIBRATION_FEATURE_NAMES,
-  CALIBRATION_OBSERVATION_SET_VERSION,
-  RELEASE_CALIBRATION_POLICY,
-  createCalibrateDecisionsV2,
-  fitCorrectnessCalibrator,
-} from "../../src/core/calibration/index.js";
-import { datasetHash, evaluationDatasetSchema } from "../../evaluation/schemas.js";
-import {
   DRAFT_JUSTIFICATION_MARKER,
   adjudicationAssessment,
   adjudicationClaim,
   adjudicationSnapshot,
-  calibratedContext,
   challenge,
   createAdjudicationEnvironment,
   draft,
   scriptedTargetedReassessment,
-  syntheticCalibratorArtifact,
   type ScriptedAdjudicationOptions,
 } from "./scripted-adjudication.js";
 
@@ -33,9 +21,6 @@ export const ADJUDICATION_SCENARIOS = [
   "genuine-contradiction",
   "misleading-corrective-context",
   "unresolved-conflict",
-  "stale-calibration-rejection",
-  "sealed-test-fit-refused",
-  "missing-human-gold-blocked",
 ] as const;
 
 export type AdjudicationScenario = (typeof ADJUDICATION_SCENARIOS)[number];
@@ -54,20 +39,6 @@ export async function adjudicate(
     fixture.environment,
   );
   return { result, fixture };
-}
-
-export async function calibrate(
-  decisions: Decision[],
-  assessments: EvidenceAssessment[],
-  snapshots: DocumentSnapshot[],
-  artifact: unknown,
-  context = calibratedContext(),
-) {
-  const fixture = createAdjudicationEnvironment({ snapshots, context });
-  return createCalibrateDecisionsV2({ artifact })(
-    { claims: [adjudicationClaim()], decisions, assessments },
-    fixture.environment,
-  );
 }
 
 export function contradictionEvidence() {
@@ -129,14 +100,6 @@ export async function runAdjudicationScenario(id: AdjudicationScenario) {
         "evidence_not_applicable_in_time",
       ]);
       assert.equal(first.fixture.requests.length, 0);
-      const calibrated = await calibrate(
-        [decision],
-        assessments,
-        snapshots,
-        syntheticCalibratorArtifact(),
-      );
-      assert.equal(calibrated.data!.decisions[0]!.publishedLabel, "unverified");
-      assert.equal(calibrated.data!.decisions[0]!.calibration.calibratedCorrectness, null);
       return { decision };
     }
     case "genuine-contradiction": {
@@ -158,18 +121,8 @@ export async function runAdjudicationScenario(id: AdjudicationScenario) {
       assert.ok(
         !/"(?:label|draft|diagnosticLabel|selfConfidence)"/u.test(challengeRequest.content),
       );
-      const calibrated = await calibrate(
-        [decision],
-        assessments,
-        snapshots,
-        syntheticCalibratorArtifact(),
-      );
-      const published = calibrated.data!.decisions[0]!;
-      assert.equal(published.publishedLabel, "contradicted");
-      assert.equal(published.calibration.applicability, "in_scope");
-      assert.equal(published.rawModelConfidence, 0.9);
-      assert.notEqual(published.calibration.calibratedCorrectness, published.rawModelConfidence);
-      return { decision: published };
+      assert.equal(decision.rawModelConfidence, 0.9);
+      return { decision };
     }
     case "misleading-corrective-context": {
       const input = adjudicationSnapshot(
@@ -200,14 +153,6 @@ export async function runAdjudicationScenario(id: AdjudicationScenario) {
       assert.equal(decision.diagnosticLabel, "misleading");
       assert.deepEqual(decision.supportingAssessmentIds, [statedId]);
       assert.deepEqual(decision.correctiveContextAssessmentIds, [contextId]);
-      const calibrated = await calibrate(
-        [decision],
-        assessments,
-        snapshots,
-        syntheticCalibratorArtifact(),
-      );
-      assert.equal(calibrated.data!.decisions[0]!.publishedLabel, "misleading");
-
       const toneOnly = await adjudicate(assessments, snapshots, {
         draft: () => draft("misleading", { supportingAssessmentIds: [statedId] }),
       });
@@ -215,7 +160,7 @@ export async function runAdjudicationScenario(id: AdjudicationScenario) {
       assert.equal(rejected.diagnosticLabel, "unverified");
       assert.equal(rejected.citationIntegrity, "invalid");
       assert.deepEqual(rejected.reasonCodes, ["citation_validation_failed"]);
-      return { decision: calibrated.data!.decisions[0]! };
+      return { decision };
     }
     case "unresolved-conflict": {
       const input = adjudicationSnapshot(
@@ -261,110 +206,6 @@ export async function runAdjudicationScenario(id: AdjudicationScenario) {
         assert.equal(targeted.recorded.length, 1);
         assert.equal(fixture.draftCalls, 1);
         assert.equal(fixture.challengeCalls, 2);
-        const calibrated = await calibrate(
-          [decision],
-          assessments,
-          snapshots,
-          syntheticCalibratorArtifact(),
-        );
-        assert.equal(calibrated.data!.decisions[0]!.publishedLabel, "mixed");
-      }
-      return {};
-    }
-    case "stale-calibration-rejection": {
-      const { snapshots, assessments } = contradictionEvidence();
-      const ids = assessments.map(({ id }) => id);
-      const { result } = await adjudicate(assessments, snapshots, {
-        draft: () => draft("contradicted", { contradictingAssessmentIds: ids }),
-        challenge: () => challenge("contradicted", ids),
-      });
-      const decision = result.data!.decisions[0]!;
-      const tampered = {
-        ...syntheticCalibratorArtifact(),
-        model: { ...syntheticCalibratorArtifact().model, intercept: 9 },
-      };
-      const cases: Array<
-        [string, unknown, ReturnType<typeof calibratedContext>, "unavailable" | "invalidated"]
-      > = [
-        ["missing", null, calibratedContext(), "unavailable"],
-        [
-          "model changed",
-          syntheticCalibratorArtifact({ model: "retired-model" }),
-          calibratedContext(),
-          "invalidated",
-        ],
-        ["tampered", tampered, calibratedContext(), "invalidated"],
-        [
-          "expired",
-          syntheticCalibratorArtifact({ validUntil: "2026-09-02T00:00:00.000Z" }),
-          calibratedContext(),
-          "invalidated",
-        ],
-        ["unpinned", syntheticCalibratorArtifact(), {}, "invalidated"],
-        [
-          "synthetic outside fixture mode",
-          syntheticCalibratorArtifact(),
-          calibratedContext({ executionMode: "live" }),
-          "invalidated",
-        ],
-      ];
-      for (const [name, artifact, context, applicability] of cases) {
-        const calibrated = await calibrate([decision], assessments, snapshots, artifact, context);
-        const gated = calibrated.data!.decisions[0]!;
-        assert.equal(gated.calibration.applicability, applicability, name);
-        assert.equal(gated.calibration.calibratedCorrectness, null, name);
-        assert.equal(gated.publishedLabel, "unverified", name);
-        assert.equal(gated.diagnosticLabel, "contradicted", name);
-        assert.equal(gated.rawModelConfidence, 0.9, name);
-        assert.ok(gated.reasonCodes.includes("calibration_unavailable"), name);
-      }
-      return {};
-    }
-    case "sealed-test-fit-refused":
-    case "missing-human-gold-blocked": {
-      const dataset = evaluationDatasetSchema.parse(
-        JSON.parse(
-          await readFile(
-            fileURLToPath(
-              new URL("../../evaluation/fixtures/invariants.dataset.json", import.meta.url),
-            ),
-            "utf8",
-          ),
-        ),
-      );
-      const claimId = id === "sealed-test-fit-refused" ? "claim-context" : "claim-time";
-      const observations = {
-        observationSetVersion: CALIBRATION_OBSERVATION_SET_VERSION,
-        datasetId: dataset.datasetId,
-        datasetHash: datasetHash(dataset),
-        versions: {
-          engine: "core-v2.0.0",
-          prompt: "fixture",
-          model: "fixture",
-          retriever: "fixture",
-        },
-        observations: [
-          {
-            datasetClaimId: claimId,
-            diagnosticLabel: id === "sealed-test-fit-refused" ? "misleading" : "supported",
-            language: "en",
-            features: Object.fromEntries(CALIBRATION_FEATURE_NAMES.map((name) => [name, 0])),
-          },
-        ],
-      };
-      const fit = fitCorrectnessCalibrator({
-        dataset,
-        observations,
-        policy: RELEASE_CALIBRATION_POLICY,
-        seed: 20260910,
-        fittedAt: "2026-09-14T00:00:00.000Z",
-      });
-      if (id === "sealed-test-fit-refused") {
-        assert.equal(fit.status, "refused");
-        assert.match(fit.reasons.join(" "), /test partition/u);
-      } else {
-        assert.equal(fit.status, "blocked");
-        assert.equal(fit.counts.goldObservations, 0);
       }
       return {};
     }

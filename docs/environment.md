@@ -313,7 +313,7 @@ These are only needed for administration:
 - `DOMAIN_TRUST_AUTO_REFINE` and `DOMAIN_TRUST_ADMIN_TOKEN` — domain trust
   review controls.
 
-Analysis thresholds, story-reuse policy, embedding dimensions, site origins,
+Analysis thresholds, embedding dimensions, site origins,
 and model-evaluation thresholds are application behavior rather than deployment
 configuration. They are defined in code. Model-evaluation overrides are passed
 as command-line options documented in `packages/ai/evaluation/README.md`.

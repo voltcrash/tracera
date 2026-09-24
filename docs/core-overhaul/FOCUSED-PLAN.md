@@ -10,6 +10,10 @@ evaluation report, release decision, operations runbook, production proposal, an
 remain in the repository as historical context; they are not prerequisites for focused product
 implementation.
 
+The current request-scoped runtime runs focused analysis without a separate worker, statistical
+calibration, deterministic replay, or cross-run report reuse. The reuse policy described below is
+a future capability; request idempotency can still replay the response for the same key.
+
 Task 13 is documentation and policy only. It does not change the runtime, install a calibrator,
 run a provider, alter a migration, delete a report, or authorize a deployment. Future tasks must
 implement the focused boundary described here and add only the smallest additive contract/type

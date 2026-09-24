@@ -7,7 +7,6 @@
     ".": "./src/index.ts",
     "./core": "./src/core/index.ts",
     "./core/adjudication": "./src/core/adjudication/index.ts",
-    "./core/calibration": "./src/core/calibration/index.ts",
     "./core/claims": "./src/core/claims/index.ts",
     "./core/evidence": "./src/core/evidence/index.ts",
     "./core/framing": "./src/core/framing/index.ts",
@@ -23,8 +22,6 @@
     "./core/types": "./src/core/types.ts"
   },
   "scripts": {
-    "calibration:evaluate": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/core-calibration.ts evaluate",
-    "calibration:fit": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/core-calibration.ts fit",
     "check-types": "tsc --noEmit",
     "evaluate:core-release": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-release.ts",
     "evaluate:core-adjudication": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-core-adjudication.ts",

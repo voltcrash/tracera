@@ -13,19 +13,11 @@ import {
   type TargetedEvidence,
   type TargetedReassessment,
 } from "../../src/core/adjudication/index.js";
-import {
-  CALIBRATION_FEATURE_NAMES,
-  CALIBRATOR_ARTIFACT_VERSION,
-  currentComponentVersions,
-  hashArtifactContent,
-  type CalibratorArtifact,
-} from "../../src/core/calibration/index.js";
 import type { AuditEvent, GenerationRequest, RunEnvironment } from "../../src/core/types.js";
 import { evidenceClaim, evidenceSnapshot } from "./scripted-evidence.js";
 
 export const ADJUDICATION_FIXTURE_NOW = "2026-09-14T00:00:00.000Z";
 export const DRAFT_JUSTIFICATION_MARKER = "Draft-only justification marker.";
-export const FIXTURE_CALIBRATOR_VERSION = "core-v2-calibrator-fixture-synthetic";
 
 export const adjudicationClaim = evidenceClaim;
 
@@ -247,80 +239,6 @@ export function scriptedTargetedReassessment(
     },
   };
   return { reassessment, recorded };
-}
-
-/**
- * A synthetic, hand-parameterized calibrator for fixture mode only. It demonstrates
- * the in-scope code path; it is not fitted to data and establishes no calibration.
- */
-export function syntheticCalibratorArtifact(
-  overrides: {
-    intercept?: number;
-    threshold?: number | null;
-    validUntil?: string;
-    model?: string;
-  } = {},
-): CalibratorArtifact {
-  const width = CALIBRATION_FEATURE_NAMES.length;
-  const { versions } = runContextExample;
-  const content: Omit<CalibratorArtifact, "artifactHash"> = {
-    artifactVersion: CALIBRATOR_ARTIFACT_VERSION,
-    calibratorVersion: FIXTURE_CALIBRATOR_VERSION,
-    goldKind: "synthetic_fixture",
-    compatibility: {
-      engine: versions.engine,
-      prompt: versions.prompt,
-      model: overrides.model ?? versions.model,
-      retriever: versions.retriever,
-      ...currentComponentVersions(),
-    },
-    model: {
-      kind: "l2_logistic_regression",
-      l2: 1,
-      featureNames: [...CALIBRATION_FEATURE_NAMES],
-      intercept: overrides.intercept ?? 3,
-      weights: Array.from({ length: width }, () => 0),
-      means: Array.from({ length: width }, () => 0),
-      scales: Array.from({ length: width }, () => 1),
-    },
-    precisionTarget: 0.95,
-    slices: (["supported", "contradicted", "misleading"] as const).map((label) => ({
-      sliceId: `en/${label}`,
-      language: "en",
-      label,
-      observations: 0,
-      correct: 0,
-      threshold: overrides.threshold === undefined ? 0.9 : overrides.threshold,
-      thresholdPrecisionLowerBound: null,
-      thresholdCoverage: null,
-    })),
-    dataset: {
-      datasetId: "synthetic-adjudication-fixture",
-      datasetVersion: "1.0.0",
-      datasetHash: `sha256:${"0".repeat(64)}`,
-      observationSetHash: `sha256:${"0".repeat(64)}`,
-      split: "calibration",
-      goldObservations: 0,
-      excludedObservations: 0,
-    },
-    fit: {
-      seed: 20260910,
-      folds: 2,
-      outOfFold: true,
-      groupedBy: "eventGroupId",
-      fittedAt: "2026-09-01T00:00:00.000Z",
-      validUntil: overrides.validUntil ?? "2027-03-01T00:00:00.000Z",
-    },
-    outOfFold: { count: 0, ece: null, brier: null },
-  };
-  return { ...content, artifactHash: hashArtifactContent(content) };
-}
-
-export function calibratedContext(overrides: Partial<RunContext> = {}): Partial<RunContext> {
-  return {
-    versions: { ...runContextExample.versions, calibration: FIXTURE_CALIBRATOR_VERSION },
-    ...overrides,
-  };
 }
 
 function fixtureMetrics(externalRequests: number): StageMetrics {

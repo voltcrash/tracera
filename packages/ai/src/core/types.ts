@@ -264,16 +264,6 @@ export interface AdjudicateClaimsV2Data {
   decisions: Decision[];
 }
 
-export interface CalibrateDecisionsV2Input {
-  claims: ClaimV2[];
-  decisions: Decision[];
-  assessments: EvidenceAssessment[];
-}
-
-export interface CalibrateDecisionsV2Data {
-  decisions: Decision[];
-}
-
 export interface FocusedPublicationV2Input {
   claims: ClaimV2[];
   snapshots: DocumentSnapshot[];
@@ -353,11 +343,6 @@ export type AdjudicateClaimsV2 = (
   input: AdjudicateClaimsV2Input,
   environment: RunEnvironment,
 ) => Promise<StageResult<AdjudicateClaimsV2Data>>;
-
-export type CalibrateDecisionsV2 = (
-  input: CalibrateDecisionsV2Input,
-  environment: RunEnvironment,
-) => Promise<StageResult<CalibrateDecisionsV2Data>>;
 
 /** Focused publication is a pure local evidence gate; it never calls a provider. */
 export type FocusedPublicationV2 = (
