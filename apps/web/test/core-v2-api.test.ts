@@ -34,6 +34,15 @@ function createHarness(execute: (input: FocusedRunExecutionInput) => Promise<Run
     acknowledgeCancellation: async () => undefined,
     getRunProgress: async ({ runId, scope }: { runId: string; scope: { ownerUserId: string } }) =>
       scope.ownerUserId === "ada" ? (progress.get(runId) ?? null) : null,
+    listRuns: async ({ scope }: { scope: { ownerUserId: string } }) =>
+      scope.ownerUserId === "ada"
+        ? [...reports.entries()].map(([runId, report]) => ({
+            runId,
+            status: report.status,
+            createdAt: report.createdAt,
+            report,
+          }))
+        : [],
     getLatestReport: async ({ runId, scope }: { runId: string; scope: { ownerUserId: string } }) =>
       scope.ownerUserId === "ada" ? (reports.get(runId) ?? null) : null,
     checkpoint: async () => undefined,
@@ -236,6 +245,35 @@ test("authentication is required before focused analysis starts", async () => {
 
   assert.equal(response.status, 401);
   assert.equal(harness.executions, 0);
+});
+
+test("focused run history is owner scoped and summarized", async () => {
+  const harness = createHarness(async (input) => completeResult(input));
+  const report = structuredClone(coreV2Examples.complete);
+  report.runId = "run-history";
+  harness.reports.set(report.runId, report);
+
+  const response = await harness.app.request("/runs", { headers: { "x-test-user": "ada" } }, env);
+  const payload = (await response.json()) as {
+    runs: Array<{ runId: string; headline: string; score: number | null }>;
+  };
+  assert.equal(response.status, 200);
+  assert.deepEqual(payload.runs, [
+    {
+      runId: "run-history",
+      headline: report.claims[0]!.text,
+      score: report.scorecard!.factualScore,
+      status: report.status,
+      createdAt: report.createdAt,
+    },
+  ]);
+
+  const otherOwner = await harness.app.request(
+    "/runs",
+    { headers: { "x-test-user": "grace" } },
+    env,
+  );
+  assert.deepEqual(await otherOwner.json(), { schemaVersion: 2, runs: [] });
 });
 
 test("owner isolation applies to saved focused runs", async () => {

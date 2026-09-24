@@ -178,6 +178,28 @@ export function createCoreV2App(dependencies: CoreV2Dependencies = {}) {
     }
   });
 
+  app.get("/runs", async (context) => {
+    const access = await accessFor(context, authenticate);
+    if (!access) return context.json({ error: "Not authenticated." }, 401);
+    const runs = await storage().listRuns({ scope: access, limit: 30 });
+    return context.json({
+      schemaVersion: 2,
+      runs: runs.map(({ runId, status, createdAt, report }) => ({
+        runId,
+        status,
+        createdAt,
+        headline:
+          report?.claims.find(
+            ({ duplicateOfClaimId, coverageDisposition }) =>
+              duplicateOfClaimId === null && coverageDisposition !== "deferred",
+          )?.text ??
+          report?.claims.find(({ duplicateOfClaimId }) => duplicateOfClaimId === null)?.text ??
+          "Focused analysis",
+        score: report?.scorecard?.factualScore ?? null,
+      })),
+    });
+  });
+
   app.get("/runs/:id", async (context) => {
     const access = await accessFor(context, authenticate);
     if (!access) return context.json({ error: "Not authenticated." }, 401);

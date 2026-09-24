@@ -76,6 +76,13 @@ export interface CoreRunProgress {
   updatedAt: string;
 }
 
+export interface CoreRunSummary {
+  runId: string;
+  status: RunReport["status"] | "queued" | "leased" | "retry" | "canceled";
+  createdAt: string;
+  report: RunReport | null;
+}
+
 export interface CoreOutboxRecord {
   id: string;
   runId: string;
@@ -558,6 +565,41 @@ export class CoreStorageRepository {
           updatedAt: row.updated_at,
         }
       : null;
+  }
+
+  async listRuns(input: { scope: CoreAccessScope; limit: number }): Promise<CoreRunSummary[]> {
+    if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100) {
+      throw new Error("Run history limit must be an integer between 1 and 100.");
+    }
+    const result = await this.pool.query<{
+      run_id: string;
+      status: CoreRunSummary["status"];
+      created_at: string;
+      report: RunReport | null;
+    }>(
+      `SELECT run.run_id, run.status, run.created_at::text, latest.report
+         FROM core_runs AS run
+         LEFT JOIN LATERAL (
+           SELECT report.report
+             FROM core_report_versions AS report
+            WHERE report.run_id = run.run_id
+              AND report.tenant_id = run.tenant_id
+              AND report.owner_user_id = run.owner_user_id
+              AND report.visibility = run.visibility
+            ORDER BY report.version DESC
+            LIMIT 1
+         ) AS latest ON TRUE
+        WHERE run.tenant_id = $1 AND run.owner_user_id = $2 AND run.visibility = $3
+        ORDER BY run.created_at DESC, run.run_id DESC
+        LIMIT $4`,
+      [...scopeValues(input.scope), input.limit],
+    );
+    return result.rows.map((row) => ({
+      runId: row.run_id,
+      status: row.status,
+      createdAt: row.created_at,
+      report: row.report ? runReportSchema.parse(row.report) : null,
+    }));
   }
 
   async findLatestCompletedReport(input: {

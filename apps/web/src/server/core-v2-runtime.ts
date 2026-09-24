@@ -184,6 +184,7 @@ export type CoreRuntimeRepository = Pick<
   | "requestCancellation"
   | "acknowledgeCancellation"
   | "getRunProgress"
+  | "listRuns"
   | "getLatestReport"
   | "checkpoint"
   | "readCheckpoint"
