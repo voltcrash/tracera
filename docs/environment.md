@@ -31,7 +31,7 @@ Setup derives stable database and web ports from the current worktree path, crea
 The committed shape is documented in `config/environment/local.generated.env.example`; never copy its placeholders. The local and test profiles use separate database ports, and the web app uses a third generated port (see [Local PostgreSQL](#local-postgresql)). Local sign-in and deterministic offline analysis are available through the synthetic identities and fixtures described below.
 
 The concise daily workflow, integration command, reset behavior, and CI boundary are in
-[`docs/local-development/README.md`](local-development/README.md). `vp run local:up`
+[`docs/local-development.md`](local-development.md). `vp run local:up`
 starts and health-checks an already configured database, `vp run local:reset` resets only
 this worktree's development data, and `vp run local:down` stops it without deleting data.
 
