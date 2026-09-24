@@ -26,12 +26,12 @@ vp run local:setup
 vp run env:diagnose:local
 ```
 
-Setup derives stable database and web ports from the current worktree path, creates strong random local passwords and a Better Auth secret, and writes mode-0600 files under ignored `.tracera/environment/local` and `.tracera/environment/test` directories. It does not read or copy any legacy environment file. Existing generated files are retained, so rerunning setup does not rotate database credentials unexpectedly. Setup safely adds missing local-auth and offline-analysis settings to an existing generated profile without reading or replacing its secrets.
+Setup derives stable database and web ports from the current worktree path, creates strong random local passwords and a Better Auth secret, and writes mode-0600 files under ignored `.tracera/environment/local` and `.tracera/environment/test` directories. Existing generated files are retained, so rerunning setup does not rotate database credentials unexpectedly. Setup safely adds missing local-auth and offline-analysis settings to an existing generated profile without reading or replacing its secrets.
 
 The committed shape is documented in `config/environment/local.generated.env.example`; never copy its placeholders. The local and test profiles use separate database ports, and the web app uses a third generated port (see [Local PostgreSQL](#local-postgresql)). Local sign-in and deterministic offline analysis are available through the synthetic identities and fixtures described below.
 
 The concise daily workflow, integration command, reset behavior, and CI boundary are in
-[`docs/local-development/README.md`](local-development/README.md). `vp run local:up`
+[`docs/local-development.md`](local-development.md). `vp run local:up`
 starts and health-checks an already configured database, `vp run local:reset` resets only
 this worktree's development data, and `vp run local:down` stops it without deleting data.
 
@@ -47,7 +47,7 @@ Keys cannot appear in both files; duplicates are errors rather than overrides. P
 Before loading local/test files, the launcher rejects:
 
 - inherited Tracera database, auth, provider, or profile variables;
-- `.env` or `.env.*` files (other than `.env.example`) in the repository root, `apps/web`, or the `ai`, `auth`, and `db` packages, because Next.js and older scripts load them implicitly;
+- `.env` or `.env.*` files (other than `.env.example`) in the repository root, `apps/web`, or the `ai`, `auth`, and `db` packages, because Next.js loads them implicitly;
 - missing generated files.
 
 After loading, it seals the selected values. Import-time and connection-entry validation detects role changes, injected managed values, or modifications to the selected target before a database connection opens. Diagnostics report only the profile, role, database username, loopback host, port, and database name; passwords, secrets, tokens, and query parameters are never displayed.
@@ -63,7 +63,7 @@ Local/test database URLs must:
 - match the generated worktree host, port, and database name;
 - use `tracera_runtime`, `tracera_migrator`, or `tracera_test_provisioner` according to the selected role.
 
-`ANALYSIS_STORAGE_TEST_DATABASE_URL` is accepted only by the `test` profile's runtime role. It must satisfy the same rules as the runtime URL, except that its database name must be a disposable database prefixed with the generated test database name (`<name>_<run>`). The Analysis storage integration test validates it before opening a pool; setting it without the test profile fails instead of connecting. The Analysis storage runner that creates such databases belongs to L03.
+`ANALYSIS_STORAGE_TEST_DATABASE_URL` is accepted only by the `test` profile's runtime role. It must satisfy the same rules as the runtime URL, except that its database name must be a disposable database prefixed with the generated test database name (`<name>_<run>`). The Analysis storage integration test validates it before opening a pool; setting it without the test profile fails instead of connecting.
 
 The test profile's runtime and migration URLs may also target a run database `<name>_<run>`, where `<run>` is 1–16 lowercase letters or digits. Tooling derives these URLs only through `withTestRunDatabase`, which rewrites the database name of the sealed generated URL and reseals it; local profiles never accept a suffix.
 
@@ -139,7 +139,7 @@ Deployment examples are split by role:
 - `config/environment/deployed.migration.env.example`
 - `config/environment/deployed.analysis.env.example`
 
-**Deployment prerequisite.** `next.config.js`, the request proxy, and database configuration now fail closed when Tracera settings are present without a profile. Before deploying this change, the hosted web environment (build and runtime) must set `TRACERA_PROFILE=deployed` and `TRACERA_CONFIG_ROLE=runtime`, and must not contain `DATABASE_MIGRATOR_URL`, `TEST_DATABASE_PROVISIONER_URL`, or `ANALYSIS_STORAGE_TEST_DATABASE_URL`.
+**Deployment requirement.** `next.config.js`, the request proxy, and database configuration fail closed when Tracera settings are present without a profile. The hosted web environment (build and runtime) must set `TRACERA_PROFILE=deployed` and `TRACERA_CONFIG_ROLE=runtime`, and must not contain `DATABASE_MIGRATOR_URL`, `TEST_DATABASE_PROVISIONER_URL`, or `ANALYSIS_STORAGE_TEST_DATABASE_URL`.
 
 Do not combine them. The web deployment should receive the runtime example's settings only. The operator migration environment should receive the migration example's settings only. AI validation scripts are live-capable only under an explicitly selected and valid environment; local/test profiles reject their credentials before the script runs.
 
@@ -161,23 +161,11 @@ DATABASE_MIGRATOR_URL=postgresql://OWNER:REDACTED@HOST/DATABASE
 
 Then run `vp run @repo/db#db:migrate`. Never add `DATABASE_MIGRATOR_URL` to the web process.
 
-## Retiring a shared root `.env`
-
-If any of those environment files exist, do not print it, source it, copy it into `.tracera`, or delete it automatically. Move it to a secure location outside the repository, then inventory and rotate its credentials through the relevant provider or secret manager. Generate local/test configuration with `vp run env:setup`; do not reuse production values locally.
-
-After deployment settings have been transferred to the role-specific secret stores, remove the old root file yourself through an approved recoverable workflow. The launcher checks only for its filename and never reads its contents.
-
 ## OAuth token storage
 
 Tracera uses provider tokens only while completing an OAuth callback. Better
 Auth encryption remains enabled as defense in depth, while account hooks drop
-access, refresh, and ID tokens before an account is written or updated. Apply
-the database migrations from the migration environment; migration
-`0020_clear_oauth_tokens.sql` removes token material created before this policy.
-
-If a previous database, backup, or log may have exposed provider tokens, revoke
-the old Google and GitHub grants in their provider consoles. Clearing the
-database cannot invalidate a token that was copied elsewhere.
+access, refresh, and ID tokens before an account is written or updated.
 
 ## GitHub authentication
 
@@ -238,9 +226,8 @@ Run `vp run test:auth-browser` after the local database is running and migrated.
 command starts the app on the generated port and runs one Chromium test covering both
 identities, database-backed session persistence across reload, logout, and private trace
 isolation. The web process receives only the runtime profile. The wrapper loads the
-generated migrator profile separately to remove only users with the two synthetic email
-addresses and traces carrying the reserved `L04 browser fixture:` prefix; it never
-accepts a URL or database name.
+generated migrator profile separately to remove only the users with the two synthetic
+email addresses; it never accepts a URL or database name.
 
 ## Deterministic analysis evaluation
 

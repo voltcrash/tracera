@@ -6,10 +6,6 @@ Tracera evaluates pasted text, public links, and screenshots against evidence it
 
 Tracera also preserves report artifacts, related context, and immutable timelines of observed timestamps as new evidence appears.
 
-Analysis is part of Tracera's main product flow. Older evaluation, calibration, staging, and
-worker documents remain in `docs/core-overhaul/` as archived historical artifacts; they are not
-claims about current accuracy or readiness.
-
 ## Features
 
 - **Multi-format analysis:** Check news presented as text, links, or images through one verification flow.
@@ -48,8 +44,9 @@ vp run env:setup
 vp run env:diagnose:local
 ```
 
-Profiles, process roles, deployed examples, and the safe migration away from a
-shared root `.env` are documented in [docs/environment.md](docs/environment.md).
+Profiles, process roles, and deployed examples are documented in
+[docs/environment.md](docs/environment.md). The day-to-day workflow is in
+[docs/local-development.md](docs/local-development.md).
 
 Start this worktree's PostgreSQL (Docker-compatible engine required) and apply
 migrations before running the server:

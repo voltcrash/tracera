@@ -73,7 +73,4 @@ downloads dependencies, the database image, and Chromium first, then applies a L
 firewall deny rule while running unit and integration suites. Only loopback and the local
 Docker bridge remain reachable during those suites.
 
-Real OAuth callbacks and live-provider, human-gold, calibration, paid-evaluation,
-production-migration, deployment, and release-approval work are separate and require
-their own authorization. Fixture success must not be treated as real-world accuracy or
-release evidence.
+Fixture success exercises code paths only; it is not evidence of real-world accuracy.
