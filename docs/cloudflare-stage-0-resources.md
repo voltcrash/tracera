@@ -176,3 +176,53 @@ Wrangler 4.149.0 from the throwaway toolchain spike.
   ]
 }
 ```
+
+## Production bootstrap config
+
+The reviewed `/tmp/tracera-stage-0/provisioning/wrangler.production.json` likewise
+received only the real D1 ID before deployment. Both dry runs passed. Separate configs
+and resources follow oxytype; adding the custom-domain route remains a Stage 4 action.
+
+```json
+{
+  "name": "tracera",
+  "main": "server.js",
+  "account_id": "eb2679ce4f23ae7db4e6c4e3fcf8c3c1",
+  "compatibility_date": "2026-10-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": ["17 * * * *"]
+  },
+  "vars": {
+    "MODE": "production",
+    "BETTER_AUTH_URL": "https://tracera.voltcrash.com",
+    "VERSION": "stage-0-bootstrap"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tracera-production",
+      "database_id": "26eeb656-2c46-4182-ad48-4bd696684b01"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BLOBS",
+      "bucket_name": "tracera-production-blobs"
+    }
+  ],
+  "workflows": [
+    {
+      "binding": "ANALYSIS_WORKFLOW",
+      "name": "tracera-production-analysis",
+      "class_name": "AnalysisWorkflow"
+    }
+  ]
+}
+```
