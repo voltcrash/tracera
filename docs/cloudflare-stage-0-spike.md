@@ -239,3 +239,30 @@ Before enabling any live provider, repeat the plan's structured-output probe fro
 in a deployed staging Worker using that actual provider and model. Keep credentials in the
 private secrets file and request approval for the exact secret/deploy commands. Local
 stubbed tests cannot establish whether a provider accepts Cloudflare network traffic.
+
+## Validation and Phase 0.2 exit criteria
+
+Each spike commit ran `vp install`, `vp check`, and `vp test` before commit. Relevant app
+tasks were also run as they were introduced. Final validation:
+
+| Check                              | Result and evidence                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| `vp install`                       | Pass; lockfile and install scripts accepted                                                 |
+| `vp check`                         | Pass; generated files and type-aware checks included                                        |
+| `vp test` on spike branch          | 188 passed; 10 pre-existing Postgres tests skipped without their database environment       |
+| `vp test` on documentation branch  | 187 passed; the same 10 pre-existing skips                                                  |
+| `cf-typegen`, local `db:migrate`   | Pass; real bindings and sqlite migrations                                                   |
+| `build`, `preview`                 | Pass; built Worker serves SSR in workerd                                                    |
+| `deploy:dry-run`                   | Pass; Worker, D1, and Workflow artifact inspected locally                                   |
+| `test:runtime`                     | Pass; persisted HttpOnly auth session and sign-out through real Start RPCs                  |
+| `test:workflow`                    | Pass; complete Workflow and HTTP 200 scheduled invocation, with both D1 row kinds confirmed |
+| `test:csp`                         | Pass; matching script nonces and unique request nonces in dev and preview                   |
+| SSR/HMR and Tailwind browser probe | Pass; counter and window marker preserved across HMR                                        |
+| Deployed configured-provider calls | Not applicable; owner confirmed no configured provider/model pairs                          |
+
+The existing Postgres skips were present before this work; no test was removed or disabled.
+The final spike has 28 passing test files and two pre-existing skipped files. This PR lands
+only documentation, so it validates with the existing baseline toolchain and suite.
+
+Written notes and a **GO** decision satisfy Phase 0.2's exit criteria for the confirmed
+empty provider configuration. This does not complete Stage 0: Phase 0.3 remains blocked.
