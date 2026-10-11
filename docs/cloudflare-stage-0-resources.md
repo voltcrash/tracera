@@ -397,3 +397,17 @@ production DNS and the custom-domain claim within Stage 4's cutover order.
 Section 3's `ASSETS` binding is managed by the Cloudflare Vite plugin. It has no separate
 resource name or ID to provision in Phase 0.3. The Stage 2 app build attaches its static
 asset bundle to the same Worker. The Stage 0 resource bootstrap has no asset bundle.
+
+## Final review integrity
+
+The documented JSON configs were parsed and compared with the reviewed bootstrap files;
+both matched. A private check confirmed the two auth values remain distinct and absent
+from this PR's diff, with file modes 0600 and parent mode 0700. `git diff --check` passed.
+
+SHA-256 of the actual bootstrap artifacts used for the approved deployments:
+
+| Artifact                   | SHA-256                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| `server.js`                | `6dde747508c57a345c19edd94244364f6a4d5781ac4ea694a13532af70b849f1` |
+| `wrangler.jsonc`           | `c54e9ab91352278d21e1946a1e1ff6acbef60b9be5c4504b784a25fb9f57d223` |
+| `wrangler.production.json` | `f6b4c274e1e8e084777fb074d3fee73543f481d3066648b41f51016743f3af5c` |
