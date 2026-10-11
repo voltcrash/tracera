@@ -352,3 +352,25 @@ Phase 3.3 will install `CLOUDFLARE_API_TOKEN` and `PRODUCTION_WORKER_ENV` in Git
 production environment with separately approved commands. Follow oxytype's release
 pattern: one scoped API token, a private Worker secrets file with mode 0600, and cleanup
 after deployment. No GitHub secret has been set during Stage 0.
+
+## Validation and exit criteria
+
+Every documentation commit runs `vp install`, `vp check`, and `vp test` before commit.
+Formatting fixes use Vite+; no check is bypassed. The existing suite reports 187 passing
+tests and 10 pre-existing Postgres skips, with 27 passing files and two skipped files.
+No package script or application code changes in this PR.
+
+| Phase 0.3 requirement                     | Result and evidence                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------ |
+| Resource names and IDs ready for Wrangler | Pass; manifests above, successful creates, and read-only inventory                   |
+| Isolated staging and production D1/R2     | Pass; distinct UUIDs and bucket names                                                |
+| Workers and Workflows exist               | Pass; successful deployments, version inventory, and Workflow script/class inventory |
+| Bootstrap configs validate                | Pass; dry runs before and after inserting real D1 IDs                                |
+| New staging and production auth secrets   | Pass; distinct random values in private mode-0600 files                              |
+| Staging Google OAuth                      | Incomplete; explicitly deferred by owner                                             |
+| Staging GitHub OAuth                      | Incomplete; exact form prepared, approval and registration pending                   |
+| Scoped CI API token                       | Incomplete; policy prepared, Dashboard creation pending                              |
+
+The resource exit criterion passes. Phase 0.3 and Stage 0 remain incomplete while their
+OAuth and token requirements are unresolved. Keep this PR draft until those requirements
+are complete or the owner explicitly changes the plan's gate.
