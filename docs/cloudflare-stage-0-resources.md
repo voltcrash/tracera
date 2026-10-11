@@ -40,7 +40,7 @@ The all-zero UUID in the throwaway spike is valid only for local work and dry ru
 | Worker               | `tracera`                       | —                   | Pending creation                                        |
 | Future public origin | `https://tracera.voltcrash.com` | —                   | Custom-domain activation belongs to Stage 4             |
 | D1                   | `tracera-production`            | `DB`                | `26eeb656-2c46-4182-ad48-4bd696684b01`; created in APAC |
-| R2                   | `tracera-production-blobs`      | `BLOBS`             | Bucket name is its identifier; creation pending         |
+| R2                   | `tracera-production-blobs`      | `BLOBS`             | Created; Standard storage, private bucket               |
 | Workflow             | `tracera-production-analysis`   | `ANALYSIS_WORKFLOW` | Creation pending; class `AnalysisWorkflow`              |
 
 Stage 2's separate `apps/web/wrangler.production.json` must use these resources. Production
