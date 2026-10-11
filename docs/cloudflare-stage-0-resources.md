@@ -2,7 +2,7 @@
 
 Date: 2026-10-11. Phase 0.3 is **incomplete**. R2 activation is verified. All six
 explicitly approved resource creation and bootstrap deployment commands succeeded. Google staging OAuth is deferred at the
-owner's request. GitHub staging OAuth and the scoped CI token remain pending.
+owner's request. GitHub staging OAuth is also deferred by the owner; the scoped CI token remains pending.
 
 This phase follows section 3 and Phase 0.3 of the
 [migration plan](cloudflare-migration-plan.md). Its PR contains documentation only.
@@ -281,10 +281,11 @@ project with origin `https://tracera-staging.voltcrash.workers.dev` and redirect
 ID and secret in the private staging secrets file. Request approval for the exact
 registration settings before submitting them.
 
-## GitHub staging OAuth: pending
+## GitHub staging OAuth: deferred
 
-The registration is prepared but has not been submitted. Review and approve these
-exact fields before using GitHub's
+The owner deferred GitHub staging OAuth on 2026-10-11. The registration has not been
+submitted and no client secret was generated. Retain these prepared fields for when
+the owner resumes this work; review and approve them before using GitHub's
 [OAuth application registration form](https://github.com/settings/applications/new):
 
 | Field                      | Value                                                                    |
@@ -368,7 +369,7 @@ No package script or application code changes in this PR.
 | Bootstrap configs validate                | Pass; dry runs before and after inserting real D1 IDs                                |
 | New staging and production auth secrets   | Pass; distinct random values in private mode-0600 files                              |
 | Staging Google OAuth                      | Incomplete; explicitly deferred by owner                                             |
-| Staging GitHub OAuth                      | Incomplete; exact form prepared, approval and registration pending                   |
+| Staging GitHub OAuth                      | Incomplete; explicitly deferred by owner; exact form retained                        |
 | Scoped CI API token                       | Incomplete; policy prepared, Dashboard creation pending                              |
 
 The resource exit criterion passes. Phase 0.3 and Stage 0 remain incomplete while their
