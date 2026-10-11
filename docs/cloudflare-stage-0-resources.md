@@ -374,3 +374,20 @@ No package script or application code changes in this PR.
 The resource exit criterion passes. Phase 0.3 and Stage 0 remain incomplete while their
 OAuth and token requirements are unresolved. Keep this PR draft until those requirements
 are complete or the owner explicitly changes the plan's gate.
+
+## Next-stage handoff
+
+Finish the pending Phase 0.3 requirements before starting Stage 1. Carry the real D1
+UUIDs and exact resource/binding names above into Stage 2's Wrangler configs; retain
+the newly generated auth secrets. The hosted databases are empty and the baseline
+migration is still a Phase 1.3 deliverable.
+
+No live AI provider/model pairs are configured, as confirmed by the owner in Phase 0.2.
+Run the deployed staging structured-output probe before configuring any live provider.
+Keep provider keys in a private secrets file, and preserve D14's provider resolver seam.
+
+Use the throwaway spike's validated Vite+/workerd, D1 migration, Miniflare testing,
+Start cookie, and CSP nonce patterns described in the
+[spike notes](cloudflare-stage-0-spike.md). Resolve the latest stable versions again at
+implementation time. Do not merge the spike or bootstrap app as product code. Keep
+production DNS and the custom-domain claim within Stage 4's cutover order.
