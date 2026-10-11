@@ -2,7 +2,7 @@
 
 Date: 2026-10-11. Phase 0.3 is **incomplete**. R2 activation is verified. All six
 explicitly approved resource creation and bootstrap deployment commands succeeded. Google staging OAuth is deferred at the
-owner's request. GitHub staging OAuth is also deferred by the owner; the scoped CI token remains pending.
+owner's request. GitHub staging OAuth and the scoped CI token are also deferred by the owner.
 
 This phase follows section 3 and Phase 0.3 of the
 [migration plan](cloudflare-migration-plan.md). Its PR contains documentation only.
@@ -306,9 +306,11 @@ GitHub documents this registration as a Dashboard flow in
 [Creating an OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
 An authenticated CLI session does not supply an authenticated Dashboard session.
 
-## Cloudflare CI API token: prepared, not created
+## Cloudflare CI API token: deferred
 
-Prepare an account-owned token named `Tracera CI` in the
+The owner deferred CI token creation on 2026-10-11. No token was created or secret
+collected. Retain the prepared policy below for when the owner resumes this work.
+After renewed approval, create an account-owned token named `Tracera CI` in the
 [account API tokens Dashboard](https://dash.cloudflare.com/eb2679ce4f23ae7db4e6c4e3fcf8c3c1/api-tokens).
 Limit it to account `eb2679ce4f23ae7db4e6c4e3fcf8c3c1` and zone `voltcrash.com`.
 Review these permissions before creating the token:
@@ -343,8 +345,8 @@ token. [Creating tokens via API](https://developers.cloudflare.com/fundamentals/
 requires a separate Dashboard-created token with Account API Tokens Edit. No such
 credential was requested or created.
 
-The remaining operation is an approved Dashboard creation using the policy above.
-The operator should save the one-time value in
+Dashboard creation using the policy above is deferred. When the owner resumes it and
+approves creation, the operator should save the one-time value in
 `/Users/lakshmi/.t3/private/tracera/stage-0/.ci.env` as `CLOUDFLARE_API_TOKEN`, with
 mode 0600, outside Git. The CI token file is separate from Worker secrets and has not
 been created yet. Report only completion and non-secret token metadata.
@@ -370,7 +372,7 @@ No package script or application code changes in this PR.
 | New staging and production auth secrets   | Pass; distinct random values in private mode-0600 files                              |
 | Staging Google OAuth                      | Incomplete; explicitly deferred by owner                                             |
 | Staging GitHub OAuth                      | Incomplete; explicitly deferred by owner; exact form retained                        |
-| Scoped CI API token                       | Incomplete; policy prepared, Dashboard creation pending                              |
+| Scoped CI API token                       | Incomplete; explicitly deferred by owner; policy retained                            |
 
 The resource exit criterion passes. Phase 0.3 and Stage 0 remain incomplete while their
 OAuth and token requirements are unresolved. Keep this PR draft until those requirements
