@@ -253,3 +253,17 @@ vp exec --filter cloudflare-spike wrangler r2 bucket create tracera-production-b
 Both commands created Standard buckets. Read-only inventory confirms the two names and
 creation timestamps. No public bucket URL, CORS rule, object, or lifecycle rule was added.
 R2 holds raw pages, screenshots, and large payloads; the final Neon dump is a Stage 4 task.
+
+## Approved bootstrap deployment commands
+
+After D1 creation, only the temporary database IDs were replaced with the returned UUIDs.
+The final configs passed dry runs again before these approved deployments:
+
+```sh
+vp exec --filter cloudflare-spike wrangler deploy --config /tmp/tracera-stage-0/provisioning/wrangler.jsonc --message 'Stage 0 resource bootstrap'
+vp exec --filter cloudflare-spike wrangler deploy --config /tmp/tracera-stage-0/provisioning/wrangler.production.json --message 'Stage 0 resource bootstrap'
+```
+
+Each deployment reported its correct D1, R2, Workflow, and cron bindings. Read-only
+deployment inventory confirms the version IDs above. No auth secret, OAuth secret, or
+provider key was passed to either deployment.
