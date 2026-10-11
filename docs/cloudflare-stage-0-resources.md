@@ -333,3 +333,22 @@ There is no extra Workflow permission to invent. D1 and zone permission names ar
 the [API permission reference](https://developers.cloudflare.com/fundamentals/api/reference/permissions/);
 R2's account permission is in [R2 authentication](https://developers.cloudflare.com/r2/api/tokens/).
 Dashboard labels may use Edit for the API's Write permission.
+
+## CI token creation and private storage
+
+The collaborative browser's account-token page redirected to Cloudflare login.
+Wrangler's OAuth login can provision resources but cannot create this account-owned
+token. [Creating tokens via API](https://developers.cloudflare.com/fundamentals/api/how-to/create-via-api/)
+requires a separate Dashboard-created token with Account API Tokens Edit. No such
+credential was requested or created.
+
+The remaining operation is an approved Dashboard creation using the policy above.
+The operator should save the one-time value in
+`/Users/lakshmi/.t3/private/tracera/stage-0/.ci.env` as `CLOUDFLARE_API_TOKEN`, with
+mode 0600, outside Git. The CI token file is separate from Worker secrets and has not
+been created yet. Report only completion and non-secret token metadata.
+
+Phase 3.3 will install `CLOUDFLARE_API_TOKEN` and `PRODUCTION_WORKER_ENV` in GitHub's
+production environment with separately approved commands. Follow oxytype's release
+pattern: one scoped API token, a private Worker secrets file with mode 0600, and cleanup
+after deployment. No GitHub secret has been set during Stage 0.
