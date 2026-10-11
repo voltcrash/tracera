@@ -223,3 +223,19 @@ The script checks both ports, matching inline-script nonces, nonce uniqueness, o
 untrusted input, and cache headers. The spike's development policy permits WebSockets for
 HMR and inline styles; final application policy and streaming integration remain Stage 2
 work and must preserve the nonce behavior.
+
+## Configured AI provider probe
+
+The owner answered **none** when asked for the configured provider/model names needed for
+the Phase 0.2 staging probe. There are therefore zero configured provider/model pairs to
+probe in this phase. No provider key was requested, read, copied, or committed, and no
+provider call or staging deployment was performed.
+
+The repository still has Gemini, OpenAI, Anthropic, OpenRouter, and OpenAI-compatible
+adapters. Adapter availability does not establish a configured platform provider. D5 still
+retains those adapters and D14 still requires the provider resolver.
+
+Before enabling any live provider, repeat the plan's structured-output probe from a step
+in a deployed staging Worker using that actual provider and model. Keep credentials in the
+private secrets file and request approval for the exact secret/deploy commands. Local
+stubbed tests cannot establish whether a provider accepts Cloudflare network traffic.
