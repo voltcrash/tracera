@@ -280,3 +280,27 @@ project with origin `https://tracera-staging.voltcrash.workers.dev` and redirect
 `https://tracera-staging.voltcrash.workers.dev/api/auth/callback/google`. Keep its client
 ID and secret in the private staging secrets file. Request approval for the exact
 registration settings before submitting them.
+
+## GitHub staging OAuth: pending
+
+The registration is prepared but has not been submitted. Review and approve these
+exact fields before using GitHub's
+[OAuth application registration form](https://github.com/settings/applications/new):
+
+| Field                      | Value                                                                    |
+| -------------------------- | ------------------------------------------------------------------------ |
+| Owner                      | `voltcrash`                                                              |
+| Application name           | `Tracera staging`                                                        |
+| Homepage URL               | `https://tracera-staging.voltcrash.workers.dev`                          |
+| Application description    | `Tracera staging sign-in for the Cloudflare migration.`                  |
+| Authorization callback URL | `https://tracera-staging.voltcrash.workers.dev/api/auth/callback/github` |
+| Device flow                | Disabled                                                                 |
+
+After approved registration, generate one client secret and store `GITHUB_CLIENT_ID`
+and `GITHUB_CLIENT_SECRET` in the existing private `.dev.vars.staging` file, preserving
+mode 0600. Record only the app name, owner, callback, and completion status in Git.
+This operation does not change the existing production OAuth app.
+
+GitHub documents this registration as a Dashboard flow in
+[Creating an OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
+An authenticated CLI session does not supply an authenticated Dashboard session.
