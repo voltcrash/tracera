@@ -226,3 +226,19 @@ and resources follow oxytype; adding the custom-domain route remains a Stage 4 a
   ]
 }
 ```
+
+## Approved D1 creation commands
+
+All six provisioning commands were explicitly approved before execution. Commands run
+from the throwaway spike worktree at
+`/Users/lakshmi/.t3/worktrees/tracera/stage-0-toolchain-spike`. The bootstrap files above
+are outside the mergeable branch. Each command completed successfully; do not rerun
+creation against resources that now exist.
+
+```sh
+vp exec --filter cloudflare-spike wrangler d1 create tracera-staging --config /tmp/tracera-stage-0/provisioning/wrangler.jsonc --update-config=false
+vp exec --filter cloudflare-spike wrangler d1 create tracera-production --config /tmp/tracera-stage-0/provisioning/wrangler.production.json --update-config=false
+```
+
+Read-only D1 inventory confirms both UUIDs in the manifest. Both databases are empty;
+the application baseline migration belongs to Phase 1.3. No Postgres data was imported.
