@@ -1,6 +1,6 @@
 # Cloudflare migration plan
 
-Status: proposed, 2026-10-11.
+Status: decisions accepted in Phase 0.1, 2026-10-11. Implementation gates remain open.
 
 Tracera moves from Next.js + Hono on Vercel with Neon Postgres to a single TanStack Start
 application running on one Cloudflare Worker, backed by D1, R2, and Workflows. AI stays on the
