@@ -18,3 +18,17 @@ databases, Workers, or Workflows. The existing oxytype resources are separate.
 The initial R2 list failed with error 10042 because R2 was disabled. After the owner
 enabled R2 in the Dashboard, listing buckets succeeded and returned an empty inventory.
 R2 activation is no longer the blocker. No resource has been created by this phase yet.
+
+## Staging resource manifest
+
+| Resource      | Name or origin                                  | Binding             | ID and state                                    |
+| ------------- | ----------------------------------------------- | ------------------- | ----------------------------------------------- |
+| Worker        | `tracera-staging`                               | —                   | Pending creation                                |
+| Public origin | `https://tracera-staging.voltcrash.workers.dev` | —                   | Reserved by plan; Worker pending                |
+| D1            | `tracera-staging`                               | `DB`                | UUID pending creation                           |
+| R2            | `tracera-staging-blobs`                         | `BLOBS`             | Bucket name is its identifier; creation pending |
+| Workflow      | `tracera-staging-analysis`                      | `ANALYSIS_WORKFLOW` | Creation pending; class `AnalysisWorkflow`      |
+
+Stage 2's default `apps/web/wrangler.jsonc` must use these hosted names and the real D1
+UUID. Local development uses Miniflare copies in that worktree's `.wrangler/state`.
+The all-zero UUID in the throwaway spike is valid only for local work and dry runs.
