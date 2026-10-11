@@ -127,3 +127,52 @@ export default {
   scheduled() {},
 };
 ```
+
+## Staging bootstrap config
+
+The reviewed `/tmp/tracera-stage-0/provisioning/wrangler.jsonc` received only the real
+D1 ID before deployment. Both placeholder-ID and final-ID dry runs passed with
+Wrangler 4.149.0 from the throwaway toolchain spike.
+
+```json
+{
+  "name": "tracera-staging",
+  "main": "server.js",
+  "account_id": "eb2679ce4f23ae7db4e6c4e3fcf8c3c1",
+  "compatibility_date": "2026-10-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": ["17 * * * *"]
+  },
+  "vars": {
+    "MODE": "production",
+    "BETTER_AUTH_URL": "https://tracera-staging.voltcrash.workers.dev",
+    "VERSION": "stage-0-bootstrap"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tracera-staging",
+      "database_id": "4df15d26-839d-46aa-a7fa-341c228569c2"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BLOBS",
+      "bucket_name": "tracera-staging-blobs"
+    }
+  ],
+  "workflows": [
+    {
+      "binding": "ANALYSIS_WORKFLOW",
+      "name": "tracera-staging-analysis",
+      "class_name": "AnalysisWorkflow"
+    }
+  ]
+}
+```
