@@ -391,3 +391,9 @@ Start cookie, and CSP nonce patterns described in the
 [spike notes](cloudflare-stage-0-spike.md). Resolve the latest stable versions again at
 implementation time. Do not merge the spike or bootstrap app as product code. Keep
 production DNS and the custom-domain claim within Stage 4's cutover order.
+
+## Managed static assets
+
+Section 3's `ASSETS` binding is managed by the Cloudflare Vite plugin. It has no separate
+resource name or ID to provision in Phase 0.3. The Stage 2 app build attaches its static
+asset bundle to the same Worker. The Stage 0 resource bootstrap has no asset bundle.
