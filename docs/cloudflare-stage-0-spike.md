@@ -131,3 +131,26 @@ vite-plus --latest` updated the actual core alias and root toolchain to current 
 
 `vp env doctor` completed successfully. No checks were bypassed, tests removed, or
 dependencies downgraded to resolve these findings.
+
+## Custom Worker entrypoint
+
+`src/server.ts` exports `AnalysisWorkflow extends WorkflowEntrypoint` and a default handler
+with both Start's `fetch` and a `scheduled` handler. Wrangler names the Workflow class in
+the `ANALYSIS_WORKFLOW` binding. The Workflow step inserts a `workflow` row into local D1
+and returns the synthetic run ID with `runtime: "workerd"`.
+
+`POST /api/probe` creates an instance; `GET /api/probe?id=…` returns its status. Both routes
+require `MODE=dev` and a loopback origin. A real local instance reached `complete` and
+returned the expected output. Invoking `/cdn-cgi/local/scheduled?cron=17+*+*+*+*` returned
+HTTP 200 and inserted a separate `scheduled` row.
+
+Repeat the HTTP checks with the dev server running:
+
+```sh
+vp run --filter cloudflare-spike test:workflow
+vp exec --filter cloudflare-spike wrangler d1 execute tracera-stage-0-spike --local --command 'SELECT kind, count(*) AS total FROM spike_events GROUP BY kind' --json
+```
+
+The D1 query confirmed both kinds persisted. Repeated probes add rows, so totals increase.
+`wrangler deploy --dry-run` also recognized the custom Workflow class and D1 binding in the
+built artifact; no remote deployment was made.
