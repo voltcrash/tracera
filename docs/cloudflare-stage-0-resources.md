@@ -304,3 +304,32 @@ This operation does not change the existing production OAuth app.
 GitHub documents this registration as a Dashboard flow in
 [Creating an OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
 An authenticated CLI session does not supply an authenticated Dashboard session.
+
+## Cloudflare CI API token: prepared, not created
+
+Prepare an account-owned token named `Tracera CI` in the
+[account API tokens Dashboard](https://dash.cloudflare.com/eb2679ce4f23ae7db4e6c4e3fcf8c3c1/api-tokens).
+Limit it to account `eb2679ce4f23ae7db4e6c4e3fcf8c3c1` and zone `voltcrash.com`.
+Review these permissions before creating the token:
+
+| Capability                                       | Permission or role                       | Scope                                   |
+| ------------------------------------------------ | ---------------------------------------- | --------------------------------------- |
+| Deploy existing Workers and manage their secrets | Workers Editor                           | Workers product in the selected account |
+| Apply D1 migrations                              | D1 Write                                 | Selected account                        |
+| R2 operations required by the plan               | Workers R2 Storage Write                 | Selected account                        |
+| Create or update Workflow definitions            | Covered by Workers deployment permission | Selected account                        |
+| Resolve the production custom-domain zone        | Zone Read                                | `voltcrash.com` only                    |
+| Configure the custom domain at cutover           | Workers Routes Write                     | `voltcrash.com` only                    |
+
+[Workers roles](https://developers.cloudflare.com/workers/authorization/workers/)
+require product-level Editor for custom-domain operations because per-Worker roles do
+not currently support them. This grants access to other Workers in the same account;
+it is not isolated to the two Tracera Workers. No Workers Admin permission is needed
+for releases once the resources exist.
+
+The [Workflow definition API](https://developers.cloudflare.com/api/resources/workflows/methods/update/)
+uses `Workers Scripts Write`, whose current replacement is Workers product Editor.
+There is no extra Workflow permission to invent. D1 and zone permission names are in
+the [API permission reference](https://developers.cloudflare.com/fundamentals/api/reference/permissions/);
+R2's account permission is in [R2 authentication](https://developers.cloudflare.com/r2/api/tokens/).
+Dashboard labels may use Edit for the API's Write permission.
