@@ -267,3 +267,16 @@ vp exec --filter cloudflare-spike wrangler deploy --config /tmp/tracera-stage-0/
 Each deployment reported its correct D1, R2, Workflow, and cron bindings. Read-only
 deployment inventory confirms the version IDs above. No auth secret, OAuth secret, or
 provider key was passed to either deployment.
+
+## Google staging OAuth: deferred
+
+The owner requested that selecting the existing Google Cloud project stay on the
+backburner. No project was selected, OAuth client registered, consent-screen setting
+changed, or Google secret collected. This is a deferred Phase 0.3 requirement, not a
+change to the accepted sign-in providers or staging origin.
+
+When resumed, register a Web application client in the owner's selected existing
+project with origin `https://tracera-staging.voltcrash.workers.dev` and redirect URI
+`https://tracera-staging.voltcrash.workers.dev/api/auth/callback/google`. Keep its client
+ID and secret in the private staging secrets file. Request approval for the exact
+registration settings before submitting them.
