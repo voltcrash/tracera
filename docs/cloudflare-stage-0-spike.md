@@ -201,3 +201,25 @@ vp run --filter cloudflare-spike test:runtime
 This proves the sqlite adapter and Start cookie integration together. It does not test
 Google or GitHub OAuth; their staging applications belong to Phase 0.3. No session tokens or
 real secrets are recorded in these notes.
+
+## CSP nonces
+
+The Worker fetch wrapper generates a random 18-byte nonce for every request and overwrites
+its internal request header before calling Start. The router obtains the server nonce
+through an isomorphic function and passes it as `ssr.nonce`. Client code reads Start's nonce
+meta element. The response's CSP permits the same nonce and the response uses
+`Cache-Control: private, no-store`.
+
+Dev and built preview each returned three script elements, including two inline scripts.
+All three had the response CSP's nonce. Two dev requests and one preview request had three
+distinct nonces. Supplying a fake nonce in the request header did not affect the generated
+nonce. The counter and HMR browser observations also succeeded with this CSP enabled.
+
+```sh
+vp run --filter cloudflare-spike test:csp
+```
+
+The script checks both ports, matching inline-script nonces, nonce uniqueness, overwriting
+untrusted input, and cache headers. The spike's development policy permits WebSockets for
+HMR and inline styles; final application policy and streaming integration remain Stage 2
+work and must preserve the nonce behavior.
