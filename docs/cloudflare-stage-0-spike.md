@@ -295,8 +295,8 @@ on 2026-10-11; the bucket list subsequently succeeded. Wrangler has no R2 activa
 command. Phase 0.3 then created both environments' resources using six explicitly approved
 commands, including the Worker deployments that create Workflows. It also generated new
 auth secrets in private local files. The [resource notes](cloudflare-stage-0-resources.md)
-record the actual IDs and evidence. Google staging OAuth is deferred by the owner;
-GitHub staging OAuth and the CI token remain pending. Production has no public bootstrap
+record the actual IDs and evidence. The owner deferred both staging OAuth apps and
+the CI token; their Phase 0.3 requirements remain open. Production has no public bootstrap
 route; the custom-domain cutover stays in Stage 4.
 
 Complete Phase 0.3 and its separate PR before advancing beyond Stage 0. Stage 1 should use
