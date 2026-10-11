@@ -109,3 +109,25 @@ were not excluded to make checks pass.
 The final spike check covers 282 formatted files and 228 lint/type-checked files. The
 unmodified docs-PR toolchain also passes its own checks; the spike's dependency upgrades
 remain isolated from the migration PRs.
+
+## Compatibility findings and fixes
+
+- Adding an existing catalog entry did not update its resolved Vite core. `vp update -w vite
+vite-plus --latest` updated the actual core alias and root toolchain to current stable
+  versions. `vp toolchain` confirmed Vite 8.3.3 and Vitest 5.0.3.
+- workerd needs its install script allowed. The spike preserves the existing workspace
+  `allowBuilds` choices and adds `workerd: true`; it does not replace those choices with
+  unresolved entries reported by a package-manager prompt.
+- Global Next.js lint rules treated Start's document `<head>` as Next code. The spike scopes
+  the Next.js plugin to `apps/web/**/*.{ts,tsx}` while retaining general React, accessibility,
+  TypeScript, type-aware, and type checks for Start. Existing Next code keeps its checks.
+- Current Better Auth uses the separate `@better-auth/drizzle-adapter` package and the
+  `auth` CLI for schema generation. The cookie plugin is last in the auth plugin list.
+- Current Start needs its CSRF middleware retained when specifying request middleware. The
+  spike explicitly installs `createCsrfMiddleware` for server functions.
+- `vp node` worked through the global CLI but was unavailable in the local package-script
+  wrapper. Runtime scripts use `node scripts/…` inside `vp run`, following existing repo
+  script patterns and the managed Node LTS runtime.
+
+`vp env doctor` completed successfully. No checks were bypassed, tests removed, or
+dependencies downgraded to resolve these findings.
