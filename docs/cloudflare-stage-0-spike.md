@@ -71,3 +71,25 @@ vp run --filter cloudflare-spike preview --host 127.0.0.1 --port 3001
 ```
 
 The runtime probe scripts expect the dev server on port 3000 and CSP also checks preview on 3001. Stop conflicting servers or use these exact ports when reproducing the scripts.
+
+## SSR, HMR, and Tailwind
+
+The app config uses `defineConfig` from `vite-plus`, then plugins in this order:
+`cloudflare({ viteEnvironment: { name: "ssr" } })`, `tanstackStart()`, `react()`, and
+`tailwindcss()`. `vp dev`, `vp build`, and `vp preview` all succeeded with the current Vite+
+core. The preview runs the built Worker through workerd.
+
+Browser evidence from the local app:
+
+- The SSR page rendered its heading and interactive counter in dev and built preview.
+- Tailwind v4's `@import "tailwindcss"` produced the expected dark page; the computed
+  background was `oklch(0.129 0.042 264.695)`.
+- Clicking the counter changed it from 0 to 1.
+- Editing the route's SSR text updated the page through HMR. The counter remained 1 and
+  a marker placed on `window` remained present, proving there was no full-page reload.
+- No CSP violation was observed during that HMR update.
+
+Later browser automation calls lost their connection. The initial SSR, interactivity,
+Tailwind, and HMR observations completed before that failure. Auth cookie verification
+below uses real HTTP requests to the running Start app rather than claiming a completed
+auth UI browser run.
