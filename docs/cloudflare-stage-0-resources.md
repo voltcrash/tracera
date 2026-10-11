@@ -242,3 +242,14 @@ vp exec --filter cloudflare-spike wrangler d1 create tracera-production --config
 
 Read-only D1 inventory confirms both UUIDs in the manifest. Both databases are empty;
 the application baseline migration belongs to Phase 1.3. No Postgres data was imported.
+
+## Approved R2 creation commands
+
+```sh
+vp exec --filter cloudflare-spike wrangler r2 bucket create tracera-staging-blobs --config /tmp/tracera-stage-0/provisioning/wrangler.jsonc --update-config=false
+vp exec --filter cloudflare-spike wrangler r2 bucket create tracera-production-blobs --config /tmp/tracera-stage-0/provisioning/wrangler.production.json --update-config=false
+```
+
+Both commands created Standard buckets. Read-only inventory confirms the two names and
+creation timestamps. No public bucket URL, CORS rule, object, or lifecycle rule was added.
+R2 holds raw pages, screenshots, and large payloads; the final Neon dump is a Stage 4 task.
