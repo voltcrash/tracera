@@ -26,7 +26,7 @@ R2 activation is no longer the blocker. Approved resource creation is in progres
 | Worker        | `tracera-staging`                               | —                   | Pending creation                                        |
 | Public origin | `https://tracera-staging.voltcrash.workers.dev` | —                   | Reserved by plan; Worker pending                        |
 | D1            | `tracera-staging`                               | `DB`                | `4df15d26-839d-46aa-a7fa-341c228569c2`; created in APAC |
-| R2            | `tracera-staging-blobs`                         | `BLOBS`             | Bucket name is its identifier; creation pending         |
+| R2            | `tracera-staging-blobs`                         | `BLOBS`             | Created; Standard storage, private bucket               |
 | Workflow      | `tracera-staging-analysis`                      | `ANALYSIS_WORKFLOW` | Creation pending; class `AnalysisWorkflow`              |
 
 Stage 2's default `apps/web/wrangler.jsonc` must use these hosted names and the real D1
