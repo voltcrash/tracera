@@ -1,7 +1,7 @@
 # Stage 0 resource preparation
 
 Date: 2026-10-11. Phase 0.3 is **incomplete**. R2 activation is verified; creation and
-deployment commands await explicit approval. Google staging OAuth is deferred at the
+deployment commands were approved as a six-command batch. Google staging OAuth is deferred at the
 owner's request. GitHub staging OAuth and the scoped CI token remain pending.
 
 This phase follows section 3 and Phase 0.3 of the
@@ -17,17 +17,17 @@ databases, Workers, or Workflows. The existing oxytype resources are separate.
 
 The initial R2 list failed with error 10042 because R2 was disabled. After the owner
 enabled R2 in the Dashboard, listing buckets succeeded and returned an empty inventory.
-R2 activation is no longer the blocker. No resource has been created by this phase yet.
+R2 activation is no longer the blocker. Approved resource creation is in progress.
 
 ## Staging resource manifest
 
-| Resource      | Name or origin                                  | Binding             | ID and state                                    |
-| ------------- | ----------------------------------------------- | ------------------- | ----------------------------------------------- |
-| Worker        | `tracera-staging`                               | —                   | Pending creation                                |
-| Public origin | `https://tracera-staging.voltcrash.workers.dev` | —                   | Reserved by plan; Worker pending                |
-| D1            | `tracera-staging`                               | `DB`                | UUID pending creation                           |
-| R2            | `tracera-staging-blobs`                         | `BLOBS`             | Bucket name is its identifier; creation pending |
-| Workflow      | `tracera-staging-analysis`                      | `ANALYSIS_WORKFLOW` | Creation pending; class `AnalysisWorkflow`      |
+| Resource      | Name or origin                                  | Binding             | ID and state                                            |
+| ------------- | ----------------------------------------------- | ------------------- | ------------------------------------------------------- |
+| Worker        | `tracera-staging`                               | —                   | Pending creation                                        |
+| Public origin | `https://tracera-staging.voltcrash.workers.dev` | —                   | Reserved by plan; Worker pending                        |
+| D1            | `tracera-staging`                               | `DB`                | `4df15d26-839d-46aa-a7fa-341c228569c2`; created in APAC |
+| R2            | `tracera-staging-blobs`                         | `BLOBS`             | Bucket name is its identifier; creation pending         |
+| Workflow      | `tracera-staging-analysis`                      | `ANALYSIS_WORKFLOW` | Creation pending; class `AnalysisWorkflow`              |
 
 Stage 2's default `apps/web/wrangler.jsonc` must use these hosted names and the real D1
 UUID. Local development uses Miniflare copies in that worktree's `.wrangler/state`.
