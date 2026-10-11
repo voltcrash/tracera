@@ -43,3 +43,31 @@ uses the newest stable release. Wrangler itself brings that alpha transitively. 
 compatibility date `2026-10-11` with `nodejs_compat`; the stable Miniflare unit-test helper uses
 `2026-07-30`, which its bundled workerd supports. This is a test-runtime date difference,
 not proof of identical compatibility flags across the two runtimes.
+
+## Reproduce the spike
+
+Use an isolated worktree of the throwaway branch. Commands below run from its repository
+root; the main app and root `dev` script still use Next.js.
+
+```sh
+vp install
+cp apps/cloudflare-spike/.dev.vars.example apps/cloudflare-spike/.dev.vars
+vp run --filter cloudflare-spike cf-typegen
+vp check --fix
+vp run --filter cloudflare-spike db:migrate
+vp run --filter cloudflare-spike dev --host 127.0.0.1
+```
+
+The ignored local secrets file contains only `MODE=dev` and a fixed local-only auth secret
+from the example. It has no provider credentials. `.wrangler`, real `.dev.vars` variants,
+and `dist` are ignored. The all-zero D1 ID in this throwaway config is for local use only.
+Do not deploy it or use it as a hosted resource ID.
+
+In a second terminal, build and start preview:
+
+```sh
+vp run --filter cloudflare-spike build
+vp run --filter cloudflare-spike preview --host 127.0.0.1 --port 3001
+```
+
+The runtime probe scripts expect the dev server on port 3000 and CSP also checks preview on 3001. Stop conflicting servers or use these exact ports when reproducing the scripts.
