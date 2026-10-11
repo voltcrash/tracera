@@ -266,3 +266,31 @@ only documentation, so it validates with the existing baseline toolchain and sui
 
 Written notes and a **GO** decision satisfy Phase 0.2's exit criteria for the confirmed
 empty provider configuration. This does not complete Stage 0: Phase 0.3 remains blocked.
+
+## Phase 0.3 blocker and next-stage handoff
+
+Read-only Wrangler inventory confirmed account `eb2679ce4f23ae7db4e6c4e3fcf8c3c1`. No Tracera
+D1 databases or Workflows were present. Listing R2 buckets failed with Cloudflare error
+10042: `Please enable R2 through the Cloudflare Dashboard.` Resource setup stopped there;
+no resources, OAuth apps, auth secrets, or CI token were created.
+
+R2 replaces the filesystem blob store for captured pages, screenshots, and large payloads,
+and holds the final Neon dump before retirement. D1 holds structured records and blob
+references. The plan requires separate `tracera-staging-blobs` and
+`tracera-production-blobs` buckets behind the `BLOBS` binding. Local Miniflare work does not
+require hosted R2 activation.
+
+The owner must activate R2 in the
+[account Dashboard](https://dash.cloudflare.com/eb2679ce4f23ae7db4e6c4e3fcf8c3c1/r2).
+Wrangler has no R2 activation command. After activation, prepare the exact resource,
+OAuth, secret, and deployment operations for approval before performing them. Workflow
+creation happens through Worker deployment, so include that deployment explicitly in the
+approval. Keep production routes and the custom-domain cutover for Stage 4.
+
+Complete Phase 0.3 and its separate PR before advancing beyond Stage 0. Stage 1 should use
+the validated Vite+/workerd patterns, preserve the existing provider adapters, implement
+the planned Worker-safe fetch and R2 blob store, and keep the resolver seam from D14. Stage
+2 must carry forward the generated-file checks, scoped Next lint rules during transition,
+real D1 migrations, Start cookie plugin ordering, and CSP nonce behavior. Recheck current
+stable dependency versions at implementation time and run the deployed provider probe if
+any live configuration is added.
