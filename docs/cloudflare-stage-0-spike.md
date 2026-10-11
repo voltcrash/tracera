@@ -154,3 +154,26 @@ vp exec --filter cloudflare-spike wrangler d1 execute tracera-stage-0-spike --lo
 The D1 query confirmed both kinds persisted. Repeated probes add rows, so totals increase.
 `wrangler deploy --dry-run` also recognized the custom Workflow class and D1 binding in the
 built artifact; no remote deployment was made.
+
+## D1, Drizzle, and Better Auth
+
+The spike uses `drizzle-orm/d1` and `drizzleAdapter(database, { provider: "sqlite", schema })`.
+The Better Auth CLI generated the sqlite auth schema; Drizzle Kit generated a real SQL
+migration. Local Wrangler migration application succeeded for both the event table and auth
+tables.
+
+Schema generation commands, run from `apps/cloudflare-spike` on the throwaway branch:
+
+```sh
+vp dlx auth@latest generate --config ./auth-schema.config.ts --output ./src/server/schema.ts --yes
+vp exec drizzle-kit generate
+```
+
+The test helper follows oxytype: instantiate Miniflare, get its D1 binding, read real SQL
+migrations in filename order, split on `--> statement-breakpoint`, apply statements with
+`database.batch()`, and dispose the runtime after the suite. No Postgres, Docker, pool
+replacement, or alternate Vitest runner is needed for this new test.
+
+The auth test creates a user and session through one Better Auth instance, retrieves that
+session and user through a fresh instance, then deletes the session and verifies it is absent.
+It passes inside Vite+'s bundled Vitest with the stable Miniflare dependency.
