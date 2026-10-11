@@ -177,3 +177,27 @@ replacement, or alternate Vitest runner is needed for this new test.
 The auth test creates a user and session through one Better Auth instance, retrieves that
 session and user through a fresh instance, then deletes the session and verifies it is absent.
 It passes inside Vite+'s bundled Vitest with the stable Miniflare dependency.
+
+## Start auth cookies
+
+`tanstackStartCookies()` is the last Better Auth plugin. The local fixture server functions
+call Better Auth's sign-up, session, and sign-out APIs. They require both `MODE=dev` and a
+loopback origin; the dev auth URL derives from that request origin.
+
+`test:runtime` fetches the transformed Start server-function module, resolves the real RPC
+IDs, and calls those RPC endpoints over HTTP against the running workerd dev server. It
+keeps the cookie jar in memory and prints only boolean evidence:
+
+- Sign-up returns HTTP 200 and sends `tracera-spike.session_token` through Start's response.
+- The cookie is HttpOnly.
+- Two subsequent server-function requests see the authenticated session persisted in D1.
+- Sign-out sends a cookie with `Max-Age=0`.
+- A later request sees the session as absent.
+
+```sh
+vp run --filter cloudflare-spike test:runtime
+```
+
+This proves the sqlite adapter and Start cookie integration together. It does not test
+Google or GitHub OAuth; their staging applications belong to Phase 0.3. No session tokens or
+real secrets are recorded in these notes.
