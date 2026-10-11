@@ -37,7 +37,7 @@ The all-zero UUID in the throwaway spike is valid only for local work and dry ru
 
 | Resource             | Name or origin                  | Binding             | ID and state                                            |
 | -------------------- | ------------------------------- | ------------------- | ------------------------------------------------------- |
-| Worker               | `tracera`                       | —                   | Pending creation                                        |
+| Worker               | `tracera`                       | —                   | Deployed; bootstrap version below                       |
 | Future public origin | `https://tracera.voltcrash.com` | —                   | Custom-domain activation belongs to Stage 4             |
 | D1                   | `tracera-production`            | `DB`                | `26eeb656-2c46-4182-ad48-4bd696684b01`; created in APAC |
 | R2                   | `tracera-production-blobs`      | `BLOBS`             | Created; Standard storage, private bucket               |
@@ -64,3 +64,13 @@ Read-only `wrangler workflows list` confirms `tracera-staging-analysis` belongs 
 `tracera-staging` and uses class `AnalysisWorkflow`. The binding is `ANALYSIS_WORKFLOW`.
 The bootstrap exports a valid step but creates no analysis instances. Stage 2 replaces
 that implementation with the planned analysis pipeline.
+
+## Production Worker deployment
+
+The approved deployment created Worker `tracera`, version
+`9a424fa8-6bee-4966-918b-0c2c8935fb3e`, with message `Stage 0 resource bootstrap` and cron
+`17 * * * *`. Wrangler reported no public URL for this deployment. The reviewed config
+sets `workers_dev: false`, `preview_urls: false`, and `routes: []`.
+
+No custom domain, DNS record, Vercel setting, or Neon resource was changed. Production
+resource provisioning leaves the current site serving until Stage 4.
