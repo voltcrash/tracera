@@ -23,8 +23,8 @@ R2 activation is no longer the blocker. Approved resource creation is in progres
 
 | Resource      | Name or origin                                  | Binding             | ID and state                                            |
 | ------------- | ----------------------------------------------- | ------------------- | ------------------------------------------------------- |
-| Worker        | `tracera-staging`                               | —                   | Pending creation                                        |
-| Public origin | `https://tracera-staging.voltcrash.workers.dev` | —                   | Reserved by plan; Worker pending                        |
+| Worker        | `tracera-staging`                               | —                   | Deployed; bootstrap version below                       |
+| Public origin | `https://tracera-staging.voltcrash.workers.dev` | —                   | Verified HTTP 503 bootstrap response                    |
 | D1            | `tracera-staging`                               | `DB`                | `4df15d26-839d-46aa-a7fa-341c228569c2`; created in APAC |
 | R2            | `tracera-staging-blobs`                         | `BLOBS`             | Created; Standard storage, private bucket               |
 | Workflow      | `tracera-staging-analysis`                      | `ANALYSIS_WORKFLOW` | Creation pending; class `AnalysisWorkflow`              |
@@ -47,3 +47,13 @@ Stage 2's separate `apps/web/wrangler.production.json` must use these resources.
 disables workers.dev and preview URLs. The Stage 0 bootstrap also has an empty routes
 array, so resource creation cannot claim the current Vercel hostname. Add the planned
 custom-domain route only through Stage 4's approved cutover steps.
+
+## Staging Worker deployment
+
+The approved deployment created Worker `tracera-staging`, version
+`375cd268-d98a-4a6c-9fae-6b9cb78c2e51`, with message `Stage 0 resource bootstrap`.
+Its cron is `17 * * * *`. The deployed artifact is 0.75 KiB before gzip.
+
+An HTTPS request to the staging origin returned HTTP 503, `cache-control: no-store`, and
+`{"service":"tracera","stage":0,"status":"migration-pending"}`. This is the intended
+bootstrap response. Authentication and analysis are implemented in later stages.
