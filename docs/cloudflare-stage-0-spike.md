@@ -93,3 +93,19 @@ Later browser automation calls lost their connection. The initial SSR, interacti
 Tailwind, and HMR observations completed before that failure. Auth cookie verification
 below uses real HTTP requests to the running Start app rather than claiming a completed
 auth UI browser run.
+
+## Generated files and type-aware checks
+
+The Start plugin generated `src/routeTree.gen.ts`, including `/api/probe` when the probe
+server route was added. Router generation uses `quoteStyle: "double"` and `semicolons: true`
+to match repository formatting. `wrangler types` generated `worker-configuration.d.ts` with
+the D1 and Workflow bindings and named Workflow entrypoint.
+
+`vp check --fix` formatted the initial generated binding types, then plain `vp check` passed
+with formatting, lint, type-aware lint, and type checking enabled. The app's tsconfig includes
+`*.config.ts`, so the Vite and schema-generation configs are checked too. Generated files
+were not excluded to make checks pass.
+
+The final spike check covers 282 formatted files and 228 lint/type-checked files. The
+unmodified docs-PR toolchain also passes its own checks; the spike's dependency upgrades
+remain isolated from the migration PRs.
