@@ -3,8 +3,10 @@
 Status: proposed, 2026-10-11.
 
 Tracera moves from Next.js + Hono on Vercel with Neon Postgres to a single TanStack Start
-application running on one Cloudflare Worker, backed by D1, R2, Vectorize, Workers AI, AI
-Gateway, and Workflows. Local development and production follow the oxytype model: one Worker
+application running on one Cloudflare Worker, backed by D1, R2, and Workflows. AI stays on the
+existing provider-neutral layer (Gemini, OpenAI, Anthropic, OpenRouter, and OpenAI-compatible
+APIs), called from the Worker, and provider selection is shaped so users can bring their own
+API keys later. Local development and production follow the oxytype model: one Worker
 codebase, one Wrangler config per hosted environment, `.dev.vars` files for secrets, and
 Wrangler-managed D1 migrations.
 
@@ -15,8 +17,10 @@ Goals:
 - Serve the website, authentication, API, and analysis pipeline from one Worker on
   `tracera.voltcrash.com`.
 - Replace Hono with TanStack Start server functions, server routes, and middleware.
-- Replace Neon Postgres and pgvector with D1, Vectorize for embeddings, and R2 for raw blobs.
-- Replace third-party AI providers with Workers AI behind AI Gateway.
+- Replace Neon Postgres with D1, and the filesystem blob store with R2.
+- Keep the AI provider layer and its current providers, running unchanged from the Worker,
+  with provider selection behind one per-run resolver so bring-your-own-key (BYOK) can be added
+  without reworking the pipeline.
 - Run local development on the production runtime (workerd through the Cloudflare Vite
   plugin), and delete the Docker, profile, role, and generated-configuration tooling.
 
@@ -25,6 +29,7 @@ Non-goals:
 - No change to analysis semantics, `@repo/contracts` report shapes, scoring, or visual design.
 - No new product features beyond what the platform change requires (see D9 for local
   fixture analysis).
+- BYOK itself ships after the migration; section 7 describes it.
 
 ## 2. What changes
 
@@ -34,9 +39,9 @@ Non-goals:
 | API                | Hono app behind `app/api/[[...route]]`                                                   | Start server functions for UI calls, server routes for HTTP-shaped endpoints, Start middleware |
 | Hosting            | Vercel project, Node runtime, `maxDuration` 300 s                                        | One Worker with Workers Static Assets and a custom domain                                      |
 | Database           | Neon Postgres 18 via `pg` and Neon serverless, 31 migrations, roles and grants           | D1 via Drizzle's `d1` driver, one new baseline migration                                       |
-| Embeddings         | pgvector `vector(1024)` column                                                           | Vectorize index (1024 dimensions, cosine) plus a D1 metadata row                               |
+| AI                 | Gemini, OpenAI, Anthropic, OpenRouter, OpenAI-compatible adapters; config read from env  | Same adapters and keys, called with `fetch` from the Workflow; config from a per-run resolver  |
+| Embeddings         | pgvector `vector(1024)` table that nothing writes                                        | Not ported; the embedding port stays for future use (D13)                                      |
 | Raw blobs          | Filesystem store                                                                         | R2 bucket                                                                                      |
-| AI                 | Gemini, OpenAI, OpenRouter, Anthropic, OpenAI-compatible APIs with keys                  | Workers AI binding through AI Gateway                                                          |
 | Analysis execution | Inside `POST /analyze`, with Postgres job leases, fencing tokens, and renew timers       | One Workflow instance per run; the request returns the run ID                                  |
 | Maintenance        | None                                                                                     | Cron trigger on the same Worker                                                                |
 | Configuration      | `@repo/environment` profiles and roles, sealed files under `.tracera/`, `TRACERA_*` vars | `wrangler.jsonc` vars and `.dev.vars`; `wrangler.production.json` and `.dev.vars.production`   |
@@ -56,19 +61,17 @@ flowchart TB
         Workflow["Workflow: AnalysisWorkflow"]
         Cron["Cron trigger"]
         D1[("D1<br/>auth, runs, reports, controls")]
-        R2[("R2<br/>raw blobs, large payloads")]
-        Vectorize[("Vectorize<br/>snapshot embeddings")]
-        Gateway["AI Gateway"] --> AI["Workers AI"]
+        R2[("R2<br/>raw blobs, screenshots, large payloads")]
     end
 
     Worker --> Assets
     Worker --> D1
+    Worker --> R2
     Worker -->|create, terminate| Workflow
     Workflow --> D1
     Workflow --> R2
-    Workflow --> Vectorize
-    Workflow --> Gateway
     Cron --> Worker
+    Workflow -->|HTTPS| Providers["AI providers<br/>Gemini, OpenAI, Anthropic, OpenRouter, OpenAI-compatible"]
     Workflow -->|evidence fetches| Web["Public web and evidence sources"]
     Worker -->|OAuth redirects| IdP["Google and GitHub sign-in"]
 ```
@@ -80,14 +83,13 @@ flowchart TB
 | Worker              | Worker name                  | `tracera-staging` (workers.dev)                     | `tracera` (custom domain only)          |
 | `DB`                | D1                           | `tracera-staging` (local copy in `.wrangler/state`) | `tracera-production`                    |
 | `BLOBS`             | R2                           | `tracera-staging-blobs` (local copy)                | `tracera-production-blobs`              |
-| `SNAPSHOT_VECTORS`  | Vectorize, 1024-d, cosine    | `tracera-staging-snapshots` (remote only)           | `tracera-production-snapshots`          |
-| `AI`                | Workers AI via AI Gateway    | gateway `tracera-staging` (remote only)             | gateway `tracera-production`            |
-| `ANALYSIS_WORKFLOW` | Workflow, `AnalysisWorkflow` | `tracera-staging-analysis` (local in dev)           | `tracera-production-analysis`           |
+| `ANALYSIS_WORKFLOW` | Workflow, `AnalysisWorkflow` | `tracera-staging-analysis` (local copy)             | `tracera-production-analysis`           |
 | `ASSETS`            | Static assets                | managed by the Cloudflare Vite plugin               | same                                    |
 
+Every binding has a local Miniflare copy, so local development never needs a Cloudflare login.
 Both configs set `compatibility_flags: ["nodejs_compat"]`, `observability.enabled`, and a cron
-trigger. Production disables `workers_dev` and preview URLs and routes
-`tracera.voltcrash.com` as a custom domain.
+trigger. Production disables `workers_dev` and preview URLs and routes `tracera.voltcrash.com`
+as a custom domain.
 
 ### Source layout after migration
 
@@ -109,7 +111,7 @@ apps/web/
     server/                    # env, auth, middleware, server functions, workflow, cron
     components/ lib/ styles/   # ported with minimal changes
 packages/
-  ai/                # Workers AI provider, R2 blob store, Worker-safe fetch
+  ai/                # existing providers, provider resolver, R2 blob store, Worker-safe fetch
   auth/              # Better Auth on D1
   contracts/         # unchanged
   db/                # Drizzle sqlite schema, D1 repositories, migrations/
@@ -124,7 +126,8 @@ packages/
    hold staging values.
 3. Ignored `apps/web/.dev.vars`, copied from the committed `.dev.vars.example`, overrides vars
    and supplies secrets for local development only: `MODE=dev`, `ANALYSIS_MODE=fixture`,
-   `DEV_AUTH_BYPASS=true`, and a fixed local-only `BETTER_AUTH_SECRET`.
+   `DEV_AUTH_BYPASS=true`, and a fixed local-only `BETTER_AUTH_SECRET`. The example lists the
+   `AI_*` settings commented out for `dev:live`.
 4. `apps/web/wrangler.production.json` is a separate, explicit config with isolated resources,
    `secrets.required`, and the custom-domain route. It is never the default.
 5. Production secrets live in ignored `apps/web/.dev.vars.production` (mode 0600) and are
@@ -133,7 +136,8 @@ packages/
 6. `check:production` validates the production config, secrets file, and build before every
    production deploy (a port of oxytype's `production-inputs.ts`): resource names and IDs differ
    from staging, one HTTPS origin, `MODE=production`, no `DEV_AUTH_BYPASS`, no fixture mode,
-   no placeholder or local secrets, a long enough auth secret, and complete OAuth pairs.
+   no placeholder or local secrets, a long enough auth secret, complete OAuth pairs, and a
+   complete AI provider configuration (the same rules the runtime policy enforces today).
 7. `MODE` (`dev` or `production`) is the only runtime switch. It replaces `TRACERA_PROFILE`,
    `TRACERA_CONFIG_ROLE`, and `NODE_ENV` checks. Dev-only behavior requires `MODE=dev` and a
    loopback request origin.
@@ -145,9 +149,9 @@ Parallel worktrees need no generated configuration: each worktree keeps its own
 port when it is taken. In dev, Better Auth derives its base URL from the loopback request
 origin, so any port works; production uses the fixed `BETTER_AUTH_URL`.
 
-Workers AI and Vectorize have no local simulator. They are remote bindings to the staging
-resources and are only called when `ANALYSIS_MODE=live`, so the default local workflow needs no
-Cloudflare login and incurs no AI usage.
+Live AI locally is opt-in: `dev:live` sets `ANALYSIS_MODE=live` and uses the provider settings
+in `.dev.vars`. This relaxes today's rule that local profiles reject provider credentials;
+`.dev.vars` is ignored by Git and never uploaded.
 
 ### Commands
 
@@ -157,7 +161,7 @@ Run from the repository root with `vp run <script>` unless noted.
 | -------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | First-time setup     | `vp install`, copy `apps/web/.dev.vars.example` to `.dev.vars`, `db:migrate` | Installs, configures, and migrates local D1                                                  |
 | Develop              | `dev`                                                                        | `vp dev` in `apps/web`: Vite and workerd with HMR, local D1, R2, and Workflows               |
-| Develop with live AI | `dev:live`                                                                   | Same, with `ANALYSIS_MODE=live`; needs `wrangler login` and uses staging AI and Vectorize    |
+| Develop with live AI | `dev:live`                                                                   | Same, with `ANALYSIS_MODE=live` and the provider settings from `.dev.vars`                   |
 | Generate migration   | `db:generate`                                                                | `drizzle-kit generate` with the sqlite dialect                                               |
 | Migrate local        | `db:migrate`                                                                 | `wrangler d1 migrations apply tracera-staging --local`                                       |
 | Reset local data     | `db:reset`                                                                   | Deletes this worktree's local D1 state and migrates again                                    |
@@ -172,36 +176,39 @@ Run from the repository root with `vp run <script>` unless noted.
 
 ### Variables
 
-| Today                                                                                                                                                                                           | Target                                                                                  |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`                                                                                                                                                                            | Secret (`.dev.vars` locally)                                                            |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                                                                                                          | Secrets in staging and production only                                                  |
-| `GOOGLE_FACT_CHECK_API_KEY`, `NEWS_API_KEY`                                                                                                                                                     | Optional secrets, kept only if D4 keeps those sources                                   |
-| `DEV_AUTH_BYPASS`                                                                                                                                                                               | `.dev.vars` only; rejected by `check:production`                                        |
-| `TRACERA_ANALYSIS_MODE`                                                                                                                                                                         | `ANALYSIS_MODE` (`fixture` or `live`)                                                   |
-| `AI_MODEL`, `AI_EMBEDDING_MODEL`                                                                                                                                                                | Vars holding Workers AI model IDs; add `AI_VISION_MODEL` if needed, and `AI_GATEWAY_ID` |
-| `ANALYSIS_*` limits, `AI_DAILY_SPEND_LIMIT_USD`, `AI_ESTIMATED_*_COST_USD`                                                                                                                      | Optional vars; code defaults unchanged                                                  |
-| —                                                                                                                                                                                               | New: `MODE`, `BETTER_AUTH_URL`, `VERSION`                                               |
-| `TRACERA_PROFILE`, `TRACERA_CONFIG_ROLE`, `TRACERA_CONFIG_SEAL`, `TRACERA_CONFIG_SOURCE`, `TRACERA_WORKTREE_ID`, `TRACERA_DATABASE_*`, `TRACERA_APP_ORIGIN`, `TRACERA_APP_PORT`                 | Removed                                                                                 |
-| `DATABASE_URL`, `DATABASE_MIGRATOR_URL`, `TEST_DATABASE_PROVISIONER_URL`, `ANALYSIS_STORAGE_TEST_DATABASE_URL`                                                                                  | Removed; D1 is a binding                                                                |
-| `AI_PROVIDER`, `AI_API_KEY`, `AI_BASE_URL`, `AI_EMBEDDING_PROVIDER`, `AI_EMBEDDING_API_KEY`, `AI_EMBEDDING_BASE_URL`, and provider keys (`GEMINI_*`, `OPENAI_*`, `ANTHROPIC_*`, `OPENROUTER_*`) | Removed; Workers AI is a binding                                                        |
+| Today                                                                                                                                                                           | Target                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `BETTER_AUTH_SECRET`                                                                                                                                                            | Secret (`.dev.vars` locally)                                       |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                                                                                          | Secrets in staging and production only                             |
+| `AI_PROVIDER`, `AI_MODEL`, `AI_BASE_URL`, `AI_EMBEDDING_PROVIDER`, `AI_EMBEDDING_MODEL`, `AI_EMBEDDING_BASE_URL`                                                                | Unchanged; Wrangler vars (`.dev.vars` locally)                     |
+| `AI_API_KEY`, `AI_EMBEDDING_API_KEY`                                                                                                                                            | Unchanged; secrets (`.dev.vars` locally)                           |
+| `GOOGLE_FACT_CHECK_API_KEY`, `NEWS_API_KEY`                                                                                                                                     | Optional secrets, kept only if D4 keeps those sources              |
+| `DEV_AUTH_BYPASS`                                                                                                                                                               | `.dev.vars` only; rejected by `check:production`                   |
+| `TRACERA_ANALYSIS_MODE`                                                                                                                                                         | `ANALYSIS_MODE` (`fixture` or `live`)                              |
+| `ANALYSIS_*` limits, `AI_DAILY_SPEND_LIMIT_USD`, `AI_ESTIMATED_*_COST_USD`                                                                                                      | Optional vars; code defaults unchanged                             |
+| —                                                                                                                                                                               | New: `MODE`, `BETTER_AUTH_URL`, `VERSION`                          |
+| —                                                                                                                                                                               | Later, for BYOK: secret `PROVIDER_KEYS_ENCRYPTION_KEY` (section 7) |
+| `TRACERA_PROFILE`, `TRACERA_CONFIG_ROLE`, `TRACERA_CONFIG_SEAL`, `TRACERA_CONFIG_SOURCE`, `TRACERA_WORKTREE_ID`, `TRACERA_DATABASE_*`, `TRACERA_APP_ORIGIN`, `TRACERA_APP_PORT` | Removed                                                            |
+| `DATABASE_URL`, `DATABASE_MIGRATOR_URL`, `TEST_DATABASE_PROVISIONER_URL`, `ANALYSIS_STORAGE_TEST_DATABASE_URL`                                                                  | Removed; D1 is a binding                                           |
 
 ## 5. Decisions
 
-| ID  | Decision                        | Recommendation                                                                                                                                                                                                                                                                                                         | Status   |
-| --- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| D1  | Delivery strategy               | Stages 0–1 are additive and merge to `main` (Vercel keeps serving). Stages 2–3 land as one PR per phase into `migrate/cloudflare`. `main` and Vercel stay untouched until cutover; freeze feature work on `main` meanwhile.                                                                                            | Proposed |
-| D2  | API surface                     | Server functions for everything the React UI calls. Server routes only where the HTTP shape matters: `/api/auth/$`, SSE progress, evidence download, health. No CORS: dev and production are both same-origin.                                                                                                         | Proposed |
-| D3  | Analysis execution              | Workflows. `startAnalysis` returns the run ID and the run page streams progress. Retires the Postgres job queue, leases, fencing renewals, timers, and outbox.                                                                                                                                                         | Proposed |
-| D4  | "Nothing from outside" boundary | All infrastructure and AI run on Cloudflare. Google and GitHub sign-in and the public pages being checked are inherently external. Google News RSS, GDELT, Google Fact Check, and NewsAPI are external evidence data with no Cloudflare equivalent; keep them, since dropping them limits evidence to submitted links. | Open     |
-| D5  | AI models                       | Workers AI through AI Gateway, external providers removed. Models chosen by the Phase 0.3 bake-off with the existing evaluation harness. Embedding candidate `@cf/baai/bge-m3` (1024-d, multilingual) keeps `EMBEDDING_DIMENSIONS = 1024`. The D1 spend circuit stays, using reported token usage where available.     | Proposed |
-| D6  | Existing production data        | New D1 baseline (Postgres migrations are not ported). Migrate users, accounts, and report history; migrate sessions only if `BETTER_AUTH_SECRET` is kept, otherwise users sign in once. Do not migrate embeddings (the model changes).                                                                                 | Open     |
-| D7  | Concurrency on D1               | Atomic `batch()` calls with guarded statements and optimistic version columns, as in oxytype. No interactive transactions. A Durable Object only if a guard cannot be expressed in one batch.                                                                                                                          | Proposed |
-| D8  | Config layout                   | Separate `wrangler.production.json` instead of Wrangler `env` blocks; secrets through `--secrets-file`. Mirrors oxytype.                                                                                                                                                                                               | Proposed |
-| D9  | Local analysis                  | `MODE=dev` with `ANALYSIS_MODE=fixture` runs the deterministic scripted ports end to end, so the whole UI works offline. `live` is opt-in. Production rejects fixture mode.                                                                                                                                            | Proposed |
-| D10 | Test runtime                    | Miniflare inside Vitest (oxytype) rather than `@cloudflare/vitest-pool-workers`, to stay on Vite+'s bundled Vitest.                                                                                                                                                                                                    | Proposed |
-| D11 | Fonts                           | Self-host Newsreader with `@fontsource-variable/newsreader`; keep the local Geist files. No Google Fonts download at build time.                                                                                                                                                                                       | Proposed |
-| D12 | Database privileges             | Postgres roles, grants, and the RLS analysis are retired. Only the Worker binding can reach D1; migrations use a scoped API token. Application-level tenant, owner, and visibility filters stay.                                                                                                                       | Proposed |
+| ID  | Decision                 | Recommendation                                                                                                                                                                                                                                                                                                                             | Status                       |
+| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| D1  | Delivery strategy        | Stages 0–1 are additive and merge to `main` (Vercel keeps serving). Stages 2–3 land as one PR per phase into `migrate/cloudflare`. `main` and Vercel stay untouched until cutover; freeze feature work on `main` meanwhile.                                                                                                                | Proposed                     |
+| D2  | API surface              | Server functions for everything the React UI calls. Server routes only where the HTTP shape matters: `/api/auth/$`, SSE progress, evidence download, health. No CORS: dev and production are both same-origin.                                                                                                                             | Proposed                     |
+| D3  | Analysis execution       | Workflows. `startAnalysis` returns the run ID and the run page streams progress. Retires the Postgres job queue, leases, fencing renewals, timers, and outbox.                                                                                                                                                                             | Proposed                     |
+| D4  | Cloudflare boundary      | All infrastructure runs on Cloudflare. AI providers stay external by choice: Workers AI behind AI Gateway costs more for this workload, and external providers keep BYOK possible. Sign-in providers and the pages being checked are inherently external. Keep Google News RSS, GDELT, Google Fact Check, and NewsAPI as evidence sources. | Accepted, except the sources |
+| D5  | AI providers             | Keep the provider-neutral `AiProvider` layer and the Gemini, OpenAI, Anthropic, OpenRouter, and OpenAI-compatible adapters, plus the D1 spend circuit. No Workers AI, AI Gateway, or model bake-off.                                                                                                                                       | Accepted                     |
+| D6  | Existing production data | New D1 baseline (Postgres migrations are not ported). Migrate users, accounts, and report history; migrate sessions only if `BETTER_AUTH_SECRET` is kept, otherwise users sign in once.                                                                                                                                                    | Open                         |
+| D7  | Concurrency on D1        | Atomic `batch()` calls with guarded statements and optimistic version columns, as in oxytype. No interactive transactions. A Durable Object only if a guard cannot be expressed in one batch.                                                                                                                                              | Proposed                     |
+| D8  | Config layout            | Separate `wrangler.production.json` instead of Wrangler `env` blocks; secrets through `--secrets-file`. Mirrors oxytype.                                                                                                                                                                                                                   | Proposed                     |
+| D9  | Local analysis           | `MODE=dev` with `ANALYSIS_MODE=fixture` runs the deterministic scripted ports end to end, so the whole UI works offline. `live` is opt-in with your own key in `.dev.vars`. Production rejects fixture mode.                                                                                                                               | Proposed                     |
+| D10 | Test runtime             | Miniflare inside Vitest (oxytype) rather than `@cloudflare/vitest-pool-workers`, to stay on Vite+'s bundled Vitest.                                                                                                                                                                                                                        | Proposed                     |
+| D11 | Fonts                    | Self-host Newsreader with `@fontsource-variable/newsreader`; keep the local Geist files. No Google Fonts download at build time.                                                                                                                                                                                                           | Proposed                     |
+| D12 | Database privileges      | Postgres roles, grants, and the RLS analysis are retired. Only the Worker binding can reach D1; migrations use a scoped API token. Application-level tenant, owner, and visibility filters stay.                                                                                                                                           | Proposed                     |
+| D13 | Embeddings               | Do not port `core_snapshot_embeddings`: no engine stage calls the embedding port and nothing writes the table. Keep `EmbeddingPort` and `embed()`. Add storage when a feature first queries embeddings: a D1 BLOB column for small volumes, Vectorize for similarity search at scale.                                                      | Proposed                     |
+| D14 | BYOK readiness           | Analysis resolves its provider inside workflow steps through `resolveAnalysisProvider({ userId })`, which returns `{ source: "platform", config }` until BYOK ships. API keys never enter workflow params, step results, run rows, reports, or logs. Runs record provider source, provider, and model.                                     | Proposed                     |
 
 ## 6. Stages and phases
 
@@ -213,7 +220,7 @@ or the named next phase.
 
 No product code lands in this stage.
 
-**Phase 0.1 — Sign off decisions.** Resolve D4 and D6, set the D5 quality bar, and record the
+**Phase 0.1 — Sign off decisions.** Resolve D4's evidence sources and D6, and record the
 outcome in this document. Exit: every decision in section 5 is accepted or amended.
 
 **Phase 0.2 — Toolchain spike (throwaway branch).** Build a minimal TanStack Start app in this
@@ -225,23 +232,17 @@ Prove:
 - A custom `src/server.ts` exporting a `WorkflowEntrypoint` and a `scheduled` handler.
 - Local D1 through Drizzle, and Better Auth's sqlite adapter on D1 with `tanstackStartCookies()`.
 - A per-request CSP nonce applied to Start's inline scripts.
+- A structured-output call to each configured AI provider from a step in a deployed staging
+  Worker, confirming the provider accepts requests from Cloudflare's network (see risks).
 
 Record any Vite+ incompatibility and its fix on current versions; no downgrades. Exit: written
 spike notes and a go or no-go.
 
-**Phase 0.3 — Workers AI bake-off.** Put a temporary Workers AI adapter behind the existing
-`AiProvider` interface. Run the fixture evaluators for contract coverage and the live release
-evaluation against two or three Workers AI candidates, covering structured JSON generation,
-screenshot input, and 1024-dimension embeddings. Compare against the current provider's
-scores. Exit: chosen `AI_MODEL`, `AI_VISION_MODEL` (if separate), and `AI_EMBEDDING_MODEL`, with
-recorded scores.
-
-**Phase 0.4 — Cloudflare resources.** Create the staging and production resources in
-section 3, including Vectorize indexes (`--dimensions=1024 --metric=cosine`, metadata indexes on
-`tenantId`, `ownerUserId`, and `visibility`) and both AI Gateways. Register staging OAuth apps
-for Google and GitHub with `<staging origin>/api/auth/callback/{google,github}`. Create a CI API
-token scoped to Workers, D1, R2, Vectorize, Workflows, AI Gateway, and the custom domain. Exit:
-resource names and IDs ready for the Wrangler configs.
+**Phase 0.3 — Cloudflare resources.** Create the staging and production resources in
+section 3. Register staging OAuth apps for Google and GitHub with
+`<staging origin>/api/auth/callback/{google,github}`. Create a CI API token scoped to Workers,
+D1, R2, Workflows, and the custom domain. Exit: resource names and IDs ready for the Wrangler
+configs.
 
 ### Stage 1 — Cloudflare foundations in shared packages
 
@@ -253,30 +254,37 @@ Additive changes merged to `main`. Nothing on Vercel changes.
   protocol and port allowlist, hostname and IP-literal blocklists, and a resolved-address check
   through `node:dns` as defense in depth. Remove `node:http`, `node:https`, `node:net`, and
   `node:stream`. Workers cannot reach private networks, so DNS pinning is no longer needed.
+- The provider adapters already call `safeFetch` and honor `AbortSignal`, so they run on
+  Workers unchanged once `safeFetch` does.
 - Add `createR2RawBlobStore(bucket)` implementing `RawBlobStore`, with content-addressed keys
   (`snapshots/<snapshotId>/<sha256>`) and `r2://` URIs. The filesystem store moves to test
   support.
 - Confirm Cheerio bundles for workerd without its Node-only fetching path; `node:crypto`
   `createHash` stays under `nodejs_compat`.
 
-Exit: package tests pass, and a Miniflare smoke test runs ingestion through `safeFetch` and R2.
+Exit: package tests pass, and a Miniflare smoke test runs ingestion and each provider adapter
+(against a stubbed upstream) through `safeFetch`.
 
-**Phase 1.2 — Workers AI provider.**
+**Phase 1.2 — Provider resolver (BYOK seam).**
 
-- Add `WorkersAiProvider` implementing `AiProvider` over the `Ai` binding with
-  `{ model, visionModel, embeddingModel, gatewayId }`. Structured output uses JSON Schema from
-  the Zod contract with the existing validation and retry loop; images pass as data; `embed`
-  asserts 1024 dimensions.
-- Add `workers-ai` to `AiProviderConfig`. External providers stay until Stage 3.
-- Map Workers AI token usage to spend where it is reported; fall back to the existing estimates.
+- Move provider selection out of `analysisRuntimePolicy` into
+  `resolveAnalysisProvider({ userId, env })`. Today it returns `{ source: "platform", config }`
+  from Worker vars and secrets, with the current validation (paired keys, required base URLs,
+  and a separate embedding provider for Anthropic).
+- The run context records the provider source and provider next to the model it already stores.
+- Spend rows are keyed by provider and key source, so platform limits never apply to user keys
+  later.
+- Provider errors and logs are redacted: no request headers or keys. Adapters already send keys
+  in headers; a test keeps it that way.
 
-Exit: unit tests with a fake `Ai` binding; bake-off models configured.
+Exit: unit tests cover resolver validation and redaction; existing provider tests pass.
 
 **Phase 1.3 — D1 schema and baseline migration.**
 
 - `packages/db/src/d1/schema.ts` defines every live table with `sqliteTable` using the mappings
-  in appendix B. Tables that exist only for in-request execution (`core_jobs`, `core_outbox`,
-  lease columns) are left out because Workflows own execution (D3).
+  in appendix B. Left out: tables that exist only for in-request execution (`core_jobs`,
+  `core_outbox`, lease columns), because Workflows own execution (D3), and
+  `core_snapshot_embeddings` (D13).
 - Better Auth's sqlite tables are generated with the Better Auth CLI and reconciled into the
   schema.
 - A sqlite Drizzle config generates `packages/db/migrations/0000_baseline.sql`; both Wrangler
@@ -294,9 +302,6 @@ Exit: migrations apply cleanly through Miniflare and `wrangler d1 migrations app
   batches using guarded `INSERT … ON CONFLICT … DO UPDATE … WHERE … RETURNING`. Clock values and
   UTC day keys come from code.
 - Apply the rewrite rules in appendix C.
-- Store embeddings with a Vectorize upsert keyed by snapshot ID with tenant, owner, and
-  visibility metadata. D1 keeps `{ snapshotId, model, dimensions, sha256 }` for idempotency,
-  replacing the `embedding = $n::vector` comparison.
 
 Exit: Miniflare D1 suites ported from `analysis-storage.integration.test.ts` and
 `postgres.integration.test.ts` pass, including rate, concurrency, quota, cooldown, idempotent
@@ -379,14 +384,17 @@ function and route handlers against a Miniflare environment.
 
 - Export `AnalysisWorkflow extends WorkflowEntrypoint` from `src/server.ts` and bind it in both
   configs.
-- `startAnalysis` admits the request in one D1 batch, creates the run row, calls
-  `env.ANALYSIS_WORKFLOW.create({ id: runId, params })`, and returns the run ID. Using the run ID
-  as the instance ID makes starts idempotent.
-- The workflow runs `step.do("analyze")` with retries and a timeout of `ANALYSIS_MAX_ELAPSED_MS`.
-  The engine already checkpoints each stage, so a retried step resumes after the last completed
-  stage. `step.do("finalize")` writes the report and `step.do("release")` stores the idempotent
-  response, releases the admission lease, and settles spend. Splitting each engine stage into
-  its own step is an optional follow-up.
+- `startAnalysis` admits the request in one D1 batch, stores screenshots and other large inputs
+  in R2, creates the run row, calls `env.ANALYSIS_WORKFLOW.create({ id: runId, params })`, and
+  returns the run ID. Using the run ID as the instance ID makes starts idempotent.
+- Params carry only the run ID and input references. Workflows persist params and step results
+  (up to 1 MiB each) for the retention period, so they never contain API keys or raw uploads.
+- The workflow calls `resolveAnalysisProvider` inside its step, then runs `step.do("analyze")`
+  with retries and a timeout of `ANALYSIS_MAX_ELAPSED_MS`. The engine already checkpoints each
+  stage, so a retried step resumes after the last completed stage. `step.do("finalize")` writes
+  the report and `step.do("release")` stores the idempotent response, releases the admission
+  lease, and settles spend. Splitting each engine stage into its own step is an optional
+  follow-up.
 - `cancelRun` sets the D1 cancellation flag, which the engine already observes, and terminates
   the instance after a grace period.
 - Removed: `acquireLease`, `renewLease`, `acquireNextLease`, the renew and cancellation timers,
@@ -399,10 +407,9 @@ Exit: a local fixture analysis completes end to end in `vp dev`, cancellation wo
 injected failure resumes from its checkpoint.
 
 **Phase 2.6 — Retrieval and evidence on Workers.** The live search ports keep their behavior on
-the new `safeFetch`. Fact Check and NewsAPI keys are optional secrets per D4. Raw blobs go to R2
-and embeddings to Vectorize. Browser Rendering is added only if the bake-off shows acquisition
-gaps on script-rendered pages. Exit: `dev:live` completes an analysis against staging AI and
-Vectorize.
+the new `safeFetch`. Fact Check and NewsAPI keys are optional secrets per D4. Raw blobs go to
+R2. Browser Rendering is added only if staging shows acquisition gaps on script-rendered pages.
+Exit: `dev:live` completes an analysis with a provider key from `.dev.vars`.
 
 **Phase 2.7 — Scheduled maintenance.** The `scheduled` handler purges expired idempotency keys,
 released and expired leases, old rate windows, expired sessions and verifications, and stale
@@ -427,9 +434,8 @@ Pull requests target `migrate/cloudflare`.
 - Environment tooling: `packages/environment`, `scripts/environment`, `scripts/database`,
   `scripts/local`, `scripts/auth/test-browser.mjs`, `config/environment`, root `.env.example`,
   and the `.tracera/` ignore rule.
-- External AI: `providers/anthropic.ts`, `providers/gemini.ts`,
-  `providers/openai-compatible.ts`, `composite-provider.ts`, provider parsing in
-  `analysis-runtime.ts`, and their variables.
+- The `packages/ai` evaluation scripts drop the `guard.mjs` wrapper. Fixture evaluators need no
+  settings; live evaluation reads provider settings from the invoking shell.
 - Vercel and Next: `vercel.json`, `.vercel` and `.next` ignore rules, the oxlint `nextjs`
   plugin, and `packages/typescript-config/nextjs.json`.
 - Update `pnpm-workspace.yaml` `allowBuilds` for the new dependency set and trim root scripts to
@@ -442,7 +448,7 @@ Hono, Neon, `pg`, Vercel, `DATABASE_URL`, or `TRACERA_PROFILE`.
 Replace `docs/environment.md` and `docs/local-development.md` with oxytype-style
 `docs/cloudflare-operations.md` (local development, bindings, secrets, migrations, staging
 deploys, recovery, D1 Time Travel), `docs/production-setup.md`, and `docs/staging-setup.md`.
-Mark this plan complete.
+Keep the AI provider override documentation. Mark this plan complete.
 
 **Phase 3.3 — CI and production release.**
 
@@ -450,9 +456,9 @@ Mark this plan complete.
   `vp test` under `with-network-denied.sh`, `build`, `wrangler deploy --dry-run` for both
   configs, and Playwright against `vp dev`. No Docker.
 - `.github/workflows/production-release.yml` follows oxytype: a `production` environment with
-  `CLOUDFLARE_API_TOKEN` and `PRODUCTION_WORKER_ENV` (the contents of `.dev.vars.production`);
-  write the file with mode 0600, `check:production`, build, dry run, `db:migrate:production`,
-  deploy with `--var VERSION:<sha>`, and always delete the file.
+  `CLOUDFLARE_API_TOKEN` and `PRODUCTION_WORKER_ENV` (the contents of `.dev.vars.production`,
+  including the AI keys); write the file with mode 0600, `check:production`, build, dry run,
+  `db:migrate:production`, deploy with `--var VERSION:<sha>`, and always delete the file.
 
 Exit: CI passes on `migrate/cloudflare` and the release workflow succeeds in dry-run mode.
 
@@ -462,8 +468,8 @@ Exit: CI passes on `migrate/cloudflare` and the release workflow succeeds in dry
 GitHub sign-in, text, link, and screenshot analysis, progress streaming, cancellation, evidence,
 run history, linked accounts in settings, sign-out, and CSP violations. Exercise rate limits,
 concurrency limits, idempotent replay, daily quota, and the spend circuit. Review Workers logs,
-workflow instances, AI Gateway logs, and D1 metrics, and run the live evaluation against
-staging. Exit: checklist signed off.
+workflow instances, D1 metrics, and provider usage dashboards, and run the live evaluation
+against staging. Exit: checklist signed off.
 
 **Phase 4.2 — Data migration (if D6 keeps data).** A one-shot script exports from Neon on the
 operator's machine, converts types per appendix B, writes chunked SQL, and imports with
@@ -487,8 +493,37 @@ made to D1 after cutover would not exist in Neon, so keep this window short and 
 advance.
 
 **Phase 4.4 — Decommission.** After the agreed stable period, delete the Vercel project and its
-variables and the Neon project (after the archive is verified), revoke the external AI keys,
-and remove Vercel and Neon secrets from GitHub. Run and document a D1 Time Travel restore drill.
+variables and the Neon project (after the archive is verified), rotate the AI provider keys that
+were stored in Vercel, and remove Vercel and Neon secrets from GitHub. Run and document a D1
+Time Travel restore drill.
+
+## 7. Follow-up: bring your own key
+
+Not part of the migration. D14 makes this additive: no pipeline, workflow, or contract changes.
+
+**BYOK.1 — Encrypted key storage.** A D1 `user_provider_keys` table holds the user ID, provider,
+optional base URL and model preferences, ciphertext, IV, key-encryption version, a display
+fingerprint (last four characters), status, and created and last-used times. Keys are
+encrypted with AES-GCM through Web Crypto under a `PROVIDER_KEYS_ENCRYPTION_KEY` Worker secret,
+with the user ID and provider as additional authenticated data. The version column allows key
+rotation. Rows are deleted with the user.
+
+**BYOK.2 — Settings and server functions.** `listProviderKeys` (metadata only),
+`saveProviderKey` (verified with a cheap provider call before storing), and `deleteProviderKey`,
+all behind `authMiddleware` with `private, no-store` responses. Keys are never returned to the
+browser.
+
+**BYOK.3 — Resolver.** `resolveAnalysisProvider` prefers the user's active key and returns
+`{ source: "user", config }`. Decryption happens only inside the workflow step that calls the
+provider.
+
+**BYOK.4 — Controls.** User-key runs skip the platform spend circuit and daily AI quota but keep
+rate and concurrency limits. Provider 401 and 403 responses become a "your key was rejected"
+error. User-supplied OpenAI-compatible base URLs must pass `safeFetch` validation (HTTPS and
+public hosts only).
+
+Open for later: which providers accept user keys first, and whether platform keys remain
+available once BYOK exists.
 
 ## Appendix A — Next.js to TanStack Start
 
@@ -524,7 +559,7 @@ and remove Vercel and Neon secrets from GitHub. Run and document a D1 Time Trave
 | `boolean`                                 | `integer({ mode: "boolean" })`                                             |
 | `numeric(12, 6)` USD amounts              | `integer` micro-dollars                                                    |
 | `numeric(8, 5)` factual score             | `real`                                                                     |
-| `vector(1024)`                            | Vectorize, plus a D1 metadata row                                          |
+| `vector(1024)`                            | Not ported (D13)                                                           |
 | Roles, grants, and RLS notes (0024, 0029) | None; binding-scoped access with application-level filters                 |
 | `drizzle-kit migrate` as the migrator     | `wrangler d1 migrations apply`                                             |
 
@@ -538,29 +573,28 @@ and remove Vercel and Neon secrets from GitHub. Run and document a D1 Time Trave
 | `jsonb` equality checks                 | Compare stored SHA-256 of canonical JSON                                                 |
 | `NOW()`, `AT TIME ZONE 'UTC'`, `::date` | Clock values and UTC day keys passed as parameters                                       |
 | `gen_random_uuid()`                     | `crypto.randomUUID()`                                                                    |
-| `::text`, `::jsonb`, `::vector` casts   | Removed; Drizzle column modes handle conversion                                          |
+| `::text` and `::jsonb` casts            | Removed; Drizzle column modes handle conversion                                          |
 | Large `jsonb` rows                      | Payloads over 1.5 MB go to R2 with a D1 pointer (D1 rows are capped at 2 MB)             |
 | Many bound parameters                   | Chunk statements or use `json_each`; D1 allows 100 bound parameters per statement        |
 
 ## Risks
 
-| Risk                                                                   | Mitigation                                                                             |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Vite+'s Vite core is incompatible with the Cloudflare or Start plugins | Phase 0.2 go or no-go; fix forward on current versions                                 |
-| Workers AI quality falls short of the current provider                 | Phase 0.3 bake-off with explicit thresholds before any production switch               |
-| D1 has no interactive transactions or row locks                        | Guarded single batches (D7) with concurrency tests in Phase 1.4                        |
-| D1 limits: 2 MB rows, 100 bound parameters, 10 GB per database         | R2 offload, `json_each`, chunking, and size monitoring in the operations doc           |
-| Worker CPU limits                                                      | The pipeline is I/O-bound; Workflow steps allow up to 5 minutes of CPU when configured |
-| Node-only code paths in dependencies                                   | Phase 1.1 Miniflare smoke tests                                                        |
-| AI and Vectorize have no local simulator                               | Fixture mode by default (D9); remote bindings only for `dev:live`                      |
-| Rolling back after cutover loses D1 writes                             | A short, pre-agreed rollback window                                                    |
-| `migrate/cloudflare` drifts from `main`                                | Feature freeze on `main`; additive Stage 0–1 work lands on `main` first                |
+| Risk                                                                            | Mitigation                                                                                                   |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Vite+'s Vite core is incompatible with the Cloudflare or Start plugins          | Phase 0.2 go or no-go; fix forward on current versions                                                       |
+| An AI provider rejects requests from the Cloudflare location running the Worker | Checked from staging in Phase 0.2; if needed, set Worker placement (Smart Placement or a region hint)        |
+| API keys persisted in Workflow state or logs                                    | Keys resolved inside steps, params carry IDs only, redaction tests (D14, Phase 1.2)                          |
+| Workflow params and step results are capped at 1 MiB                            | Screenshots and large inputs go to R2 before the workflow starts                                             |
+| D1 has no interactive transactions or row locks                                 | Guarded single batches (D7) with concurrency tests in Phase 1.4                                              |
+| D1 limits: 2 MB rows, 100 bound parameters, 10 GB per database                  | R2 offload, `json_each`, chunking, and size monitoring in the operations doc                                 |
+| Worker CPU limits                                                               | Workers Paid is assumed; the pipeline is I/O-bound and Workflow steps allow up to 5 minutes of CPU if needed |
+| Node-only code paths in dependencies                                            | Phase 1.1 Miniflare smoke tests                                                                              |
+| Rolling back after cutover loses D1 writes                                      | A short, pre-agreed rollback window                                                                          |
+| `migrate/cloudflare` drifts from `main`                                         | Feature freeze on `main`; additive Stage 0–1 work lands on `main` first                                      |
 
 ## Open questions
 
 1. D4: keep Google News RSS, GDELT, Google Fact Check, and NewsAPI as evidence sources?
 2. D6: migrate production users, accounts, sessions, and report history, or start fresh?
-3. D5: what score threshold must Workers AI meet, and is an external model through AI Gateway
-   acceptable if no Workers AI model passes?
-4. Staging origin: the workers.dev URL or `tracera-staging.voltcrash.com`?
-5. Production deploys: on every merge to `main`, or oxytype's daily release?
+3. Staging origin: the workers.dev URL or `tracera-staging.voltcrash.com`?
+4. Production deploys: on every merge to `main`, or oxytype's daily release?
