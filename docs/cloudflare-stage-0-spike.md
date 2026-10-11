@@ -11,6 +11,11 @@ types, migrations, and tests remain on the
 under `apps/cloudflare-spike`. Do not merge that branch. Product implementation starts in the
 later stages of the [migration plan](cloudflare-migration-plan.md).
 
+The tested source revision is
+[`122ad67`](https://github.com/voltcrash/tracera/tree/122ad67e15d892fa8cbfda9f6642ec5ceca8716a).
+It contains seven spike commits on top of Phase 0.1; use this snapshot to reproduce the
+recorded results if the throwaway branch later changes.
+
 The spike follows oxytype's config, secrets-file, SQL migration, and Miniflare test patterns.
 It does not copy oxytype's product code. No Cloudflare resource, secret, deployment, DNS
 record, or OAuth application was created or changed for this spike.
@@ -41,8 +46,8 @@ spike date; resolve current stable releases again when implementing the migratio
 Miniflare's registry `latest` tag pointed at `5.20261006.1-alpha`; the direct test dependency
 uses the newest stable release. Wrangler itself brings that alpha transitively. The app uses
 compatibility date `2026-10-11` with `nodejs_compat`; the stable Miniflare unit-test helper uses
-`2026-07-30`, which its bundled workerd supports. This is a test-runtime date difference,
-not proof of identical compatibility flags across the two runtimes.
+`2026-07-30`, which its bundled workerd supports. Unit tests cover that supported date;
+the Start app probes additionally exercise the newer date through Wrangler's runtime.
 
 ## Reproduce the spike
 
@@ -93,6 +98,8 @@ Later browser automation calls lost their connection. The initial SSR, interacti
 Tailwind, and HMR observations completed before that failure. Auth cookie verification
 below uses real HTTP requests to the running Start app rather than claiming a completed
 auth UI browser run.
+An extension-enabled fallback browser also emitted a React hydration warning for injected
+Dark Reader attributes. Use a browser without extensions when reproducing the UI probe.
 
 ## Generated files and type-aware checks
 
@@ -112,8 +119,8 @@ remain isolated from the migration PRs.
 
 ## Compatibility findings and fixes
 
-- Adding an existing catalog entry did not update its resolved Vite core. `vp update -w vite
-vite-plus --latest` updated the actual core alias and root toolchain to current stable
+- Adding an existing catalog entry did not update its resolved Vite core.
+  `vp update -w vite vite-plus --latest` updated the actual core alias and root toolchain to current stable
   versions. `vp toolchain` confirmed Vite 8.3.3 and Vitest 5.0.3.
 - workerd needs its install script allowed. The spike preserves the existing workspace
   `allowBuilds` choices and adds `workerd: true`; it does not replace those choices with
