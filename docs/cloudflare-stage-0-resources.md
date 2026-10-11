@@ -80,3 +80,23 @@ resource provisioning leaves the current site serving until Stage 4.
 Read-only `wrangler workflows list` confirms `tracera-production-analysis` belongs to
 `tracera` and uses class `AnalysisWorkflow`. It has its own `ANALYSIS_WORKFLOW` binding
 and is separate from staging. No production Workflow instance was started.
+
+## Authentication secrets
+
+New, independent `BETTER_AUTH_SECRET` values were generated for staging and production.
+Each is 64 base64url characters from 48 random bytes. Validation confirmed distinct
+values, file mode 0600, and parent-directory mode 0700 without displaying the values.
+
+Private files on the operator's machine:
+
+- `/Users/lakshmi/.t3/private/tracera/stage-0/.dev.vars.staging`
+- `/Users/lakshmi/.t3/private/tracera/stage-0/.dev.vars.production`
+
+Both files are outside Git. They currently contain only their environment's auth secret;
+OAuth credentials and provider keys have not been added. No secrets were uploaded to
+Cloudflare or GitHub. Keep existing production OAuth credentials private when preparing
+the later production file, and retain these newly generated auth secrets for D6.
+
+Stage 2 adopts oxytype's ignored `.dev.vars` and `.dev.vars.production` files and
+`--secrets-file` deployment pattern. Approval for resource bootstrap did not authorize
+a later secrets upload or an application deployment.
