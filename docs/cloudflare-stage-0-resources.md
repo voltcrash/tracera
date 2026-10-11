@@ -100,3 +100,30 @@ the later production file, and retain these newly generated auth secrets for D6.
 Stage 2 adopts oxytype's ignored `.dev.vars` and `.dev.vars.production` files and
 `--secrets-file` deployment pattern. Approval for resource bootstrap did not authorize
 a later secrets upload or an application deployment.
+
+## Bootstrap source
+
+The resource-only source is `/tmp/tracera-stage-0/provisioning/server.js`. Recreate it
+from this record if the temporary directory is lost. Its Workflow export allows the
+deployment to create the named Workflow resources; the scheduled handler is a no-op.
+The app, schema, migrations, and provider calls do not land in Stage 0.
+
+```js
+import { WorkflowEntrypoint } from "cloudflare:workers";
+
+export class AnalysisWorkflow extends WorkflowEntrypoint {
+  async run(_event, step) {
+    return await step.do("bootstrap", async () => ({ stage: 0, status: "migration-pending" }));
+  }
+}
+
+export default {
+  fetch() {
+    return Response.json(
+      { service: "tracera", stage: 0, status: "migration-pending" },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+  },
+  scheduled() {},
+};
+```
