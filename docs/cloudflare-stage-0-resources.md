@@ -41,7 +41,7 @@ The all-zero UUID in the throwaway spike is valid only for local work and dry ru
 | Future public origin | `https://tracera.voltcrash.com` | —                   | Custom-domain activation belongs to Stage 4             |
 | D1                   | `tracera-production`            | `DB`                | `26eeb656-2c46-4182-ad48-4bd696684b01`; created in APAC |
 | R2                   | `tracera-production-blobs`      | `BLOBS`             | Created; Standard storage, private bucket               |
-| Workflow             | `tracera-production-analysis`   | `ANALYSIS_WORKFLOW` | Creation pending; class `AnalysisWorkflow`              |
+| Workflow             | `tracera-production-analysis`   | `ANALYSIS_WORKFLOW` | Created; class `AnalysisWorkflow`                       |
 
 Stage 2's separate `apps/web/wrangler.production.json` must use these resources. Production
 disables workers.dev and preview URLs. The Stage 0 bootstrap also has an empty routes
@@ -74,3 +74,9 @@ sets `workers_dev: false`, `preview_urls: false`, and `routes: []`.
 
 No custom domain, DNS record, Vercel setting, or Neon resource was changed. Production
 resource provisioning leaves the current site serving until Stage 4.
+
+## Production Workflow
+
+Read-only `wrangler workflows list` confirms `tracera-production-analysis` belongs to
+`tracera` and uses class `AnalysisWorkflow`. It has its own `ANALYSIS_WORKFLOW` binding
+and is separate from staging. No production Workflow instance was started.
