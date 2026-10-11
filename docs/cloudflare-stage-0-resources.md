@@ -27,7 +27,7 @@ R2 activation is no longer the blocker. Approved resource creation is in progres
 | Public origin | `https://tracera-staging.voltcrash.workers.dev` | —                   | Verified HTTP 503 bootstrap response                    |
 | D1            | `tracera-staging`                               | `DB`                | `4df15d26-839d-46aa-a7fa-341c228569c2`; created in APAC |
 | R2            | `tracera-staging-blobs`                         | `BLOBS`             | Created; Standard storage, private bucket               |
-| Workflow      | `tracera-staging-analysis`                      | `ANALYSIS_WORKFLOW` | Creation pending; class `AnalysisWorkflow`              |
+| Workflow      | `tracera-staging-analysis`                      | `ANALYSIS_WORKFLOW` | Created; class `AnalysisWorkflow`                       |
 
 Stage 2's default `apps/web/wrangler.jsonc` must use these hosted names and the real D1
 UUID. Local development uses Miniflare copies in that worktree's `.wrangler/state`.
@@ -57,3 +57,10 @@ Its cron is `17 * * * *`. The deployed artifact is 0.75 KiB before gzip.
 An HTTPS request to the staging origin returned HTTP 503, `cache-control: no-store`, and
 `{"service":"tracera","stage":0,"status":"migration-pending"}`. This is the intended
 bootstrap response. Authentication and analysis are implemented in later stages.
+
+## Staging Workflow
+
+Read-only `wrangler workflows list` confirms `tracera-staging-analysis` belongs to
+`tracera-staging` and uses class `AnalysisWorkflow`. The binding is `ANALYSIS_WORKFLOW`.
+The bootstrap exports a valid step but creates no analysis instances. Stage 2 replaces
+that implementation with the planned analysis pipeline.
