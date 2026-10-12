@@ -38,39 +38,6 @@ export type AnalysisRuntimePolicyResult =
   | { enabled: true; policy: AnalysisRuntimePolicy }
   | { enabled: false; code: "analysis_unavailable"; message: string };
 
-export function analysisRuntimePolicy(
-  environment: RuntimeEnvironment,
-  userId = "platform-policy-validation",
-): AnalysisRuntimePolicyResult {
-  const profile = optional(environment, "TRACERA_PROFILE");
-  const mode = optional(environment, "TRACERA_ANALYSIS_MODE");
-
-  if (profile === "test" && mode === "fixture") {
-    return {
-      enabled: true,
-      policy: {
-        mode: "fixture",
-        providerConfig: null,
-        versions: testVersions(),
-        budget: TEST_FOCUSED_BUDGET,
-      },
-    };
-  }
-
-  if (profile !== "deployed") {
-    return unavailable(
-      "Analysis is available only in the deployed live profile or the test fixture profile.",
-    );
-  }
-  if (mode === "fixture") {
-    return unavailable("The deployed profile cannot run deterministic analysis fixtures.");
-  }
-  if (mode !== undefined && mode !== "live") {
-    return unavailable("The deployed focused runtime requires TRACERA_ANALYSIS_MODE=live.");
-  }
-  return livePolicy(environment, userId);
-}
-
 function livePolicy(environment: RuntimeEnvironment, userId: string): AnalysisRuntimePolicyResult {
   let resolved: ReturnType<typeof resolveAnalysisProvider>;
   try {
