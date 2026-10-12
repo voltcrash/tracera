@@ -21,7 +21,8 @@
     "check:production": "vp run build:production && tsx scripts/check-production.ts",
     "deploy:production-dry-run": "vp run check:production && wrangler deploy --config dist/server/wrangler.json --secrets-file .dev.vars.production --dry-run",
     "db:migrate:production": "wrangler d1 migrations apply tracera-production --remote --config wrangler.production.json",
-    "deploy:production": "vp run check:production && wrangler deploy --config dist/server/wrangler.json --secrets-file .dev.vars.production"
+    "deploy:production": "vp run check:production && wrangler deploy --config dist/server/wrangler.json --secrets-file .dev.vars.production",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

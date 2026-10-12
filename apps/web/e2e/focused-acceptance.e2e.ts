@@ -31,34 +31,20 @@ test.describe("Tracera analysis acceptance fixture", () => {
     expect(analysisExamples.complete.schemaVersion).toBe(2);
   });
 
-  test("renders a saved focused report with evidence and safe score language", async ({ page }) => {
+  test("completes a real fixture text Workflow with safe score language", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Continue as Ada Local" }).click();
     await expect(page).toHaveURL(/\/home$/);
-
-    const complete = structuredClone(analysisExamples.complete);
-    complete.runId = "run_focused_acceptance";
-    await page.route("**/api/tracera/analyze", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ status: "complete", runId: complete.runId, report: complete }),
-      }),
-    );
     await page
       .getByLabel("Story or claim to analyze")
-      .fill("Aurora Labs opened a plant in Turin in 2024.");
+      .fill("The city opened a public library in 2026. The library has 20000 books.");
     await page.getByRole("button", { name: "Analyze" }).click();
-
+    await expect(page).toHaveURL(/\/run\/[^/]+$/);
     await expect(
       page.getByRole("heading", { name: "Top claims selected for checking" }),
     ).toBeVisible();
     await expect(page.getByText("Supported share of resolved claims")).toBeVisible();
-    await expect(page.getByText("Evidence excerpt:", { exact: false })).toBeVisible();
-    await expect(page.getByRole("link", { name: "source link" })).toHaveAttribute(
-      "href",
-      "https://records.example.org/turin-plant",
-    );
-    await expect(page.getByText("Insufficient evidence", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Insufficient evidence", { exact: true })).toBeVisible();
+    await expect(page.getByText("unverified", { exact: true }).first()).toBeVisible();
   });
 });

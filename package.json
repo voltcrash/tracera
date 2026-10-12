@@ -33,7 +33,7 @@
     "local:down": "node scripts/local/workflow.mjs down",
     "test:integration": "node scripts/local/workflow.mjs integration",
     "test:analysis-storage": "vp run @repo/db#test:analysis-storage",
-    "test:auth-browser": "node scripts/auth/test-browser.mjs",
+    "test:auth-browser": "vp run web#test:auth-browser",
     "evaluate:analysis-release:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:analysis-release --mode fixture --split all --seed 20260910",
     "evaluate:analysis-adjudication:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:analysis-adjudication --mode fixture --split all --seed 20260910",
     "evaluate:analysis-claims:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:analysis-claims --mode fixture --split all --seed 20260910",
@@ -42,7 +42,9 @@
     "evaluate:analysis-provenance:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:analysis-provenance --mode fixture --split all --seed 20260910",
     "evaluate:analysis-retrieval:fixture": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:analysis-retrieval --mode fixture --split all --seed 20260910",
     "evaluate:analysis-retrieval:replay": "node scripts/environment/run.mjs --profile test --role analysis -- vp run @repo/ai#evaluate:analysis-retrieval --mode replay --split all --seed 20260910",
-    "prepare": "vp config"
+    "prepare": "vp config",
+    "test:focused-browser": "vp run web#test:focused-browser",
+    "test:browser": "vp run web#test:browser"
   },
   "devDependencies": {
     "typescript": "7.0.2",
