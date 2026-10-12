@@ -559,3 +559,35 @@ export const aiProviderSpend = sqliteTable(
     check("ai_provider_spend_source_check", sql`${table.keySource} IN ('platform','user')`),
   ],
 );
+
+export const aiSpendReservations = sqliteTable(
+  "ai_spend_reservations",
+  {
+    id: text("id")
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    providerKey: text("provider_key").notNull(),
+    keySource: text("key_source", { enum: ["platform", "user"] }).notNull(),
+    periodStart: text("period_start").notNull(),
+    estimatedMicros: integer("estimated_micros").notNull(),
+    actualMicros: integer("actual_micros"),
+    settledAt: integer("settled_at", { mode: "timestamp_ms" }),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("ai_spend_reservations_expiry_idx").on(table.settledAt, table.expiresAt),
+    foreignKey({
+      columns: [table.providerKey, table.keySource, table.periodStart],
+      foreignColumns: [
+        aiProviderSpend.providerKey,
+        aiProviderSpend.keySource,
+        aiProviderSpend.periodStart,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "ai_spend_reservations_amounts_check",
+      sql`${table.estimatedMicros} >= 0 AND (${table.actualMicros} IS NULL OR ${table.actualMicros} >= 0)`,
+    ),
+  ],
+);
