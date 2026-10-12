@@ -5,13 +5,13 @@ This is reviewable preparation for Stage 4, not a record of completed hosted wor
 live-provider test until repository implementation is finished. Deployments, secret uploads,
 DNS/OAuth changes, and decommission require approval of concrete actions before execution.
 
-| Gate                          | Status                                                                                   |
-| ----------------------------- | ---------------------------------------------------------------------------------------- |
-| Phase 2.6 local live analysis | Deferred by the owner under D18                                                          |
-| Phase 4.1 staging soak        | Deployed and smoke-checked under D18; owner GitHub round trip and provider checks remain |
-| Phase 4.2 production cutover  | Pending staging sign-off and approved cutover batch                                      |
-| Phase 4.3 decommission        | Pending agreed stable period, archive, deletion approvals, restore drill                 |
-| Phase 4.4 Google OAuth        | Pending final registration/credential approval, code PR, deploy, browser sign-off        |
+| Gate                          | Status                                                                                                    |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Phase 2.6 local live analysis | Deferred by the owner under D18                                                                           |
+| Phase 4.1 staging soak        | Deployed and smoke-checked under D18; owner GitHub round trip and provider checks remain                  |
+| Phase 4.2 production cutover  | Live on `v26.10.12` under D18; owner GitHub round trip remains                                            |
+| Phase 4.3 decommission        | Vercel gone and restore drills passed; Neon archive and deletion and the Vercel GitHub App removal remain |
+| Phase 4.4 Google OAuth        | Pending final registration/credential approval, code PR, deploy, browser sign-off                         |
 
 Record dates, reviewers, commit/Worker versions, run IDs, and outcomes beneath each gate.
 Keep keys, OAuth secrets, cookies, private inputs, and logs containing private data outside Git.
@@ -204,6 +204,35 @@ and the rollback window (D18). Actual order:
    its pair and the Stage 0 auth secret, with no AI settings. Locally, `check:production`
    passed with the D18 notice and `deploy:production-dry-run` showed the production bindings.
 
+### First production release, 2026-10-12
+
+[PR #56](https://github.com/voltcrash/tracera/pull/56) merged `migrate/cloudflare` into `main`
+at `b9397c9` after its CI passed. The manually dispatched
+[release run](https://github.com/voltcrash/tracera/actions/runs/38288558499) built and checked
+production with the D18 notice, dry-ran, applied `0000_baseline` and
+`0001_provider_spend_guard` to the empty `tracera-production`, deployed Worker version
+`b415862b-c97b-4cf8-a9ca-46a1219235b3`, and then published
+[`v26.10.12`](https://github.com/voltcrash/tracera/releases/tag/v26.10.12) on `b9397c9`.
+
+Production smoke checks after the release:
+
+| Check                                           | Result                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------ |
+| `/`, `/auth/error`                              | 200                                                          |
+| `/api/health`                                   | 200, database connected                                      |
+| `/home` while signed out                        | 307 to `/`                                                   |
+| GitHub sign-in start                            | Redirects to `github.com/login` with the production callback |
+| Chromium console on `/`, `/auth/error`, `/home` | No errors and no CSP violations                              |
+| `tracera.voltcrash.workers.dev`                 | 404; workers.dev stays disabled                              |
+
+A second dispatch, [run 38288765452](https://github.com/voltcrash/tracera/actions/runs/38288765452),
+found no new commits and skipped install, build, migration, deployment, and publication.
+That closes the hosted skip-path check left open by Phase 3.3.
+
+Phase 4.2 sign-off under D18: **passed**, 2026-10-12. The owner waived the announcement,
+observation window, and rollback window. As in staging, the owner's real GitHub round trip is
+the remaining manual check.
+
 Sign-off: **pending**. Record announcement/approval links, integration and deployed SHAs,
 release/tag URL, DNS record inventory, GitHub smoke result, observation window, and rollback
 owner. Decommission must not begin while production stability is unresolved.
@@ -253,6 +282,34 @@ Record the previous bookmark returned by the restore and retain it for undo. Con
 rows, schema-compatible code, R2 pointers, auth, ownership isolation, history, idempotency,
 limits, and a bounded Workflow analysis before resuming writes. D1 recovery does not recreate
 R2 objects or restart terminated instances.
+
+### Vercel decommission, 2026-10-12
+
+The owner deleted the Vercel project, including its variables, before cutover. The
+Vercel-created GitHub `Preview` and `Production` environments were deleted at the owner's
+direction. The repository has no Actions secrets or variables at repository level, so no
+Vercel or Neon secret remains in GitHub. Phase 0.2 confirmed no AI provider keys were
+configured, so there were no Vercel-held provider keys to rotate.
+
+The Vercel GitHub App is still installed on the repository. It keeps posting `Preview`
+deployments, which recreated that environment after its deletion. Removing the app needs the
+owner's GitHub settings; then delete the `Preview` environment again.
+
+### D1 restore drills, 2026-10-12
+
+Both databases had no users, sessions, or runs, so no write pause was needed. Each drill
+recorded a baseline bookmark, inserted an already-expired `verifications` canary row
+(`identifier = 'restore-drill-canary'`), restored to the baseline with
+`wrangler d1 time-travel restore`, then rechecked the canary, users, migrations, and
+`/api/health`.
+
+| Step              | `tracera-staging`                                             | `tracera-production`                                          |
+| ----------------- | ------------------------------------------------------------- | ------------------------------------------------------------- |
+| Baseline bookmark | `00000004-00000000-00005102-c8ea53b112e026e7013fe12036f764cc` | `00000003-00000000-00005102-775edc09af2270cd96e4888f301e1eff` |
+| Canary rows       | 1 after insert, 0 after restore                               | 1 after insert, 0 after restore                               |
+| Restore duration  | 3 s                                                           | 3 s                                                           |
+| Undo bookmark     | `00000004-ffffffff-00005102-f3346fd8291f3c297d99301d723cdc86` | `00000003-ffffffff-00005102-1b23c1e0c64ecc1313ce1bbb7e9d29d5` |
+| After restore     | Users 0; no migrations pending; health reports D1 connected   | Users 0; no migrations pending; health reports D1 connected   |
 
 Sign-off: **pending**. Record stable-period approval, archived object names and SHA-256,
 archive verification, approved project IDs/deletion results, rotated key identifiers (never

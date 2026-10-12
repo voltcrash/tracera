@@ -27,9 +27,10 @@ Tracera also preserves report artifacts, related context, and immutable timeline
 - **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter,
   Anthropic, and OpenAI-compatible APIs
 
-The repository implements the Cloudflare runtime. Hosted cutover is still pending:
-see the [migration plan](docs/cloudflare-migration-plan.md). The initial hosted rollout uses
-GitHub sign-in; Google completion is the final migration phase.
+Tracera runs on Cloudflare at https://tracera.voltcrash.com, released daily from `main`. See the
+[migration plan](docs/cloudflare-migration-plan.md). Hosted sign-in uses GitHub; Google
+completion is the final migration phase. No AI provider is configured yet (D18), so hosted
+analysis reports that it is unavailable.
 
 ## Quick start
 
