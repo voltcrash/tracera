@@ -14,6 +14,7 @@ import { Route as WorkspaceRouteImport } from "./routes/_workspace";
 import { Route as WorkspaceHomeRouteImport } from "./routes/_workspace/home";
 import { Route as WorkspaceSettingsRouteImport } from "./routes/_workspace/settings";
 import { Route as AuthCompleteRouteImport } from "./routes/auth/complete";
+import { Route as AuthErrorRouteImport } from "./routes/auth/error";
 import { Route as WorkspaceRunIdRouteImport } from "./routes/_workspace/run.$id";
 
 const IndexRoute = IndexRouteImport.update({
@@ -40,6 +41,11 @@ const AuthCompleteRoute = AuthCompleteRouteImport.update({
   path: "/auth/complete",
   getParentRoute: () => rootRouteImport,
 } as any);
+const AuthErrorRoute = AuthErrorRouteImport.update({
+  id: "/auth/error",
+  path: "/auth/error",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const WorkspaceRunIdRoute = WorkspaceRunIdRouteImport.update({
   id: "/run/$id",
   path: "/run/$id",
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   "/home": typeof WorkspaceHomeRoute;
   "/settings": typeof WorkspaceSettingsRoute;
   "/auth/complete": typeof AuthCompleteRoute;
+  "/auth/error": typeof AuthErrorRoute;
   "/run/$id": typeof WorkspaceRunIdRoute;
 }
 export interface FileRoutesByTo {
@@ -58,6 +65,7 @@ export interface FileRoutesByTo {
   "/home": typeof WorkspaceHomeRoute;
   "/settings": typeof WorkspaceSettingsRoute;
   "/auth/complete": typeof AuthCompleteRoute;
+  "/auth/error": typeof AuthErrorRoute;
   "/run/$id": typeof WorkspaceRunIdRoute;
 }
 export interface FileRoutesById {
@@ -67,13 +75,14 @@ export interface FileRoutesById {
   "/_workspace/home": typeof WorkspaceHomeRoute;
   "/_workspace/settings": typeof WorkspaceSettingsRoute;
   "/auth/complete": typeof AuthCompleteRoute;
+  "/auth/error": typeof AuthErrorRoute;
   "/_workspace/run/$id": typeof WorkspaceRunIdRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/home" | "/settings" | "/auth/complete" | "/run/$id";
+  fullPaths: "/" | "/home" | "/settings" | "/auth/complete" | "/auth/error" | "/run/$id";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/home" | "/settings" | "/auth/complete" | "/run/$id";
+  to: "/" | "/home" | "/settings" | "/auth/complete" | "/auth/error" | "/run/$id";
   id:
     | "__root__"
     | "/"
@@ -81,6 +90,7 @@ export interface FileRouteTypes {
     | "/_workspace/home"
     | "/_workspace/settings"
     | "/auth/complete"
+    | "/auth/error"
     | "/_workspace/run/$id";
   fileRoutesById: FileRoutesById;
 }
@@ -88,6 +98,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   WorkspaceRoute: typeof WorkspaceRouteWithChildren;
   AuthCompleteRoute: typeof AuthCompleteRoute;
+  AuthErrorRoute: typeof AuthErrorRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -127,6 +138,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthCompleteRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/auth/error": {
+      id: "/auth/error";
+      path: "/auth/error";
+      fullPath: "/auth/error";
+      preLoaderRoute: typeof AuthErrorRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/_workspace/run/$id": {
       id: "/_workspace/run/$id";
       path: "/run/$id";
@@ -155,6 +173,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   WorkspaceRoute: WorkspaceRouteWithChildren,
   AuthCompleteRoute: AuthCompleteRoute,
+  AuthErrorRoute: AuthErrorRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
