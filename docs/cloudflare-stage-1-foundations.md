@@ -41,7 +41,36 @@ Stage 0. These stubbed tests prove runtime compatibility, not hosted provider ac
 Evidence: `packages/ai/test/worker-ingestion.test.ts`, `worker-providers.test.ts`,
 `worker-safe-fetch.test.ts`, `node-safe-fetch.test.ts` and `r2-raw-blob-store.test.ts`.
 
+## Phase 1.2 — Provider resolver and redaction
+
+Result: **PASS** locally, 2026-10-12.
+
+`resolveAnalysisProvider({ userId, env })` returns platform configuration from typed inputs,
+with generation settings, paired embedding credentials, compatible-provider base URLs and
+Anthropic's separate embedding provider validated in one place. The existing runtime policy
+calls the resolver with the authenticated user ID.
+
+Run contexts carry only provider name and key source beside the existing model version. The
+report contract is unchanged. `providerSpendIdentity` selects the actual generation or
+embedding provider and keeps the key source separate for the D1 spend tables added in Phase
+1.3. Existing Postgres spend rows retain their current namespace during additive Stage 1.
+
+Provider HTTP, transport, JSON and structured-output failures discard upstream text and error
+causes. Observability hooks receive fixed validation messages. Cross-origin redirects strip
+all provider authentication headers. Unit and workerd tests echo sentinel keys in upstream
+errors and verify that neither errors nor logs retain them; successful provider probes verify
+that keys appear only in headers.
+
+Validation: `vp install`, `vp check`, `vp test --run` (226 passed; 10 existing Postgres cases
+skipped by the unit runner), `vp run check-types` and `vp run build` pass. Evidence:
+`resolve-analysis-provider.test.ts`, `provider-spend-identity.test.ts`, `provider-request.test.ts`,
+`provider.test.ts`, `worker-provider-redaction.test.ts` and the run-context assertions in
+`apps/web/test/analysis-api.test.ts`.
+
+[Phase 1.1 PR #36](https://github.com/voltcrash/tracera/pull/36) also passed hosted CI, including
+the existing Docker integration workflow and Vercel build.
+
 ## Remaining phases
 
-Phases 1.2–1.5 have not started. Each gets its own stacked PR with validation and evidence
+Phases 1.3–1.5 have not started. Each gets its own stacked PR with validation and evidence
 recorded here before its handoff.
