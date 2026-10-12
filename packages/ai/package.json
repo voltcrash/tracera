@@ -25,13 +25,13 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "evaluate:analysis-release": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-analysis-release.ts",
-    "evaluate:analysis-adjudication": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-analysis-adjudication.ts",
-    "evaluate:analysis-claims": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-analysis-claims.ts",
-    "evaluate:analysis-evidence": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-analysis-evidence.ts",
-    "evaluate:analysis-focused": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-analysis-focused.ts",
-    "evaluate:analysis-provenance": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-analysis-provenance.ts",
-    "evaluate:analysis-retrieval": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/evaluate-analysis-retrieval.ts",
+    "evaluate:analysis-release": "node --import tsx scripts/evaluate-analysis-release.ts",
+    "evaluate:analysis-adjudication": "node --import tsx scripts/evaluate-analysis-adjudication.ts",
+    "evaluate:analysis-claims": "node --import tsx scripts/evaluate-analysis-claims.ts",
+    "evaluate:analysis-evidence": "node --import tsx scripts/evaluate-analysis-evidence.ts",
+    "evaluate:analysis-focused": "node --import tsx scripts/evaluate-analysis-focused.ts",
+    "evaluate:analysis-provenance": "node --import tsx scripts/evaluate-analysis-provenance.ts",
+    "evaluate:analysis-retrieval": "node --import tsx scripts/evaluate-analysis-retrieval.ts",
     "test:analysis-adjudication": "vp test --run test/analysis-adjudication.test.ts",
     "test:analysis-claims": "vp test --run test/analysis-claims.test.ts",
     "test:analysis-evidence": "vp test --run test/analysis-evidence.test.ts",
@@ -41,7 +41,7 @@
     "test:analysis-orchestration": "vp test --run test/analysis-orchestration.test.ts",
     "test:analysis-publication": "vp test --run test/analysis-publication.test.ts",
     "test:analysis-release": "vp test --run test/analysis-release-evaluation.test.ts",
-    "test:live": "node ../../scripts/environment/guard.mjs --role analysis -- node --import tsx scripts/live-test.ts"
+    "test:live": "node --import tsx scripts/live-test.ts"
   },
   "dependencies": {
     "@repo/contracts": "workspace:*",
