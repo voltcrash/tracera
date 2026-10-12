@@ -270,12 +270,18 @@ Each deployment reported its correct D1, R2, Workflow, and cron bindings. Read-o
 deployment inventory confirms the version IDs above. No auth secret, OAuth secret, or
 provider key was passed to either deployment.
 
-## Google staging OAuth: deferred
+## Google staging OAuth: final Phase 4.4
 
-The owner requested that selecting the existing Google Cloud project stay on the
-backburner. No project was selected, OAuth client registered, consent-screen setting
-changed, or Google secret collected. This is a deferred Phase 0.3 requirement, not a
-change to the accepted sign-in providers or staging origin.
+On 2026-10-12, the owner moved Google OAuth setup to the very end of the migration.
+Accepted decision D17 moves registration, hosted credentials, and live sign-in checks
+from Phase 0.3 to the final Phase 4.4, after the other migration phases. Google no
+longer blocks Stage 0. Its implementation and stubbed tests remain in the earlier phases;
+the initial hosted rollout uses GitHub sign-in.
+
+No Google Cloud project was selected, OAuth client registered, consent-screen setting
+changed, or Google secret collected. Complete Google pairs are optional until Phase 4.4;
+partial pairs must always fail validation. Phase 4.4 requires both sign-in providers in
+production and checks them in staging and production.
 
 When resumed, register a Web application client in the owner's selected existing
 project with origin `https://tracera-staging.voltcrash.workers.dev` and redirect URI
