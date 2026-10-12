@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from "./routes/__root";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as WorkspaceRouteImport } from "./routes/_workspace";
 import { Route as WorkspaceSettingsRouteImport } from "./routes/_workspace/settings";
+import { Route as WorkspaceRunIdRouteImport } from "./routes/_workspace/run.$id";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -27,27 +28,35 @@ const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
   path: "/settings",
   getParentRoute: () => WorkspaceRoute,
 } as any);
+const WorkspaceRunIdRoute = WorkspaceRunIdRouteImport.update({
+  id: "/run/$id",
+  path: "/run/$id",
+  getParentRoute: () => WorkspaceRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/settings": typeof WorkspaceSettingsRoute;
+  "/run/$id": typeof WorkspaceRunIdRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/settings": typeof WorkspaceSettingsRoute;
+  "/run/$id": typeof WorkspaceRunIdRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
   "/_workspace": typeof WorkspaceRouteWithChildren;
   "/_workspace/settings": typeof WorkspaceSettingsRoute;
+  "/_workspace/run/$id": typeof WorkspaceRunIdRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/settings";
+  fullPaths: "/" | "/settings" | "/run/$id";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/settings";
-  id: "__root__" | "/" | "/_workspace" | "/_workspace/settings";
+  to: "/" | "/settings" | "/run/$id";
+  id: "__root__" | "/" | "/_workspace" | "/_workspace/settings" | "/_workspace/run/$id";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -78,15 +87,24 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof WorkspaceSettingsRouteImport;
       parentRoute: typeof WorkspaceRoute;
     };
+    "/_workspace/run/$id": {
+      id: "/_workspace/run/$id";
+      path: "/run/$id";
+      fullPath: "/run/$id";
+      preLoaderRoute: typeof WorkspaceRunIdRouteImport;
+      parentRoute: typeof WorkspaceRoute;
+    };
   }
 }
 
 interface WorkspaceRouteChildren {
   WorkspaceSettingsRoute: typeof WorkspaceSettingsRoute;
+  WorkspaceRunIdRoute: typeof WorkspaceRunIdRoute;
 }
 
 const WorkspaceRouteChildren: WorkspaceRouteChildren = {
   WorkspaceSettingsRoute: WorkspaceSettingsRoute,
+  WorkspaceRunIdRoute: WorkspaceRunIdRoute,
 };
 
 const WorkspaceRouteWithChildren = WorkspaceRoute._addFileChildren(WorkspaceRouteChildren);
