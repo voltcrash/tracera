@@ -1,11 +1,10 @@
 # Cloudflare migration plan
 
-Status: Stages 2 and 3 repository implementation ready for review, 2026-10-12. Stages 0 and 1
-are complete and merged. Stage 2's eight stacked PRs and Stage 3's three stacked PRs target
-`migrate/cloudflare` through their phase stack. Phase 2.6's real-provider exit criterion remains
-owner-deferred. Cleanup, documentation, CI, and release automation are implemented and validated
-locally; PR checks record CI evidence. D1–D17 are accepted. Integration-branch CI after merge,
-Stage 4 hosted rollout, and final Google OAuth sign-offs remain open.
+Status: Stage 4 preflight recorded, 2026-10-12. Stages 0 and 1 are merged to `main`; Stages 2
+and 3 are merged to `migrate/cloudflare`, where integration-branch CI passes. Phase 2.6's
+real-provider exit criterion remains owner-deferred. D1–D17 are accepted. Phase 4.1 waits on
+owner provider settings and approval of the staging secret upload and deploy; later Stage 4
+gates, including final Google OAuth, remain open.
 
 On 2026-10-12 the owner extended the live-test deferral through the remaining repository
 implementation. Complete Stage 3 and prepare the Stage 4 runbooks before requesting the
