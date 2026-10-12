@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import type { WorkflowStep } from "cloudflare:workers";
+import { runAnalysisWorkflow } from "../src/server/analysis-workflow-runner.server";
+import type { AnalysisWorkflowParams } from "../src/server/workflow-params";
 import { scheduledMaintenance } from "../src/server/maintenance.server";
 import {
   accessScope,
@@ -88,6 +91,9 @@ test("maintenance retries owner cancellation after its grace period", async () =
 
 test("a Workflow status outage leaves its run active while expiry cleanup continues", async () => {
   const runId = await start();
+  await harness.env.DB.prepare(
+    "INSERT INTO verifications(id,identifier,value,expires_at,created_at,updated_at) VALUES('expired','expiry-probe','synthetic',0,0,0)",
+  ).run();
   vi.spyOn(console, "error").mockImplementation(() => {});
   const env = {
     ...harness.env,
@@ -99,8 +105,35 @@ test("a Workflow status outage leaves its run active while expiry cleanup contin
     } as unknown as Workflow,
   };
   const counts = await scheduledMaintenance(env);
-  expect(counts).toMatchObject({ failedRuns: 0, admissionsReleased: 0, workflowStatusErrors: 1 });
+  expect(counts).toMatchObject({
+    failedRuns: 0,
+    admissionsReleased: 0,
+    workflowStatusErrors: 1,
+    verificationsPurged: 1,
+  });
   expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("queued");
+});
+
+test("maintenance completes admission release after a report was already finalized", async () => {
+  const runId = await start();
+  const params = harness.created.at(-1)!.params as AnalysisWorkflowParams;
+  const step = {
+    async do(name: string, options: unknown, callback?: () => Promise<unknown>) {
+      if (name === "release") throw new Error("Release failed after report finalization.");
+      return typeof options === "function" ? options() : callback!();
+    },
+  } as unknown as Pick<WorkflowStep, "do">;
+  await expect(runAnalysisWorkflow(harness.env, params, step)).rejects.toThrow("Release failed");
+  expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("partial");
+  expect((await scheduledMaintenance(binding("errored").env)).admissionsReleased).toBe(1);
+  const state = await readRunState(harness.env, user, runId);
+  expect(state?.progress.status).toBe("partial");
+  expect(state?.report?.claims.length).toBeGreaterThan(0);
+  expect(
+    await harness.env.DB.prepare("SELECT response_status FROM analysis_idempotency_keys").first(
+      "response_status",
+    ),
+  ).toBe(200);
 });
 
 test("pagination reaches an errored run behind a full page of active instances", async () => {
