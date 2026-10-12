@@ -20,7 +20,7 @@ import { analysisPolicy, analysisRunContext } from "./analysis-policy";
 import type { ServerEnv } from "./env";
 import { logServerError } from "./error-handling";
 import type { SessionUser } from "./session";
-import type { AnalysisWorkflowParams } from "./workflow-params";
+import { workflowAdmissionLeaseSeconds, type AnalysisWorkflowParams } from "./workflow-params";
 
 export const START_ANALYSIS_ENDPOINT = "startAnalysis";
 export const ANALYSIS_SEED = 20260910;
@@ -67,6 +67,10 @@ export async function startAnalysisRun(input: {
 
   const storage = analysisStorage(env);
   const config = analysisControlConfig(env);
+  config.leaseSeconds = workflowAdmissionLeaseSeconds(
+    config.leaseSeconds,
+    runtime.policy.budget.maxElapsedMs,
+  );
   let admission: Awaited<ReturnType<typeof admitAnalysis>>;
   try {
     admission = await admitAnalysis({

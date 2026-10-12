@@ -75,6 +75,16 @@ async function heldLeases() {
 
 test("Workflow analyzes, finalizes and releases admission without persisting report content in steps", async () => {
   const { params, idempotencyKey } = await start();
+  const lease = await harness.env.DB.prepare(
+    "SELECT expires_at,created_at FROM analysis_leases WHERE id=?",
+  )
+    .bind(params.admission.leaseId)
+    .first<{ expires_at: number; created_at: number }>();
+  const context = await analysisStorage(harness.env).runs.getRunContext({
+    scope: accessScope(user),
+    runId: params.runId,
+  });
+  expect(lease!.expires_at - lease!.created_at).toBeGreaterThan(context!.budget.maxElapsedMs * 3);
   const replay = steps();
   expect(await runAnalysisWorkflow(harness.env, params, replay.step)).toEqual({
     runId: params.runId,

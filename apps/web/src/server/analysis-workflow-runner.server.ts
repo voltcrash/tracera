@@ -15,7 +15,11 @@ import { analysisStorage, accessScope, isTerminalRunStatus } from "./analysis-ap
 import { analysisControlConfig } from "./analysis-controls";
 import { createWorkflowAnalysisPorts } from "./analysis-runtime";
 import type { ServerEnv } from "./env";
-import type { AnalysisWorkflowParams } from "./workflow-params";
+import {
+  ANALYSIS_WORKFLOW_RETRIES,
+  WORKFLOW_SETTLEMENT_CONFIG,
+  type AnalysisWorkflowParams,
+} from "./workflow-params";
 
 export type WorkflowDependencies = {
   storage?: ReturnType<typeof analysisStorage>;
@@ -42,7 +46,7 @@ export async function runAnalysisWorkflow(
     outcome = await step.do(
       "analyze",
       {
-        retries: { limit: 2, delay: "2 seconds", backoff: "exponential" },
+        retries: { limit: ANALYSIS_WORKFLOW_RETRIES, delay: "2 seconds", backoff: "exponential" },
         timeout: context.budget.maxElapsedMs,
       },
       async (): Promise<AnalysisOutcome> => {
@@ -136,45 +140,53 @@ export async function runAnalysisWorkflow(
       },
     );
   } catch {
-    outcome = await step.do("fail", async (): Promise<AnalysisOutcome> => {
-      const progress = await storage.runs.getRunProgress(identity);
-      if (progress && isTerminalRunStatus(progress.status))
-        return { status: progress.status, reportUri: null, fencingToken: null };
-      const attempt = await storage.runs.getActiveAttempt(identity);
-      if (progress?.cancellationRequested && attempt) {
-        await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
-        return { status: "canceled", reportUri: null, fencingToken: null };
-      }
-      await storage.runs.failRun({
-        ...identity,
-        fencingToken: attempt?.fencingToken ?? null,
-        error: "The analysis Workflow exhausted its retries.",
-      });
-      return { status: "failed", reportUri: null, fencingToken: null };
-    });
+    outcome = await step.do(
+      "fail",
+      WORKFLOW_SETTLEMENT_CONFIG,
+      async (): Promise<AnalysisOutcome> => {
+        const progress = await storage.runs.getRunProgress(identity);
+        if (progress && isTerminalRunStatus(progress.status))
+          return { status: progress.status, reportUri: null, fencingToken: null };
+        const attempt = await storage.runs.getActiveAttempt(identity);
+        if (progress?.cancellationRequested && attempt) {
+          await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
+          return { status: "canceled", reportUri: null, fencingToken: null };
+        }
+        await storage.runs.failRun({
+          ...identity,
+          fencingToken: attempt?.fencingToken ?? null,
+          error: "The analysis Workflow exhausted its retries.",
+        });
+        return { status: "failed", reportUri: null, fencingToken: null };
+      },
+    );
   }
-  const status = await step.do("finalize", async (): Promise<RunStatus> => {
-    const progress = await storage.runs.getRunProgress(identity);
-    if (progress && isTerminalRunStatus(progress.status)) return progress.status;
-    if (progress?.cancellationRequested) {
-      const attempt = await storage.runs.getActiveAttempt(identity);
-      if (attempt) await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
-      return "canceled";
-    }
-    if (!outcome.reportUri || !outcome.fencingToken)
-      throw new Error("The analysis report reference is missing.");
-    const bytes = await blobStore.read(outcome.reportUri, new AbortController().signal);
-    if (!bytes) throw new Error("The analysis report is unavailable.");
-    const report = runReportSchema.parse(JSON.parse(new TextDecoder().decode(bytes)));
-    await storage.runs.finalize({
-      ...identity,
-      fencingToken: outcome.fencingToken,
-      reportHash: hashValue(report),
-      report,
-    });
-    return report.status;
-  });
-  await step.do("release", async () => {
+  const status = await step.do(
+    "finalize",
+    WORKFLOW_SETTLEMENT_CONFIG,
+    async (): Promise<RunStatus> => {
+      const progress = await storage.runs.getRunProgress(identity);
+      if (progress && isTerminalRunStatus(progress.status)) return progress.status;
+      if (progress?.cancellationRequested) {
+        const attempt = await storage.runs.getActiveAttempt(identity);
+        if (attempt) await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
+        return "canceled";
+      }
+      if (!outcome.reportUri || !outcome.fencingToken)
+        throw new Error("The analysis report reference is missing.");
+      const bytes = await blobStore.read(outcome.reportUri, new AbortController().signal);
+      if (!bytes) throw new Error("The analysis report is unavailable.");
+      const report = runReportSchema.parse(JSON.parse(new TextDecoder().decode(bytes)));
+      await storage.runs.finalize({
+        ...identity,
+        fencingToken: outcome.fencingToken,
+        reportHash: hashValue(report),
+        report,
+      });
+      return report.status;
+    },
+  );
+  await step.do("release", WORKFLOW_SETTLEMENT_CONFIG, async () => {
     await storage.admission.finishAnalysisAdmission({
       userId: params.ownerUserId,
       ...params.admission,
