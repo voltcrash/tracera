@@ -524,3 +524,16 @@ export const analysisDailyQuotas = sqliteTable(
     check("analysis_daily_quotas_count_check", sql`${table.requestCount} >= 0`),
   ],
 );
+
+export const analysisForceCooldowns = sqliteTable(
+  "analysis_force_cooldowns",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    inputHash: text("input_hash").notNull(),
+    cooldownUntil: integer("cooldown_until", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.inputHash] })],
+);
