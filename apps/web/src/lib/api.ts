@@ -1,2 +1,2 @@
-/** The Hono API is served by this same Next.js app, so calls stay same-origin. */
-export const apiUrl = "/api/tracera";
+/** Same-origin API base for server routes such as progress events and evidence. */
+export const apiUrl = "/api";
