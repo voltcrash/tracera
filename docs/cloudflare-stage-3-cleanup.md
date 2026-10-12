@@ -88,8 +88,11 @@ Both real deployment dry runs and all 10 browser tests pass. The first replaceme
 [CI run passed](https://github.com/voltcrash/tracera/actions/runs/38277740097); final-head
 checks are linked in the PR.
 
-The integration-branch CI gate closes after the stack is merged into `migrate/cloudflare`.
-The production workflow has not been dispatched, and no hosted settings/resources changed.
+The integration-branch CI gate passed after the stack merged: the
+[push run on `migrate/cloudflare`](https://github.com/voltcrash/tracera/actions/runs/38282645431)
+succeeded at `df9f8f7`. The production workflow has not been dispatched, and no hosted
+settings/resources changed. Its hosted skip and dry-run paths can run only from `main`, so
+they are checked by the first dispatch in Phase 4.2.
 
 ## Legacy preview status
 
