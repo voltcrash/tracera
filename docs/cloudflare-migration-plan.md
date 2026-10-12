@@ -1,10 +1,9 @@
 # Cloudflare migration plan
 
-Status: Stage 4 preflight recorded, 2026-10-12. Stages 0 and 1 are merged to `main`; Stages 2
-and 3 are merged to `migrate/cloudflare`, where integration-branch CI passes. Phase 2.6's
-real-provider exit criterion remains owner-deferred. D1–D17 are accepted. Phase 4.1 waits on
-owner provider settings and approval of the staging secret upload and deploy; later Stage 4
-gates, including final Google OAuth, remain open.
+Status: production cut over to Cloudflare on 2026-10-12 as release `v26.10.12`, under D18
+without an AI provider. Stages 0–3 and Phases 4.1–4.2 are complete. Phase 4.3 has removed Vercel
+and passed both D1 restore drills; the Neon archive and deletion and the Vercel GitHub App
+removal remain. Phase 4.4 waits on the owner's Google OAuth registration.
 
 On 2026-10-12 the owner extended the live-test deferral through the remaining repository
 implementation. Complete Stage 3 and prepare the Stage 4 runbooks before requesting the
