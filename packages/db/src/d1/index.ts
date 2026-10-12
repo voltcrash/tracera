@@ -19,3 +19,4 @@ export {
 export { createD1AdmissionRepository, D1AdmissionRepository } from "./admission.js";
 export { createD1SpendRepository, D1SpendRepository, type D1SpendAdmission } from "./spend.js";
 export { D1PayloadStore, D1PayloadError, type StoredProjection } from "./payloads.js";
+export { createD1MaintenanceRepository } from "./maintenance.js";
