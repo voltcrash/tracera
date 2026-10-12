@@ -103,3 +103,38 @@ test("D1 separates spend counters by provider, source and UTC day", async () => 
       .run(),
   ).rejects.toThrow();
 });
+
+test("checkpoint foreign keys enforce the run's complete ownership scope", async () => {
+  await runtime.db
+    .prepare(
+      "INSERT INTO core_runs(run_id,tenant_id,owner_user_id,visibility,input_hash,context_hash,as_of_time,execution_mode,versions,budget,cancellation,audit_sink_id,created_at,updated_at) VALUES('scope-run','tenant','owner','private','input-hash','context-hash',0,'fixture','{}','{}','{}','audit',0,0)",
+    )
+    .run();
+  await expect(
+    runtime.db
+      .prepare(
+        "INSERT INTO core_stage_checkpoints(run_id,tenant_id,owner_user_id,visibility,stage,attempt,fencing_token,checkpoint_hash,payload_json,created_at,updated_at) VALUES('scope-run','different-tenant','owner','private','normalize_input',1,'fence','hash','{}',0,0)",
+      )
+      .run(),
+  ).rejects.toThrow();
+  expect(
+    await runtime.db.prepare("SELECT count(*) FROM core_stage_checkpoints").first("count(*)"),
+  ).toBe(0);
+});
+
+test("snapshot payloads require exactly one inline value or R2 pointer", async () => {
+  await expect(
+    runtime.db
+      .prepare(
+        "INSERT INTO core_snapshots(snapshot_id,tenant_id,owner_user_id,visibility,content_hash,snapshot,snapshot_hash,snapshot_blob_uri,blob_status,created_at) VALUES('conflicting-storage','tenant','owner','private','hash','{}','hash','r2://payloads/hash','unavailable',0)",
+      )
+      .run(),
+  ).rejects.toThrow();
+  await expect(
+    runtime.db
+      .prepare(
+        "INSERT INTO core_snapshots(snapshot_id,tenant_id,owner_user_id,visibility,content_hash,snapshot_hash,blob_status,created_at) VALUES('missing-storage','tenant','owner','private','hash','hash','unavailable',0)",
+      )
+      .run(),
+  ).rejects.toThrow();
+});
