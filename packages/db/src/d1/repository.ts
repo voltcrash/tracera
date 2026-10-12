@@ -740,6 +740,48 @@ export class D1AnalysisRepository {
       version: row.version,
     };
   }
+
+  async getActiveAttempt(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+  }): Promise<D1RunAttempt | null> {
+    const row = await this.run(input.scope, input.runId);
+    return row && row.finalized_at === null && row.fencing_token
+      ? {
+          runId: row.run_id,
+          stage: row.stage,
+          attempt: row.attempt,
+          fencingToken: row.fencing_token,
+          version: row.version,
+        }
+      : null;
+  }
+
+  /** Only call after the Workflow has stopped; this also fences any late writes. */
+  async acknowledgeStoppedCancellation(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+  }): Promise<boolean> {
+    const now = this.now();
+    const [changed] = await this.database.batch([
+      this.database
+        .prepare(`UPDATE core_runs SET status='canceled',finalized_at=?,updated_at=?,version=version+1
+        WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=1 RETURNING run_id`)
+        .bind(now, now, input.runId, ...scopeValues(input.scope)),
+      this.database
+        .prepare(`UPDATE core_stage_attempts SET finished_at=?,outcome='canceled'
+        WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND finished_at IS NULL
+        AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND status='canceled' AND json_extract(cancellation,'$.requested')=1)`)
+        .bind(
+          now,
+          input.runId,
+          ...scopeValues(input.scope),
+          input.runId,
+          ...scopeValues(input.scope),
+        ),
+    ]);
+    return changed!.results.length === 1;
+  }
 }
 
 export function createD1AnalysisRepository(options: D1RepositoryOptions): D1AnalysisRepository {
