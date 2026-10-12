@@ -1,5 +1,5 @@
 import type { AiRequestOptions, GenerateOptions, ImageInput, JsonSchema } from "../provider";
-import { safeFetch } from "../safe-fetch";
+import { requestProviderJson } from "../provider-request";
 import { StructuredOutputProvider } from "../provider";
 
 export interface OpenAiCompatibleProviderOptions {
@@ -128,12 +128,12 @@ export class OpenAiCompatibleProvider extends StructuredOutputProvider {
     return text;
   }
 
-  private async request<TResponse>(
+  private request<TResponse>(
     path: string,
     body: unknown,
     signal?: AbortSignal,
   ): Promise<TResponse> {
-    const response = await safeFetch(`${this.baseUrl}/${path}`, {
+    return requestProviderJson<TResponse>(this.providerName, `${this.baseUrl}/${path}`, {
       method: "POST",
       headers: {
         authorization: `Bearer ${this.apiKey}`,
@@ -143,17 +143,5 @@ export class OpenAiCompatibleProvider extends StructuredOutputProvider {
       body: JSON.stringify(body),
       signal,
     });
-    const payload = (await response.json()) as TResponse & {
-      error?: { message?: string };
-    };
-
-    if (!response.ok || payload.error) {
-      throw new Error(
-        payload.error?.message ??
-          `${this.providerName} request failed with HTTP ${response.status}.`,
-      );
-    }
-
-    return payload;
   }
 }
