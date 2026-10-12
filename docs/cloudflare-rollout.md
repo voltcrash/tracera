@@ -295,6 +295,22 @@ The Vercel GitHub App is still installed on the repository. It keeps posting `Pr
 deployments, which recreated that environment after its deletion. Removing the app needs the
 owner's GitHub settings; then delete the `Preview` environment again.
 
+### D1 restore drills, 2026-10-12
+
+Both databases had no users, sessions, or runs, so no write pause was needed. Each drill
+recorded a baseline bookmark, inserted an already-expired `verifications` canary row
+(`identifier = 'restore-drill-canary'`), restored to the baseline with
+`wrangler d1 time-travel restore`, then rechecked the canary, users, migrations, and
+`/api/health`.
+
+| Step              | `tracera-staging`                                             |
+| ----------------- | ------------------------------------------------------------- |
+| Baseline bookmark | `00000004-00000000-00005102-c8ea53b112e026e7013fe12036f764cc` |
+| Canary rows       | 1 after insert, 0 after restore                               |
+| Restore duration  | 3 s                                                           |
+| Undo bookmark     | `00000004-ffffffff-00005102-f3346fd8291f3c297d99301d723cdc86` |
+| After restore     | Users 0; no migrations pending; health reports D1 connected   |
+
 Sign-off: **pending**. Record stable-period approval, archived object names and SHA-256,
 archive verification, approved project IDs/deletion results, rotated key identifiers (never
 values), removed secret names, drill bookmarks/timings/results, and recovery owner.
