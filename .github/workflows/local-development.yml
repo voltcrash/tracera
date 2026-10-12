@@ -18,7 +18,6 @@ jobs:
     timeout-minutes: 45
     env:
       CI: "true"
-      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: voidzero-dev/setup-vp@v1.20.0
@@ -38,8 +37,10 @@ jobs:
         run: vp check
       - name: Check workspace types
         run: vp run check-types
-      - name: Build with the local profile
+      - name: Build the Worker
         run: vp run build
+      - name: Dry-run the staging Worker deploy
+        run: vp run web#deploy:staging-dry-run
       - name: Run unit suites without external networking
         run: scripts/ci/with-network-denied.sh vp test --run
       - name: Run local integration suites without external networking
