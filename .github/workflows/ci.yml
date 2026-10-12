@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, migrate/cloudflare]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+  WRANGLER_SEND_METRICS: "false"
+  CLOUDFLARE_CF_FETCH_ENABLED: "false"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: voidzero-dev/setup-vp@v1.21.2
+        with:
+          node-version: "24.21.0"
+          cache: true
+          run-install: false
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+      - name: Install Chromium
+        run: vp exec --filter web --fail-if-no-match -- playwright install --with-deps chromium
+      - name: Check formatting, lint, and types
+        run: vp check
+      - name: Check workspace types
+        run: vp run check-types
+      - name: Run unit suites without external networking
+        run: scripts/ci/with-network-denied.sh vp test --run
+      - name: Build the Worker
+        run: vp run build
+      - name: Dry-run the staging Worker deploy
+        run: vp run web#deploy:staging-dry-run
+      - name: Prepare synthetic production dry-run settings
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          const values = {
+            BETTER_AUTH_SECRET: 'ci-only-production-auth-secret-at-least-32-characters',
+            GITHUB_CLIENT_ID: 'ci-only-github-client',
+            GITHUB_CLIENT_SECRET: 'ci-only-github-secret',
+            AI_PROVIDER: 'gemini', AI_MODEL: 'ci-only-generation-model',
+            AI_API_KEY: 'ci-only-provider-key', AI_EMBEDDING_MODEL: 'ci-only-embedding-model',
+            ANALYSIS_MAX_EXTERNAL_REQUESTS: '120', ANALYSIS_MAX_DISCOVERY_QUERIES_PER_CLAIM: '12',
+            ANALYSIS_MAX_FETCHED_CANDIDATES_PER_CLAIM: '20', ANALYSIS_MAX_PROVENANCE_HOPS: '3',
+            ANALYSIS_MAX_TARGETED_RETRIEVAL_ROUNDS: '2', ANALYSIS_MAX_ELAPSED_MS: '120000',
+            ANALYSIS_MAX_CONCURRENT_EXTERNAL_CALLS: '3', ANALYSIS_MAX_COST_USD: '1',
+            AI_DAILY_SPEND_LIMIT_USD: '25', AI_ESTIMATED_GENERATION_COST_USD: '0.01',
+            AI_ESTIMATED_IMAGE_COST_USD: '0.02', AI_ESTIMATED_EMBEDDING_COST_USD: '0.0001',
+          };
+          writeFileSync('apps/web/.dev.vars.production', Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''), { mode: 0o600, flag: 'wx' });
+          NODE
+      - name: Dry-run the production Worker deploy
+        run: vp run deploy:production-dry-run
+      - name: Remove synthetic production settings
+        if: always()
+        run: rm -f apps/web/.dev.vars.production
+      - name: Run Worker browser suites without external networking
+        run: scripts/ci/with-network-denied.sh vp run test:browser
