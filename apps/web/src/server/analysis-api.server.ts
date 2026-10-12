@@ -221,7 +221,9 @@ function analysisInput(body: FirstPartyAnalysisInput) {
     kind: "image" as const,
     mimeType:
       body.imageMimeType?.toLowerCase() ?? match?.[1]?.toLowerCase() ?? "application/octet-stream",
-    data: match?.[2] ?? body.image,
+    data: match
+      ? body.image
+      : `data:${body.imageMimeType ?? "application/octet-stream"};base64,${body.image}`,
     caption: null,
   };
 }

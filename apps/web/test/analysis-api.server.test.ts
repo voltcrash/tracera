@@ -55,6 +55,7 @@ test.each([
     .bind(runId)
     .first<string>("input_json"))!;
   expect(JSON.parse(input).input.kind).toBe(kind);
+  if (kind === "image") expect(JSON.parse(input).input.data).toBe("data:image/png;base64,AA==");
   expect((await readRunState(harness.env, ada, runId))?.progress.status).toBe("queued");
   await cancelAnalysisRun(harness.env, ada, runId);
 });
