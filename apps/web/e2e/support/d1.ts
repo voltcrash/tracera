@@ -11,7 +11,14 @@ export function executeLocalSql(sql: string) {
     const result = execFileSync(
       "vp",
       ["exec", "wrangler", "d1", "execute", "tracera-staging", "--local", "--file", path, "--json"],
-      { encoding: "utf8" },
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CLOUDFLARE_CF_FETCH_ENABLED: "false",
+          WRANGLER_SEND_METRICS: "false",
+        },
+      },
     );
     return JSON.parse(result) as { results: Record<string, unknown>[] }[];
   } finally {

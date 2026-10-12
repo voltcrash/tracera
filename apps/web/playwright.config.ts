@@ -17,6 +17,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
+    env: { CLOUDFLARE_CF_FETCH_ENABLED: "false", WRANGLER_SEND_METRICS: "false" },
     command:
       "node scripts/prepare-browser-tests.mjs && vp run db:migrate && vp dev --host 127.0.0.1 --port 3000 --strictPort",
     url: baseURL,
