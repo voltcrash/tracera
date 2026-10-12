@@ -181,3 +181,56 @@ test("IP capacity is shared across users while user capacity is isolated", async
     ).kind,
   ).toBe("admitted");
 });
+
+test("force cooldown is scoped by user and input and survives lease release", async () => {
+  const forced = { ...request("forced"), forceReanalysis: true };
+  const first = await repo().beginAnalysisAdmission(forced);
+  if (first.kind !== "admitted") throw new Error("Expected admission");
+  await finish("forced", first.leaseId);
+  const cooldown = await repo().beginAnalysisAdmission({ ...forced, idempotencyKey: "again" });
+  expect(cooldown.kind === "rejected" && cooldown.reason).toBe("force_reanalysis_cooldown");
+  expect(cooldown.kind === "rejected" && cooldown.retryAt).toBe("2026-10-12T12:01:00.000Z");
+  const other = await repo().beginAnalysisAdmission({
+    ...forced,
+    idempotencyKey: "different",
+    forceInputHash: "different",
+  });
+  if (other.kind !== "admitted") throw new Error("Expected different-input admission");
+  await finish("different", other.leaseId);
+  now += 60_000;
+  expect((await repo().beginAnalysisAdmission({ ...forced, idempotencyKey: "again" })).kind).toBe(
+    "admitted",
+  );
+});
+
+test("expired replies can be replaced and abandoned leases stop consuming capacity", async () => {
+  const first = await repo().beginAnalysisAdmission(request("expiry"));
+  if (first.kind !== "admitted") throw new Error("Expected admission");
+  await finish("expiry", first.leaseId);
+  now += 600_000;
+  const changed = await repo().beginAnalysisAdmission({
+    ...request("expiry"),
+    requestHash: "changed",
+  });
+  expect(changed.kind).toBe("admitted");
+  now += 60_000;
+  expect((await repo().beginAnalysisAdmission(request("abandoned-capacity"))).kind).toBe(
+    "admitted",
+  );
+});
+
+test("a failed guarded admission batch rolls back its claim, counters and lease", async () => {
+  await runtime.db.exec(
+    "CREATE TRIGGER reject_admission BEFORE INSERT ON analysis_daily_quotas BEGIN SELECT RAISE(ABORT, 'injected admission failure'); END",
+  );
+  await expect(repo().beginAnalysisAdmission(request("rollback"))).rejects.toThrow();
+  for (const table of [
+    "analysis_idempotency_keys",
+    "analysis_leases",
+    "analysis_rate_limits",
+    "analysis_daily_quotas",
+  ])
+    expect(await runtime.db.prepare(`SELECT count(*) FROM ${table}`).first("count(*)")).toBe(0);
+  await runtime.db.exec("DROP TRIGGER reject_admission");
+  expect((await repo().beginAnalysisAdmission(request("rollback"))).kind).toBe("admitted");
+});
