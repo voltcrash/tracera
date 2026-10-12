@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     "./version": "./src/version.js",
-    "./daily-changelog": "./src/daily-changelog.js"
+    "./daily-changelog": "./src/daily-changelog.js",
+    "./production-release": "./src/production-release.js"
   },
   "scripts": {
     "test:release": "vp test --run test"
