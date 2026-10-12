@@ -1,12 +1,13 @@
 import handler from "@tanstack/react-start/server-entry";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import { runAnalysisWorkflow } from "./server/analysis-workflow-runner.server";
+import { parseServerEnv } from "./server/env";
 import { withNonce } from "./server/nonce";
 import type { AnalysisWorkflowParams } from "./server/workflow-params";
 
-/** Phase 2.5 replaces this placeholder with the analysis pipeline. */
 export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisWorkflowParams> {
   override async run(event: WorkflowEvent<AnalysisWorkflowParams>, step: WorkflowStep) {
-    return await step.do("pending", async () => ({ runId: event.payload.runId }));
+    return runAnalysisWorkflow(parseServerEnv(this.env), event.payload, step);
   }
 }
 
