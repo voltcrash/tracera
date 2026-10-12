@@ -66,3 +66,41 @@ test("a conditional version update admits only one concurrent attempt", async ()
       .first("count(*)"),
   ).toBe(1);
 });
+
+test("checkpoint writes reject superseded attempts and survive retry resumption", async () => {
+  const repository = repo();
+  const ctx = context("checkpoint-retry");
+  await repository.createRun({ context: ctx });
+  const first = await repository.beginAttempt({
+    scope,
+    runId: ctx.runId,
+    stage: "normalize_input",
+    expectedVersion: 0,
+  });
+  await repository.checkpoint({
+    scope,
+    ...first,
+    checkpointHash: ctx.inputHash,
+    payloadJson: '{"synthetic":true}',
+  });
+  const second = await repository.beginAttempt({
+    scope,
+    runId: ctx.runId,
+    stage: "extract_claims",
+    expectedVersion: 2,
+  });
+  expect(second.fencingToken).not.toBe(first.fencingToken);
+  await expect(
+    repository.checkpoint({ scope, ...first, checkpointHash: ctx.inputHash, payloadJson: "{}" }),
+  ).rejects.toThrow(StaleWorkerError);
+  expect(
+    await repository.readCheckpoint({ scope, runId: ctx.runId, stage: "normalize_input" }),
+  ).toEqual({ checkpointHash: ctx.inputHash, payloadJson: '{"synthetic":true}' });
+  expect(
+    await repository.readCheckpoint({
+      scope: { ...scope, ownerUserId: "other" },
+      runId: ctx.runId,
+      stage: "normalize_input",
+    }),
+  ).toBeNull();
+});

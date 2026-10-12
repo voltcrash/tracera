@@ -120,6 +120,77 @@ export class D1AnalysisRepository {
       .first<RunRow>();
   }
 
+  async checkpoint(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+    stage: StageName;
+    attempt: number;
+    fencingToken: string;
+    checkpointHash: string;
+    payloadJson: string;
+  }): Promise<void> {
+    const payload = await this.payloads.encode(JSON.parse(input.payloadJson), "checkpoints");
+    const now = this.now();
+    const [changed] = await this.database.batch([
+      this.database
+        .prepare(`INSERT INTO core_stage_checkpoints(run_id,tenant_id,owner_user_id,visibility,stage,attempt,fencing_token,checkpoint_hash,payload_json,payload_blob_uri,created_at,updated_at)
+        SELECT run_id,tenant_id,owner_user_id,visibility,?,attempt,fencing_token,?,?,?,?,? FROM core_runs
+        WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND attempt=? AND fencing_token=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0
+        ON CONFLICT(run_id,stage) DO UPDATE SET attempt=excluded.attempt,fencing_token=excluded.fencing_token,checkpoint_hash=excluded.checkpoint_hash,payload_json=excluded.payload_json,payload_blob_uri=excluded.payload_blob_uri,updated_at=excluded.updated_at RETURNING run_id`)
+        .bind(
+          input.stage,
+          input.checkpointHash,
+          payload.inline,
+          payload.blobUri,
+          now,
+          now,
+          input.runId,
+          ...scopeValues(input.scope),
+          input.attempt,
+          input.fencingToken,
+        ),
+      this.database
+        .prepare(
+          `UPDATE core_runs SET stage=?,version=version+1,updated_at=? WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND attempt=? AND fencing_token=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0`,
+        )
+        .bind(
+          input.stage,
+          now,
+          input.runId,
+          ...scopeValues(input.scope),
+          input.attempt,
+          input.fencingToken,
+        ),
+    ]);
+    if (!changed!.results.length)
+      throw new StaleWorkerError("Checkpoint rejected for stale or canceled worker.");
+  }
+
+  async readCheckpoint(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+    stage: StageName;
+  }): Promise<{ checkpointHash: string; payloadJson: string } | null> {
+    const row = await this.database
+      .prepare(
+        "SELECT checkpoint_hash,payload_json,payload_blob_uri FROM core_stage_checkpoints WHERE run_id=? AND stage=? AND tenant_id=? AND owner_user_id=? AND visibility=?",
+      )
+      .bind(input.runId, input.stage, ...scopeValues(input.scope))
+      .first<{
+        checkpoint_hash: string;
+        payload_json: string | null;
+        payload_blob_uri: string | null;
+      }>();
+    return row
+      ? {
+          checkpointHash: row.checkpoint_hash,
+          payloadJson: JSON.stringify(
+            await this.payloads.read({ inline: row.payload_json, blobUri: row.payload_blob_uri }),
+          ),
+        }
+      : null;
+  }
+
   async getRunContext(input: {
     scope: AnalysisAccessScope;
     runId: string;
