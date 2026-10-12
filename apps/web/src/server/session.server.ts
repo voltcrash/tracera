@@ -1,5 +1,5 @@
 import { createAuth, localAuthIdentities } from "@repo/auth";
-import { createD1Database } from "@repo/db/d1";
+import { createD1Database } from "@repo/db";
 import type { ServerEnv } from "./env";
 import type { SessionUser, SignInOptions, SocialProvider } from "./session";
 

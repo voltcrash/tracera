@@ -3,7 +3,7 @@ import { betterAuth } from "better-auth/minimal";
 import type { Auth, BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/d1";
-import * as schema from "./src/d1/auth-schema.js";
+import * as schema from "./src/auth-schema.js";
 
 const options: BetterAuthOptions = {
   database: drizzleAdapter(drizzle({} as D1Database, { schema }), { provider: "sqlite", schema }),

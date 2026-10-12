@@ -3,7 +3,7 @@ import {
   createD1MaintenanceRepository,
   createD1AdmissionRepository,
   createD1SpendRepository,
-} from "../../src/d1/index.js";
+} from "../../src/index.js";
 import { createTestRuntime, seedUser } from "./runtime.js";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;

@@ -1,6 +1,6 @@
 import { randomAvatarId } from "@repo/contracts/avatar";
-import type { createD1Database } from "@repo/db/d1";
-import * as schema from "@repo/db/d1/schema";
+import type { createD1Database } from "@repo/db";
+import * as schema from "@repo/db/schema";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import type { Auth, BetterAuthOptions } from "better-auth";
 import { betterAuth } from "better-auth/minimal";

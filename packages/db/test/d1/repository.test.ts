@@ -8,7 +8,7 @@ import {
   createD1AnalysisRepository,
   AnalysisStorageConflictError,
   StaleWorkerError,
-} from "../../src/d1/repository.js";
+} from "../../src/repository.js";
 import { createTestRuntime } from "./runtime.js";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;

@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/d1";
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
-import { users } from "../../src/d1/schema.js";
+import { users } from "../../src/schema.js";
 import { createTestRuntime, seedUser } from "./runtime.js";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;

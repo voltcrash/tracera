@@ -4,7 +4,7 @@ import {
   type RunContext,
   type RunReport,
 } from "@repo/contracts/analysis";
-import { createD1AnalysisRepository, type D1RepositoryOptions } from "@repo/db/d1";
+import { createD1AnalysisRepository, type D1RepositoryOptions } from "@repo/db";
 import { createTestRuntime } from "@repo/db/test-runtime";
 import { parseServerEnv, type ServerEnv } from "../../src/server/env";
 import { authFor, readSessionUser } from "../../src/server/session.server";

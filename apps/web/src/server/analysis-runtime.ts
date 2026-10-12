@@ -10,7 +10,7 @@ import {
 import { createDocumentAcquisitionPort } from "@repo/ai/analysis/ingestion";
 
 import type { RunContext } from "@repo/contracts/analysis";
-import { createD1SpendRepository, type D1RepositoryOptions } from "@repo/db/d1";
+import { createD1SpendRepository, type D1RepositoryOptions } from "@repo/db";
 import { analysisControlConfig, spendLimitedAiProvider } from "./analysis-controls";
 import { createLiveSearchPorts } from "./evidence-search.server";
 import type { ServerEnv } from "./env";

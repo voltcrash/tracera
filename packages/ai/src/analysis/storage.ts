@@ -5,7 +5,7 @@ import {
   type DocumentSnapshot,
   type RunContext,
 } from "@repo/contracts/analysis";
-import type { AnalysisAccessScope, D1AnalysisRepository } from "@repo/db/d1";
+import type { AnalysisAccessScope, D1AnalysisRepository } from "@repo/db";
 import { canonicalJson } from "./hashing";
 import type { RunStorePort, SnapshotStorePort } from "./types";
 

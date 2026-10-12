@@ -1,10 +1,10 @@
 import { runReportSchema, stageNameSchema, type RunStatus } from "@repo/contracts/analysis";
-import type { AnalysisAccessScope } from "@repo/db/d1";
+import type { AnalysisAccessScope } from "@repo/db";
 import {
   createD1AdmissionRepository,
   createD1AnalysisRepository,
   type D1RepositoryOptions,
-} from "@repo/db/d1";
+} from "@repo/db";
 import {
   admitAnalysis,
   analysisAdmissionError,

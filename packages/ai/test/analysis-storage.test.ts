@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { runContextExample, type DocumentSnapshot } from "@repo/contracts/analysis";
-import { createD1AnalysisRepository, StaleWorkerError } from "@repo/db/d1";
+import { createD1AnalysisRepository, StaleWorkerError } from "@repo/db";
 import { createTestRuntime, seedUser } from "@repo/db/test-runtime";
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 import { createRunStore, createSnapshotStore } from "../src/analysis/storage.js";

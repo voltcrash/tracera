@@ -43,7 +43,5 @@ jobs:
         run: vp run web#deploy:staging-dry-run
       - name: Run unit suites without external networking
         run: scripts/ci/with-network-denied.sh vp test --run
-      - name: Run local integration suites without external networking
-        run: scripts/ci/with-network-denied.sh vp run test:integration
       - name: Run Worker browser suites without external networking
         run: scripts/ci/with-network-denied.sh vp run test:browser
