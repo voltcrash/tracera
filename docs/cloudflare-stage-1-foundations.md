@@ -150,6 +150,55 @@ prove complete rollback of admission, completion, spend and report-publication b
 [Phase 1.3 PR #38](https://github.com/voltcrash/tracera/pull/38) passed hosted CI and its
 Vercel build. No hosted database was migrated or other Cloudflare resource changed.
 
-## Remaining phase
+## Phase 1.5 — Better Auth on D1
 
-Phase 1.5 adds Better Auth on D1 in its own stacked PR.
+Result: **PASS** locally, 2026-10-12.
+
+The additive `@repo/auth/d1` entry exports `createAuth({ db, env, origin })` and typed
+`WorkerAuthEnv` inputs. Pass `createD1Database(env.DB)` as the database. The SQLite Drizzle
+adapter uses the generated/reconciled auth tables. The original Postgres auth entry and its
+sealed Vercel configuration remain available during Stage 1.
+
+The factory retains the `tracera` cookie prefix, disabled session-cookie cache, encrypted
+OAuth-token setting, create/update token-discard hooks and Tracera avatars. Shared pure
+policy avoids loading Postgres or `@repo/environment` in the D1 entry. Dev login requires
+`MODE=dev`, `DEV_AUTH_BYPASS=true`, a loopback origin and that same request origin. Any
+loopback port works. Production uses the fixed HTTPS `BETTER_AUTH_URL`, secure cookies and
+a complete GitHub pair. Google is enabled only by a complete pair under D17; partial pairs
+fail with fixed messages. `tanstackStartCookies()` is the last plugin, following the
+[Better Auth integration](https://better-auth.com/docs/integrations/tanstack).
+
+Validation: `vp install`, `vp check`, `vp test --run` (298 passed; 10 existing Postgres cases
+skipped by the unit runner), `vp run check-types`, `vp run @repo/auth#test:d1` (25 passed,
+no skips) and `vp run build` pass. Miniflare D1 tests cover mode/flag/origin gates, IPv4 and
+IPv6 loopback ports, persistent sessions across factory instances, logout, disabled and
+unknown dev identities, both OAuth configurations, token discard on account create/update,
+and stubbed authorization/callback flows for Google and GitHub. Both callbacks create real
+D1 sessions and retain no OAuth tokens; their upstream HTTP calls are fully stubbed.
+
+Evidence: `packages/auth/test/dev-auth-bypass.d1.test.ts`, `auth-token-storage.d1.test.ts`,
+`d1-auth-config.test.ts` and `oauth-callback.d1.test.ts`.
+
+[Phase 1.4 PR #39](https://github.com/voltcrash/tracera/pull/39) passed hosted CI, including
+Docker integration and the Vercel build. Phase 1.5 is
+[PR #40](https://github.com/voltcrash/tracera/pull/40), stacked on #39. No hosted resources,
+secrets, deployments, DNS or OAuth registrations changed.
+
+## Stage 2 handoff
+
+- Merge the Stage 1 stack #36 → #37 → #38 → #39 → #40 into `main` in order before creating
+  `migrate/cloudflare` from `main`. These PRs remain open for review; Stage 1 does not cut over.
+- Phase 2.1 extends the D1-only Wrangler foundations with the app entry and remaining
+  bindings. Remove the temporary pinned Node transport and its package condition only when
+  the migration app switches to Workers, as approved in Phase 1.1.
+- Wire the D1 factories into the Worker app and Workflows. Supply the R2 bucket for payload
+  offload, use scoped repository calls, pass the current version when claiming attempts, and
+  retain each attempt's fencing token. Supply stable spend reservation IDs across retries.
+- Resolve provider keys inside steps; workflow params and results carry IDs and provider
+  metadata. The live-provider hosted network probe remains a gate before configuring a real
+  provider. Stage 0 recorded zero configured live providers, so Stage 1 uses stubbed upstreams.
+- Use GitHub for the initial hosted sign-in. Google app registration, hosted secrets and live
+  Google sign-in remain Phase 4.4 under D17. Both provider implementations are already tested.
+- Local Wrangler work used `--local` exclusively. Neither hosted D1 database has received
+  these migrations. Resource changes, hosted migrations, secrets and deployment commands
+  still require the owner's exact-command approval.
