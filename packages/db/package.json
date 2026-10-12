@@ -21,14 +21,20 @@
     "@neondatabase/serverless": "^1.1.0",
     "@repo/contracts": "workspace:*",
     "@repo/environment": "workspace:*",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.4",
     "pg": "^8.23.0"
   },
   "devDependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.7",
+    "@cloudflare/workers-types": "^5.20261012.1",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^26.5.0",
     "@types/pg": "^8.23.1",
-    "drizzle-kit": "^0.31.10",
-    "typescript": "7.0.2"
+    "auth": "^1.7.7",
+    "better-auth": "^1.7.7",
+    "drizzle-kit": "^0.31.11",
+    "miniflare": "^4.20260730.0",
+    "typescript": "7.0.2",
+    "wrangler": "^4.149.0"
   }
 }

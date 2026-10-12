@@ -3,6 +3,8 @@ packages:
   - "packages/*"
 minimumReleaseAge: 0
 allowBuilds:
+  "@prisma/client": true
+  better-sqlite3: true
   browser-tabs-lock: false
   bufferutil: false
   core-js: false
