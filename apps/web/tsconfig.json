@@ -15,6 +15,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "test/**/*.ts",
+    "worker-configuration.d.ts",
     "next-env.d.ts",
     "next.config.js",
     ".next/types/**/*.ts"

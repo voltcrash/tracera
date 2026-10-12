@@ -12,7 +12,11 @@ export function SignInOptions() {
 
   useEffect(() => {
     void fetch("/api/auth/dev-identities", { credentials: "same-origin" })
-      .then(async (response) => (response.ok ? ((await response.json()).identities ?? []) : []))
+      .then(async (response) =>
+        response.ok
+          ? (((await response.json()) as { identities?: LocalIdentity[] }).identities ?? [])
+          : [],
+      )
       .then((value) => setIdentities(value))
       .catch(() => setIdentities([]))
       .finally(() => setLocalChecked(true));
