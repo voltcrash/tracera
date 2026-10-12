@@ -374,7 +374,12 @@ served from workerd with local D1 migrated.
 - The `_workspace` layout's `beforeLoad` calls a `getSession` server function and redirects
   anonymous users to `/`; `/` redirects signed-in users to `/home`. This replaces `proxy.ts`.
 
-Exit: every page renders under `vp dev` with navigation parity.
+- Hosted sign-in offers only providers enabled by complete credential pairs. Under D17,
+  the initial hosted page offers GitHub; Google appears when Phase 4.4 enables it. UI tests
+  cover GitHub-only and both-provider configurations without hosted Google credentials.
+
+Exit: every page renders under `vp dev` with navigation parity, and sign-in offers the
+configured providers.
 
 **Phase 2.3 — Auth endpoints.**
 
