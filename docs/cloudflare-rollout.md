@@ -31,6 +31,13 @@ hosted change. Wrangler ran with the scoped CI token against account
 | R2 `tracera-staging-blobs` | Present                                                                      |
 | `tracera-staging-analysis` | Present, bound to script `tracera-staging` and class `AnalysisWorkflow`      |
 
+| Production resource           | Observed state                                                      |
+| ----------------------------- | ------------------------------------------------------------------- |
+| Worker `tracera`              | Stage 0 bootstrap version `9a424fa8`; no custom domain attached yet |
+| D1 `tracera-production`       | `26eeb656-…`, empty; the same two migrations pending                |
+| R2 `tracera-production-blobs` | Present                                                             |
+| `tracera-production-analysis` | Present, bound to script `tracera` and class `AnalysisWorkflow`     |
+
 ## Phase 4.1 — Staging soak
 
 1. Complete the deferred local `vp run dev:live` analysis with owner-configured provider/model
