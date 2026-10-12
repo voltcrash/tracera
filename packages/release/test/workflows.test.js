@@ -208,6 +208,7 @@ test.each([
   commit("fix: pending release");
   const result = await runWorkflow({ failTask });
   expect(result.failed).toBe(true);
+  expect(result.tasks.at(-1).args).toContain(failTask);
   expect(github.rest.repos.createRelease).not.toHaveBeenCalled();
   expect(result.executed.at(-1)).toBe("Remove private settings");
   expect(existsSync(join(cwd, "apps/web/.dev.vars.production"))).toBe(false);
@@ -217,8 +218,31 @@ test("missing credentials stop before install and never publish", async () => {
   commit("fix: pending release");
   const result = await runWorkflow({ missingCredentials: true });
   expect(result.failed).toBe(true);
+  expect(result.outputs.shouldDeploy).toBe("true");
   expect(result.tasks).toEqual([]);
   expect(github.rest.repos.createRelease).not.toHaveBeenCalled();
+  expect(existsSync(join(cwd, "apps/web/.dev.vars.production"))).toBe(false);
+});
+
+test("a planning collision stops before writing credentials or running deployment tasks", async () => {
+  git("tag", "v26.10.05");
+  commit("fix: same-day conflicting snapshot");
+  const result = await runWorkflow();
+  expect(result.failed).toBe(true);
+  expect(result.tasks).toEqual([]);
+  expect(github.rest.repos.createRelease).not.toHaveBeenCalled();
+  expect(result.executed.at(-1)).toBe("Remove private settings");
+  expect(existsSync(join(cwd, "apps/web/.dev.vars.production"))).toBe(false);
+});
+
+test("publication failure still removes credentials after a successful deployment", async () => {
+  commit("fix: release awaiting publication");
+  github.rest.repos.createRelease.mockRejectedValueOnce(new Error("publication-fixture-failure"));
+  const result = await runWorkflow();
+  expect(result.failed).toBe(true);
+  expect(result.tasks.at(-1).args).toContain("deploy:production");
+  expect(github.rest.repos.createRelease).toHaveBeenCalledOnce();
+  expect(result.executed.at(-1)).toBe("Remove private settings");
   expect(existsSync(join(cwd, "apps/web/.dev.vars.production"))).toBe(false);
 });
 
