@@ -29,7 +29,9 @@ spend bound together; a partial configuration fails the check.
 
 The production GitHub OAuth app was created fresh for Cloudflare on 2026-10-12, with homepage
 `https://tracera.voltcrash.com` and callback
-`https://tracera.voltcrash.com/api/auth/callback/github`. Google may be entirely absent until Phase 4.4; partial configuration fails.
+`https://tracera.voltcrash.com/api/auth/callback/github`. Since Phase 4.4 production also requires
+the Google pair, registered as a Web client with origin `https://tracera.voltcrash.com` and
+callback `https://tracera.voltcrash.com/api/auth/callback/google`.
 Non-secret operational settings belong in reviewed Wrangler vars when practical.
 
 ## Local preflight
