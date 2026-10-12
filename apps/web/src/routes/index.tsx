@@ -15,6 +15,8 @@ function Placeholder() {
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 font-mono text-sm">
         <dt>Mode</dt>
         <dd>{status.mode}</dd>
+        <dt>Analysis</dt>
+        <dd data-testid="analysis-mode">{status.analysisMode}</dd>
         <dt>Version</dt>
         <dd>{status.version}</dd>
         <dt>D1 migrations</dt>
