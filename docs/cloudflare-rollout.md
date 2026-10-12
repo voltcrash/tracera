@@ -18,6 +18,19 @@ Keep keys, OAuth secrets, cookies, private inputs, and logs containing private d
 Commands using `RUN_ID`, `BOOKMARK`, or private paths are templates; resolve them before
 presenting an exact approval batch. The following commands have not been executed here.
 
+## Stage 4 preflight
+
+Read-only checks on 2026-10-12 from `migrate/cloudflare` at `df9f8f7`, before any Stage 4
+hosted change. Wrangler ran with the scoped CI token against account
+`eb2679ce4f23ae7db4e6c4e3fcf8c3c1`.
+
+| Staging resource           | Observed state                                                               |
+| -------------------------- | ---------------------------------------------------------------------------- |
+| Worker `tracera-staging`   | Stage 0 bootstrap version `375cd268`; the workers.dev URL returns 503        |
+| D1 `tracera-staging`       | `4df15d26-…`, empty; `0000_baseline` and `0001_provider_spend_guard` pending |
+| R2 `tracera-staging-blobs` | Present                                                                      |
+| `tracera-staging-analysis` | Present, bound to script `tracera-staging` and class `AnalysisWorkflow`      |
+
 ## Phase 4.1 — Staging soak
 
 1. Complete the deferred local `vp run dev:live` analysis with owner-configured provider/model
