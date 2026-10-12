@@ -146,6 +146,12 @@ gh workflow run production-release.yml --repo voltcrash/tracera --ref main
 Resolve hosted project/zone/record identifiers with read-only inventory before drafting their
 exact write commands. Placeholder deletion commands are not an approved action.
 
+Observed on 2026-10-12: `voltcrash.com` is served by Cloudflare nameservers (zone
+`80d71d02a1ef8a833c5502e31dd5ee6f`). Public DNS answers `tracera.voltcrash.com` with a
+DNS-only `CNAME` to `938bc3975bc3bd4e.vercel-dns-017.com` (TTL 300), and the site serves the
+Next.js build. Neither the CI token nor the local Wrangler login can read DNS records, so the
+record ID must come from the owner's dashboard or a token with DNS read before step 3.
+
 Before decommission, rollback removes the Worker custom domain and restores the saved Vercel
 DNS record and Git integration. Review and approve the exact rollback actions first. Old data
 remains in Neon; Cloudflare-era accounts/history stay in D1 and are not imported back. Record
