@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
-import { createD1SpendRepository } from "../../src/d1/spend.js";
+import { createD1SpendRepository } from "../../src/spend.js";
 import { createTestRuntime } from "./runtime.js";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;

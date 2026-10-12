@@ -1,6 +1,4 @@
 import { resolve4, resolve6 } from "node:dns/promises";
-import { fetchValidatedTarget } from "#safe-fetch-transport";
-import type { ResolvedAddress } from "./safe-fetch-transport";
 
 const nativeFetch = globalThis.fetch;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
@@ -54,6 +52,11 @@ const BLOCKED_IPV6_RANGES = [
   ["ff00::", 8],
 ] as const;
 
+interface ResolvedAddress {
+  address: string;
+  family: 4 | 6;
+}
+
 type ParsedAddress =
   | { version: 4; value: number; octets: [number, number, number, number] }
   | { version: 6; value: bigint; groups: number[] };
@@ -86,21 +89,15 @@ export async function safeFetch(
   let currentInit = request.init;
   let currentBody = request.body;
   let redirected = false;
-  let target = await resolvePublicTarget(
-    currentUrl,
-    options.resolveHostAddresses,
-    skipHostnameResolution,
-  );
+  await resolvePublicTarget(currentUrl, options.resolveHostAddresses, skipHostnameResolution);
 
   for (let redirectCount = 0; ; redirectCount += 1) {
     currentInit.signal?.throwIfAborted();
-    const response = fetchImplementation
-      ? await fetchImplementation(currentUrl, {
-          ...currentInit,
-          body: currentBody as unknown as BodyInit | undefined,
-          redirect: "manual",
-        })
-      : await fetchValidatedTarget(currentUrl, currentInit, currentBody, target.addresses);
+    const response = await (fetchImplementation ?? nativeFetch)(currentUrl, {
+      ...currentInit,
+      body: currentBody as unknown as BodyInit | undefined,
+      redirect: "manual",
+    });
     if (!REDIRECT_STATUSES.has(response.status)) {
       return withResponseUrl(response, currentUrl, redirected);
     }
@@ -118,13 +115,8 @@ export async function safeFetch(
       await cancelResponse(response);
       throw new Error("The link redirected to an invalid destination.");
     }
-    let nextTarget: { addresses: ResolvedAddress[] };
     try {
-      nextTarget = await resolvePublicTarget(
-        nextUrl,
-        options.resolveHostAddresses,
-        skipHostnameResolution,
-      );
+      await resolvePublicTarget(nextUrl, options.resolveHostAddresses, skipHostnameResolution);
     } catch (error) {
       await cancelResponse(response);
       throw error;
@@ -152,7 +144,6 @@ export async function safeFetch(
     );
     currentBody = await serializeBody(currentInit.body);
     currentUrl = nextUrl;
-    target = nextTarget;
     redirected = true;
   }
 }

@@ -1,76 +1,487 @@
+import type { StoredProjection } from "./payloads.js";
+import { sql } from "drizzle-orm";
 import {
-  boolean,
-  date,
+  check,
+  foreignKey,
   index,
-  jsonb,
   integer,
-  numeric,
-  pgTable,
+  real,
   primaryKey,
+  sqliteTable,
   text,
-  timestamp,
   uniqueIndex,
-  uuid,
-  varchar,
-} from "drizzle-orm/pg-core";
+} from "drizzle-orm/sqlite-core";
+import type { DocumentSnapshot, RunContext, RunReport, StageName } from "@repo/contracts/analysis";
 
-export const users = pgTable("users", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull(),
-  /** Always stored lowercase so email addresses are unique case-insensitively. */
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").notNull().default(false),
-  image: text("image"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+import { users, sessions, accounts, verifications } from "./auth-schema.js";
+export { users, sessions, accounts, verifications };
+
+const ownershipColumns = () => ({
+  tenantId: text("tenant_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  visibility: text("visibility", { enum: ["private", "unlisted", "public"] }).notNull(),
 });
+const createdAt = () =>
+  integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date());
+const updatedAt = () =>
+  integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date());
 
-export const sessions = pgTable(
-  "sessions",
+export const analysisRuns = sqliteTable(
+  "core_runs",
   {
-    id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id")
+    runId: text("run_id").primaryKey(),
+    ...ownershipColumns(),
+    inputHash: text("input_hash").notNull(),
+    contextHash: text("context_hash").notNull(),
+    asOfTime: integer("as_of_time", { mode: "timestamp_ms" }).notNull(),
+    executionMode: text("execution_mode", { enum: ["fixture", "live"] }).notNull(),
+    status: text("status", {
+      enum: ["queued", "running", "complete", "partial", "unavailable", "failed", "canceled"],
+    })
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    token: text("token").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    ipAddress: text("ip_address"),
-    userAgent: text("user_agent"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+      .default("queued"),
+    stage: text("stage").$type<StageName>().notNull().default("normalize_input"),
+    attempt: integer("attempt").notNull().default(0),
+    fencingToken: text("fencing_token"),
+    version: integer("version").notNull().default(0),
+    versions: text("versions", { mode: "json" }).$type<RunContext["versions"]>().notNull(),
+    budget: text("budget", { mode: "json" }).$type<RunContext["budget"]>().notNull(),
+    cancellation: text("cancellation", { mode: "json" })
+      .$type<RunContext["cancellation"]>()
+      .notNull(),
+    auditSinkId: text("audit_sink_id").notNull(),
+    providerSource: text("provider_source", { enum: ["platform", "user"] }),
+    provider: text("provider", {
+      enum: ["anthropic", "gemini", "openai", "openrouter", "openai-compatible"],
+    }),
+    inputJson: text("input_json"),
+    inputBlobUri: text("input_blob_uri"),
+    inputPayloadHash: text("input_payload_hash"),
+    lastError: text("last_error"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    finalizedAt: integer("finalized_at", { mode: "timestamp_ms" }),
   },
   (table) => [
-    uniqueIndex("sessions_token_idx").on(table.token),
-    index("sessions_user_id_idx").on(table.userId),
-    index("sessions_expires_at_idx").on(table.expiresAt),
+    uniqueIndex("core_runs_scope_idx").on(
+      table.runId,
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+    ),
+    index("core_runs_owner_created_idx").on(
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+      table.createdAt,
+    ),
+    check(
+      "core_runs_visibility_check",
+      sql`${table.visibility} IN ('private','unlisted','public')`,
+    ),
+    check(
+      "core_runs_status_check",
+      sql`${table.status} IN ('queued','running','complete','partial','unavailable','failed','canceled')`,
+    ),
+    check("core_runs_attempt_check", sql`${table.attempt} >= 0 AND ${table.version} >= 0`),
+    check(
+      "core_runs_provider_pair_check",
+      sql`(${table.providerSource} IS NULL) = (${table.provider} IS NULL)`,
+    ),
+    check(
+      "core_runs_input_storage_check",
+      sql`NOT (${table.inputJson} IS NOT NULL AND ${table.inputBlobUri} IS NOT NULL)`,
+    ),
   ],
 );
 
-export const analysisRateLimits = pgTable(
-  "analysis_rate_limits",
+export const analysisStageAttempts = sqliteTable(
+  "core_stage_attempts",
   {
-    scopeType: varchar("scope_type", { length: 8 }).notNull(),
-    scopeKey: text("scope_key").notNull(),
-    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
-    requestCount: integer("request_count").notNull().default(0),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    runId: text("run_id").notNull(),
+    ...ownershipColumns(),
+    stage: text("stage").$type<StageName>().notNull(),
+    attempt: integer("attempt").notNull(),
+    fencingToken: text("fencing_token").notNull(),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+    outcome: text("outcome", { enum: ["complete", "failed", "canceled"] }),
   },
-  (table) => [primaryKey({ columns: [table.scopeType, table.scopeKey] })],
+  (table) => [
+    primaryKey({ columns: [table.runId, table.stage, table.attempt] }),
+    index("core_stage_attempts_owner_idx").on(
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+      table.runId,
+    ),
+    foreignKey({
+      columns: [table.runId, table.tenantId, table.ownerUserId, table.visibility],
+      foreignColumns: [
+        analysisRuns.runId,
+        analysisRuns.tenantId,
+        analysisRuns.ownerUserId,
+        analysisRuns.visibility,
+      ],
+    }).onDelete("cascade"),
+    check("core_stage_attempts_attempt_check", sql`${table.attempt} > 0`),
+  ],
 );
 
-export const analysisLeases = pgTable(
+export const analysisStageCheckpoints = sqliteTable(
+  "core_stage_checkpoints",
+  {
+    runId: text("run_id").notNull(),
+    ...ownershipColumns(),
+    stage: text("stage").$type<StageName>().notNull(),
+    attempt: integer("attempt").notNull(),
+    fencingToken: text("fencing_token").notNull(),
+    checkpointHash: text("checkpoint_hash").notNull(),
+    payloadJson: text("payload_json"),
+    payloadBlobUri: text("payload_blob_uri"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.stage] }),
+    index("core_stage_checkpoints_owner_idx").on(
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+      table.runId,
+    ),
+    foreignKey({
+      columns: [table.runId, table.tenantId, table.ownerUserId, table.visibility],
+      foreignColumns: [
+        analysisRuns.runId,
+        analysisRuns.tenantId,
+        analysisRuns.ownerUserId,
+        analysisRuns.visibility,
+      ],
+    }).onDelete("cascade"),
+    check(
+      "core_stage_checkpoints_storage_check",
+      sql`(${table.payloadJson} IS NOT NULL) <> (${table.payloadBlobUri} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const analysisSnapshots = sqliteTable(
+  "core_snapshots",
+  {
+    snapshotId: text("snapshot_id").notNull(),
+    ...ownershipColumns(),
+    contentHash: text("content_hash").notNull(),
+    rawContentHash: text("raw_content_hash"),
+    normalizedText: text("normalized_text"),
+    snapshot: text("snapshot", { mode: "json" }).$type<DocumentSnapshot>(),
+    snapshotHash: text("snapshot_hash").notNull(),
+    snapshotBlobUri: text("snapshot_blob_uri"),
+    blobStatus: text("blob_status", { enum: ["stored", "unavailable"] }).notNull(),
+    blobUri: text("blob_uri"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.ownerUserId, table.visibility, table.snapshotId],
+    }),
+    index("core_snapshots_content_lookup_idx").on(
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+      table.contentHash,
+    ),
+    check(
+      "core_snapshots_visibility_check",
+      sql`${table.visibility} IN ('private','unlisted','public')`,
+    ),
+    check(
+      "core_snapshots_blob_check",
+      sql`(${table.blobStatus} = 'stored' AND ${table.blobUri} IS NOT NULL) OR (${table.blobStatus} = 'unavailable' AND ${table.blobUri} IS NULL)`,
+    ),
+    check(
+      "core_snapshots_storage_check",
+      sql`(${table.snapshot} IS NOT NULL) <> (${table.snapshotBlobUri} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const analysisReportVersions = sqliteTable(
+  "core_report_versions",
+  {
+    runId: text("run_id").notNull(),
+    version: integer("version").notNull(),
+    ...ownershipColumns(),
+    reportHash: text("report_hash").notNull(),
+    schemaVersion: integer("schema_version").notNull(),
+    contractVersion: text("contract_version").notNull(),
+    engineVersion: text("engine_version").notNull(),
+    diagnosticLabels: text("diagnostic_labels", { mode: "json" })
+      .$type<Array<{ claimId: string; label: string }>>()
+      .notNull(),
+    publishedLabels: text("published_labels", { mode: "json" })
+      .$type<Array<{ claimId: string; label: string }>>()
+      .notNull(),
+    factualScore: real("factual_score"),
+    scoreNullReasons: text("score_null_reasons", { mode: "json" }).$type<string[]>().notNull(),
+    evidenceSetHash: text("evidence_set_hash"),
+    report: text("report", { mode: "json" }).$type<RunReport>(),
+    reportBlobUri: text("report_blob_uri"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.version] }),
+    uniqueIndex("core_report_versions_hash_idx").on(table.runId, table.reportHash),
+    uniqueIndex("core_report_versions_scope_idx").on(
+      table.runId,
+      table.version,
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+    ),
+    index("core_report_versions_owner_idx").on(
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+      table.runId,
+      table.version,
+    ),
+    foreignKey({
+      columns: [table.runId, table.tenantId, table.ownerUserId, table.visibility],
+      foreignColumns: [
+        analysisRuns.runId,
+        analysisRuns.tenantId,
+        analysisRuns.ownerUserId,
+        analysisRuns.visibility,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "core_report_versions_storage_check",
+      sql`(${table.report} IS NOT NULL) <> (${table.reportBlobUri} IS NOT NULL)`,
+    ),
+    check("core_report_versions_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const analysisReportClaims = sqliteTable(
+  "core_report_claims",
+  {
+    runId: text("run_id").notNull(),
+    reportVersion: integer("report_version").notNull(),
+    claimId: text("claim_id").notNull(),
+    ...ownershipColumns(),
+    claim: text("claim", { mode: "json" })
+      .$type<StoredProjection<RunReport["claims"][number]>>()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.reportVersion, table.claimId] }),
+    foreignKey({
+      columns: [
+        table.runId,
+        table.reportVersion,
+        table.tenantId,
+        table.ownerUserId,
+        table.visibility,
+      ],
+      foreignColumns: [
+        analysisReportVersions.runId,
+        analysisReportVersions.version,
+        analysisReportVersions.tenantId,
+        analysisReportVersions.ownerUserId,
+        analysisReportVersions.visibility,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const analysisReportSnapshots = sqliteTable(
+  "core_report_snapshots",
+  {
+    runId: text("run_id").notNull(),
+    reportVersion: integer("report_version").notNull(),
+    snapshotId: text("snapshot_id").notNull(),
+    ...ownershipColumns(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.reportVersion, table.snapshotId] }),
+    index("core_report_snapshots_snapshot_idx").on(
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+      table.snapshotId,
+    ),
+    foreignKey({
+      columns: [
+        table.runId,
+        table.reportVersion,
+        table.tenantId,
+        table.ownerUserId,
+        table.visibility,
+      ],
+      foreignColumns: [
+        analysisReportVersions.runId,
+        analysisReportVersions.version,
+        analysisReportVersions.tenantId,
+        analysisReportVersions.ownerUserId,
+        analysisReportVersions.visibility,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.tenantId, table.ownerUserId, table.visibility, table.snapshotId],
+      foreignColumns: [
+        analysisSnapshots.tenantId,
+        analysisSnapshots.ownerUserId,
+        analysisSnapshots.visibility,
+        analysisSnapshots.snapshotId,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const analysisEvidenceAssessments = sqliteTable(
+  "core_evidence_assessments",
+  {
+    runId: text("run_id").notNull(),
+    reportVersion: integer("report_version").notNull(),
+    assessmentId: text("assessment_id").notNull(),
+    claimId: text("claim_id").notNull(),
+    snapshotId: text("snapshot_id").notNull(),
+    ...ownershipColumns(),
+    assessment: text("assessment", { mode: "json" })
+      .$type<StoredProjection<RunReport["assessments"][number]>>()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.reportVersion, table.assessmentId] }),
+    index("core_assessments_claim_idx").on(table.runId, table.reportVersion, table.claimId),
+    foreignKey({
+      columns: [
+        table.runId,
+        table.reportVersion,
+        table.tenantId,
+        table.ownerUserId,
+        table.visibility,
+      ],
+      foreignColumns: [
+        analysisReportVersions.runId,
+        analysisReportVersions.version,
+        analysisReportVersions.tenantId,
+        analysisReportVersions.ownerUserId,
+        analysisReportVersions.visibility,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const analysisProvenanceEdges = sqliteTable(
+  "core_provenance_edges",
+  {
+    runId: text("run_id").notNull(),
+    reportVersion: integer("report_version").notNull(),
+    claimId: text("claim_id").notNull(),
+    edgeIndex: integer("edge_index").notNull(),
+    ...ownershipColumns(),
+    fromSnapshotId: text("from_snapshot_id").notNull(),
+    toSnapshotId: text("to_snapshot_id").notNull(),
+    edge: text("edge", { mode: "json" })
+      .$type<StoredProjection<RunReport["provenance"][number]["edges"][number]>>()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.reportVersion, table.claimId, table.edgeIndex] }),
+    index("core_provenance_edges_snapshots_idx").on(
+      table.runId,
+      table.fromSnapshotId,
+      table.toSnapshotId,
+    ),
+    foreignKey({
+      columns: [
+        table.runId,
+        table.reportVersion,
+        table.tenantId,
+        table.ownerUserId,
+        table.visibility,
+      ],
+      foreignColumns: [
+        analysisReportVersions.runId,
+        analysisReportVersions.version,
+        analysisReportVersions.tenantId,
+        analysisReportVersions.ownerUserId,
+        analysisReportVersions.visibility,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const analysisDecisions = sqliteTable(
+  "core_decisions",
+  {
+    runId: text("run_id").notNull(),
+    reportVersion: integer("report_version").notNull(),
+    claimId: text("claim_id").notNull(),
+    ...ownershipColumns(),
+    diagnosticLabel: text("diagnostic_label").notNull(),
+    publishedLabel: text("published_label").notNull(),
+    decision: text("decision", { mode: "json" })
+      .$type<StoredProjection<RunReport["decisions"][number]>>()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.reportVersion, table.claimId] }),
+    foreignKey({
+      columns: [
+        table.runId,
+        table.reportVersion,
+        table.tenantId,
+        table.ownerUserId,
+        table.visibility,
+      ],
+      foreignColumns: [
+        analysisReportVersions.runId,
+        analysisReportVersions.version,
+        analysisReportVersions.tenantId,
+        analysisReportVersions.ownerUserId,
+        analysisReportVersions.visibility,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const analysisRateLimits = sqliteTable(
+  "analysis_rate_limits",
+  {
+    scopeType: text("scope_type", { enum: ["user", "ip"] }).notNull(),
+    scopeKey: text("scope_key").notNull(),
+    windowStartedAt: integer("window_started_at", { mode: "timestamp_ms" }).notNull(),
+    requestCount: integer("request_count").notNull().default(0),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.scopeType, table.scopeKey] }),
+    check("analysis_rate_limits_count_check", sql`${table.requestCount} >= 0`),
+  ],
+);
+
+export const analysisLeases = sqliteTable(
   "analysis_leases",
   {
-    id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id")
+    id: text("id")
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     ipHash: text("ip_hash").notNull(),
-    endpoint: varchar("endpoint", { length: 64 }).notNull(),
-    idempotencyKey: varchar("idempotency_key", { length: 255 }),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    releasedAt: timestamp("released_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    endpoint: text("endpoint").notNull(),
+    idempotencyKey: text("idempotency_key"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    releasedAt: integer("released_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
   },
   (table) => [
     index("analysis_leases_user_active_idx").on(table.userId, table.releasedAt, table.expiresAt),
@@ -78,119 +489,117 @@ export const analysisLeases = pgTable(
   ],
 );
 
-export const analysisIdempotencyKeys = pgTable(
+export const analysisIdempotencyKeys = sqliteTable(
   "analysis_idempotency_keys",
   {
-    userId: uuid("user_id")
+    userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    endpoint: varchar("endpoint", { length: 64 }).notNull(),
-    idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),
-    requestHash: varchar("request_hash", { length: 64 }).notNull(),
-    requestStatus: varchar("request_status", { length: 16 }).notNull(),
-    responseBody: jsonb("response_body"),
+    endpoint: text("endpoint").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    requestStatus: text("request_status", {
+      enum: ["in_progress", "completed", "failed"],
+    }).notNull(),
+    responseBody: text("response_body", { mode: "json" }),
+    responseBlobUri: text("response_blob_uri"),
+    responseHash: text("response_hash"),
     responseStatus: integer("response_status"),
-    leaseId: uuid("lease_id"),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    // The claim precedes its guarded admission lease write in the same batch.
+    leaseId: text("lease_id"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.endpoint, table.idempotencyKey] }),
     index("analysis_idempotency_expires_idx").on(table.expiresAt),
+    check(
+      "analysis_idempotency_storage_check",
+      sql`NOT (${table.responseBody} IS NOT NULL AND ${table.responseBlobUri} IS NOT NULL)`,
+    ),
   ],
 );
 
-export const analysisDailyQuotas = pgTable(
+export const analysisDailyQuotas = sqliteTable(
   "analysis_daily_quotas",
   {
-    userId: uuid("user_id")
+    userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    periodStart: date("period_start").notNull(),
+    periodStart: text("period_start").notNull(),
     requestCount: integer("request_count").notNull().default(0),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.periodStart] })],
+  (table) => [
+    primaryKey({ columns: [table.userId, table.periodStart] }),
+    check("analysis_daily_quotas_count_check", sql`${table.requestCount} >= 0`),
+  ],
 );
 
-export const analysisForceCooldowns = pgTable(
+export const analysisForceCooldowns = sqliteTable(
   "analysis_force_cooldowns",
   {
-    userId: uuid("user_id")
+    userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    inputHash: varchar("input_hash", { length: 64 }).notNull(),
-    cooldownUntil: timestamp("cooldown_until", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    inputHash: text("input_hash").notNull(),
+    cooldownUntil: integer("cooldown_until", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: updatedAt(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.inputHash] })],
 );
 
-export const aiProviderSpend = pgTable(
+export const aiProviderSpend = sqliteTable(
   "ai_provider_spend",
   {
-    providerKey: varchar("provider_key", { length: 128 }).notNull(),
-    periodStart: date("period_start").notNull(),
-    budgetUsd: numeric("budget_usd", { precision: 12, scale: 6 }).notNull(),
-    reservedUsd: numeric("reserved_usd", { precision: 12, scale: 6 }).notNull().default("0"),
-    actualUsd: numeric("actual_usd", { precision: 12, scale: 6 }).notNull().default("0"),
-    openUntil: timestamp("open_until", { withTimezone: true }),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [primaryKey({ columns: [table.providerKey, table.periodStart] })],
-);
-
-export const aiSpendReservations = pgTable("ai_spend_reservations", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  providerKey: varchar("provider_key", { length: 128 }).notNull(),
-  periodStart: date("period_start").notNull(),
-  estimatedUsd: numeric("estimated_usd", { precision: 12, scale: 6 }).notNull(),
-  actualUsd: numeric("actual_usd", { precision: 12, scale: 6 }),
-  settledAt: timestamp("settled_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export const accounts = pgTable(
-  "accounts",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    accountId: text("account_id").notNull(),
-    providerId: text("provider_id").notNull(),
-    accessToken: text("access_token"),
-    refreshToken: text("refresh_token"),
-    accessTokenExpiresAt: timestamp("access_token_expires_at", {
-      withTimezone: true,
-    }),
-    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
-      withTimezone: true,
-    }),
-    scope: text("scope"),
-    idToken: text("id_token"),
-    password: text("password"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    providerKey: text("provider_key").notNull(),
+    keySource: text("key_source", { enum: ["platform", "user"] }).notNull(),
+    periodStart: text("period_start").notNull(),
+    budgetMicros: integer("budget_micros").notNull(),
+    reservedMicros: integer("reserved_micros").notNull().default(0),
+    actualMicros: integer("actual_micros").notNull().default(0),
+    openUntil: integer("open_until", { mode: "timestamp_ms" }),
+    updatedAt: updatedAt(),
   },
   (table) => [
-    uniqueIndex("accounts_provider_account_idx").on(table.providerId, table.accountId),
-    index("accounts_user_id_idx").on(table.userId),
+    primaryKey({ columns: [table.providerKey, table.keySource, table.periodStart] }),
+    check(
+      "ai_provider_spend_amounts_check",
+      sql`${table.budgetMicros} >= 0 AND ${table.reservedMicros} >= 0 AND ${table.actualMicros} >= 0`,
+    ),
+    check("ai_provider_spend_source_check", sql`${table.keySource} IN ('platform','user')`),
   ],
 );
 
-export const verifications = pgTable(
-  "verifications",
+export const aiSpendReservations = sqliteTable(
+  "ai_spend_reservations",
   {
-    id: uuid("id").defaultRandom().primaryKey(),
-    identifier: text("identifier").notNull(),
-    value: text("value").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    reservationToken: text("reservation_token"),
+    id: text("id")
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    providerKey: text("provider_key").notNull(),
+    keySource: text("key_source", { enum: ["platform", "user"] }).notNull(),
+    periodStart: text("period_start").notNull(),
+    estimatedMicros: integer("estimated_micros").notNull(),
+    actualMicros: integer("actual_micros"),
+    settledAt: integer("settled_at", { mode: "timestamp_ms" }),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: createdAt(),
   },
   (table) => [
-    index("verifications_identifier_idx").on(table.identifier),
-    index("verifications_expires_at_idx").on(table.expiresAt),
+    index("ai_spend_reservations_expiry_idx").on(table.settledAt, table.expiresAt),
+    foreignKey({
+      columns: [table.providerKey, table.keySource, table.periodStart],
+      foreignColumns: [
+        aiProviderSpend.providerKey,
+        aiProviderSpend.keySource,
+        aiProviderSpend.periodStart,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "ai_spend_reservations_amounts_check",
+      sql`${table.estimatedMicros} >= 0 AND (${table.actualMicros} IS NULL OR ${table.actualMicros} >= 0)`,
+    ),
   ],
 );

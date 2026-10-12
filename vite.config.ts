@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
@@ -6,7 +7,7 @@ export default defineConfig({
   },
   fmt: {},
   lint: {
-    plugins: ["eslint", "typescript", "unicorn", "oxc", "react", "jsx-a11y", "nextjs"],
+    plugins: ["eslint", "typescript", "unicorn", "oxc", "react", "jsx-a11y"],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: {
       "jsx-a11y/prefer-tag-over-role": "off",
@@ -19,5 +20,16 @@ export default defineConfig({
       },
     ],
     options: { typeAware: true, typeCheck: true },
+  },
+  test: {
+    alias: {
+      "@/": fileURLToPath(new URL("./apps/web/src/", import.meta.url)),
+      "cloudflare:workers": fileURLToPath(
+        new URL("./apps/web/test/support/cloudflare-workers.ts", import.meta.url),
+      ),
+      "cloudflare:workflows": fileURLToPath(
+        new URL("./apps/web/test/support/cloudflare-workers.ts", import.meta.url),
+      ),
+    },
   },
 });

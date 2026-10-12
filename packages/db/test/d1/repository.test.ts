@@ -8,7 +8,7 @@ import {
   createD1AnalysisRepository,
   AnalysisStorageConflictError,
   StaleWorkerError,
-} from "../../src/d1/repository.js";
+} from "../../src/repository.js";
 import { createTestRuntime } from "./runtime.js";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;
@@ -32,6 +32,40 @@ const repo = () =>
     bucket: runtime.bucket,
     now: () => Date.parse("2026-10-12T00:00:00Z"),
   });
+
+test("a stopped Workflow can acknowledge only a requested cancellation and fences late writes", async () => {
+  const repository = repo();
+  const ctx = context("stopped-workflow");
+  await repository.createRun({ context: ctx });
+  expect(await repository.getActiveAttempt({ scope, runId: ctx.runId })).toBeNull();
+  const attempt = await repository.beginAttempt({
+    scope,
+    runId: ctx.runId,
+    stage: "normalize_input",
+    expectedVersion: 0,
+  });
+  expect(await repository.getActiveAttempt({ scope, runId: ctx.runId })).toEqual(attempt);
+  expect(
+    await repository.getActiveAttempt({
+      scope: { ...scope, ownerUserId: "other" },
+      runId: ctx.runId,
+    }),
+  ).toBeNull();
+  expect(await repository.acknowledgeStoppedCancellation({ scope, runId: ctx.runId })).toBe(false);
+  await repository.requestCancellation({ scope, runId: ctx.runId, reason: "user_request" });
+  expect(
+    await repository.acknowledgeStoppedCancellation({
+      scope: { ...scope, tenantId: "other" },
+      runId: ctx.runId,
+    }),
+  ).toBe(false);
+  expect(await repository.acknowledgeStoppedCancellation({ scope, runId: ctx.runId })).toBe(true);
+  expect(await repository.acknowledgeStoppedCancellation({ scope, runId: ctx.runId })).toBe(false);
+  expect(await repository.getActiveAttempt({ scope, runId: ctx.runId })).toBeNull();
+  await expect(
+    repository.checkpoint({ scope, ...attempt, checkpointHash: ctx.inputHash, payloadJson: "{}" }),
+  ).rejects.toThrow(StaleWorkerError);
+});
 
 test("large run inputs and checkpoints round-trip through R2 with small D1 rows", async () => {
   const repository = repo();

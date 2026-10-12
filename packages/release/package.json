@@ -1,0 +1,16 @@
+{
+  "name": "@repo/release",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./version": "./src/version.js",
+    "./daily-changelog": "./src/daily-changelog.js",
+    "./production-release": "./src/production-release.js"
+  },
+  "scripts": {
+    "test:release": "vp test --run test"
+  },
+  "devDependencies": {
+    "yaml": "^2.9.1"
+  }
+}

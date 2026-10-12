@@ -1,36 +1,51 @@
 import assert from "node:assert/strict";
-import { Hono } from "hono";
 import { test } from "vite-plus/test";
-import { app, type Bindings } from "../src/server/index";
 import {
   GENERIC_ERROR_MESSAGE,
   logServerError,
-  requestIdMiddleware,
+  requestIdFor,
   sanitizeDiagnosticText,
 } from "../src/server/error-handling";
+import { errorEnvelope, securedResponse } from "../src/server/response-policy";
 
-test("request IDs are attached to raw streaming responses", async () => {
-  const rawApp = new Hono();
-  rawApp.use("*", requestIdMiddleware);
-  rawApp.get("/stream", () => new Response("ok"));
-
-  const response = await rawApp.request("/stream");
+test("request IDs are attached to raw streaming responses", () => {
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.close();
+    },
+  });
+  const response = securedResponse(
+    new Response(stream),
+    new Request("https://tracera.test/"),
+    false,
+  );
 
   assert.match(response.headers.get("x-request-id") ?? "", /^[\da-f]{8}-[\da-f-]{27}$/i);
 });
 
-test("unhandled infrastructure failures return a generic response with a request ID", async () => {
-  const response = await app.request("/health", { headers: { "x-request-id": "support-42" } }, {
-    DATABASE_URL: "",
-  } satisfies Bindings);
-  const payload = await response.json();
+test("a valid client request ID is kept and an unsafe one is replaced", () => {
+  const request = (id: string) =>
+    new Request("https://tracera.test/", { headers: { "x-request-id": id } });
+  assert.equal(requestIdFor(request("support-42")), "support-42");
+  assert.notEqual(requestIdFor(request("<script>")), "<script>");
+});
 
-  assert.equal(response.status, 500);
-  assert.equal(response.headers.get("x-request-id"), "support-42");
-  assert.deepEqual(payload, {
-    error: GENERIC_ERROR_MESSAGE,
-    requestId: "support-42",
-  });
+test("unhandled infrastructure failures return a generic response with a request ID", async () => {
+  const originalError = console.error;
+  console.error = () => undefined;
+  try {
+    const response = errorEnvelope(
+      new Request("https://tracera.test/api/health", { headers: { "x-request-id": "support-42" } }),
+      new Error("database exploded"),
+    );
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), {
+      error: GENERIC_ERROR_MESSAGE,
+      requestId: "support-42",
+    });
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test("diagnostic text redacts credentials before it is logged", () => {
@@ -51,7 +66,7 @@ test("server error logs include the request ID without the raw error object", ()
     logServerError(
       "Database request failed",
       new Error("postgresql://admin:super-secret@private-db/tracera"),
-      new Request("https://tracera.test/api/tracera/runs", {
+      new Request("https://tracera.test/api/runs", {
         headers: { "x-request-id": "support-43" },
       }),
     );

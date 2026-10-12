@@ -9,7 +9,6 @@ node_modules
 .env
 .env.*
 !.env.example
-/.tracera/
 
 # Testing
 coverage
@@ -19,11 +18,7 @@ test-results/
 # Turbo
 .turbo
 
-# Vercel
-.vercel
-
 # Build Outputs
-.next/
 out/
 build
 dist

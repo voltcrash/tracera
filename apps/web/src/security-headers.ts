@@ -17,7 +17,10 @@ export function contentSecurityPolicy({
   return [
     "default-src 'self'",
     `script-src ${scriptSources.join(" ")}`,
-    `style-src 'self'${nonce ? ` 'nonce-${nonce}'` : ""}`,
+    // Vite injects unnonced style tags during development; a nonce would disable 'unsafe-inline'.
+    isDevelopment
+      ? "style-src 'self' 'unsafe-inline'"
+      : `style-src 'self'${nonce ? ` 'nonce-${nonce}'` : ""}`,
     "style-src-attr 'unsafe-inline'",
     "script-src-attr 'none'",
     "img-src 'self' data: blob:",

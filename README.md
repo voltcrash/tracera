@@ -19,88 +19,83 @@ Tracera also preserves report artifacts, related context, and immutable timeline
 
 ## Stack
 
-- **Toolchain and monorepo:** Vite+ (`vp`), pnpm, TypeScript
-- **Website:** Next.js with Hono API routes
-- **Data:** Neon Postgres, pgvector, PostgreSQL full-text search, Drizzle ORM
-- **Hosting:** One Vercel project serving the website and its server routes
-- **Authentication:** Better Auth with Google and GitHub, Drizzle, and Neon Postgres
-- **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter, Anthropic, and OpenAI-compatible APIs
+- **Toolchain:** Vite+ (`vp`), pnpm, TypeScript, Node.js 24 LTS
+- **Website and server:** React, TanStack Start, one Cloudflare Worker
+- **Data:** D1 through Drizzle, with large payloads and raw uploads in private R2
+- **Execution:** Cloudflare Workflows for analysis, Cron for maintenance
+- **Authentication:** Better Auth with D1 sessions and same-origin OAuth callbacks
+- **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter,
+  Anthropic, and OpenAI-compatible APIs
 
-## Development
+The repository implements the Cloudflare runtime. Hosted cutover is still pending:
+see the [migration plan](docs/cloudflare-migration-plan.md). The initial hosted rollout uses
+GitHub sign-in; Google completion is the final migration phase.
 
-Install dependencies and run the static checks and tests with Vite+:
+## Quick start
+
+Use Node.js 24 LTS and Vite+ (`vp`). From the repository root:
 
 ```sh
 vp install
+cp -n apps/web/.dev.vars.example apps/web/.dev.vars
+chmod 600 apps/web/.dev.vars
+vp run db:migrate
+vp run dev
+```
+
+Open `http://localhost:3000`, choose Ada or Grace, and submit text, a public link, or a screenshot.
+Local fixture analysis runs offline through real D1/R2 and Workflows. Keep an existing private
+file when repeating setup. Cloudflare login, Docker, OAuth credentials, and paid provider keys
+are unnecessary for this fixture workflow.
+
+Workspace scripts run through `vp run`. The website's scripts invoke the Vite+ built-ins
+from `apps/web`, where its Vite and Wrangler configurations live.
+
+```sh
 vp check
 vp test --run
+vp run check-types
+vp run build
+vp exec --filter web --fail-if-no-match -- playwright install chromium
+vp run test:browser
 ```
 
-Generate isolated local/test configuration for this worktree. Root `.env`
-files are rejected and never loaded:
+See [Cloudflare operations](docs/cloudflare-operations.md) for bindings, provider overrides,
+explicit live budgets, migrations, and recovery. [Staging setup](docs/staging-setup.md),
+[production setup](docs/production-setup.md), and the [rollout runbook](docs/cloudflare-rollout.md)
+cover the hosted gates. The Phase 2.6 real-provider test is deferred by the owner; fixture
+results do not close it.
 
-```sh
-vp run env:setup
-vp run env:diagnose:local
-```
+## Architecture
 
-Profiles, process roles, and deployed examples are documented in
-[docs/environment.md](docs/environment.md). The day-to-day workflow is in
-[docs/local-development.md](docs/local-development.md).
+One Worker serves pages, server functions, auth, and progress streaming on one origin.
+D1 stores ownership-scoped runs, evidence, checkpoints, reports, sessions, admission limits,
+and spend reservations. R2 stores uploads, raw acquisition bytes, and projections too large
+for D1. Workflows resume from checkpoints after retries; scheduled maintenance cleans
+expired control/auth rows and reconciles errored instances.
 
-Start this worktree's PostgreSQL (Docker-compatible engine required) and apply
-migrations before running the server:
-
-```sh
-vp run db:local:start
-vp run db:local:migrate
-```
-
-Local sign-in uses generated development identities. Analysis evaluation is available
-through deterministic fixtures; interactive analysis requires deployed live-provider settings.
-
-The website uses the Next.js CLI, so its workspace commands run through Vite Task rather than Vite's built-in app commands:
-
-```sh
-vp run dev           # Run the website and its API routes
-vp run build         # Build the website and workspace packages
-```
-
-`vp dev` and `vp build` always invoke Vite's built-in commands. Use `vp run dev` and `vp run build` in this repository so the correct framework command is selected for each application.
-
-## Current deployment architecture
-
-Tracera is deployed as a single Next.js application on Vercel at `tracera.voltcrash.com`. The website serves its pages and mounts the Hono server behind `/api/*`: Better Auth answers at `/api/auth/*` and the first-party application routes at `/api/tracera/*`.
-
-The server connects to Neon Postgres for application data, full-text search, claim embeddings, vector retrieval, and reusable analysis results. Analysis runs on demand: there is no scheduled re-analysis.
-
-Better Auth is mounted at the same-origin path `/api/auth/*`. Its UI is rendered locally, its sessions are stored in the existing Neon Postgres database through Drizzle, and Google and GitHub are enabled identity providers. Browser-facing authentication code and API calls stay on `https://tracera.voltcrash.com`; only the explicit authorization redirects leave the site for the providers' account flows.
-
-The server calls configured hosted AI providers through a shared abstraction and combines their structured outputs with external retrieval services and Tracera's accumulated claims corpus.
+The analysis engine searches external sources and fetched evidence. Persisted claim vectors,
+corpus retrieval, and stored embeddings are outside this migration's runtime.
 
 ```mermaid
 flowchart TB
-    subgraph Clients
-        User["Web user"]
+    Browser["Browser"]
+    subgraph Cloudflare["Cloudflare"]
+        Worker["TanStack Start Worker<br/>pages, auth, server functions, SSE, Cron"]
+        Workflow["Analysis Workflow<br/>analyze, finalize, release"]
+        D1["D1<br/>auth, runs, checkpoints, evidence, controls"]
+        R2["Private R2<br/>uploads, raw bytes, large payloads"]
     end
-
-    subgraph Vercel["Vercel project"]
-        Website["Next.js website<br/>tracera.voltcrash.com"]
-        Routes["Hono API routes<br/>/api/auth/* and /api/tracera/*"]
-    end
-
-    subgraph Data["Data and infrastructure"]
-        Neon["Neon Postgres<br/>pgvector + full-text search"]
-    end
-
-    subgraph Intelligence["Verification services"]
-        AI["Hosted AI providers<br/>generation + embeddings"]
-        Retrieval["External retrieval services<br/>fact checks + news + web search"]
-    end
-
-    User --> Website
-    User -->|same-origin API requests| Routes
-    Routes <--> Neon
-    Routes --> AI
-    Routes --> Retrieval
+    OAuth["GitHub / configured Google OAuth"]
+    AI["Hosted AI provider"]
+    Evidence["Public evidence sources"]
+    Browser <--> Worker
+    Browser <--> OAuth
+    Worker <--> D1
+    Worker <--> R2
+    Worker --> Workflow
+    Workflow <--> D1
+    Workflow <--> R2
+    Workflow --> AI
+    Workflow --> Evidence
 ```

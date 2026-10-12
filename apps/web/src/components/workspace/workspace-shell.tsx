@@ -1,8 +1,6 @@
-"use client";
-
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, PenLine, Settings, X } from "lucide-react";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { accountLabel, useAuth } from "@/components/providers/auth-provider";
@@ -19,9 +17,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiUrl } from "@/lib/api";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import { cn } from "@/lib/utils";
+import { listRuns } from "@/server/analysis.functions";
 
 type RunSummary = {
   runId: string;
@@ -41,7 +39,8 @@ export function useHistoryRefresh() {
 }
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
-  const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
+  const { isLoading: isAuthLoading, user } = useAuth();
+  const fetchRuns = useServerFn(listRuns);
   const [traces, setTraces] = useState<RunSummary[] | null>(null);
   const [version, setVersion] = useState(0);
   const [railOpen, setRailOpen] = useState(false);
@@ -51,21 +50,22 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isAuthLoading || !user) return;
-    const controller = new AbortController();
+    let current = true;
     const cached = readSessionCache<RunSummary[]>(user.id, HISTORY_CACHE_KEY, HISTORY_CACHE_AGE);
     if (cached) queueMicrotask(() => setTraces(cached));
-    apiFetch(`${apiUrl}/runs`, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Unable to load your traces.");
-        const data = (await response.json()) as { runs: RunSummary[] };
-        setTraces(data.runs);
-        writeSessionCache(user.id, HISTORY_CACHE_KEY, data.runs);
+    fetchRuns()
+      .then(({ runs }) => {
+        if (!current) return;
+        setTraces(runs);
+        writeSessionCache(user.id, HISTORY_CACHE_KEY, runs);
       })
       .catch(() => {
-        if (!controller.signal.aborted) setTraces([]);
+        if (current) setTraces([]);
       });
-    return () => controller.abort();
-  }, [apiFetch, isAuthLoading, user, version]);
+    return () => {
+      current = false;
+    };
+  }, [fetchRuns, isAuthLoading, user, version]);
 
   return (
     <HistoryRefreshContext.Provider value={refresh}>
@@ -128,13 +128,13 @@ function Rail({
   onClose: () => void;
   onCollapse: () => void;
 }) {
-  const pathname = usePathname();
+  const pathname = useLocation({ select: (location) => location.pathname });
   const groups = useMemo(() => groupByAge(traces ?? []), [traces]);
 
   return (
     <aside id="workspace-rail" className="rail" data-open={open || undefined} aria-label="Traces">
       <div className="rail-head">
-        <Link href="/home" aria-label="Tracera home" onClick={onClose}>
+        <Link to="/home" aria-label="Tracera home" onClick={onClose}>
           <BrandLockup markClassName="h-7 w-7" className="h-8 text-xl" />
         </Link>
         <Button
@@ -164,7 +164,7 @@ function Rail({
       {/* Navigating always dismisses the rail, which is off-canvas on small screens. */}
       <div className="rail-actions">
         <Link
-          href="/home"
+          to="/home"
           onClick={onClose}
           className={cn("rail-link", pathname === "/home" && "rail-link-current")}
           aria-current={pathname === "/home" ? "page" : undefined}
@@ -190,7 +190,8 @@ function Rail({
               {group.traces.map((trace) => (
                 <Link
                   key={trace.runId}
-                  href={`/run/${trace.runId}`}
+                  to="/run/$id"
+                  params={{ id: trace.runId }}
                   onClick={onClose}
                   className="rail-trace"
                   aria-current={pathname === `/run/${trace.runId}` ? "page" : undefined}
@@ -220,12 +221,13 @@ function Rail({
 
 function RailAccount() {
   const { user, isLoading, signOut } = useAuth();
+  const navigate = useNavigate();
   const router = useRouter();
 
   async function handleSignOut() {
     await signOut();
-    router.push("/");
-    router.refresh();
+    await navigate({ to: "/" });
+    await router.invalidate();
   }
 
   function prefetchAccount() {
@@ -268,7 +270,7 @@ function RailAccount() {
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href="/settings" />}>
+            <DropdownMenuItem render={<Link to="/settings" />}>
               <Settings />
               Settings
             </DropdownMenuItem>

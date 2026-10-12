@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { GitHubMark } from "@/components/brand/github-mark";

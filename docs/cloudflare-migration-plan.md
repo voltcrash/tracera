@@ -1,9 +1,16 @@
 # Cloudflare migration plan
 
-Status: Stage 1 foundations implemented, 2026-10-12; all five phase exit criteria pass
-locally and the stacked PRs remain open for review. Stage 0 is complete. D1–D16 were
-accepted in Phase 0.1; the owner accepted D17 on 2026-10-12. Stage 2–4 implementation and
-hosted rollout gates remain open.
+Status: Stages 2 and 3 repository implementation ready for review, 2026-10-12. Stages 0 and 1
+are complete and merged. Stage 2's eight stacked PRs and Stage 3's three stacked PRs target
+`migrate/cloudflare` through their phase stack. Phase 2.6's real-provider exit criterion remains
+owner-deferred. Cleanup, documentation, CI, and release automation are implemented and validated
+locally; PR checks record CI evidence. D1–D17 are accepted. Integration-branch CI after merge,
+Stage 4 hosted rollout, and final Google OAuth sign-offs remain open.
+
+On 2026-10-12 the owner extended the live-test deferral through the remaining repository
+implementation. Complete Stage 3 and prepare the Stage 4 runbooks before requesting the
+provider configuration again. Keep the Phase 2.6 live exit criterion and Stage 4 hosted
+sign-offs open; deployment, DNS, OAuth, and decommission actions still require approval.
 
 Tracera moves from Next.js + Hono on Vercel with Neon Postgres to a single TanStack Start
 application running on one Cloudflare Worker, backed by D1, R2, and Workflows. AI stays on the
@@ -41,7 +48,7 @@ Non-goals:
 | Framework          | Next.js 16 App Router, RSC, `proxy.ts`                                                   | TanStack Start (React 19, file routes, SSR), built by Vite+                                    |
 | API                | Hono app behind `app/api/[[...route]]`                                                   | Start server functions for UI calls, server routes for HTTP-shaped endpoints, Start middleware |
 | Hosting            | Vercel project, Node runtime, `maxDuration` 300 s                                        | One Worker with Workers Static Assets and a custom domain                                      |
-| Database           | Neon Postgres 18 via `pg` and Neon serverless, 31 migrations, roles and grants           | D1 via Drizzle's `d1` driver, one new baseline migration                                       |
+| Database           | Neon Postgres 18 via `pg` and Neon serverless, 30 SQL migrations, roles and grants       | D1 via Drizzle's `d1` driver, one new baseline migration                                       |
 | AI                 | Gemini, OpenAI, Anthropic, OpenRouter, OpenAI-compatible adapters; config read from env  | Same adapters and keys, called with `fetch` from the Workflow; config from a per-run resolver  |
 | Embeddings         | pgvector `vector(1024)` table that nothing writes                                        | Not ported; the embedding port stays for future use (D13)                                      |
 | Raw blobs          | Filesystem store                                                                         | R2 bucket                                                                                      |
@@ -160,6 +167,13 @@ Live AI locally is opt-in: `dev:live` sets `ANALYSIS_MODE=live` and uses the pro
 in `.dev.vars`. This relaxes today's rule that local profiles reject provider credentials;
 `.dev.vars` is ignored by Git and never uploaded.
 
+The Cloudflare Vite plugin bakes the selected Wrangler config into `dist/server/wrangler.json`.
+`build:production` selects `wrangler.production.json` through the plugin's
+`CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH`, and deploys pass that built config to Wrangler: an
+explicit source config would make Wrangler rebundle `src/server.ts` without Vite. Because
+`.dev.vars` always overrides config vars, `dev:live` runs Vite in its `live` mode and
+`serverEnv()` switches `ANALYSIS_MODE` to `live` only in that dev mode (Phase 2.1 amendment).
+
 ### Commands
 
 Run from the repository root with `vp run <script>` unless noted.
@@ -168,18 +182,18 @@ Run from the repository root with `vp run <script>` unless noted.
 | -------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | First-time setup     | `vp install`, copy `apps/web/.dev.vars.example` to `.dev.vars`, `db:migrate` | Installs, configures, and migrates local D1                                                  |
 | Develop              | `dev`                                                                        | `vp dev` in `apps/web`: Vite and workerd with HMR, local D1, R2, and Workflows               |
-| Develop with live AI | `dev:live`                                                                   | Same, with `ANALYSIS_MODE=live` and the provider settings from `.dev.vars`                   |
+| Develop with live AI | `dev:live`                                                                   | Same in Vite's `live` mode, which switches to `ANALYSIS_MODE=live` with `.dev.vars` keys     |
 | Generate migration   | `db:generate`                                                                | `drizzle-kit generate` with the sqlite dialect                                               |
 | Migrate local        | `db:migrate`                                                                 | `wrangler d1 migrations apply tracera-staging --local`                                       |
 | Reset local data     | `db:reset`                                                                   | Deletes this worktree's local D1 state and migrates again                                    |
 | Binding types        | `cf-typegen`                                                                 | `wrangler types`                                                                             |
 | Check and test       | `vp check`, `vp test`                                                        | Format, lint, types, unit and Miniflare D1 suites                                            |
 | Build and preview    | `build`, `preview`                                                           | `vp build`, then `vp preview` runs the built Worker in workerd                               |
-| Deploy staging       | `deploy:staging`                                                             | Remote staging migrations, then `wrangler deploy`                                            |
-| Check production     | `check:production`                                                           | Validates production config, secrets, and build                                              |
-| Production dry run   | `deploy:production-dry-run`                                                  | Check, build, `wrangler deploy --config wrangler.production.json --secrets-file … --dry-run` |
+| Deploy staging       | `deploy:staging`                                                             | Remote staging migrations, build, then `wrangler deploy` of the built config                 |
+| Check production     | `check:production`                                                           | `build:production`, then validates production config, secrets, and the built config          |
+| Production dry run   | `deploy:production-dry-run`                                                  | Check, then `wrangler deploy --config dist/server/wrangler.json --secrets-file … --dry-run`  |
 | Migrate production   | `db:migrate:production`                                                      | `wrangler d1 migrations apply tracera-production --remote --config wrangler.production.json` |
-| Deploy production    | `deploy:production`                                                          | Check, build, deploy with the production config and secrets file                             |
+| Deploy production    | `deploy:production`                                                          | Check, then deploy the built production config with the secrets file                         |
 
 ### Variables
 
@@ -368,6 +382,12 @@ resources, secrets, deployments, DNS or OAuth apps were changed during Stage 1.
 
 Pull requests target `migrate/cloudflare`.
 
+Stage 3 proceeds while the owner-deferred live-provider check remains pending. When removing
+legacy tooling in Phase 3.1, remove its calls from the transitional CI in the same PR so every
+phase stays green. Phase 3.3 replaces that workflow and adds production release automation.
+
+Progress and evidence: [Stage 2 notes](cloudflare-stage-2-app.md).
+
 **Phase 2.1 — Framework swap and the oxytype config model.**
 
 - Remove `next`, `next.config.js`, `postcss.config.mjs`, `src/proxy.ts`, the Next agent notes
@@ -450,11 +470,13 @@ function and route handlers against a Miniflare environment.
   follow-up.
 - `cancelRun` sets the D1 cancellation flag, which the engine already observes, and terminates
   the instance after a grace period.
+- Admission leases cover the bounded Workflow retry window; failure, finalize, and release steps
+  each have two retries and a 30-second attempt timeout. No lease renewal timer is needed.
 - Removed: `acquireLease`, `renewLease`, `acquireNextLease`, the renew and cancellation timers,
   and `process.pid` worker IDs.
 - In fixture mode the workflow uses the scripted ports from `packages/ai/scripts/support`.
-- The home page navigates to `/run/$id` after `startAnalysis`; the run page shows live progress
-  and then the report.
+- The home page navigates to `/run/$id` after `startAnalysis` (landed in Phase 2.4 with the
+  new response shape); the run page shows live progress and then the report.
 
 Exit: a local fixture analysis completes end to end in `vp dev`, cancellation works, and an
 injected failure resumes from its checkpoint.
@@ -463,6 +485,10 @@ injected failure resumes from its checkpoint.
 the new `safeFetch`. Fact Check and NewsAPI keys stay optional secrets (D4). Raw blobs go to
 R2. Browser Rendering is added only if staging shows acquisition gaps on script-rendered pages.
 Exit: `dev:live` completes an analysis with a provider key from `.dev.vars`.
+
+The owner deferred this live-provider validation on 2026-10-12 until credentials can be
+configured. Implement and validate the remaining Stage 2 phases meanwhile; leave this exit
+criterion pending and do not replace the live check with stubbed evidence.
 
 **Phase 2.7 — Scheduled maintenance.** The `scheduled` handler purges expired idempotency keys,
 released and expired leases, old rate windows, expired sessions and verifications, and stale
@@ -478,19 +504,26 @@ the API. Exit: both suites pass locally and in CI.
 
 Pull requests target `migrate/cloudflare`.
 
+On 2026-10-12 the owner confirmed that `vercel.json` stays deleted despite legacy Vercel
+preview failures. Cloudflare CI remains the migration validation gate. Do not restore the
+branch guard or change hosted Vercel settings during Stage 3; Git deployment disablement
+remains in Phase 4.2.
+
 **Phase 3.1 — Delete legacy code and dependencies.**
 
-- Hono: `apps/web/src/server/{index,server,auth-routes,base-path,cors-origin}.ts` and `hono`.
-- Postgres: `packages/db/src/connection.ts`, the Postgres schema, `packages/db/drizzle/` (31
-  migrations and snapshots), `@neondatabase/serverless`, `pg`, `@types/pg`, and Postgres tests.
+- Hono: removed in Phase 2.4 once its replacement landed, together with the `hono`
+  dependency.
+- Postgres: `packages/db/src/connection.ts`, the Postgres schema, `packages/db/drizzle/` (30 SQL
+  migrations and their snapshots), `@neondatabase/serverless`, `pg`, `@types/pg`, and Postgres tests.
   D1 modules move from `src/d1/` to `src/`.
 - Environment tooling: `packages/environment`, `scripts/environment`, `scripts/database`,
   `scripts/local`, `scripts/auth/test-browser.mjs`, `config/environment`, root `.env.example`,
   and the `.tracera/` ignore rule.
 - The `packages/ai` evaluation scripts drop the `guard.mjs` wrapper. Fixture evaluators need no
   settings; live evaluation reads provider settings from the invoking shell.
-- Vercel and Next: `vercel.json`, `.vercel` and `.next` ignore rules, the oxlint `nextjs`
-  plugin, and `packages/typescript-config/nextjs.json`.
+- Vercel and Next: `vercel.json`, `.vercel` and `.next` ignore rules, and
+  `packages/typescript-config/nextjs.json`. The oxlint `nextjs` plugin left with Next in
+  Phase 2.1, because its rules reject Start's document `<head>`.
 - Update `pnpm-workspace.yaml` `allowBuilds` for the new dependency set and trim root scripts to
   section 4.
 
