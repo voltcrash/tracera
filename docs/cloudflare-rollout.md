@@ -289,8 +289,11 @@ The owner deleted the Vercel project, including its variables, before cutover. T
 Vercel-created GitHub `Preview` and `Production` environments were deleted at the owner's
 direction. The repository has no Actions secrets or variables at repository level, so no
 Vercel or Neon secret remains in GitHub. Phase 0.2 confirmed no AI provider keys were
-configured, so there were no Vercel-held provider keys to rotate. PR checks since cutover
-show only Cloudflare CI.
+configured, so there were no Vercel-held provider keys to rotate.
+
+The Vercel GitHub App is still installed on the repository. It keeps posting `Preview`
+deployments, which recreated that environment after its deletion. Removing the app needs the
+owner's GitHub settings; then delete the `Preview` environment again.
 
 Sign-off: **pending**. Record stable-period approval, archived object names and SHA-256,
 archive verification, approved project IDs/deletion results, rotated key identifiers (never
