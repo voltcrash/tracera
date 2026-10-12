@@ -12,7 +12,8 @@ import {
 } from "drizzle-orm/sqlite-core";
 import type { DocumentSnapshot, RunContext, RunReport, StageName } from "@repo/contracts/analysis";
 
-export { users, sessions, accounts, verifications } from "./auth-schema.js";
+import { users, sessions, accounts, verifications } from "./auth-schema.js";
+export { users, sessions, accounts, verifications };
 
 const ownershipColumns = () => ({
   tenantId: text("tenant_id").notNull(),
@@ -437,5 +438,20 @@ export const analysisDecisions = sqliteTable(
         analysisReportVersions.visibility,
       ],
     }).onDelete("restrict"),
+  ],
+);
+
+export const analysisRateLimits = sqliteTable(
+  "analysis_rate_limits",
+  {
+    scopeType: text("scope_type", { enum: ["user", "ip"] }).notNull(),
+    scopeKey: text("scope_key").notNull(),
+    windowStartedAt: integer("window_started_at", { mode: "timestamp_ms" }).notNull(),
+    requestCount: integer("request_count").notNull().default(0),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.scopeType, table.scopeKey] }),
+    check("analysis_rate_limits_count_check", sql`${table.requestCount} >= 0`),
   ],
 );
