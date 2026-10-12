@@ -6,7 +6,7 @@ import {
   devAuthBypassEnabled,
   localAuthIdentities,
   type WorkerAuthEnv,
-} from "@repo/auth/d1";
+} from "@repo/auth";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;
 beforeAll(async () => {

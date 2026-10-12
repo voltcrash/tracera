@@ -170,9 +170,6 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../db
-      '@repo/environment':
-        specifier: workspace:*
-        version: link:../environment
       '@tanstack/react-start':
         specifier: ^1.168.61
         version: 1.168.61(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@10.2.2)

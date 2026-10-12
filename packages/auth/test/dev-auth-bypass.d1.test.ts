@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 import { createD1Database } from "@repo/db/d1";
 import { createTestRuntime } from "@repo/db/test-runtime";
-import { createAuth, type WorkerAuthEnv } from "@repo/auth/d1";
+import { createAuth, type WorkerAuthEnv } from "@repo/auth";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;
 beforeAll(async () => {
