@@ -40,3 +40,4 @@ export {
   type ResolvedAnalysisProvider,
   type ProviderKeySource,
 } from "./resolve-analysis-provider";
+export { providerSpendIdentity, type ProviderSpendIdentity } from "./provider-spend-identity";
