@@ -1,4 +1,4 @@
-import { runReportSchema, stageNameSchema } from "@repo/contracts/analysis";
+import { runReportSchema, stageNameSchema, type RunStatus } from "@repo/contracts/analysis";
 import type { AnalysisAccessScope } from "@repo/db/analysis/repository";
 import {
   createD1AdmissionRepository,
@@ -214,7 +214,7 @@ export async function cancelAnalysisRun(
     : { status: 404, body: { error: "Run not found." } };
 }
 
-export function isTerminalRunStatus(status: string) {
+export function isTerminalRunStatus(status: string): status is RunStatus {
   return TERMINAL.has(status);
 }
 

@@ -27,6 +27,9 @@ export default defineConfig({
       "cloudflare:workers": fileURLToPath(
         new URL("./apps/web/test/support/cloudflare-workers.ts", import.meta.url),
       ),
+      "cloudflare:workflows": fileURLToPath(
+        new URL("./apps/web/test/support/cloudflare-workers.ts", import.meta.url),
+      ),
     },
   },
 });
