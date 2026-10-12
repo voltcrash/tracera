@@ -19,7 +19,6 @@ export function accountLabel(user: AuthUser) {
 type AuthContextValue = {
   user: AuthUser | null;
   isLoading: boolean;
-  apiFetch: (input: string, init?: RequestInit) => Promise<Response>;
   refreshUser: () => Promise<void>;
   updateUser: (changes: Partial<Pick<AuthUser, "image" | "name">>) => void;
   signOut: () => Promise<void>;
@@ -35,10 +34,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = useLocation({ select: (location) => location.pathname });
   const navigate = useNavigate();
   const sessionDataUser = session.data?.user;
-  const apiFetch = useCallback(
-    (input: string, init: RequestInit = {}) => fetch(input, { ...init, credentials: "include" }),
-    [],
-  );
   const sessionUser = useMemo<AuthUser | null>(() => {
     if (!sessionDataUser) return null;
     return {
@@ -65,7 +60,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       isLoading: session.isPending,
-      apiFetch,
       refreshUser: async () => {
         await refetch();
         setOptimisticUser(null);
@@ -77,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearSessionCache();
       },
     }),
-    [apiFetch, refetch, session.isPending, updateUser, user],
+    [refetch, session.isPending, updateUser, user],
   );
 
   const isPublic = PUBLIC_PATHS.has(pathname);
