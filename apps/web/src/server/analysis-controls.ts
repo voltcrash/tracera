@@ -43,7 +43,7 @@ const CONTROL_MESSAGES = {
 
 export type AnalysisControlCode = keyof typeof CONTROL_MESSAGES;
 
-export type AnalysisControlEnvironment = Record<string, string | undefined>;
+export type AnalysisControlEnvironment = { readonly [name: string]: unknown };
 
 export interface AnalysisControlConfig extends AnalysisControlLimits {
   dailySpendUsd: number;
@@ -143,10 +143,14 @@ export function analysisRequestIdentity(
   };
 }
 
-export function readIdempotencyKey(
-  request: Request,
+export function readIdempotencyKey(request: Request) {
+  return validIdempotencyKey(request.headers.get("idempotency-key"));
+}
+
+export function validIdempotencyKey(
+  raw: unknown,
 ): { valid: true; value: string } | { valid: false; message: string } {
-  const value = request.headers.get("idempotency-key")?.trim();
+  const value = typeof raw === "string" ? raw.trim() : undefined;
   if (!value) {
     return { valid: false, message: "The Idempotency-Key header is required." };
   }
