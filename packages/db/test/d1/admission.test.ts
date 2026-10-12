@@ -128,3 +128,56 @@ test("an expired worker cannot overwrite a reclaimed idempotency reply", async (
     responseStatus: 202,
   });
 });
+
+test.each([
+  ["userRateLimit", "user_rate_limit"],
+  ["ipRateLimit", "ip_rate_limit"],
+  ["dailyQuota", "daily_quota"],
+] as const)(
+  "%s charges only admissions and resets at its code-computed boundary",
+  async (limit, reason) => {
+    now = Date.parse("2026-10-12T23:59:30Z");
+    const firstRequest = { ...request("first"), limits: { ...limits, [limit]: 1 } };
+    const admitted = await repo().beginAnalysisAdmission(firstRequest);
+    if (admitted.kind !== "admitted") throw new Error("Expected admission");
+    await finish("first", admitted.leaseId);
+    const rejected = await repo().beginAnalysisAdmission({
+      ...firstRequest,
+      idempotencyKey: "second",
+    });
+    expect(rejected.kind === "rejected" && rejected.reason).toBe(reason);
+    expect(rejected.kind === "rejected" && rejected.retryAt).toBe(
+      limit === "dailyQuota" ? "2026-10-13T00:00:00.000Z" : "2026-10-13T00:00:30.000Z",
+    );
+    expect(
+      await runtime.db.prepare("SELECT count(*) FROM analysis_idempotency_keys").first("count(*)"),
+    ).toBe(1);
+    now += limit === "dailyQuota" ? 30_000 : 60_000;
+    expect(
+      (await repo().beginAnalysisAdmission({ ...firstRequest, idempotencyKey: "second" })).kind,
+    ).toBe("admitted");
+  },
+);
+
+test("IP capacity is shared across users while user capacity is isolated", async () => {
+  await seedUser(runtime.db, "user-2");
+  const shared = { ...limits, ipConcurrencyLimit: 1 };
+  const first = await repo().beginAnalysisAdmission({ ...request("first"), limits: shared });
+  expect(first.kind).toBe("admitted");
+  const second = await repo().beginAnalysisAdmission({
+    ...request("second"),
+    userId: "user-2",
+    limits: shared,
+  });
+  expect(second.kind === "rejected" && second.reason).toBe("ip_concurrency_limit");
+  expect(
+    (
+      await repo().beginAnalysisAdmission({
+        ...request("other-ip"),
+        userId: "user-2",
+        ipHash: "ip-2",
+        limits: shared,
+      })
+    ).kind,
+  ).toBe("admitted");
+});
