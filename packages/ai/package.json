@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./fixtures": "./scripts/support/fixture-ports.ts",
+    "./test-bundler": "./test/support/bundle-worker.ts",
     "./analysis": "./src/analysis/index.ts",
     "./analysis/adjudication": "./src/analysis/adjudication/index.ts",
     "./analysis/claims": "./src/analysis/claims/index.ts",

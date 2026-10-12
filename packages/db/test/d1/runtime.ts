@@ -2,7 +2,13 @@ import { readFile, readdir } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
 
-export async function createTestRuntime() {
+export async function createTestRuntime(
+  options: {
+    script?: string;
+    bindings?: Record<string, string>;
+    workflows?: Record<string, { name: string; className: string }>;
+  } = {},
+) {
   const runtime = new Miniflare({
     modules: true,
     script: "export default { fetch() { return new Response('ok'); } }",
@@ -10,6 +16,7 @@ export async function createTestRuntime() {
     compatibilityFlags: ["nodejs_compat"],
     d1Databases: { DB: "tracera-test" },
     r2Buckets: ["BLOBS"],
+    ...options,
   });
   try {
     const db = (await runtime.getD1Database("DB")) as unknown as D1Database;
@@ -21,7 +28,7 @@ export async function createTestRuntime() {
         .filter((statement) => statement.trim());
       await db.batch(statements.map((statement) => db.prepare(statement)));
     }
-    return { db, bucket, dispose: () => runtime.dispose() };
+    return { runtime, db, bucket, dispose: () => runtime.dispose() };
   } catch (error) {
     await runtime.dispose();
     throw error;
