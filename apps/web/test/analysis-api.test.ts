@@ -167,7 +167,7 @@ async function submit(
   app: ReturnType<typeof createAnalysisApp>,
   body: Record<string, unknown>,
   user = "ada",
-  key = crypto.randomUUID(),
+  key: string = crypto.randomUUID(),
 ) {
   return app.request(
     "/analyze",
