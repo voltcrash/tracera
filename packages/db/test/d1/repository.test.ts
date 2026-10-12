@@ -33,6 +33,83 @@ const repo = () =>
     now: () => Date.parse("2026-10-12T00:00:00Z"),
   });
 
+test("large run inputs and checkpoints round-trip through R2 with small D1 rows", async () => {
+  const repository = repo();
+  const ctx = context("large-input");
+  const value = { text: "測".repeat(600_000) };
+  await repository.createRun({ context: ctx, payload: value });
+  expect(
+    await runtime.db
+      .prepare("SELECT input_json FROM core_runs WHERE run_id=?")
+      .bind(ctx.runId)
+      .first("input_json"),
+  ).toBeNull();
+  expect(await repository.getRunInput({ scope, runId: ctx.runId })).toEqual(value);
+  const attempt = await repository.beginAttempt({
+    scope,
+    runId: ctx.runId,
+    stage: "normalize_input",
+    expectedVersion: 0,
+  });
+  await repository.checkpoint({
+    scope,
+    ...attempt,
+    checkpointHash: ctx.inputHash,
+    payloadJson: JSON.stringify(value),
+  });
+  expect(
+    await runtime.db
+      .prepare("SELECT payload_json FROM core_stage_checkpoints WHERE run_id=?")
+      .bind(ctx.runId)
+      .first("payload_json"),
+  ).toBeNull();
+  const checkpoint = await repository.readCheckpoint({
+    scope,
+    runId: ctx.runId,
+    stage: attempt.stage,
+  });
+  expect(JSON.parse(checkpoint!.payloadJson)).toEqual(value);
+});
+
+test("large snapshots, reports and claim projections preserve the complete report contract", async () => {
+  const repository = repo();
+  const largeScope = { ...scope, ownerUserId: "large-owner" };
+  const ctx = { ...context("large-report"), ...largeScope };
+  const report = structuredClone(completeRunReportExample);
+  report.runId = ctx.runId;
+  report.replayManifest.runId = ctx.runId;
+  report.snapshots[0]!.normalizedText += "測".repeat(600_000);
+  report.claims[0]!.retrievalText = "large claim ".repeat(160_000);
+  for (const snapshot of report.snapshots)
+    await repository.putSnapshot({ scope: largeScope, snapshot });
+  const snapshot = report.snapshots[0]!;
+  expect(await repository.getSnapshot({ scope: largeScope, snapshotId: snapshot.id })).toEqual(
+    snapshot,
+  );
+  expect(
+    await runtime.db
+      .prepare("SELECT normalized_text FROM core_snapshots WHERE owner_user_id=? AND snapshot_id=?")
+      .bind(largeScope.ownerUserId, snapshot.id)
+      .first("normalized_text"),
+  ).toBeNull();
+  await repository.createRun({ context: ctx });
+  const attempt = await repository.beginAttempt({
+    scope: largeScope,
+    runId: ctx.runId,
+    stage: "score_report",
+    expectedVersion: 0,
+  });
+  await repository.finalize({ scope: largeScope, ...attempt, reportHash: ctx.inputHash, report });
+  expect(await repository.getLatestReport({ scope: largeScope, runId: ctx.runId })).toEqual(report);
+  const claim = await runtime.db
+    .prepare("SELECT claim FROM core_report_claims WHERE run_id=?")
+    .bind(ctx.runId)
+    .first<string>("claim");
+  const pointer = JSON.parse(claim!);
+  expect(pointer.r2Payload.uri).toMatch(/^r2:\/\/payloads\/reports\//);
+  expect(await repository.payloads.readProjection(pointer)).toEqual(report.claims[0]);
+});
+
 test("concurrent duplicate run creation stores one immutable identity", async () => {
   const repository = repo();
   const ctx = context("duplicate-run");

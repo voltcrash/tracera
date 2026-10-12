@@ -59,3 +59,16 @@ test("large payloads fail before a D1 write when R2 is unavailable", async () =>
     new D1PayloadStore().encode({ text: "x".repeat(MAX_D1_PAYLOAD_BYTES) }, "reports"),
   ).rejects.toThrow(/R2 binding/);
 });
+
+test("large and heavily escaped projections use a hash-checked R2 pointer", async () => {
+  const store = new D1PayloadStore(runtime.bucket);
+  const value = { text: '"'.repeat(500_000) };
+  const encoded = await store.encodeProjection(value);
+  const pointer = JSON.parse(encoded);
+  expect(pointer.r2Payload.uri).toMatch(/^r2:\/\/payloads\/reports\//);
+  expect(await store.readProjection(pointer)).toEqual(value);
+  const small = { text: "small" };
+  expect(await store.readProjection(JSON.parse(await store.encodeProjection(small)))).toEqual(
+    small,
+  );
+});

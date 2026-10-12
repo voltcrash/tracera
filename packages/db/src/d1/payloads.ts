@@ -30,7 +30,9 @@ export class D1PayloadStore {
   constructor(private readonly bucket?: Pick<R2Bucket, "get" | "put">) {}
 
   async encodeProjection<T>(value: T): Promise<string> {
-    const payload = await this.encode(value, "reports");
+    const json = canonicalJson(value);
+    const bytes = (text: string) => new TextEncoder().encode(text).byteLength;
+    const payload = await this.encode(value, "reports", bytes(JSON.stringify(json)) - bytes(json));
     return (
       payload.inline ?? JSON.stringify({ r2Payload: { uri: payload.blobUri, hash: payload.hash } })
     );
