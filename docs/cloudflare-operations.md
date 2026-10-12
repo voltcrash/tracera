@@ -145,3 +145,72 @@ Overrides: `ANALYSIS_USER_RATE_LIMIT`, `ANALYSIS_IP_RATE_LIMIT`,
 `ANALYSIS_FORCE_REANALYSIS_COOLDOWN_SECONDS`, `ANALYSIS_LEASE_SECONDS`, and
 `ANALYSIS_IDEMPOTENCY_TTL_SECONDS`. Reusing an idempotency key for a different request fails;
 reusing the same completed request replays the stored response.
+
+## Migrations and deployment preparation
+
+`packages/db/src/schema.ts` and its auth schema describe D1. Drizzle generates SQL and
+metadata in `packages/db/migrations`; Wrangler applies migrations. Review generated SQL
+and commit it with its metadata. Do not rewrite applied migrations.
+
+```sh
+vp run db:generate
+vp run @repo/db#db:generate:auth
+vp run db:migrate
+vp run web#deploy:staging-dry-run
+```
+
+The auth generator writes `tmp/auth-schema.sqlite.ts` for comparison with the reviewed auth
+schema. It does not overwrite it. The D1 suite applies the real migration files to fresh
+SQLite, tests batch rollback, and covers ownership and fencing.
+
+Hosted migrations and deploys are separate from local commands and require the owner's
+approval during migration. The default staging deploy script migrates staging, builds,
+and uploads the Worker; production commands explicitly select its config and private file.
+Production checks validate isolated bindings, the built config, auth/provider credentials,
+live mode, and explicit budgets. Use the staging and production setup guides before them.
+
+## Workflow and Cron recovery
+
+Workflow instance IDs equal run IDs. Parameters carry IDs and input references, while keys
+are resolved inside execution steps. Inspect reviewed run IDs with:
+
+```sh
+vp exec --filter web -- wrangler workflows instances describe tracera-staging-analysis RUN_ID
+vp exec --filter web -- wrangler tail --config wrangler.jsonc
+```
+
+Cron runs hourly at minute 17. It purges expired idempotency records, released/expired leases,
+old rate windows, expired sessions and verifications, and stale spend reservations. It also
+marks runs failed when their Workflow instance errored. Cancellation sets the D1 flag and
+terminates the instance after its grace period. Retries resume from a checkpoint with a new
+fencing token; stale attempts cannot persist or finalize. Diagnose an error before considering
+an approved instance operation; preserve run ownership, fencing, and idempotency identities.
+
+## D1 capacity and Time Travel
+
+Monitor D1 database size, query duration/rows, Worker errors, and R2 payload growth. Payloads
+larger than 1.5 MB are offloaded to R2 with a content hash and pointer. D1 statements chunk
+large reads and use JSON arrays to respect binding limits.
+
+[D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/) retains recovery
+history for 30 days on Workers Paid and 7 days on Workers Free. Restores overwrite the database
+in place and cancel in-flight queries. Record a current bookmark before migrations or a
+restore, and preserve the previous bookmark returned by a restore so it can be undone.
+
+```sh
+vp exec --filter web -- wrangler d1 time-travel info tracera-production --config wrangler.production.json --json
+vp exec --filter web -- wrangler d1 export tracera-production --remote --config wrangler.production.json --output /PRIVATE_PATH/tracera-d1.sql
+```
+
+Exports contain private data; use a private directory and restrict the resulting file.
+For an approved restore to a reviewed bookmark:
+
+```sh
+vp exec --filter web -- wrangler d1 time-travel restore tracera-production --config wrangler.production.json --bookmark BOOKMARK
+```
+
+Stop writes and Workflow execution through an approved maintenance procedure before restoring.
+Use a code version compatible with the restored schema, and verify R2 objects referenced by
+restored rows; D1 Time Travel does not restore R2. Recheck auth, run history, ownership,
+controls, and a bounded analysis before reopening writes. The Stage 4 restore drill records
+actual bookmarks, timings, recovery results, and approval; this document is preparation only.
