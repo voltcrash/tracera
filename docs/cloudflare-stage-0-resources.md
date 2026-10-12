@@ -308,14 +308,14 @@ GitHub documents this registration as a Dashboard flow in
 [Creating an OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
 An authenticated CLI session does not supply an authenticated Dashboard session.
 
-## Cloudflare CI API token: deferred
+## Cloudflare CI API token: completed
 
-The owner deferred CI token creation on 2026-10-11. No token was created or secret
-collected. Retain the prepared policy below for when the owner resumes this work.
-After renewed approval, create an account-owned token named `Tracera CI` in the
+The owner deferred CI token creation on 2026-10-11, then created the account-owned
+`Tracera CI` token on 2026-10-12 in the
 [account API tokens Dashboard](https://dash.cloudflare.com/eb2679ce4f23ae7db4e6c4e3fcf8c3c1/api-tokens).
-Limit it to account `eb2679ce4f23ae7db4e6c4e3fcf8c3c1` and zone `voltcrash.com`.
-Review these permissions before creating the token:
+The owner's Dashboard summary confirmed two policies: account permissions limited to
+`eb2679ce4f23ae7db4e6c4e3fcf8c3c1`, and zone permissions limited to `voltcrash.com`.
+The selected permissions match the prepared policy:
 
 | Capability                                       | Permission or role                       | Scope                                   |
 | ------------------------------------------------ | ---------------------------------------- | --------------------------------------- |
@@ -341,17 +341,26 @@ Dashboard labels may use Edit for the API's Write permission.
 
 ## CI token creation and private storage
 
-The collaborative browser's account-token page redirected to Cloudflare login.
-Wrangler's OAuth login can provision resources but cannot create this account-owned
-token. [Creating tokens via API](https://developers.cloudflare.com/fundamentals/api/how-to/create-via-api/)
-requires a separate Dashboard-created token with Account API Tokens Edit. No such
-credential was requested or created.
+The owner stored the full `CLOUDFLARE_API_TOKEN` value in
+`/Users/lakshmi/.t3/private/tracera/stage-0/.ci.env`, outside Git, with mode 0600 and
+parent-directory mode 0700. This file is separate from Worker secrets. The token was
+read privately for verification; its value was not displayed or committed.
 
-Dashboard creation using the policy above is deferred. When the owner resumes it and
-approves creation, the operator should save the one-time value in
-`/Users/lakshmi/.t3/private/tracera/stage-0/.ci.env` as `CLOUDFLARE_API_TOKEN`, with
-mode 0600, outside Git. The CI token file is separate from Worker secrets and has not
-been created yet. Report only completion and non-secret token metadata.
+Read-only checks on 2026-10-12 used the token from that file:
+
+| GET request                              | Result                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| `/accounts/{account_id}/tokens/verify`   | HTTP 200; token active                                              |
+| `/accounts/{account_id}/d1/database`     | HTTP 200; both Tracera database names and UUIDs match the manifests |
+| `/accounts/{account_id}/r2/buckets`      | HTTP 200; both Tracera buckets present                              |
+| `/accounts/{account_id}/workers/scripts` | HTTP 200; `tracera-staging` and `tracera` present                   |
+| `/zones?name=voltcrash.com`              | HTTP 200; zone belongs to the selected account                      |
+| `/zones/{zone_id}/workers/routes`        | HTTP 200; route inventory accessible                                |
+
+The [account-token verification endpoint](https://developers.cloudflare.com/api/resources/accounts/subresources/tokens/methods/verify/)
+confirms that the credential is active. The GET checks confirm access to the intended
+resources; write permissions are evidenced by the owner's Dashboard summary. No write
+probe was needed for this preparation step.
 
 Phase 3.3 will install `CLOUDFLARE_API_TOKEN` and `PRODUCTION_WORKER_ENV` in GitHub's
 production environment with separately approved commands. Follow oxytype's release
@@ -365,20 +374,20 @@ Formatting fixes use Vite+; no check is bypassed. The existing suite reports 187
 tests and 10 pre-existing Postgres skips, with 27 passing files and two skipped files.
 No package script or application code changes in this PR.
 
-| Phase 0.3 requirement                     | Result and evidence                                                                    |
-| ----------------------------------------- | -------------------------------------------------------------------------------------- |
-| Resource names and IDs ready for Wrangler | Pass; manifests above, successful creates, and read-only inventory                     |
-| Isolated staging and production D1/R2     | Pass; distinct UUIDs and bucket names                                                  |
-| Workers and Workflows exist               | Pass; successful deployments, version inventory, and Workflow script/class inventory   |
-| Bootstrap configs validate                | Pass; dry runs before and after inserting real D1 IDs                                  |
-| New staging and production auth secrets   | Pass; distinct random values in private mode-0600 files                                |
-| Staging Google OAuth                      | Incomplete; explicitly deferred by owner                                               |
-| Staging GitHub OAuth                      | Pass; owner confirmed registration; both credentials present in private mode-0600 file |
-| Scoped CI API token                       | Incomplete; explicitly deferred by owner; policy retained                              |
+| Phase 0.3 requirement                     | Result and evidence                                                                                            |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Resource names and IDs ready for Wrangler | Pass; manifests above, successful creates, and read-only inventory                                             |
+| Isolated staging and production D1/R2     | Pass; distinct UUIDs and bucket names                                                                          |
+| Workers and Workflows exist               | Pass; successful deployments, version inventory, and Workflow script/class inventory                           |
+| Bootstrap configs validate                | Pass; dry runs before and after inserting real D1 IDs                                                          |
+| New staging and production auth secrets   | Pass; distinct random values in private mode-0600 files                                                        |
+| Staging Google OAuth                      | Incomplete; explicitly deferred by owner                                                                       |
+| Staging GitHub OAuth                      | Pass; owner confirmed registration; both credentials present in private mode-0600 file                         |
+| Scoped CI API token                       | Pass; owner confirmed scoped policy; private mode-0600 file; active token and inventory checks return HTTP 200 |
 
-The resource exit criterion passes. Phase 0.3 and Stage 0 remain incomplete while their
-OAuth and token requirements are unresolved. Keep this PR draft until those requirements
-are complete or the owner explicitly changes the plan's gate.
+The resource exit criterion passes. GitHub staging OAuth and the CI token are complete.
+Phase 0.3 and Stage 0 remain incomplete while Google staging OAuth is deferred. Keep this
+PR draft until that requirement is complete or the owner explicitly changes the plan's gate.
 
 ## Next-stage handoff
 
