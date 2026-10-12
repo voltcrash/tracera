@@ -110,6 +110,49 @@ test("large snapshots, reports and claim projections preserve the complete repor
   expect(await repository.payloads.readProjection(pointer)).toEqual(report.claims[0]);
 });
 
+test("superseded and canceled attempts cannot publish any report projection", async () => {
+  const repository = repo();
+  const ctx = context("finalize-fences");
+  await repository.createRun({ context: ctx });
+  const old = await repository.beginAttempt({
+    scope,
+    runId: ctx.runId,
+    stage: "score_report",
+    expectedVersion: 0,
+  });
+  const current = await repository.beginAttempt({
+    scope,
+    runId: ctx.runId,
+    stage: "score_report",
+    expectedVersion: 1,
+  });
+  const report = structuredClone(completeRunReportExample);
+  report.runId = ctx.runId;
+  report.replayManifest.runId = ctx.runId;
+  for (const snapshot of report.snapshots) await repository.putSnapshot({ scope, snapshot });
+  await expect(
+    repository.finalize({ scope, ...old, reportHash: ctx.inputHash, report }),
+  ).rejects.toThrow(StaleWorkerError);
+  await repository.requestCancellation({ scope, runId: ctx.runId, reason: "user_request" });
+  await expect(
+    repository.finalize({ scope, ...current, reportHash: ctx.inputHash, report }),
+  ).rejects.toThrow(StaleWorkerError);
+  for (const table of [
+    "core_report_versions",
+    "core_report_snapshots",
+    "core_report_claims",
+    "core_evidence_assessments",
+    "core_provenance_edges",
+    "core_decisions",
+  ])
+    expect(
+      await runtime.db
+        .prepare(`SELECT count(*) FROM ${table} WHERE run_id=?`)
+        .bind(ctx.runId)
+        .first("count(*)"),
+    ).toBe(0);
+});
+
 test("concurrent duplicate run creation stores one immutable identity", async () => {
   const repository = repo();
   const ctx = context("duplicate-run");
