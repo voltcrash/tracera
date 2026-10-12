@@ -5,13 +5,10 @@ import {
   type AiProviderCall,
   type AiProviderConfig,
 } from "@repo/ai";
-import {
-  beginAnalysisAdmission,
-  reserveProviderSpend,
-  settleProviderSpend,
-  type AnalysisAdmission,
-  type AnalysisAdmissionRejection,
-  type AnalysisControlLimits,
+import type {
+  AnalysisAdmission,
+  AnalysisAdmissionRejection,
+  AnalysisControlLimits,
 } from "@repo/db";
 
 const DEFAULTS = {
@@ -53,6 +50,35 @@ export interface AnalysisControlConfig extends AnalysisControlLimits {
   generationCostUsd: number;
   imageCostUsd: number;
   embeddingCostUsd: number;
+}
+
+/** Implemented by the D1 admission repository's single-batch admission. */
+export interface AnalysisAdmissionStore {
+  beginAnalysisAdmission(input: {
+    userId: string;
+    ipHash: string;
+    endpoint: string;
+    idempotencyKey: string;
+    requestHash: string;
+    forceReanalysis: boolean;
+    forceInputHash: string;
+    limits: AnalysisControlLimits;
+  }): Promise<AnalysisAdmission>;
+}
+
+/** Implemented by the D1 spend repository's guarded reservations. */
+export interface ProviderSpendStore {
+  reserveProviderSpend(input: {
+    providerKey: string;
+    keySource?: "platform" | "user";
+    estimatedUsd: number;
+    dailyBudgetUsd: number;
+    reservationId?: string;
+  }): Promise<
+    | { allowed: true; reservation: { id: string; estimatedUsd: number } }
+    | { allowed: false; retryAt: string }
+  >;
+  settleProviderSpend(input: { reservationId: string; actualUsd: number }): Promise<void>;
 }
 
 export class AnalysisControlError extends Error {
@@ -142,10 +168,11 @@ export async function admitAnalysis(input: {
   forceReanalysis: boolean;
   config: AnalysisControlConfig;
   secret?: string;
+  store: AnalysisAdmissionStore;
 }): Promise<AnalysisAdmission> {
   const identity = analysisRequestIdentity(input.request, input.body, input.secret);
   try {
-    return await beginAnalysisAdmission({
+    return await input.store.beginAnalysisAdmission({
       userId: input.userId,
       ipHash: identity.ipHash,
       endpoint: input.endpoint,
@@ -153,7 +180,7 @@ export async function admitAnalysis(input: {
       requestHash: identity.requestHash,
       forceReanalysis: input.forceReanalysis,
       forceInputHash: identity.forceInputHash,
-      limits: input.config,
+      limits: admissionLimits(input.config),
     });
   } catch (error) {
     console.error("Could not reserve analysis controls", error);
@@ -211,6 +238,7 @@ export function spendLimitedAiProvider(
   provider: AiProvider,
   aiConfiguration: AiProviderConfig,
   config: AnalysisControlConfig,
+  store: ProviderSpendStore,
 ) {
   return new InstrumentedAiProvider(provider, {
     onCall: async <T>(call: AiProviderCall, operation: () => Promise<T>) => {
@@ -218,7 +246,7 @@ export function spendLimitedAiProvider(
         call.kind === "embed"
           ? (aiConfiguration.embedding?.provider ?? aiConfiguration.provider)
           : aiConfiguration.provider;
-      const reservationResult = await reserveProviderSpendSafely({
+      const reservationResult = await reserveProviderSpendSafely(store, {
         providerKey,
         estimatedUsd: estimatedCost(call, config),
         dailyBudgetUsd: config.dailySpendUsd,
@@ -229,13 +257,29 @@ export function spendLimitedAiProvider(
       try {
         return await operation();
       } finally {
-        await settleProviderSpend({
-          reservationId: reservationResult.reservation.id,
-          actualUsd: reservationResult.reservation.estimatedUsd,
-        }).catch((error) => console.warn("Could not settle provider spend", error));
+        await store
+          .settleProviderSpend({
+            reservationId: reservationResult.reservation.id,
+            actualUsd: reservationResult.reservation.estimatedUsd,
+          })
+          .catch((error) => console.warn("Could not settle provider spend", error));
       }
     },
   });
+}
+
+function admissionLimits(config: AnalysisControlConfig): AnalysisControlLimits {
+  return {
+    userRateLimit: config.userRateLimit,
+    ipRateLimit: config.ipRateLimit,
+    rateWindowSeconds: config.rateWindowSeconds,
+    userConcurrencyLimit: config.userConcurrencyLimit,
+    ipConcurrencyLimit: config.ipConcurrencyLimit,
+    dailyQuota: config.dailyQuota,
+    forceReanalysisCooldownSeconds: config.forceReanalysisCooldownSeconds,
+    leaseSeconds: config.leaseSeconds,
+    idempotencyTtlSeconds: config.idempotencyTtlSeconds,
+  };
 }
 
 function rejectionCode(reason: AnalysisAdmissionRejection): AnalysisControlCode {
@@ -259,13 +303,12 @@ function rejectionCode(reason: AnalysisAdmissionRejection): AnalysisControlCode 
   }
 }
 
-async function reserveProviderSpendSafely(input: {
-  providerKey: string;
-  estimatedUsd: number;
-  dailyBudgetUsd: number;
-}) {
+async function reserveProviderSpendSafely(
+  store: ProviderSpendStore,
+  input: { providerKey: string; estimatedUsd: number; dailyBudgetUsd: number },
+) {
   try {
-    return await reserveProviderSpend(input);
+    return await store.reserveProviderSpend(input);
   } catch (error) {
     console.error("Could not reserve provider spend", error);
     throw new AnalysisControlError("analysis_controls_unavailable");
@@ -284,10 +327,10 @@ function estimatedCost(call: AiProviderCall, config: AnalysisControlConfig) {
 }
 
 function requestIp(request: Request) {
-  const vercelForwarded = request.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+  const connecting = request.headers.get("cf-connecting-ip")?.trim();
   const realIp = request.headers.get("x-real-ip")?.trim();
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const value = vercelForwarded || realIp || forwarded || "unknown";
+  const value = connecting || realIp || forwarded || "unknown";
   return value.length <= 255 ? value : value.slice(0, 255);
 }
 
@@ -317,14 +360,12 @@ function stableStringify(value: unknown): string {
 }
 
 function readInteger(env: AnalysisControlEnvironment, name: string, fallback: number) {
-  const raw = env[name] ?? process.env[name];
-  const value = Number(raw);
+  const value = Number(env[name]);
   return Number.isInteger(value) && value >= 1 && value <= 1_000_000 ? value : fallback;
 }
 
 function readMoney(env: AnalysisControlEnvironment, name: string, fallback: number) {
-  const raw = env[name] ?? process.env[name];
-  const value = Number(raw);
+  const value = Number(env[name]);
   return Number.isFinite(value) && value > 0 && value <= 1_000_000 ? value : fallback;
 }
 

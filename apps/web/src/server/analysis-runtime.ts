@@ -38,6 +38,7 @@ import {
   type RunReport,
   type StageName,
 } from "@repo/contracts/analysis";
+import { reserveProviderSpend, settleProviderSpend } from "@repo/db";
 import type { AnalysisRepository, AnalysisAccessScope } from "@repo/db/analysis/repository";
 import { spendLimitedAiProvider, type AnalysisControlConfig } from "./analysis-controls";
 
@@ -239,6 +240,7 @@ export async function executeFocusedRun(
       createAiProvider(input.policy.providerConfig),
       input.policy.providerConfig,
       input.controls,
+      { reserveProviderSpend, settleProviderSpend },
     );
     const snapshots = acceptStoredSnapshots(
       createSnapshotStore({ repository: input.repository, context: input.context }),

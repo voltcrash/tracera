@@ -1,6 +1,12 @@
 import { Hono, type Context } from "hono";
 import { runReportSchema, stageNameSchema } from "@repo/contracts/analysis";
-import { finishAnalysisAdmission, pool, type AnalysisAdmission, type AuthUser } from "@repo/db";
+import {
+  beginAnalysisAdmission,
+  finishAnalysisAdmission,
+  pool,
+  type AnalysisAdmission,
+  type AuthUser,
+} from "@repo/db";
 import {
   AnalysisRepository,
   type AnalysisAccessScope,
@@ -94,6 +100,7 @@ export function createAnalysisApp(dependencies: AnalysisDependencies = {}) {
         forceReanalysis: parsed.data.forceReanalysis === true,
         config,
         secret: context.env.BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
+        store: { beginAnalysisAdmission },
       });
     } catch {
       return context.json({ error: "Analysis controls are unavailable." }, 503);
