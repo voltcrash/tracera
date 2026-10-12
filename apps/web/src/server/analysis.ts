@@ -28,12 +28,11 @@ import { TRACERA_API_BASE_PATH } from "./base-path";
 import type { Bindings } from "./index";
 import { readAnalysisRequestBody } from "./request-body";
 import {
-  executeFocusedRun,
   analysisRunContext,
   analysisRuntimePolicy,
-  type AnalysisRuntimeRepository,
   type AnalysisRuntimePolicyResult,
-} from "./analysis-runtime";
+} from "./analysis-policy";
+import { executeFocusedRun, type AnalysisRuntimeRepository } from "./analysis-runtime";
 
 type AnalysisContext = Context<{ Bindings: Bindings }>;
 

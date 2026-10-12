@@ -5,9 +5,8 @@ import { test } from "vite-plus/test";
 import type { AuthUser } from "@repo/db";
 import type { AnalysisRunProgress } from "@repo/db/analysis/repository";
 import { createAnalysisApp, type AnalysisDependencies } from "../src/server/analysis";
+import { analysisRuntimePolicy, analysisRunContext } from "../src/server/analysis-policy";
 import {
-  analysisRuntimePolicy,
-  analysisRunContext,
   type AnalysisRuntimeRepository,
   type AnalysisRunExecutionInput,
 } from "../src/server/analysis-runtime";
