@@ -214,6 +214,21 @@ production with the D18 notice, dry-ran, applied `0000_baseline` and
 `b415862b-c97b-4cf8-a9ca-46a1219235b3`, and then published
 [`v26.10.12`](https://github.com/voltcrash/tracera/releases/tag/v26.10.12) on `b9397c9`.
 
+Production smoke checks after the release:
+
+| Check                                           | Result                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------ |
+| `/`, `/auth/error`                              | 200                                                          |
+| `/api/health`                                   | 200, database connected                                      |
+| `/home` while signed out                        | 307 to `/`                                                   |
+| GitHub sign-in start                            | Redirects to `github.com/login` with the production callback |
+| Chromium console on `/`, `/auth/error`, `/home` | No errors and no CSP violations                              |
+| `tracera.voltcrash.workers.dev`                 | 404; workers.dev stays disabled                              |
+
+A second dispatch, [run 38288765452](https://github.com/voltcrash/tracera/actions/runs/38288765452),
+found no new commits and skipped install, build, migration, deployment, and publication.
+That closes the hosted skip-path check left open by Phase 3.3.
+
 Sign-off: **pending**. Record announcement/approval links, integration and deployed SHAs,
 release/tag URL, DNS record inventory, GitHub smoke result, observation window, and rollback
 owner. Decommission must not begin while production stability is unresolved.
