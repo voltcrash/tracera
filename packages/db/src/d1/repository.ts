@@ -244,29 +244,54 @@ export class D1AnalysisRepository {
           ...identity,
         ),
     ];
-    const projection = (table: string, columns: string[], rows: unknown[][]) => {
-      for (let offset = 0; offset < rows.length; offset += 50)
+    const projection = async (
+      table: string,
+      columns: string[],
+      rows: unknown[][],
+      payloadColumn?: string,
+    ) => {
+      if (payloadColumn) {
+        const index = columns.indexOf(payloadColumn);
+        for (const row of rows)
+          row[index] = await this.payloads.encodeProjection(JSON.parse(row[index] as string));
+      }
+      const chunks: unknown[][][] = [];
+      let chunk: unknown[][] = [],
+        bytes = 2;
+      for (const row of rows) {
+        const size = new TextEncoder().encode(JSON.stringify(row)).byteLength + 1;
+        if (chunk.length && (chunk.length >= 50 || bytes + size > 1_500_000)) {
+          chunks.push(chunk);
+          chunk = [];
+          bytes = 2;
+        }
+        chunk.push(row);
+        bytes += size;
+      }
+      if (chunk.length) chunks.push(chunk);
+      for (const rows of chunks)
         statements.push(
           this.database
             .prepare(
               `INSERT INTO ${table}(${columns.join(",")}) SELECT ${columns.map((_, i) => `json_extract(value,'$[${i}]')`).join(",")} FROM json_each(?) WHERE EXISTS(SELECT 1 FROM core_runs WHERE ${active})`,
             )
-            .bind(JSON.stringify(rows.slice(offset, offset + 50)), ...identity),
+            .bind(JSON.stringify(rows), ...identity),
         );
     };
     const prefix = [input.runId, 1];
     const ownership = scopeValues(input.scope);
-    projection(
+    await projection(
       "core_report_snapshots",
       ["run_id", "report_version", "snapshot_id", "tenant_id", "owner_user_id", "visibility"],
       report.snapshots.map((snapshot) => [...prefix, snapshot.id, ...ownership]),
     );
-    projection(
+    await projection(
       "core_report_claims",
       ["run_id", "report_version", "claim_id", "tenant_id", "owner_user_id", "visibility", "claim"],
       report.claims.map((claim) => [...prefix, claim.id, ...ownership, JSON.stringify(claim)]),
+      "claim",
     );
-    projection(
+    await projection(
       "core_evidence_assessments",
       [
         "run_id",
@@ -287,8 +312,9 @@ export class D1AnalysisRepository {
         ...ownership,
         JSON.stringify(assessment),
       ]),
+      "assessment",
     );
-    projection(
+    await projection(
       "core_provenance_edges",
       [
         "run_id",
@@ -313,8 +339,9 @@ export class D1AnalysisRepository {
           JSON.stringify(edge),
         ]),
       ),
+      "edge",
     );
-    projection(
+    await projection(
       "core_decisions",
       [
         "run_id",
@@ -335,6 +362,7 @@ export class D1AnalysisRepository {
         decision.publishedLabel,
         JSON.stringify(decision),
       ]),
+      "decision",
     );
     statements.push(
       this.database

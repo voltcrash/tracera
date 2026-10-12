@@ -8,6 +8,7 @@ export interface StoredPayload {
   inline: string | null;
   blobUri: string | null;
 }
+export type StoredProjection<T> = T | { r2Payload: { uri: string; hash: string } };
 
 export function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -27,6 +28,21 @@ export class D1PayloadError extends Error {}
 
 export class D1PayloadStore {
   constructor(private readonly bucket?: Pick<R2Bucket, "get" | "put">) {}
+
+  async encodeProjection<T>(value: T): Promise<string> {
+    const payload = await this.encode(value, "reports");
+    return (
+      payload.inline ?? JSON.stringify({ r2Payload: { uri: payload.blobUri, hash: payload.hash } })
+    );
+  }
+
+  async readProjection<T>(value: StoredProjection<T>): Promise<T> {
+    if (value && typeof value === "object" && "r2Payload" in value) {
+      const pointer = value.r2Payload;
+      return (await this.read({ inline: null, blobUri: pointer.uri, hash: pointer.hash })) as T;
+    }
+    return value;
+  }
 
   async encode(value: unknown, kind: PayloadKind, extraBytes = 0): Promise<StoredPayload> {
     const inline = canonicalJson(value);

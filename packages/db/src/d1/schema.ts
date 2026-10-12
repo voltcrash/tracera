@@ -1,3 +1,4 @@
+import type { StoredProjection } from "./payloads.js";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -273,7 +274,9 @@ export const analysisReportClaims = sqliteTable(
     reportVersion: integer("report_version").notNull(),
     claimId: text("claim_id").notNull(),
     ...ownershipColumns(),
-    claim: text("claim", { mode: "json" }).$type<RunReport["claims"][number]>().notNull(),
+    claim: text("claim", { mode: "json" })
+      .$type<StoredProjection<RunReport["claims"][number]>>()
+      .notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.runId, table.reportVersion, table.claimId] }),
@@ -350,7 +353,7 @@ export const analysisEvidenceAssessments = sqliteTable(
     snapshotId: text("snapshot_id").notNull(),
     ...ownershipColumns(),
     assessment: text("assessment", { mode: "json" })
-      .$type<RunReport["assessments"][number]>()
+      .$type<StoredProjection<RunReport["assessments"][number]>>()
       .notNull(),
   },
   (table) => [
@@ -385,7 +388,9 @@ export const analysisProvenanceEdges = sqliteTable(
     ...ownershipColumns(),
     fromSnapshotId: text("from_snapshot_id").notNull(),
     toSnapshotId: text("to_snapshot_id").notNull(),
-    edge: text("edge", { mode: "json" }).notNull(),
+    edge: text("edge", { mode: "json" })
+      .$type<StoredProjection<RunReport["provenance"][number]["edges"][number]>>()
+      .notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.runId, table.reportVersion, table.claimId, table.edgeIndex] }),
@@ -422,7 +427,9 @@ export const analysisDecisions = sqliteTable(
     ...ownershipColumns(),
     diagnosticLabel: text("diagnostic_label").notNull(),
     publishedLabel: text("published_label").notNull(),
-    decision: text("decision", { mode: "json" }).$type<RunReport["decisions"][number]>().notNull(),
+    decision: text("decision", { mode: "json" })
+      .$type<StoredProjection<RunReport["decisions"][number]>>()
+      .notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.runId, table.reportVersion, table.claimId] }),
