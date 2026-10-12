@@ -19,7 +19,7 @@
     "db:generate": "node ../../scripts/environment/guard.mjs --role migration -- drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "node ../../scripts/environment/guard.mjs --role migration -- drizzle-kit migrate --config=drizzle.config.ts",
     "test:analysis-storage": "node ../../scripts/database/test-analysis-storage.mjs",
-    "db:generate:d1": "drizzle-kit generate --config=drizzle.d1.config.ts --name baseline",
+    "db:generate:d1": "drizzle-kit generate --config=drizzle.d1.config.ts",
     "db:migrate:d1": "wrangler d1 migrations apply tracera-staging --local --config ../../apps/web/wrangler.jsonc --persist-to ../../apps/web/.wrangler/state"
   },
   "dependencies": {

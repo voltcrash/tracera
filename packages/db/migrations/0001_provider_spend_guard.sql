@@ -1,0 +1,1 @@
+ALTER TABLE `ai_spend_reservations` ADD `reservation_token` text;

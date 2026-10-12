@@ -8,6 +8,13 @@
       "when": 1791786631217,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791790826265,
+      "tag": "0001_provider_spend_guard",
+      "breakpoints": true
     }
   ]
 }

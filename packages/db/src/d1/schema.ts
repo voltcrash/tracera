@@ -567,6 +567,7 @@ export const aiProviderSpend = sqliteTable(
 export const aiSpendReservations = sqliteTable(
   "ai_spend_reservations",
   {
+    reservationToken: text("reservation_token"),
     id: text("id")
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
