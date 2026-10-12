@@ -1,0 +1,11 @@
+{
+  "name": "@repo/release",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./version": "./src/version.js"
+  },
+  "scripts": {
+    "test:release": "vp test --run test"
+  }
+}
