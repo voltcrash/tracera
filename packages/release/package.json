@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./version": "./src/version.js"
+    "./version": "./src/version.js",
+    "./daily-changelog": "./src/daily-changelog.js"
   },
   "scripts": {
     "test:release": "vp test --run test"
