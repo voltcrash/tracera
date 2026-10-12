@@ -1,4 +1,8 @@
-import { runContextExample, type RunContext } from "@repo/contracts/analysis";
+import {
+  completeRunReportExample,
+  runContextExample,
+  type RunContext,
+} from "@repo/contracts/analysis";
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 import {
   createD1AnalysisRepository,
@@ -103,4 +107,38 @@ test("checkpoint writes reject superseded attempts and survive retry resumption"
       stage: "normalize_input",
     }),
   ).toBeNull();
+});
+
+test("snapshot identities are immutable, idempotent and isolated by full ownership scope", async () => {
+  const repository = repo();
+  const snapshot = structuredClone(completeRunReportExample.snapshots[0]!);
+  await Promise.all([
+    repository.putSnapshot({ scope, snapshot }),
+    repository.putSnapshot({ scope, snapshot }),
+  ]);
+  expect(await repository.getSnapshot({ scope, snapshotId: snapshot.id })).toEqual(snapshot);
+  await expect(
+    repository.putSnapshot({
+      scope,
+      snapshot: { ...snapshot, normalizedText: snapshot.normalizedText + "changed" },
+    }),
+  ).rejects.toThrow();
+  expect(
+    await repository.getSnapshot({
+      scope: { ...scope, visibility: "public" },
+      snapshotId: snapshot.id,
+    }),
+  ).toBeNull();
+  expect(
+    await repository.getSnapshots({
+      scope: { ...scope, tenantId: "other" },
+      snapshotIds: [snapshot.id],
+    }),
+  ).toEqual([]);
+  expect(
+    await repository.getSnapshots({
+      scope,
+      snapshotIds: [snapshot.id, ...Array.from({ length: 110 }, (_, i) => `missing-${i}`)],
+    }),
+  ).toEqual([snapshot]);
 });

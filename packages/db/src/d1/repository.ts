@@ -1,5 +1,11 @@
 import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
-import { runContextSchema, type RunContext, type StageName } from "@repo/contracts/analysis";
+import {
+  documentSnapshotSchema,
+  runContextSchema,
+  type DocumentSnapshot,
+  type RunContext,
+  type StageName,
+} from "@repo/contracts/analysis";
 import type { AnalysisAccessScope } from "../analysis/repository.js";
 import { D1PayloadStore, hashJson } from "./payloads.js";
 
@@ -118,6 +124,96 @@ export class D1AnalysisRepository {
       )
       .bind(runId, ...scopeValues(scope))
       .first<RunRow>();
+  }
+
+  async putSnapshot(input: {
+    scope: AnalysisAccessScope;
+    snapshot: DocumentSnapshot;
+  }): Promise<void> {
+    const snapshot = documentSnapshotSchema.parse(input.snapshot);
+    const payload = await this.payloads.encode(
+      snapshot,
+      "snapshots",
+      new TextEncoder().encode(snapshot.normalizedText).byteLength,
+    );
+    const result = await this.database
+      .prepare(`INSERT INTO core_snapshots(snapshot_id,tenant_id,owner_user_id,visibility,content_hash,raw_content_hash,normalized_text,snapshot,snapshot_hash,snapshot_blob_uri,blob_status,blob_uri,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id,owner_user_id,visibility,snapshot_id) DO UPDATE SET snapshot_id=excluded.snapshot_id
+      WHERE core_snapshots.snapshot_hash=excluded.snapshot_hash RETURNING snapshot_id`)
+      .bind(
+        snapshot.id,
+        ...scopeValues(input.scope),
+        snapshot.contentHash,
+        snapshot.rawContentHash,
+        payload.inline ? snapshot.normalizedText : null,
+        payload.inline,
+        payload.hash,
+        payload.blobUri,
+        snapshot.blobLocator.status,
+        snapshot.blobLocator.uri,
+        this.now(),
+      )
+      .all();
+    if (!result.results.length)
+      throw new AnalysisStorageConflictError(
+        "Snapshot IDs are immutable and cannot be overwritten.",
+      );
+  }
+
+  async getSnapshot(input: {
+    scope: AnalysisAccessScope;
+    snapshotId: string;
+  }): Promise<DocumentSnapshot | null> {
+    const row = await this.database
+      .prepare(
+        "SELECT snapshot,snapshot_hash,snapshot_blob_uri FROM core_snapshots WHERE snapshot_id=? AND tenant_id=? AND owner_user_id=? AND visibility=?",
+      )
+      .bind(input.snapshotId, ...scopeValues(input.scope))
+      .first<{
+        snapshot: string | null;
+        snapshot_hash: string;
+        snapshot_blob_uri: string | null;
+      }>();
+    return row
+      ? documentSnapshotSchema.parse(
+          await this.payloads.read({
+            inline: row.snapshot,
+            blobUri: row.snapshot_blob_uri,
+            hash: row.snapshot_hash,
+          }),
+        )
+      : null;
+  }
+
+  async getSnapshots(input: {
+    scope: AnalysisAccessScope;
+    snapshotIds: readonly string[];
+  }): Promise<DocumentSnapshot[]> {
+    const output: DocumentSnapshot[] = [];
+    const ids = [...new Set(input.snapshotIds)];
+    for (let offset = 0; offset < ids.length; offset += 1000) {
+      const result = await this.database
+        .prepare(
+          "SELECT snapshot,snapshot_hash,snapshot_blob_uri FROM core_snapshots WHERE tenant_id=? AND owner_user_id=? AND visibility=? AND snapshot_id IN (SELECT value FROM json_each(?)) ORDER BY snapshot_id",
+        )
+        .bind(...scopeValues(input.scope), JSON.stringify(ids.slice(offset, offset + 1000)))
+        .all<{
+          snapshot: string | null;
+          snapshot_hash: string;
+          snapshot_blob_uri: string | null;
+        }>();
+      for (const row of result.results)
+        output.push(
+          documentSnapshotSchema.parse(
+            await this.payloads.read({
+              inline: row.snapshot,
+              blobUri: row.snapshot_blob_uri,
+              hash: row.snapshot_hash,
+            }),
+          ),
+        );
+    }
+    return output;
   }
 
   async checkpoint(input: {
