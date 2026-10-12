@@ -1,7 +1,7 @@
 # Cloudflare migration plan
 
 Status: Stage 2 in progress, 2026-10-12. Stages 0 and 1 are complete and merged. Phases 2.1
-through 2.4 pass locally; their stacked PRs target `migrate/cloudflare`. D1–D17 are accepted. Stage 2–4
+through 2.5 pass locally; their stacked PRs target `migrate/cloudflare`. D1–D17 are accepted. Stage 2–4
 implementation and hosted rollout gates remain open.
 
 Tracera moves from Next.js + Hono on Vercel with Neon Postgres to a single TanStack Start
@@ -458,6 +458,8 @@ function and route handlers against a Miniflare environment.
   follow-up.
 - `cancelRun` sets the D1 cancellation flag, which the engine already observes, and terminates
   the instance after a grace period.
+- Admission leases cover the bounded Workflow retry window; failure, finalize, and release steps
+  each have two retries and a 30-second attempt timeout. No lease renewal timer is needed.
 - Removed: `acquireLease`, `renewLease`, `acquireNextLease`, the renew and cancellation timers,
   and `process.pid` worker IDs.
 - In fixture mode the workflow uses the scripted ports from `packages/ai/scripts/support`.
@@ -471,6 +473,10 @@ injected failure resumes from its checkpoint.
 the new `safeFetch`. Fact Check and NewsAPI keys stay optional secrets (D4). Raw blobs go to
 R2. Browser Rendering is added only if staging shows acquisition gaps on script-rendered pages.
 Exit: `dev:live` completes an analysis with a provider key from `.dev.vars`.
+
+The owner deferred this live-provider validation on 2026-10-12 until credentials can be
+configured. Implement and validate the remaining Stage 2 phases meanwhile; leave this exit
+criterion pending and do not replace the live check with stubbed evidence.
 
 **Phase 2.7 — Scheduled maintenance.** The `scheduled` handler purges expired idempotency keys,
 released and expired leases, old rate windows, expired sessions and verifications, and stale

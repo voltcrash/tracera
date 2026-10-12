@@ -182,3 +182,47 @@ load under the new CSP without violations.
 Validation: `vp install`, a Worker build, `vp check` and `vp test --run` pass before each
 commit. The production client bundle contains no Drizzle, `node:crypto` or
 `cloudflare:workers` code.
+
+## Phase 2.5 — Analysis on Workflows
+
+Result: **PASS** locally, 2026-10-12. PR: [#46](https://github.com/voltcrash/tracera/pull/46).
+
+- The exported `AnalysisWorkflow` now runs the real focused engine. `analyze` retries twice,
+  with an attempt timeout equal to the persisted run budget. Successful engine stages replay
+  their D1 checkpoints. `finalize` reads an R2 report reference and publishes one report;
+  `release` stores the idempotent response and frees the admission lease. Provider calls reserve
+  and settle spend against D1 individually; interrupted reservations remain for Phase 2.7.
+- Workflow params contain run, owner, and admission IDs. Step results contain status, fencing
+  identity, and an R2 reference, keeping reports, uploads, and provider keys out of Workflow
+  state. Providers resolve inside the analysis step; hosted fixture selection is rejected.
+- Screenshots always go to R2 before instance creation; other inputs use the D1 payload size
+  threshold. Image data URIs survive input parsing. Admission IDs are also stored with the
+  scoped run input so cancellation and maintenance can finish cleanup independently.
+- Fixture mode composes the scripted claim generator, empty discovery, and fixed page/OCR
+  documents from `packages/ai/scripts/support`. Text uses its actual offline extraction. All
+  eight engine stages execute; absent evidence leaves published claims unverified, a null score,
+  and a terminal `partial` report. Production analysis semantics and contracts are unchanged.
+- Cancellation is checked at checkpoint boundaries. The server function schedules a five-second
+  grace period with `waitUntil`, then terminates an unfinished instance, acknowledges the scoped
+  flag, and releases admission. Failed termination preserves the running state for later cleanup.
+- The old request executor, queue lease acquisition and renewal, cancellation polling, and
+  process-based worker IDs are removed. Superseded attempts are closed as failed. Admission
+  leases cover all bounded analysis and settlement retries without renewal timers.
+
+### Exit criteria
+
+| Criterion                     | Result and evidence                                                                                                                                                                                                                            |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fixture completes in `vp dev` | Pass; browser sign-in as Ada, example claim opens `/run/$id`, streams progress, and shows the real unverified report. Text/link/image D1 tests reach all eight stages.                                                                         |
+| Cancellation                  | Pass; workerd test terminates a blocked real Workflow, checks native status `terminated`, D1 status `canceled`, and no held admission lease. Grace-period tests cover ownership and termination failure.                                       |
+| Injected failure resumes      | Pass; workerd injects failure after the normalization checkpoint, retries to attempt 2, reaches eight checkpoints, and releases admission. Additional D1 tests prove normalization/generation are not repeated and finalization is idempotent. |
+
+Validation: `vp install`, `vp check`, `vp test --run` (387 passed; 10 existing Postgres cases
+skipped), `vp run check-types`, `vp run build`, and the staging deployment dry run pass.
+Evidence: `fixture-analysis.test.ts`, `analysis-workflow.test.ts`,
+`analysis-workflow.workerd.test.ts`, and `analysis-cancellation.test.ts`.
+
+No hosted resources, secrets, deployments, DNS, or OAuth apps changed. Browser reload testing
+also found a timezone hydration mismatch in the report timestamp; Phase 2.8 will fix and cover it.
+The owner deferred the live-provider validation until credentials can be configured; Phase 2.6
+will record that gate as pending while subsequent Stage 2 implementation proceeds.
