@@ -32,6 +32,8 @@ test.describe("Tracera analysis acceptance fixture", () => {
   });
 
   test("completes a real fixture text Workflow with safe score language", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("/");
     await page.getByRole("button", { name: "Continue as Ada Local" }).click();
     await expect(page).toHaveURL(/\/home$/);
@@ -46,5 +48,10 @@ test.describe("Tracera analysis acceptance fixture", () => {
     await expect(page.getByText("Supported share of resolved claims")).toBeVisible();
     await expect(page.getByText("Insufficient evidence", { exact: true })).toBeVisible();
     await expect(page.getByText("unverified", { exact: true }).first()).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Top claims selected for checking" }),
+    ).toBeVisible();
+    expect(errors).toEqual([]);
   });
 });

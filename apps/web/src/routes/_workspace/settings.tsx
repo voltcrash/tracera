@@ -1,3 +1,4 @@
+import { LocalTime } from "@/components/ui/local-time";
 import { createFileRoute } from "@tanstack/react-router";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Check, Loader2, Shuffle } from "lucide-react";
@@ -191,9 +192,13 @@ function AccountRow() {
           <p className="settings-identity">{user.email}</p>
         )}
         <p className="settings-note">
-          {pending
-            ? "Reading your sign-in methods."
-            : `You have been tracing claims here since ${longDate(user.createdAt)}.`}
+          {pending ? (
+            "Reading your sign-in methods."
+          ) : (
+            <>
+              You have been tracing claims here since <LocalTime value={user.createdAt} dateOnly />.
+            </>
+          )}
         </p>
 
         <ul className="methods">
@@ -202,11 +207,15 @@ function AccountRow() {
             <span className="method-body">
               <span className="method-name">Google</span>
               <span className="method-detail">
-                {pending
-                  ? "Checking"
-                  : google
-                    ? `Linked ${longDate(google.createdAt)}`
-                    : "Not linked to this account"}
+                {pending ? (
+                  "Checking"
+                ) : google ? (
+                  <>
+                    Linked <LocalTime value={google.createdAt} dateOnly />
+                  </>
+                ) : (
+                  "Not linked to this account"
+                )}
               </span>
             </span>
             <span className="method-state">{google ? "In use" : "Not in use"}</span>
@@ -216,11 +225,15 @@ function AccountRow() {
             <span className="method-body">
               <span className="method-name">GitHub</span>
               <span className="method-detail">
-                {pending
-                  ? "Checking"
-                  : github
-                    ? `Linked ${longDate(github.createdAt)}`
-                    : "Not linked to this account"}
+                {pending ? (
+                  "Checking"
+                ) : github ? (
+                  <>
+                    Linked <LocalTime value={github.createdAt} dateOnly />
+                  </>
+                ) : (
+                  "Not linked to this account"
+                )}
               </span>
             </span>
             <span className="method-state">{github ? "In use" : "Not in use"}</span>
@@ -297,12 +310,4 @@ function AvatarRow() {
       </div>
     </section>
   );
-}
-
-function longDate(value: string) {
-  return new Date(value).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
 }

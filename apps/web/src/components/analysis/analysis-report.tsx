@@ -1,6 +1,9 @@
 import type { AnalysisReportView } from "@repo/ai/analysis/report-view";
 import { ExternalLink } from "lucide-react";
+import { ClientOnly } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { LocalTime } from "@/components/ui/local-time";
 
 export function AnalysisReport({ view }: { view: AnalysisReportView }) {
   const { score } = view;
@@ -48,7 +51,7 @@ export function AnalysisReport({ view }: { view: AnalysisReportView }) {
           />
           <Metric
             label="Evidence as of"
-            value={new Date(view.asOfTime).toLocaleString()}
+            value={<LocalTime value={view.asOfTime} />}
             detail={score.formulaVersion ? "Selected claims" : "No score computed"}
           />
         </div>
@@ -320,7 +323,15 @@ export function AnalysisReport({ view }: { view: AnalysisReportView }) {
               <li key={entry.id} className="border-t border-line-weak pt-3">
                 <div className="flex flex-wrap items-baseline gap-2">
                   <span className="font-semibold">{humanize(entry.assertion.type)}</span>
-                  <span>{formatTimelineInterval(entry.assertion.interval)}</span>
+                  <span>
+                    <ClientOnly
+                      fallback={formatTimelineInterval(entry.assertion.interval, (value) =>
+                        new Date(value).toISOString(),
+                      )}
+                    >
+                      {formatTimelineInterval(entry.assertion.interval)}
+                    </ClientOnly>
+                  </span>
                   {entry.status === "unresolved" ? (
                     <Badge variant="amber">
                       Unresolved: {humanize(entry.unresolvedReason ?? "unknown")}
@@ -403,7 +414,15 @@ export function AnalysisReport({ view }: { view: AnalysisReportView }) {
   );
 }
 
-function Metric({ label, value, detail }: { label: string; value: string; detail: string | null }) {
+function Metric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: ReactNode;
+  detail: string | null;
+}) {
   return (
     <div>
       <p className="text-xs uppercase tracking-wide text-ink-faint">{label}</p>
@@ -421,11 +440,12 @@ function format(value: number) {
   return Number(value.toFixed(1));
 }
 
-function formatTimelineInterval(interval: { earliest: string | null; latest: string | null }) {
+function formatTimelineInterval(
+  interval: { earliest: string | null; latest: string | null },
+  formatDate = (value: string) => new Date(value).toLocaleString(),
+) {
   if (interval.earliest === null && interval.latest === null) return "Time unknown";
-  const earliest = interval.earliest
-    ? new Date(interval.earliest).toLocaleString()
-    : "Unknown start";
-  const latest = interval.latest ? new Date(interval.latest).toLocaleString() : "Unknown end";
+  const earliest = interval.earliest ? formatDate(interval.earliest) : "Unknown start";
+  const latest = interval.latest ? formatDate(interval.latest) : "Unknown end";
   return earliest === latest ? earliest : `${earliest} – ${latest}`;
 }
