@@ -123,7 +123,8 @@ export function validateProductionInputs(inputs: {
     throw new Error("Configure both Google OAuth credentials or neither.");
 
   // D18: without any provider settings, production runs with analysis unavailable.
-  if (PROVIDER_SETTINGS.some((name) => configured(settings[name]))) {
+  const analysis = PROVIDER_SETTINGS.some((name) => configured(settings[name]));
+  if (analysis) {
     try {
       resolveAnalysisProvider({ userId: "production-check", env: settings });
     } catch (error) {
@@ -149,4 +150,5 @@ export function validateProductionInputs(inputs: {
     )
       throw new Error("Rebuild with build:production; dist/server is not the production Worker.");
   }
+  return { analysis };
 }

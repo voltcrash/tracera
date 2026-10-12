@@ -65,7 +65,8 @@ const withoutAi = Object.fromEntries(
 );
 
 test("production may omit every AI provider setting and bound", () => {
-  expect(() => validateProductionInputs({ ...valid, secrets: withoutAi })).not.toThrow();
+  expect(validateProductionInputs({ ...valid, secrets: withoutAi })).toEqual({ analysis: false });
+  expect(validateProductionInputs(valid)).toEqual({ analysis: true });
 });
 
 test.each(["AI_PROVIDER", "AI_MODEL", "AI_API_KEY", "AI_EMBEDDING_MODEL"] as const)(
