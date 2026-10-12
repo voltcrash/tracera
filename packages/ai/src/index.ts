@@ -33,3 +33,10 @@ export {
   type AiProviderName,
   type ModelProviderConfig,
 } from "./create-provider";
+export {
+  resolveAnalysisProvider,
+  AnalysisProviderConfigurationError,
+  type AnalysisProviderEnvironment,
+  type ResolvedAnalysisProvider,
+  type ProviderKeySource,
+} from "./resolve-analysis-provider";
