@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useHydrated, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
 import { Check, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
@@ -18,6 +18,7 @@ const MAX_IMAGE_BYTES = 5_000_000;
 export const Route = createFileRoute("/_workspace/home")({ component: Home });
 
 function Home() {
+  const hydrated = useHydrated();
   const { isLoading: isAuthLoading, user } = useAuth();
   const start = useServerFn(startAnalysis);
   const navigate = useNavigate();
@@ -135,7 +136,7 @@ function Home() {
               value={text}
               onChange={(event) => setText(event.target.value)}
               onPaste={pasteImage}
-              disabled={loading}
+              disabled={!hydrated || loading}
               required={!image}
               rows={4}
               placeholder="Paste a headline, claim, article, public link, or image…"
@@ -161,7 +162,7 @@ function Home() {
                   capture="environment"
                   className="sr-only"
                   onChange={selectImage}
-                  disabled={loading}
+                  disabled={!hydrated || loading}
                 />
               </Button>
             </div>
@@ -169,7 +170,7 @@ function Home() {
               type="submit"
               variant="brand"
               className="rounded-full px-5"
-              disabled={loading || isAuthLoading || (!text.trim() && !image)}
+              disabled={!hydrated || loading || isAuthLoading || (!text.trim() && !image)}
             >
               {loading ? (
                 <>
@@ -184,7 +185,12 @@ function Home() {
 
         {!loading && !text && !image && (
           <div className="starters">
-            <button type="button" className="starter" onClick={() => setText(example)}>
+            <button
+              type="button"
+              className="starter"
+              disabled={!hydrated}
+              onClick={() => setText(example)}
+            >
               <Sparkles />
               Try an example claim
             </button>
