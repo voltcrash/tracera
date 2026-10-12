@@ -1,17 +1,22 @@
-import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { runContextExample, type DocumentSnapshot } from "@repo/contracts/analysis";
-import {
-  AnalysisRepository,
-  type AnalysisTransactionClient,
-  StaleWorkerError,
-  type AnalysisPool,
-  type AnalysisQueryResult,
-} from "@repo/db/analysis";
-import { test } from "vite-plus/test";
-import { createSnapshotStore } from "../src/analysis/storage.js";
+import { createD1AnalysisRepository, StaleWorkerError } from "@repo/db/d1";
+import { createTestRuntime, seedUser } from "@repo/db/test-runtime";
+import { afterAll, beforeAll, expect, test } from "vite-plus/test";
+import { createRunStore, createSnapshotStore } from "../src/analysis/storage.js";
 
 const hash = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
+const context = structuredClone(runContextExample);
+let runtime: Awaited<ReturnType<typeof createTestRuntime>>;
+beforeAll(async () => {
+  runtime = await createTestRuntime();
+  await seedUser(runtime.db, context.ownerUserId);
+});
+afterAll(async () => {
+  await runtime?.dispose();
+});
+const repository = () =>
+  createD1AnalysisRepository({ database: runtime.db, bucket: runtime.bucket });
 
 function snapshot(text: string): DocumentSnapshot {
   return {
@@ -21,7 +26,7 @@ function snapshot(text: string): DocumentSnapshot {
     originalUrl: null,
     finalUrl: null,
     canonicalUrl: null,
-    acquiredAt: runContextExample.asOfTime,
+    acquiredAt: context.asOfTime,
     mimeType: "text/plain",
     language: "en",
     role: "submitted_input",
@@ -42,56 +47,32 @@ function snapshot(text: string): DocumentSnapshot {
   };
 }
 
-test("snapshot storage validates bytes before issuing a tenant-bound immutable insert", async () => {
-  const calls: Array<{ text: string; values: unknown[] }> = [];
-  const pool = {
-    async query<Row = Record<string, unknown>>(
-      text: string,
-      values: unknown[] = [],
-    ): Promise<AnalysisQueryResult<Row>> {
-      calls.push({ text, values });
-      return { rows: [{ snapshot_id: "stored" } as Row], rowCount: 1 };
-    },
-    async connect() {
-      throw new Error("A transaction is not expected by this fixture.");
-    },
-  } satisfies AnalysisPool;
-  const repository = new AnalysisRepository(pool);
-  const store = createSnapshotStore({ repository, context: runContextExample });
+test("snapshot storage validates bytes and retains the owner scope in real D1", async () => {
+  const db = repository();
+  const store = createSnapshotStore({ repository: db, context });
+  const signal = new AbortController().signal;
   const valid = snapshot("A complete UTF-8 snapshot: café.");
-  await store.put(valid, new AbortController().signal);
-
-  assert.equal(calls.length, 1);
-  assert.match(calls[0]?.text ?? "", /ON CONFLICT .* DO NOTHING/);
-  assert.deepEqual(calls[0]?.values.slice(1, 4), [
-    runContextExample.tenantId,
-    runContextExample.ownerUserId,
-    runContextExample.visibility,
-  ]);
-
-  await assert.rejects(
-    store.put(
-      { ...valid, id: "forged", contentHash: hash("different") },
-      new AbortController().signal,
-    ),
-    /contentHash does not match/,
-  );
-  assert.equal(calls.length, 1);
+  await store.put(valid, signal);
+  expect(await store.get(valid.id, signal)).toEqual(valid);
+  expect(await store.getMany([valid.id], signal)).toEqual([valid]);
+  expect(
+    await db.getSnapshot({
+      scope: { ...context, ownerUserId: "another-owner" },
+      snapshotId: valid.id,
+    }),
+  ).toBeNull();
+  await expect(
+    store.put({ ...valid, id: "forged", contentHash: hash("different") }, signal),
+  ).rejects.toThrow(/contentHash does not match/);
+  expect(await store.get("forged", signal)).toBeNull();
 });
 
 test("stored raw blobs require a hash that matches resolved bytes", async () => {
+  const db = repository();
   const raw = new TextEncoder().encode("raw source bytes");
-  const pool = {
-    async query<Row = Record<string, unknown>>(): Promise<AnalysisQueryResult<Row>> {
-      return { rows: [{ snapshot_id: "stored" } as Row], rowCount: 1 };
-    },
-    async connect() {
-      throw new Error("A transaction is not expected by this fixture.");
-    },
-  } satisfies AnalysisPool;
   const store = createSnapshotStore({
-    repository: new AnalysisRepository(pool),
-    context: runContextExample,
+    repository: db,
+    context,
     blobStore: {
       async put() {
         return { status: "stored", uri: "snapshot://raw" };
@@ -101,99 +82,46 @@ test("stored raw blobs require a hash that matches resolved bytes", async () => 
       },
     },
   });
+  const signal = new AbortController().signal;
   const valid = {
     ...snapshot("normalized source"),
     rawContentHash: hash("raw source bytes"),
     blobLocator: { status: "stored" as const, uri: "snapshot://raw" },
   };
-  await store.put(valid, new AbortController().signal);
-  await assert.rejects(
-    store.put({ ...valid, rawContentHash: hash("forged") }, new AbortController().signal),
+  await store.put(valid, signal);
+  expect(await store.get(valid.id, signal)).toEqual(valid);
+  await expect(store.put({ ...valid, rawContentHash: hash("forged") }, signal)).rejects.toThrow(
     /rawContentHash does not match/,
   );
 });
 
-test("checkpoint writes fail closed when attempt and fencing validation changes no row", async () => {
-  const pool = {
-    async query<Row = Record<string, unknown>>(
-      text: string,
-      values: unknown[] = [],
-    ): Promise<AnalysisQueryResult<Row>> {
-      assert.match(text, /attempt = \$3 AND fencing_token = \$4/);
-      assert.deepEqual(values.slice(4, 7), [
-        runContextExample.tenantId,
-        runContextExample.ownerUserId,
-        runContextExample.visibility,
-      ]);
-      return { rows: [], rowCount: 0 };
-    },
-    async connect() {
-      throw new Error("A transaction is not expected by this fixture.");
-    },
-  } satisfies AnalysisPool;
-  const repository = new AnalysisRepository(pool);
-  await assert.rejects(
-    repository.checkpoint({
-      scope: {
-        tenantId: runContextExample.tenantId,
-        ownerUserId: runContextExample.ownerUserId,
-        visibility: runContextExample.visibility,
-      },
-      runId: runContextExample.runId,
-      stage: "normalize_input",
-      attempt: 1,
-      fencingToken: "expired-token",
-      checkpointHash: runContextExample.inputHash,
-      payloadJson: "{}",
-    }),
-    StaleWorkerError,
-  );
-});
-
-test("successful core transactions return healthy pool connections", async () => {
-  let destroyed: boolean | undefined;
-  const client = {
-    async query<Row = Record<string, unknown>>(text: string): Promise<AnalysisQueryResult<Row>> {
-      if (text === "BEGIN" || text === "COMMIT") return { rows: [] };
-      if (text.includes("SELECT run_id") && text.includes("FROM core_runs"))
-        return {
-          rows: [
-            {
-              run_id: runContextExample.runId,
-              input_hash: runContextExample.inputHash,
-              execution_mode: runContextExample.executionMode,
-              same_versions: true,
-              same_budget: true,
-            } as Row,
-          ],
-          rowCount: 1,
-        };
-      if (text.includes("INSERT INTO core_jobs"))
-        return {
-          rows: [{ job_id: `${runContextExample.runId}:normalize_input` } as Row],
-          rowCount: 1,
-        };
-      return { rows: [], rowCount: 0 };
-    },
-    release(destroy = false) {
-      destroyed = destroy;
-    },
-  } satisfies AnalysisTransactionClient;
-  const pool = {
-    async query() {
-      throw new Error("The transaction fixture should use its connected client.");
-    },
-    async connect() {
-      return client;
-    },
-  } satisfies AnalysisPool;
-
-  await new AnalysisRepository(pool).enqueue({
-    context: runContextExample,
+test("the run adapter preserves D1 fencing when a Workflow attempt is superseded", async () => {
+  const db = repository();
+  const created = await db.createRun({ context });
+  const first = await db.beginAttempt({
+    scope: context,
+    runId: context.runId,
     stage: "normalize_input",
-    payload: { fixture: true },
-    maxAttempts: 1,
+    expectedVersion: created.version,
   });
-
-  assert.equal(destroyed, false);
+  const next = await db.beginAttempt({
+    scope: context,
+    runId: context.runId,
+    stage: "normalize_input",
+    expectedVersion: first.version,
+  });
+  const store = createRunStore({ repository: db, context });
+  const request = {
+    runId: context.runId,
+    stage: "normalize_input" as const,
+    checkpointHash: context.inputHash,
+    payloadJson: "{}",
+    signal: new AbortController().signal,
+  };
+  await expect(store.checkpoint({ ...request, ...first })).rejects.toThrow(StaleWorkerError);
+  await store.checkpoint({ ...request, ...next });
+  expect(await store.readCheckpoint(request)).toEqual({
+    checkpointHash: context.inputHash,
+    payloadJson: "{}",
+  });
 });

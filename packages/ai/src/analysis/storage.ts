@@ -5,7 +5,7 @@ import {
   type DocumentSnapshot,
   type RunContext,
 } from "@repo/contracts/analysis";
-import type { AnalysisAccessScope, AnalysisRepository } from "@repo/db/analysis";
+import type { AnalysisAccessScope, D1AnalysisRepository } from "@repo/db/d1";
 import { canonicalJson } from "./hashing";
 import type { RunStorePort, SnapshotStorePort } from "./types";
 
@@ -110,7 +110,7 @@ async function validateSnapshotBytes(
 }
 
 export function createSnapshotStore(input: {
-  repository: Pick<AnalysisRepository, "putSnapshot" | "getSnapshot" | "getSnapshots">;
+  repository: Pick<D1AnalysisRepository, "putSnapshot" | "getSnapshot" | "getSnapshots">;
   context: RunContext;
   blobStore?: RawBlobStore;
   bounds?: SnapshotBounds;
@@ -143,7 +143,7 @@ export function createSnapshotStore(input: {
 }
 
 export function createRunStore(input: {
-  repository: Pick<AnalysisRepository, "checkpoint" | "readCheckpoint" | "finalize">;
+  repository: Pick<D1AnalysisRepository, "checkpoint" | "readCheckpoint" | "finalize">;
   context: RunContext;
 }): RunStorePort {
   const scope = accessScope(input.context);
