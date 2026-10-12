@@ -1,7 +1,7 @@
 import { createTestRuntime } from "@repo/db/test-runtime";
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 import { parseServerEnv, type ServerEnv } from "../src/server/env";
-import { authFor, readSessionUser, signInOptions } from "../src/server/session";
+import { authFor, readSessionUser, signInOptions } from "../src/server/session.server";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;
 let env: ServerEnv;
