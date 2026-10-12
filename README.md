@@ -31,20 +31,40 @@ The repository implements the Cloudflare runtime. Hosted cutover is still pendin
 see the [migration plan](docs/cloudflare-migration-plan.md). The initial hosted rollout uses
 GitHub sign-in; Google completion is the final migration phase.
 
-## Development
+## Quick start
 
-Use Vite+ for package management and validation:
+Use Node.js 24 LTS and Vite+ (`vp`). From the repository root:
 
 ```sh
 vp install
+cp -n apps/web/.dev.vars.example apps/web/.dev.vars
+chmod 600 apps/web/.dev.vars
+vp run db:migrate
+vp run dev
+```
+
+Open `http://localhost:3000`, choose Ada or Grace, and submit text, a public link, or a screenshot.
+Local fixture analysis runs offline through real D1/R2 and Workflows. Keep an existing private
+file when repeating setup. Cloudflare login, Docker, OAuth credentials, and paid provider keys
+are unnecessary for this fixture workflow.
+
+Workspace scripts run through `vp run`. The website's scripts invoke the Vite+ built-ins
+from `apps/web`, where its Vite and Wrangler configurations live.
+
+```sh
 vp check
 vp test --run
 vp run check-types
 vp run build
+vp exec --filter web --fail-if-no-match -- playwright install chromium
+vp run test:browser
 ```
 
-Workspace scripts run through `vp run`. The website's scripts invoke the Vite+ built-ins
-from `apps/web`, where its Vite and Wrangler configurations live.
+See [Cloudflare operations](docs/cloudflare-operations.md) for bindings, provider overrides,
+explicit live budgets, migrations, and recovery. [Staging setup](docs/staging-setup.md),
+[production setup](docs/production-setup.md), and the [rollout runbook](docs/cloudflare-rollout.md)
+cover the hosted gates. The Phase 2.6 real-provider test is deferred by the owner; fixture
+results do not close it.
 
 ## Architecture
 
