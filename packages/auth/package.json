@@ -11,7 +11,8 @@
     "./d1": "./src/d1.ts"
   },
   "scripts": {
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test:d1": "vp test --run test"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.7",
