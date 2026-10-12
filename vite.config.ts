@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
@@ -19,5 +20,12 @@ export default defineConfig({
       },
     ],
     options: { typeAware: true, typeCheck: true },
+  },
+  test: {
+    alias: {
+      "cloudflare:workers": fileURLToPath(
+        new URL("./apps/web/test/support/cloudflare-workers.ts", import.meta.url),
+      ),
+    },
   },
 });
