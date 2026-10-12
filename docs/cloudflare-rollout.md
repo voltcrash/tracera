@@ -5,18 +5,54 @@ This is reviewable preparation for Stage 4, not a record of completed hosted wor
 live-provider test until repository implementation is finished. Deployments, secret uploads,
 DNS/OAuth changes, and decommission require approval of concrete actions before execution.
 
-| Gate                          | Status                                                                            |
-| ----------------------------- | --------------------------------------------------------------------------------- |
-| Phase 2.6 local live analysis | Pending owner credentials, explicit bounds, and live result                       |
-| Phase 4.1 staging soak        | Pending approved secrets/deploy and signed live checks                            |
-| Phase 4.2 production cutover  | Pending staging sign-off and approved cutover batch                               |
-| Phase 4.3 decommission        | Pending agreed stable period, archive, deletion approvals, restore drill          |
-| Phase 4.4 Google OAuth        | Pending final registration/credential approval, code PR, deploy, browser sign-off |
+| Gate                          | Status                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------- |
+| Phase 2.6 local live analysis | Deferred by the owner under D18                                                          |
+| Phase 4.1 staging soak        | Deployed and smoke-checked under D18; owner GitHub round trip and provider checks remain |
+| Phase 4.2 production cutover  | Pending staging sign-off and approved cutover batch                                      |
+| Phase 4.3 decommission        | Pending agreed stable period, archive, deletion approvals, restore drill                 |
+| Phase 4.4 Google OAuth        | Pending final registration/credential approval, code PR, deploy, browser sign-off        |
 
 Record dates, reviewers, commit/Worker versions, run IDs, and outcomes beneath each gate.
 Keep keys, OAuth secrets, cookies, private inputs, and logs containing private data outside Git.
 Commands using `RUN_ID`, `BOOKMARK`, or private paths are templates; resolve them before
 presenting an exact approval batch. The following commands have not been executed here.
+
+## Stage 4 preflight
+
+Read-only checks on 2026-10-12 from `migrate/cloudflare` at `df9f8f7`, before any Stage 4
+hosted change. Wrangler ran with the scoped CI token against account
+`eb2679ce4f23ae7db4e6c4e3fcf8c3c1`.
+
+| Staging resource           | Observed state                                                               |
+| -------------------------- | ---------------------------------------------------------------------------- |
+| Worker `tracera-staging`   | Stage 0 bootstrap version `375cd268`; the workers.dev URL returns 503        |
+| D1 `tracera-staging`       | `4df15d26-…`, empty; `0000_baseline` and `0001_provider_spend_guard` pending |
+| R2 `tracera-staging-blobs` | Present                                                                      |
+| `tracera-staging-analysis` | Present, bound to script `tracera-staging` and class `AnalysisWorkflow`      |
+
+| Production resource           | Observed state                                                      |
+| ----------------------------- | ------------------------------------------------------------------- |
+| Worker `tracera`              | Stage 0 bootstrap version `9a424fa8`; no custom domain attached yet |
+| D1 `tracera-production`       | `26eeb656-…`, empty; the same two migrations pending                |
+| R2 `tracera-production-blobs` | Present                                                             |
+| `tracera-production-analysis` | Present, bound to script `tracera` and class `AnalysisWorkflow`     |
+
+Local validation at the same commit: `vp install`, `vp check`, and `vp test --run` (442 tests,
+62 files) pass, and `vp run web#deploy:staging-dry-run` packages 3.9 MiB (0.9 MiB gzip) with
+the `ANALYSIS_WORKFLOW`, `DB`, and `BLOBS` bindings and the staging `MODE=production`,
+`ANALYSIS_MODE=live`, and `BETTER_AUTH_URL` vars.
+
+The private Stage 0 files are mode 0600 in a mode-0700 directory. Checked by setting name only:
+
+| Private file           | Present                                                          | Missing before hosted use                                    |
+| ---------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------ |
+| `.dev.vars.staging`    | `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | AI provider, models and keys; every run and spend bound      |
+| `.dev.vars.production` | `BETTER_AUTH_SECRET`                                             | Production GitHub pair; AI provider, models and keys; bounds |
+
+Neither ignored `apps/web/.dev.vars.staging` nor `apps/web/.dev.vars.production` exists in
+this worktree yet. Hosted `MODE=production` with `ANALYSIS_MODE=live` requires the provider
+settings and bounds, so staging cannot be deployed usefully until the owner chooses them.
 
 ## Phase 4.1 — Staging soak
 
@@ -64,6 +100,32 @@ authorization; fixture metrics cannot close this gate.
 Sign-off: **pending**. Record reviewer, UTC window, model names, approved bounds, input types,
 run/instance IDs, verdict/evidence checks, observed usage, and any unresolved failures.
 
+### Staging deployment, 2026-10-12
+
+The owner directed the deployment under D18. The scoped CI token uploaded
+`BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET` from the private staging
+file with `wrangler secret bulk`; no AI settings were uploaded. `vp run deploy:staging` from
+`migrate/stage-4-4.1-staging-soak` at `db77d7a` applied `0000_baseline` and
+`0001_provider_spend_guard` to remote `tracera-staging`, then deployed Worker version
+`9d53b87f-4056-4515-a178-058e7eec1ccf` with the hourly cron and `tracera-staging-analysis`.
+
+Provider-free smoke checks against the deployed staging Worker:
+
+| Check                                           | Result                                                               |
+| ----------------------------------------------- | -------------------------------------------------------------------- |
+| `/` and `/auth/error`                           | 200 with per-request CSP nonce and `x-request-id`                    |
+| `/api/health`                                   | 200, `{"status":"ok","services":{"database":"connected"}}`           |
+| `/home` and `/settings` while signed out        | 307 to `/`                                                           |
+| Sign-in page providers                          | Only "Continue with GitHub"; Google returns `PROVIDER_NOT_FOUND`     |
+| GitHub sign-in start                            | Redirects to `github.com/login` with the staging client and callback |
+| Chromium console on `/`, `/auth/error`, `/home` | No errors and no CSP violations                                      |
+| Analysis without a provider                     | Covered by the `startAnalysisRun` unavailable test; returns 503      |
+
+Phase 4.1 sign-off under D18: **passed for provider-free automated checks**, 2026-10-12. The
+automation browser has no GitHub session, so the owner's real GitHub round trip (callback,
+reload, settings linked accounts, sign-out) is the one manual check left. Every analysis,
+control, spend, and live-evaluation item waits for a configured provider.
+
 ## Phase 4.2 — Production cutover
 
 Start only after Phase 4.1 sign-off. Review the actual current DNS record and Vercel project
@@ -88,6 +150,11 @@ gh secret set CLOUDFLARE_API_TOKEN --repo voltcrash/tracera --env production < /
 gh secret set PRODUCTION_WORKER_ENV --repo voltcrash/tracera --env production < apps/web/.dev.vars.production
 ```
 
+The repository already has `Preview` and `Production` environments from the Vercel
+integration, with no protection rules, branch policy, or secrets. GitHub environment names are
+case-insensitive, so the release workflow's `production` job and the `PUT` above both use the
+existing `Production` environment. The repository has no Actions secrets yet.
+
 Then perform the plan's cutover order:
 
 1. Turn off Vercel Git deployments for the verified Tracera project. Record the setting and
@@ -109,6 +176,12 @@ gh workflow run production-release.yml --repo voltcrash/tracera --ref main
 
 Resolve hosted project/zone/record identifiers with read-only inventory before drafting their
 exact write commands. Placeholder deletion commands are not an approved action.
+
+Observed on 2026-10-12: `voltcrash.com` is served by Cloudflare nameservers (zone
+`80d71d02a1ef8a833c5502e31dd5ee6f`). Public DNS answers `tracera.voltcrash.com` with a
+DNS-only `CNAME` to `938bc3975bc3bd4e.vercel-dns-017.com` (TTL 300), and the site serves the
+Next.js build. Neither the CI token nor the local Wrangler login can read DNS records, so the
+record ID must come from the owner's dashboard or a token with DNS read before step 3.
 
 Before decommission, rollback removes the Worker custom domain and restores the saved Vercel
 DNS record and Git integration. Review and approve the exact rollback actions first. Old data
