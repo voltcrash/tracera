@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useHydrated } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { projectReport } from "@repo/ai/analysis/report-view";
 import { AnalysisReport } from "@/components/analysis/analysis-report";
@@ -21,6 +22,7 @@ const TERMINAL = new Set<Progress["status"]>([
 // Leaving the page only closes the progress stream; the run continues until it finishes or is
 // explicitly canceled.
 export function RunDetail({ id, initial }: { id: string; initial: RunState }) {
+  const hydrated = useHydrated();
   const [state, setState] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const requestCancel = useServerFn(cancelRun);
@@ -79,7 +81,12 @@ export function RunDetail({ id, initial }: { id: string; initial: RunState }) {
             Attempt {progress.attempt} · {progress.completedStages.length} of 8 stages recorded
           </p>
           {!progress.cancellationRequested && !terminal ? (
-            <Button className="mt-6" variant="outline" onClick={() => void cancel()}>
+            <Button
+              className="mt-6"
+              variant="outline"
+              disabled={!hydrated}
+              onClick={() => void cancel()}
+            >
               Cancel analysis
             </Button>
           ) : null}
