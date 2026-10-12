@@ -204,6 +204,16 @@ and the rollback window (D18). Actual order:
    its pair and the Stage 0 auth secret, with no AI settings. Locally, `check:production`
    passed with the D18 notice and `deploy:production-dry-run` showed the production bindings.
 
+### First production release, 2026-10-12
+
+[PR #56](https://github.com/voltcrash/tracera/pull/56) merged `migrate/cloudflare` into `main`
+at `b9397c9` after its CI passed. The manually dispatched
+[release run](https://github.com/voltcrash/tracera/actions/runs/38288558499) built and checked
+production with the D18 notice, dry-ran, applied `0000_baseline` and
+`0001_provider_spend_guard` to the empty `tracera-production`, deployed Worker version
+`b415862b-c97b-4cf8-a9ca-46a1219235b3`, and then published
+[`v26.10.12`](https://github.com/voltcrash/tracera/releases/tag/v26.10.12) on `b9397c9`.
+
 Sign-off: **pending**. Record announcement/approval links, integration and deployed SHAs,
 release/tag URL, DNS record inventory, GitHub smoke result, observation window, and rollback
 owner. Decommission must not begin while production stability is unresolved.
