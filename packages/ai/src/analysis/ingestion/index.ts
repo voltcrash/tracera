@@ -6,6 +6,7 @@ export {
   type DocumentAcquisitionOptions,
 } from "./acquisition";
 export { extractStructuredHtml, type StructuredHtmlResult } from "./html";
+export { createR2RawBlobStore } from "./raw-blob-store";
 export { normalizeInput } from "./normalize-input";
 export {
   supportsImageAcquisition,
