@@ -60,6 +60,23 @@ test("the committed production config passes with complete synthetic secrets", (
   expect(() => validateProductionInputs(valid)).not.toThrow();
 });
 
+const withoutAi = Object.fromEntries(
+  Object.entries(secrets).filter(([name]) => !name.startsWith("AI_") && !(name in controls)),
+);
+
+test("production may omit every AI provider setting and bound", () => {
+  expect(() => validateProductionInputs({ ...valid, secrets: withoutAi })).not.toThrow();
+});
+
+test.each(["AI_PROVIDER", "AI_MODEL", "AI_API_KEY", "AI_EMBEDDING_MODEL"] as const)(
+  "a lone %s is rejected as an incomplete provider",
+  (name) => {
+    expect(() =>
+      validateProductionInputs({ ...valid, secrets: { ...withoutAi, [name]: secrets[name] } }),
+    ).toThrow("AI provider configuration is incomplete");
+  },
+);
+
 test("Google stays optional while both credentials are absent", () => {
   expect(() =>
     validateProductionInputs({

@@ -6,6 +6,16 @@ type Values = Record<string, string | undefined>;
 
 const LOCAL_AUTH_SECRET = "tracera-local-development-secret-only";
 const REQUIRED_SECRETS = ["BETTER_AUTH_SECRET", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"];
+const PROVIDER_SETTINGS = [
+  "AI_PROVIDER",
+  "AI_MODEL",
+  "AI_API_KEY",
+  "AI_BASE_URL",
+  "AI_EMBEDDING_PROVIDER",
+  "AI_EMBEDDING_MODEL",
+  "AI_EMBEDDING_API_KEY",
+  "AI_EMBEDDING_BASE_URL",
+];
 
 const resources = z.object({
   name: z.string(),
@@ -112,20 +122,23 @@ export function validateProductionInputs(inputs: {
   )
     throw new Error("Configure both Google OAuth credentials or neither.");
 
-  try {
-    resolveAnalysisProvider({ userId: "production-check", env: settings });
-  } catch (error) {
-    throw new Error(
-      `Production AI provider configuration is incomplete: ${(error as Error).message}`,
-    );
-  }
+  // D18: without any provider settings, production runs with analysis unavailable.
+  if (PROVIDER_SETTINGS.some((name) => configured(settings[name]))) {
+    try {
+      resolveAnalysisProvider({ userId: "production-check", env: settings });
+    } catch (error) {
+      throw new Error(
+        `Production AI provider configuration is incomplete: ${(error as Error).message}`,
+      );
+    }
 
-  const runtime = analysisPolicy(
-    { ...settings, MODE: "production", ANALYSIS_MODE: "live" },
-    "production-check",
-  );
-  if (!runtime.enabled)
-    throw new Error(`Production analysis controls are incomplete: ${runtime.message}`);
+    const runtime = analysisPolicy(
+      { ...settings, MODE: "production", ANALYSIS_MODE: "live" },
+      "production-check",
+    );
+    if (!runtime.enabled)
+      throw new Error(`Production analysis controls are incomplete: ${runtime.message}`);
+  }
 
   if (inputs.built !== undefined) {
     const built = resources.safeParse(inputs.built);
