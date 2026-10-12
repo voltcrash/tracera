@@ -219,8 +219,12 @@ export const analysisReportVersions = sqliteTable(
     schemaVersion: integer("schema_version").notNull(),
     contractVersion: text("contract_version").notNull(),
     engineVersion: text("engine_version").notNull(),
-    diagnosticLabels: text("diagnostic_labels", { mode: "json" }).$type<string[]>().notNull(),
-    publishedLabels: text("published_labels", { mode: "json" }).$type<string[]>().notNull(),
+    diagnosticLabels: text("diagnostic_labels", { mode: "json" })
+      .$type<Array<{ claimId: string; label: string }>>()
+      .notNull(),
+    publishedLabels: text("published_labels", { mode: "json" })
+      .$type<Array<{ claimId: string; label: string }>>()
+      .notNull(),
     factualScore: real("factual_score"),
     scoreNullReasons: text("score_null_reasons", { mode: "json" }).$type<string[]>().notNull(),
     evidenceSetHash: text("evidence_set_hash"),
