@@ -112,7 +112,12 @@ export async function safeFetch(
       await cancelResponse(response);
       throw new Error("The link redirected to an invalid destination.");
     }
-    await resolvePublicTarget(nextUrl, options.resolveHostAddresses, skipHostnameResolution);
+    try {
+      await resolvePublicTarget(nextUrl, options.resolveHostAddresses, skipHostnameResolution);
+    } catch (error) {
+      await cancelResponse(response);
+      throw error;
+    }
 
     if (redirectMode === "error") {
       await cancelResponse(response);
@@ -247,6 +252,7 @@ async function resolvePublicTarget(
   skipHostnameResolution = false,
 ): Promise<{ addresses: ResolvedAddress[] }> {
   if (!/^https?:$/.test(url.protocol)) throw new Error("Only HTTP(S) links are supported.");
+  if (url.port) throw new Error("Only the default HTTP(S) ports are supported.");
   if (url.username || url.password) {
     throw new Error("Links with embedded credentials are not supported.");
   }

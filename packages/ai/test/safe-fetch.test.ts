@@ -83,3 +83,95 @@ test("validates redirect targets before following them", async () => {
   await assert.rejects(safeFetch("https://public.example/start"), /private network hosts/);
   assert.deepEqual(requestedUrls, ["https://public.example/start"]);
 });
+
+test("rejects unsafe protocols, ports, credentials and private hostnames before fetching", async () => {
+  let requests = 0;
+  const safeFetch = createSafeFetch({
+    fetchImplementation: async () => {
+      requests += 1;
+      return new Response("unexpected");
+    },
+  });
+  for (const url of [
+    "file:///etc/passwd",
+    "ftp://public.example/file",
+    "https://public.example:8080/",
+    "http://public.example:443/",
+    "https://user:password@public.example/",
+    "http://localhost./",
+    "https://metadata.google.internal/",
+    "http://host.home.arpa/",
+  ])
+    await assert.rejects(safeFetch(url));
+  assert.equal(requests, 0);
+});
+
+test("follows only validated redirects with manual transport and strips cross-origin credentials", async () => {
+  const requests: RequestInit[] = [];
+  const safeFetch = createSafeFetch({
+    resolveHostAddresses: async () => ["8.8.8.8"],
+    fetchImplementation: async (_url, init) => {
+      requests.push(init!);
+      return requests.length === 1
+        ? new Response(null, { status: 302, headers: { location: "https://second.example/end" } })
+        : new Response("done");
+    },
+  });
+  const response = await safeFetch("https://first.example/start", {
+    method: "POST",
+    body: "payload",
+    headers: {
+      authorization: "Bearer secret",
+      cookie: "session=secret",
+      "proxy-authorization": "secret",
+      "content-type": "text/plain",
+    },
+  });
+  assert.equal(await response.text(), "done");
+  assert.equal(response.url, "https://second.example/end");
+  assert.equal(response.redirected, true);
+  assert.equal(requests[0]!.redirect, "manual");
+  assert.equal(requests[1]!.redirect, "manual");
+  assert.equal(requests[1]!.method, "GET");
+  assert.equal(requests[1]!.body, undefined);
+  const headers = new Headers(requests[1]!.headers);
+  for (const name of ["authorization", "cookie", "proxy-authorization", "content-type"])
+    assert.equal(headers.has(name), false);
+});
+
+test("cancels a redirect body when destination validation fails", async () => {
+  let cancelled = false;
+  const safeFetch = createSafeFetch({
+    fetchImplementation: async () =>
+      new Response(
+        new ReadableStream({
+          cancel() {
+            cancelled = true;
+          },
+        }),
+        {
+          status: 307,
+          headers: { location: "https://public.example:8000/" },
+        },
+      ),
+  });
+  await assert.rejects(safeFetch("https://public.example/start"), /ports/);
+  assert.equal(cancelled, true);
+});
+
+test("honors abort signals without starting a transport request", async () => {
+  let fetched = false;
+  const safeFetch = createSafeFetch({
+    fetchImplementation: async () => {
+      fetched = true;
+      return new Response();
+    },
+  });
+  const controller = new AbortController();
+  controller.abort(new Error("stopped"));
+  await assert.rejects(
+    safeFetch("https://public.example/", { signal: controller.signal }),
+    /stopped/,
+  );
+  assert.equal(fetched, false);
+});
