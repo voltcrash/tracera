@@ -10,8 +10,10 @@
     "check-types": "tsc --noEmit",
     "test:auth-browser": "playwright test local-auth.e2e.ts",
     "test:focused-browser": "playwright test focused-acceptance.e2e.ts",
-    "cf-typegen": "wrangler types --env-file .dev.vars.example",
-    "preview": "vp preview"
+    "cf-typegen": "wrangler types --env-file .dev.vars.example && vp fmt worker-configuration.d.ts",
+    "preview": "vp preview",
+    "db:migrate": "wrangler d1 migrations apply tracera-staging --local",
+    "db:reset": "node -e \"require('node:fs').rmSync('.wrangler/state/v3/d1', { recursive: true, force: true })\" && vp run db:migrate"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
