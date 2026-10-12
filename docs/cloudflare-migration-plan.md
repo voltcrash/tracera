@@ -1,9 +1,8 @@
 # Cloudflare migration plan
 
-Status: Stage 1 foundations implemented, 2026-10-12; all five phase exit criteria pass
-locally and the stacked PRs remain open for review. Stage 0 is complete. D1–D16 were
-accepted in Phase 0.1; the owner accepted D17 on 2026-10-12. Stage 2–4 implementation and
-hosted rollout gates remain open.
+Status: Stage 2 in progress, 2026-10-12. Stages 0 and 1 are complete and merged. Phase 2.1
+passes locally; its PR targets `migrate/cloudflare`. D1–D17 are accepted. Stage 2–4
+implementation and hosted rollout gates remain open.
 
 Tracera moves from Next.js + Hono on Vercel with Neon Postgres to a single TanStack Start
 application running on one Cloudflare Worker, backed by D1, R2, and Workflows. AI stays on the
@@ -374,6 +373,8 @@ resources, secrets, deployments, DNS or OAuth apps were changed during Stage 1.
 ### Stage 2 — The app on TanStack Start and Workers
 
 Pull requests target `migrate/cloudflare`.
+
+Progress and evidence: [Stage 2 notes](cloudflare-stage-2-app.md).
 
 **Phase 2.1 — Framework swap and the oxytype config model.**
 
