@@ -7,11 +7,8 @@ import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   plugins: [
-    cloudflare({
-      viteEnvironment: { name: "ssr" },
-      // Production builds select wrangler.production.json; everything else uses staging.
-      configPath: process.env.WORKER_CONFIG ?? "wrangler.jsonc",
-    }),
+    // build:production selects wrangler.production.json through CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH.
+    cloudflare({ viteEnvironment: { name: "ssr" } }),
     tanstackStart({ router: { quoteStyle: "double", semicolons: true } }),
     react(),
     tailwindcss(),

@@ -13,7 +13,8 @@
     "cf-typegen": "wrangler types --env-file .dev.vars.example && vp fmt worker-configuration.d.ts",
     "preview": "vp preview",
     "db:migrate": "wrangler d1 migrations apply tracera-staging --local",
-    "db:reset": "node -e \"require('node:fs').rmSync('.wrangler/state/v3/d1', { recursive: true, force: true })\" && vp run db:migrate"
+    "db:reset": "node -e \"require('node:fs').rmSync('.wrangler/state/v3/d1', { recursive: true, force: true })\" && vp run db:migrate",
+    "build:production": "CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH=wrangler.production.json vp build"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
