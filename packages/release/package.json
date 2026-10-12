@@ -9,5 +9,8 @@
   },
   "scripts": {
     "test:release": "vp test --run test"
+  },
+  "devDependencies": {
+    "yaml": "^2.9.1"
   }
 }
