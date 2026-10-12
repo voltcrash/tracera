@@ -142,3 +142,65 @@ test("snapshot identities are immutable, idempotent and isolated by full ownersh
     }),
   ).toEqual([snapshot]);
 });
+
+test("cancellation is scoped and only the current attempt can acknowledge it", async () => {
+  const repository = repo();
+  const ctx = context("cancel-active");
+  await repository.createRun({ context: ctx });
+  const attempt = await repository.beginAttempt({
+    scope,
+    runId: ctx.runId,
+    stage: "normalize_input",
+    expectedVersion: 0,
+  });
+  expect(
+    await repository.requestCancellation({
+      scope: { ...scope, ownerUserId: "other" },
+      runId: ctx.runId,
+      reason: "user_request",
+    }),
+  ).toBe(false);
+  expect(
+    await repository.requestCancellation({ scope, runId: ctx.runId, reason: "user_request" }),
+  ).toBe(true);
+  await expect(
+    repository.checkpoint({ scope, ...attempt, checkpointHash: ctx.inputHash, payloadJson: "{}" }),
+  ).rejects.toThrow(StaleWorkerError);
+  await expect(
+    repository.acknowledgeCancellation({ scope, ...attempt, fencingToken: "stale" }),
+  ).rejects.toThrow(StaleWorkerError);
+  await repository.acknowledgeCancellation({ scope, ...attempt });
+  expect((await repository.getRunProgress({ scope, runId: ctx.runId }))?.status).toBe("canceled");
+  expect(
+    await repository.getRunProgress({ scope: { ...scope, tenantId: "other" }, runId: ctx.runId }),
+  ).toBeNull();
+});
+
+test("queued cancellation and terminal failure prevent later attempt claims", async () => {
+  const repository = repo();
+  const queued = context("cancel-queued");
+  await repository.createRun({ context: queued });
+  await repository.requestCancellation({ scope, runId: queued.runId, reason: "user_request" });
+  expect((await repository.getRunProgress({ scope, runId: queued.runId }))?.status).toBe(
+    "canceled",
+  );
+  const failed = context("failed-run");
+  await repository.createRun({ context: failed });
+  await repository.failRun({
+    scope,
+    runId: failed.runId,
+    fencingToken: null,
+    error: "synthetic failure",
+  });
+  expect(
+    await repository.requestCancellation({ scope, runId: failed.runId, reason: "user_request" }),
+  ).toBe(false);
+  await expect(
+    repository.beginAttempt({
+      scope,
+      runId: failed.runId,
+      stage: "normalize_input",
+      expectedVersion: 1,
+    }),
+  ).rejects.toThrow(StaleWorkerError);
+});

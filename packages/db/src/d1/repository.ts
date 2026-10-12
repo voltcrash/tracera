@@ -126,6 +126,127 @@ export class D1AnalysisRepository {
       .first<RunRow>();
   }
 
+  async requestCancellation(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+    reason: Exclude<RunContext["cancellation"]["reason"], null>;
+  }): Promise<boolean> {
+    const now = this.now();
+    const cancellation = JSON.stringify({
+      requested: true,
+      requestedAt: new Date(now).toISOString(),
+      reason: input.reason,
+    });
+    const result = await this.database
+      .prepare(`UPDATE core_runs SET cancellation=?,status=CASE WHEN status='queued' THEN 'canceled' ELSE status END,finalized_at=CASE WHEN status='queued' THEN ? ELSE finalized_at END,updated_at=?,version=version+1
+      WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND finalized_at IS NULL RETURNING run_id`)
+      .bind(cancellation, now, now, input.runId, ...scopeValues(input.scope))
+      .all();
+    return result.results.length === 1;
+  }
+
+  async acknowledgeCancellation(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+    attempt: number;
+    fencingToken: string;
+  }): Promise<void> {
+    const now = this.now();
+    const [changed] = await this.database.batch([
+      this.database
+        .prepare(
+          `UPDATE core_runs SET status='canceled',finalized_at=?,updated_at=?,version=version+1 WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND attempt=? AND fencing_token=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=1 RETURNING run_id`,
+        )
+        .bind(
+          now,
+          now,
+          input.runId,
+          ...scopeValues(input.scope),
+          input.attempt,
+          input.fencingToken,
+        ),
+      this.database
+        .prepare(
+          `UPDATE core_stage_attempts SET finished_at=?,outcome='canceled' WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=? AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND status='canceled' AND fencing_token=?)`,
+        )
+        .bind(
+          now,
+          input.runId,
+          ...scopeValues(input.scope),
+          input.fencingToken,
+          input.runId,
+          input.fencingToken,
+        ),
+    ]);
+    if (!changed!.results.length)
+      throw new StaleWorkerError("Cancellation acknowledgement rejected for stale worker.");
+  }
+
+  async failRun(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+    fencingToken: string | null;
+    error: string;
+  }): Promise<void> {
+    const now = this.now();
+    const [changed] = await this.database.batch([
+      this.database
+        .prepare(
+          `UPDATE core_runs SET status='failed',last_error=?,finalized_at=?,updated_at=?,version=version+1 WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token IS ? AND finalized_at IS NULL RETURNING run_id`,
+        )
+        .bind(
+          input.error.slice(0, 2000),
+          now,
+          now,
+          input.runId,
+          ...scopeValues(input.scope),
+          input.fencingToken,
+        ),
+      this.database
+        .prepare(
+          `UPDATE core_stage_attempts SET finished_at=?,outcome='failed' WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=? AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND status='failed' AND fencing_token IS ?)`,
+        )
+        .bind(
+          now,
+          input.runId,
+          ...scopeValues(input.scope),
+          input.fencingToken,
+          input.runId,
+          input.fencingToken,
+        ),
+    ]);
+    if (!changed!.results.length)
+      throw new StaleWorkerError("Failure rejected for finalized or superseded run.");
+  }
+
+  async getRunProgress(input: { scope: AnalysisAccessScope; runId: string }) {
+    const [runs, checkpoints] = await this.database.batch<RunRow & { stage: StageName }>([
+      this.database
+        .prepare(
+          "SELECT * FROM core_runs WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=?",
+        )
+        .bind(input.runId, ...scopeValues(input.scope)),
+      this.database
+        .prepare(
+          "SELECT stage FROM core_stage_checkpoints WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? ORDER BY updated_at,rowid",
+        )
+        .bind(input.runId, ...scopeValues(input.scope)),
+    ]);
+    const row = runs!.results[0];
+    return row
+      ? {
+          runId: row.run_id,
+          status: row.status,
+          stage: row.stage,
+          attempt: row.attempt,
+          version: row.version,
+          cancellationRequested: JSON.parse(row.cancellation).requested === true,
+          completedStages: checkpoints!.results.map((row) => row.stage),
+          updatedAt: new Date(row.updated_at).toISOString(),
+        }
+      : null;
+  }
+
   async putSnapshot(input: {
     scope: AnalysisAccessScope;
     snapshot: DocumentSnapshot;
