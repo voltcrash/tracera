@@ -574,6 +574,11 @@ concurrency limits, idempotent replay, daily quota, and the spend circuit. Revie
 workflow instances, D1 metrics, and provider usage dashboards, and run the live evaluation
 against staging. Exit: checklist signed off.
 
+Under D18, Phase 4.1 signs off the checks that need no AI provider: deployment, GitHub sign-in,
+sessions, settings, run history, CSP, logs, and analysis reporting `analysis_unavailable`.
+Analysis, progress, cancellation, evidence, control limits, spend, and the live evaluation are
+checked when a provider is configured.
+
 **Phase 4.2 — Production cutover.** Production starts with an empty D1 (D6), so there is no
 import and no write freeze.
 
