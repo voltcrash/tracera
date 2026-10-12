@@ -4,19 +4,21 @@ import * as databaseSchema from "@repo/db/schema";
 import { assertEnvironmentConfiguration } from "@repo/environment";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createAuthEndpoint } from "better-auth/api";
-import { setSessionCookie } from "better-auth/cookies";
-
-export const TRACERA_AUTH_BASE_PATH = "/api/auth";
-export const DEV_AUTH_BYPASS_PATH = "/dev-login";
-export const DEV_AUTH_IDENTITIES_PATH = "/dev-identities";
+import {
+  TRACERA_AUTH_BASE_PATH,
+  LOCAL_AUTH_IDENTITIES,
+  devAuthBypass,
+  isLoopbackHostname,
+  discardOAuthTokenMaterial,
+} from "#auth-policy";
+export {
+  TRACERA_AUTH_BASE_PATH,
+  DEV_AUTH_BYPASS_PATH,
+  DEV_AUTH_IDENTITIES_PATH,
+  LOCAL_AUTH_IDENTITIES,
+} from "#auth-policy";
 
 const TRACERA_PRODUCTION_ORIGIN = "https://tracera.voltcrash.com";
-
-export const LOCAL_AUTH_IDENTITIES = [
-  { id: "ada", email: "ada@tracera.local", name: "Ada Local" },
-  { id: "grace", email: "grace@tracera.local", name: "Grace Local" },
-] as const;
 
 export type AuthRuntimeEnv = {
   NODE_ENV?: string;
@@ -169,62 +171,6 @@ function optionalCredentials(
   return clientId && clientSecret ? { clientId, clientSecret } : null;
 }
 
-function discardOAuthTokenMaterial() {
-  return {
-    data: {
-      accessToken: null,
-      refreshToken: null,
-      idToken: null,
-      accessTokenExpiresAt: null,
-      refreshTokenExpiresAt: null,
-    },
-  };
-}
-
-function devAuthBypass(identities: typeof LOCAL_AUTH_IDENTITIES) {
-  return {
-    id: "tracera-dev-auth-bypass",
-    endpoints: {
-      devLogin: createAuthEndpoint(
-        DEV_AUTH_BYPASS_PATH,
-        { method: "GET", metadata: { scope: "server" } },
-        async (context) => {
-          const request = context.request;
-          if (!request || !isLoopbackHostname(new URL(request.url).hostname)) {
-            throw context.error("NOT_FOUND");
-          }
-          const identityId = new URL(request.url).searchParams.get("identity") ?? "";
-          const identity = identities.find((candidate) => candidate.id === identityId);
-          if (!identity) throw context.error("NOT_FOUND");
-
-          const adapter = context.context.internalAdapter;
-          const existingUser = await adapter.findUserByEmail(identity.email);
-          let user = existingUser?.user;
-          if (!user) {
-            try {
-              user = await adapter.createUser(
-                {
-                  email: identity.email,
-                  name: identity.name,
-                  emailVerified: true,
-                },
-                { method: "dev-auth-bypass" },
-              );
-            } catch (error) {
-              user = (await adapter.findUserByEmail(identity.email))?.user;
-              if (!user) throw error;
-            }
-          }
-          const session = await adapter.createSession(user.id);
-
-          await setSessionCookie(context, { session, user });
-          throw context.redirect(new URL("/home", request.url).toString());
-        },
-      ),
-    },
-  };
-}
-
 function isLocalAppOrigin(origin: string | undefined, port: string | undefined) {
   if (!origin || !port) return false;
   try {
@@ -238,10 +184,6 @@ function isLocalAppOrigin(origin: string | undefined, port: string | undefined) 
   } catch {
     return false;
   }
-}
-
-function isLoopbackHostname(hostname: string) {
-  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
 export type TraceraAuth = ReturnType<typeof createAuth>;
