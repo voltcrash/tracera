@@ -67,7 +67,7 @@ export const getMe = createServerFn({ method: "GET" })
 
 export const startAnalysis = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .inputValidator(validateStartAnalysisInput)
+  .validator(validateStartAnalysisInput)
   .handler(async ({ context, data }) =>
     outcome(
       await startAnalysisRun({
@@ -86,7 +86,7 @@ export const listRuns = createServerFn({ method: "GET" })
 
 export const getRun = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .inputValidator(runIdInput)
+  .validator(runIdInput)
   .handler(async ({ context, data }) => {
     const state = await readRunState(serverEnv(), context.user, data.runId);
     if (!state) throw notFound();
@@ -95,7 +95,7 @@ export const getRun = createServerFn({ method: "GET" })
 
 export const cancelRun = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .inputValidator(runIdInput)
+  .validator(runIdInput)
   .handler(async ({ context, data }) => {
     const env = serverEnv();
     const request = getRequest();
