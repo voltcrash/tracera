@@ -105,3 +105,39 @@ test("production and disabled bypass configurations never register dev login", a
     expect(response.headers.get("set-cookie")).toBeNull();
   }
 });
+
+test("the dev identities endpoint lists names only on the configured loopback origin", async () => {
+  const origin = "http://127.0.0.1:4173";
+  const auth = makeAuth(origin);
+  const response = await auth.handler(new Request(`${origin}/api/auth/dev-identities`));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    identities: [
+      { id: "ada", name: "Ada Local" },
+      { id: "grace", name: "Grace Local" },
+    ],
+  });
+  for (const url of [
+    "http://localhost:4173/api/auth/dev-identities",
+    "https://dev.tracera.test/api/auth/dev-identities",
+  ])
+    expect((await auth.handler(new Request(url))).status).toBe(404);
+});
+
+test("production and disabled bypass configurations never list dev identities", async () => {
+  const origin = "https://tracera-staging.voltcrash.workers.dev";
+  for (const overrides of [
+    { DEV_AUTH_BYPASS: "false" },
+    {
+      MODE: "production" as const,
+      BETTER_AUTH_URL: origin,
+      GITHUB_CLIENT_ID: "stub-id",
+      GITHUB_CLIENT_SECRET: "stub-secret",
+    },
+  ]) {
+    const response = await makeAuth(origin, overrides).handler(
+      new Request(`${origin}/api/auth/dev-identities`),
+    );
+    expect(response.status).toBe(404);
+  }
+});
