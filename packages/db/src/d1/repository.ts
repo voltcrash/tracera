@@ -128,6 +128,38 @@ export class D1AnalysisRepository {
       .first<RunRow>();
   }
 
+  async listRuns(input: { scope: AnalysisAccessScope; limit: number }) {
+    if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100)
+      throw new RangeError("Run history limit must be between 1 and 100.");
+    const rows = await this.database
+      .prepare(
+        "SELECT * FROM core_runs WHERE tenant_id=? AND owner_user_id=? AND visibility=? ORDER BY created_at DESC,run_id DESC LIMIT ?",
+      )
+      .bind(...scopeValues(input.scope), input.limit)
+      .all<RunRow>();
+    return Promise.all(
+      rows.results.map(async (row) => ({
+        runId: row.run_id,
+        status: row.status,
+        createdAt: new Date(row.created_at).toISOString(),
+        report: await this.getLatestReport({ scope: input.scope, runId: row.run_id }),
+      })),
+    );
+  }
+
+  async findLatestCompletedReport(input: {
+    scope: AnalysisAccessScope;
+    inputHash: string;
+  }): Promise<RunReport | null> {
+    const row = await this.database
+      .prepare(
+        "SELECT run_id FROM core_runs WHERE tenant_id=? AND owner_user_id=? AND visibility=? AND input_hash=? AND status='complete' ORDER BY finalized_at DESC,run_id DESC LIMIT 1",
+      )
+      .bind(...scopeValues(input.scope), input.inputHash)
+      .first<{ run_id: string }>();
+    return row ? this.getLatestReport({ scope: input.scope, runId: row.run_id }) : null;
+  }
+
   async getLatestReport(input: {
     scope: AnalysisAccessScope;
     runId: string;

@@ -271,3 +271,22 @@ test("finalization rejects missing evidence, then atomically publishes one concu
     report.decisions.map(({ claimId, diagnosticLabel }) => ({ claimId, label: diagnosticLabel })),
   );
 });
+
+test("run history and completed-report reuse stay inside the ownership scope", async () => {
+  const repository = repo();
+  const history = await repository.listRuns({ scope, limit: 100 });
+  expect(history.some((run) => run.runId === "finalize-run" && run.report !== null)).toBe(true);
+  expect(await repository.listRuns({ scope: { ...scope, tenantId: "other" }, limit: 100 })).toEqual(
+    [],
+  );
+  expect(
+    (await repository.findLatestCompletedReport({ scope, inputHash: runContextExample.inputHash }))
+      ?.runId,
+  ).toBe("finalize-run");
+  expect(
+    await repository.findLatestCompletedReport({
+      scope: { ...scope, visibility: "public" },
+      inputHash: runContextExample.inputHash,
+    }),
+  ).toBeNull();
+});
