@@ -255,3 +255,33 @@ configure the chosen provider/model/key and explicit run/spend bounds in `.dev.v
 `vp run dev:live` and complete an analysis. The hosted provider-network probe recorded in
 Stage 0 remains open and requires approval before deploying or changing hosted secrets.
 No hosted resources, secrets, deployments, DNS, or OAuth apps changed.
+
+## Phase 2.7 — Scheduled maintenance
+
+Result: **PASS** locally, 2026-10-12. PR: [#48](https://github.com/voltcrash/tracera/pull/48).
+
+- The scheduled Worker handler reconciles errored or terminated instances, respects scoped
+  owner cancellation and its grace period, and completes interrupted admission release for
+  already-finalized reports. Native status outages leave runs active and do not block expiry
+  cleanup. Paginated scans reach runs beyond the first 100 instances.
+- One guarded D1 batch conservatively charges expired spend reservations at their estimate,
+  updates the spend circuit, and purges expired idempotency keys, released/expired leases,
+  old rate windows, expired sessions/verifications, and settled expired reservations. Concurrent
+  calls do not double-charge; active reservations and records survive.
+- Miniflare tests cover every expiry category, spend concurrency, Workflow failure, running and
+  queued cancellation, pagination, status outages, and recovery after report finalization.
+
+The real local scheduled endpoint returned `outcome: ok` and logged two expired leases and
+two old rate windows purged, with zero Workflow status errors. Reproduce while `vp run dev`
+is running:
+
+```sh
+curl --fail-with-body -X POST \
+  'http://localhost:3000/cdn-cgi/local/explorer/api/local/scheduled?worker=tracera-staging' \
+  -H 'Content-Type: application/json' --data '{"cron":"17 * * * *"}'
+```
+
+Validation: `vp install`, `vp check`, `vp test --run` (412 passed; 10 legacy Postgres cases
+skipped), `vp run check-types`, and `vp run build` pass. Evidence:
+`packages/db/test/d1/maintenance.test.ts`, `apps/web/test/maintenance.test.ts`, and the local
+scheduled invocation above. No hosted resources or settings changed.

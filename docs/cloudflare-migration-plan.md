@@ -1,7 +1,7 @@
 # Cloudflare migration plan
 
 Status: Stage 2 in progress, 2026-10-12. Stages 0 and 1 are complete and merged. Phases 2.1
-through 2.5 pass locally; Phase 2.6 is implemented with its live check deferred by the owner.
+through 2.5 and Phase 2.7 pass locally; Phase 2.6 is implemented with its live check deferred by the owner.
 Their stacked PRs target `migrate/cloudflare`. D1–D17 are accepted. Stage 2–4
 implementation and hosted rollout gates remain open.
 
