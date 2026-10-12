@@ -1,8 +1,7 @@
 import handler from "@tanstack/react-start/server-entry";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { withNonce } from "./server/nonce";
-
-export type AnalysisWorkflowParams = { runId: string };
+import type { AnalysisWorkflowParams } from "./server/workflow-params";
 
 /** Phase 2.5 replaces this placeholder with the analysis pipeline. */
 export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisWorkflowParams> {
