@@ -96,3 +96,36 @@ Validation: `vp install`, a Worker build, `vp check` and `vp test --run` (344 pa
 existing Postgres cases skipped) pass before each commit. Evidence:
 `apps/web/test/session.test.ts`, `route-guards.test.ts`, `sign-in-options.test.tsx` and
 `nonce.test.ts`.
+
+## Phase 2.3 — Auth endpoints
+
+Result: **PASS** locally, 2026-10-12.
+
+- `src/routes/api/auth/$.ts` answers GET and POST through `handleAuthRequest`, which runs
+  Better Auth on D1 and keeps the Hono route's mapping of 5xx responses to the generic error
+  body with a request ID. Configuration failures, which Hono's `onError` caught, return the
+  same body.
+- The dev identities list moved into the dev-login Better Auth plugin as
+  `/api/auth/dev-identities`, behind the same mode, flag, loopback and origin checks.
+  `authClient` is unchanged. The web app's Better Auth client moved from 1.7.3 to 1.7.7 to
+  match the server.
+- Browser testing exposed a Phase 2.2 defect: `session.ts` exported its D1 helpers next to
+  its server functions, so the client bundle pulled in `@repo/db` and `node:crypto`. The
+  helpers moved to `session.server.ts`; the fix is in PR #43, and the production client
+  bundle no longer contains Drizzle or `node:crypto`.
+
+### Exit criteria
+
+| Criterion                                                      | Result and evidence                                                                                       |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Local sign-in as `ada@tracera.local` and `grace@tracera.local` | Pass; in a browser under `vp dev`, each dev identity button lands on `/home` with its account in the menu |
+| Persists across reloads                                        | Pass; full page loads of `/home` and `/settings` keep the session; settings lists linked accounts         |
+| Signs out                                                      | Pass; the account menu's sign-out returns to `/`, `get-session` is null and `/home` redirects             |
+
+Miniflare D1 tests repeat the flow for both identities: dev login sets the
+`tracera.session_token` cookie and redirects to `/home`, two session reads return the user,
+and sign-out expires the cookie and clears the session.
+
+Validation: `vp install`, a Worker build, `vp check` and `vp test --run` (352 passed; 10
+existing Postgres cases skipped) pass before each commit. Evidence:
+`apps/web/test/auth-route.test.ts` and `packages/auth/test/dev-auth-bypass.d1.test.ts`.
