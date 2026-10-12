@@ -160,6 +160,13 @@ Live AI locally is opt-in: `dev:live` sets `ANALYSIS_MODE=live` and uses the pro
 in `.dev.vars`. This relaxes today's rule that local profiles reject provider credentials;
 `.dev.vars` is ignored by Git and never uploaded.
 
+The Cloudflare Vite plugin bakes the selected Wrangler config into `dist/server/wrangler.json`.
+`build:production` selects `wrangler.production.json` through the plugin's
+`CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH`, and deploys pass that built config to Wrangler: an
+explicit source config would make Wrangler rebundle `src/server.ts` without Vite. Because
+`.dev.vars` always overrides config vars, `dev:live` runs Vite in its `live` mode and
+`serverEnv()` switches `ANALYSIS_MODE` to `live` only in that dev mode (Phase 2.1 amendment).
+
 ### Commands
 
 Run from the repository root with `vp run <script>` unless noted.
@@ -168,18 +175,18 @@ Run from the repository root with `vp run <script>` unless noted.
 | -------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | First-time setup     | `vp install`, copy `apps/web/.dev.vars.example` to `.dev.vars`, `db:migrate` | Installs, configures, and migrates local D1                                                  |
 | Develop              | `dev`                                                                        | `vp dev` in `apps/web`: Vite and workerd with HMR, local D1, R2, and Workflows               |
-| Develop with live AI | `dev:live`                                                                   | Same, with `ANALYSIS_MODE=live` and the provider settings from `.dev.vars`                   |
+| Develop with live AI | `dev:live`                                                                   | Same in Vite's `live` mode, which switches to `ANALYSIS_MODE=live` with `.dev.vars` keys     |
 | Generate migration   | `db:generate`                                                                | `drizzle-kit generate` with the sqlite dialect                                               |
 | Migrate local        | `db:migrate`                                                                 | `wrangler d1 migrations apply tracera-staging --local`                                       |
 | Reset local data     | `db:reset`                                                                   | Deletes this worktree's local D1 state and migrates again                                    |
 | Binding types        | `cf-typegen`                                                                 | `wrangler types`                                                                             |
 | Check and test       | `vp check`, `vp test`                                                        | Format, lint, types, unit and Miniflare D1 suites                                            |
 | Build and preview    | `build`, `preview`                                                           | `vp build`, then `vp preview` runs the built Worker in workerd                               |
-| Deploy staging       | `deploy:staging`                                                             | Remote staging migrations, then `wrangler deploy`                                            |
-| Check production     | `check:production`                                                           | Validates production config, secrets, and build                                              |
-| Production dry run   | `deploy:production-dry-run`                                                  | Check, build, `wrangler deploy --config wrangler.production.json --secrets-file … --dry-run` |
+| Deploy staging       | `deploy:staging`                                                             | Remote staging migrations, build, then `wrangler deploy` of the built config                 |
+| Check production     | `check:production`                                                           | `build:production`, then validates production config, secrets, and the built config          |
+| Production dry run   | `deploy:production-dry-run`                                                  | Check, then `wrangler deploy --config dist/server/wrangler.json --secrets-file … --dry-run`  |
 | Migrate production   | `db:migrate:production`                                                      | `wrangler d1 migrations apply tracera-production --remote --config wrangler.production.json` |
-| Deploy production    | `deploy:production`                                                          | Check, build, deploy with the production config and secrets file                             |
+| Deploy production    | `deploy:production`                                                          | Check, then deploy the built production config with the secrets file                         |
 
 ### Variables
 
@@ -489,8 +496,9 @@ Pull requests target `migrate/cloudflare`.
   and the `.tracera/` ignore rule.
 - The `packages/ai` evaluation scripts drop the `guard.mjs` wrapper. Fixture evaluators need no
   settings; live evaluation reads provider settings from the invoking shell.
-- Vercel and Next: `vercel.json`, `.vercel` and `.next` ignore rules, the oxlint `nextjs`
-  plugin, and `packages/typescript-config/nextjs.json`.
+- Vercel and Next: `vercel.json`, `.vercel` and `.next` ignore rules, and
+  `packages/typescript-config/nextjs.json`. The oxlint `nextjs` plugin left with Next in
+  Phase 2.1, because its rules reject Start's document `<head>`.
 - Update `pnpm-workspace.yaml` `allowBuilds` for the new dependency set and trim root scripts to
   section 4.
 
