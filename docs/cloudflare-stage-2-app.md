@@ -309,7 +309,11 @@ Result: **PASS** locally and in CI, 2026-10-12. PR:
   render after hydration with stable ISO fallback text. Reload checks run in `Asia/Kolkata`
   and assert no page errors. Failed and canceled runs now say "Analysis ended".
 - CI runs `vp run test:browser` under the existing external-network denial wrapper after
-  acquiring Chromium. Docker and the old integration suites remain until Stage 3.
+  acquiring Chromium. The browser server and SQL helper set
+  `CLOUDFLARE_CF_FETCH_ENABLED=false` and `WRANGLER_SEND_METRICS=false` so local tooling
+  uses default request metadata and avoids telemetry network waits. A repeated CI run
+  exposed these waits exhausting browser test deadlines; the fix retains the existing
+  timeouts and all assertions. Docker and the old integration suites remain until Stage 3.
 
 Validation: `vp install`, `vp check`, `vp test --run` (412 passed; 10 legacy Postgres unit cases
 skipped), `vp run check-types`, `vp run build`, both targeted browser commands, and the full
