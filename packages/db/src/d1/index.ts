@@ -7,3 +7,15 @@ export function createD1Database(binding: D1Database): DrizzleD1Database<typeof 
 }
 
 export { schema };
+export {
+  createD1AnalysisRepository,
+  D1AnalysisRepository,
+  AnalysisStorageConflictError,
+  AnalysisStorageAccessError,
+  StaleWorkerError,
+  type D1RepositoryOptions,
+  type D1RunAttempt,
+} from "./repository.js";
+export { createD1AdmissionRepository, D1AdmissionRepository } from "./admission.js";
+export { createD1SpendRepository, D1SpendRepository, type D1SpendAdmission } from "./spend.js";
+export { D1PayloadStore, D1PayloadError, type StoredProjection } from "./payloads.js";
