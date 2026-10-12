@@ -35,5 +35,25 @@ historical documents, finds no retired framework/driver imports, database URL se
 profile settings. Dependency changes were made through Vite+; optional multi-driver peers
 can still appear in its generated lockfile through Better Auth and Drizzle.
 
-Local exit criteria pass. Final-head CI results are recorded once the queued runner finishes.
+Local exit criteria pass. Final-head [CI validates the phase](https://github.com/voltcrash/tracera/actions/runs/38274270115) successfully at `bf48f5d`.
 The real-provider Phase 2.6 criterion remains pending; no hosted changes were made here.
+
+## Phase 3.2 — Operations and rollout documentation
+
+PR: [#51](https://github.com/voltcrash/tracera/pull/51).
+
+The README now describes the Worker/D1 architecture and a credential-free local fixture
+quick start. `cloudflare-operations.md`, `staging-setup.md`, and `production-setup.md` replace
+the retired profile guides. Provider overrides and all explicit live bounds remain documented,
+along with isolated bindings, private settings, migrations, Workflow recovery, and Time Travel.
+The historical Stage 1 record identifies its old additive command names.
+
+`cloudflare-rollout.md` prepares each Stage 4 phase separately: live staging sign-off,
+ordered cutover and rollback, verified archival/decommission and restore drill, then final
+Google OAuth registration and enforcement. Every hosted gate remains pending, and commands
+requiring approval have not been executed.
+
+Validation: Vite+ install/check/unit tests (383 passing)/workspace types/build pass before
+each commit. Local Markdown links resolve and documented Vite+ task names match the package
+scripts. Current Wrangler help and primary Cloudflare documentation support recovery commands.
+The production release workflow itself is implemented in Phase 3.3.

@@ -1,10 +1,10 @@
 # Cloudflare migration plan
 
-Status: Stage 2 implementation ready for review, 2026-10-12. Stages 0 and 1 are complete
-and merged. Phases 2.1 through 2.5 and Phases 2.7–2.8 pass locally and in CI; Phase 2.6
-passes offline validation with its live exit criterion deferred by the owner. The eight
-stacked PRs target `migrate/cloudflare`. D1–D17 are accepted. The Stage 2 live exit criterion,
-Stage 3 implementation, and Stage 4 hosted rollout gates remain open.
+Status: Stage 3 implementation in progress, 2026-10-12. Stages 0 and 1 are complete and
+merged. Stage 2's eight stacked PRs are ready for review; Phases 2.1–2.5 and 2.7–2.8 pass
+locally and in CI, while Phase 2.6's live exit criterion is owner-deferred. Phase 3.1 cleanup
+passes locally and in CI, and Phase 3.2 documentation is ready for review. Phase 3.3 CI/release
+implementation follows next. D1–D17 are accepted; Stage 4 hosted rollout gates remain open.
 
 On 2026-10-12 the owner extended the live-test deferral through the remaining repository
 implementation. Complete Stage 3 and prepare the Stage 4 runbooks before requesting the
