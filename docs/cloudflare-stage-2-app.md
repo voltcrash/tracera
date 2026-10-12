@@ -54,3 +54,45 @@ each commit. Local Docker is unavailable, so the Postgres integration suites run
 CI. No hosted resource, secret, deployment, DNS record or OAuth app was changed.
 
 Evidence: `apps/web/test/env.test.ts`, `production-inputs.test.ts` and the commands above.
+
+## Phase 2.2 — Pages, layout, and navigation
+
+Result: **PASS** locally, 2026-10-12.
+
+- Every Next page is a Start file route per appendix A: `/`, the pathless `_workspace`
+  layout with `/home`, `/run/$id` and `/settings`, and the public `/auth/complete`,
+  `/auth/error`, `/reset-password` and `/verify-email`. `next/link`, `next/navigation` and
+  `next/image` became TanStack Router's `Link`, `useLocation`, `useNavigate`,
+  `router.invalidate`, `Route.useSearch` and plain `img` elements.
+- The root route's `head()` carries the title, description, Open Graph and Twitter cards,
+  dark-reader lock and explicit icon links. `HeadContent` keeps one meta per name, so the
+  two `theme-color` metas render directly. The theme bootstrap script carries a
+  per-request nonce minted by the Worker entry; Phase 2.4 adds the CSP header that uses it.
+- Geist loads from the local files through `@font-face`; Newsreader is self-hosted with
+  `@fontsource-variable/newsreader` (D11). The 16 remaining `"use client"` directives are
+  gone (the other nine left with the Next pages in Phase 2.1), and `components.json` sets
+  `rsc: false` with the new CSS path.
+- `getSession` reads Better Auth's D1 session. The `_workspace` layout's `beforeLoad` sends
+  anonymous visitors to `/`, and `/` sends signed-in users to `/home`, replacing `proxy.ts`.
+- `getSignInOptions` offers the dev identities locally, otherwise only providers with complete
+  credential pairs, so hosted staging shows GitHub alone until Phase 4.4 (D17).
+- The auth provider's client redirect after a session ends now exempts `/` and `/auth/error`;
+  under Next it also redirected anonymous visitors away from the public error page.
+
+Known gaps left for later phases: the account menu and trace history stay in their loading
+states until Phase 2.3 serves `/api/auth/*` and Phase 2.4 replaces `/api/tracera/*`. The
+Open Graph image `/og.png` is referenced by the metadata but has not been in the repository
+since September; parity keeps the reference.
+
+### Exit criteria
+
+| Criterion                           | Result and evidence                                                                                                                     |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Every page renders under `vp dev`   | Pass; with a dev session minted in local D1, every route returns 200 or its redirect                                                    |
+| Navigation parity                   | Pass; anonymous workspace requests redirect to `/`, signed-in `/` redirects to `/home`, both on the server and during client navigation |
+| Sign-in offers configured providers | Pass; landing shows the dev identities locally; tests cover GitHub-only and both providers                                              |
+
+Validation: `vp install`, a Worker build, `vp check` and `vp test --run` (344 passed; 10
+existing Postgres cases skipped) pass before each commit. Evidence:
+`apps/web/test/session.test.ts`, `route-guards.test.ts`, `sign-in-options.test.tsx` and
+`nonce.test.ts`.
