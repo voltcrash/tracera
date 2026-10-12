@@ -57,8 +57,9 @@ vp exec --filter web -- wrangler d1 info tracera-staging --config wrangler.jsonc
 
 Use temporary staging control values only through an approved change, then restore the
 reviewed normal values. Do not stress-test with an unbounded provider account. The full release
-evaluator currently rejects live mode until human-gold, authorization, and connector
-prerequisites are supplied; fixture metrics cannot close this gate.
+evaluator currently implements fixture mode only. A live runner/connector implementation and
+reference cases must be reviewed before its live check can run, along with credentials and
+authorization; fixture metrics cannot close this gate.
 
 Sign-off: **pending**. Record reviewer, UTC window, model names, approved bounds, input types,
 run/instance IDs, verdict/evidence checks, observed usage, and any unresolved failures.

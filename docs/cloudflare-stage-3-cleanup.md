@@ -57,3 +57,48 @@ Validation: Vite+ install/check/unit tests (383 passing)/workspace types/build p
 each commit. Local Markdown links resolve and documented Vite+ task names match the package
 scripts. Current Wrangler help and primary Cloudflare documentation support recovery commands.
 The production release workflow itself is implemented in Phase 3.3.
+
+## Phase 3.3 — CI and production release
+
+PR: [#52](https://github.com/voltcrash/tracera/pull/52).
+
+`ci.yml` replaces the transitional workflow and runs on PRs and pushes to `main` and
+`migrate/cloudflare`. It installs dependencies/Chromium, checks formatting and types, denies
+external networking during unit/browser suites, builds, and dry-runs staging and production.
+The firewall allows loopback only and no longer needs Docker. Synthetic production settings
+are private, temporary, and cleaned even on failure; CI reads no hosted credentials.
+
+The production workflow follows the oxytype pattern with current stable Actions versions.
+It runs daily at 00:17 UTC or manually on `main`, serializes releases in the `production`
+environment, skips deployment work without new commits, rejects date-tag collisions, writes
+private settings mode 0600, checks/builds/dry-runs, migrates D1, deploys the planned version,
+and publishes the exact deployed SHA only after success. Cleanup always runs. It never
+bootstraps or resets D1. Staging deployment stays manual and footer release history is omitted.
+
+The port tightens two accepted requirements: completed same-day releases must still match
+the date tag's commit before skipping, and actual Git merge commits are omitted regardless
+of their subject. No migration decision changed. The package shares root Vite+ tooling to
+avoid duplicate runner instances while keeping the current version.
+
+Validation: Vite+ install/check/unit tests (442 tests, 62 files, no skips)/workspace types/build
+pass; `vp env doctor` reports Node 24.21.0, pnpm 11.20.0, and all checks passed. The release
+suite passes 59 tests, including real Git history and execution of actual workflow scripts
+with local task stubs for skip, ordering, collisions, failure, publication, and cleanup.
+Both real deployment dry runs and all 10 browser tests pass. The first replacement
+[CI run passed](https://github.com/voltcrash/tracera/actions/runs/38277740097); final-head
+checks are linked in the PR.
+
+The integration-branch CI gate closes after the stack is merged into `migrate/cloudflare`.
+The production workflow has not been dispatched, and no hosted settings/resources changed.
+
+## Remaining rollout work
+
+The live-provider Phase 2.6 result remains owner-deferred. Stage 4 hosted sign-offs are open.
+The current release evaluator implements fixture mode only: live evaluation requires a
+reviewed runner/connector implementation and reference cases as well as credentials and
+authorization. Supplying a key alone does not enable that CLI mode. This prerequisite is
+recorded rather than changing the plan's live-evaluation requirement or substituting fixtures.
+
+Review the stacked PRs before integration/cutover. The rollback window, production reset,
+GitHub-first rollout, archive/decommission, restore drill, and final Google OAuth order remain
+as accepted. Exact hosted approval batches are prepared in `cloudflare-rollout.md`.
