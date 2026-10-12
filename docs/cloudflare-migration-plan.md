@@ -47,7 +47,7 @@ Non-goals:
 | Framework          | Next.js 16 App Router, RSC, `proxy.ts`                                                   | TanStack Start (React 19, file routes, SSR), built by Vite+                                    |
 | API                | Hono app behind `app/api/[[...route]]`                                                   | Start server functions for UI calls, server routes for HTTP-shaped endpoints, Start middleware |
 | Hosting            | Vercel project, Node runtime, `maxDuration` 300 s                                        | One Worker with Workers Static Assets and a custom domain                                      |
-| Database           | Neon Postgres 18 via `pg` and Neon serverless, 31 migrations, roles and grants           | D1 via Drizzle's `d1` driver, one new baseline migration                                       |
+| Database           | Neon Postgres 18 via `pg` and Neon serverless, 30 SQL migrations, roles and grants       | D1 via Drizzle's `d1` driver, one new baseline migration                                       |
 | AI                 | Gemini, OpenAI, Anthropic, OpenRouter, OpenAI-compatible adapters; config read from env  | Same adapters and keys, called with `fetch` from the Workflow; config from a per-run resolver  |
 | Embeddings         | pgvector `vector(1024)` table that nothing writes                                        | Not ported; the embedding port stays for future use (D13)                                      |
 | Raw blobs          | Filesystem store                                                                         | R2 bucket                                                                                      |
@@ -507,8 +507,8 @@ Pull requests target `migrate/cloudflare`.
 
 - Hono: removed in Phase 2.4 once its replacement landed, together with the `hono`
   dependency.
-- Postgres: `packages/db/src/connection.ts`, the Postgres schema, `packages/db/drizzle/` (31
-  migrations and snapshots), `@neondatabase/serverless`, `pg`, `@types/pg`, and Postgres tests.
+- Postgres: `packages/db/src/connection.ts`, the Postgres schema, `packages/db/drizzle/` (30 SQL
+  migrations and their snapshots), `@neondatabase/serverless`, `pg`, `@types/pg`, and Postgres tests.
   D1 modules move from `src/d1/` to `src/`.
 - Environment tooling: `packages/environment`, `scripts/environment`, `scripts/database`,
   `scripts/local`, `scripts/auth/test-browser.mjs`, `config/environment`, root `.env.example`,
