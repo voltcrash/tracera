@@ -42,3 +42,6 @@ yarn-error.log*
 .pnpm-store/
 .tmp-tracera-deck/
 tmp/
+
+# Local Cloudflare state
+.wrangler/
