@@ -504,6 +504,11 @@ the API. Exit: both suites pass locally and in CI.
 
 Pull requests target `migrate/cloudflare`.
 
+On 2026-10-12 the owner confirmed that `vercel.json` stays deleted despite legacy Vercel
+preview failures. Cloudflare CI remains the migration validation gate. Do not restore the
+branch guard or change hosted Vercel settings during Stage 3; Git deployment disablement
+remains in Phase 4.2.
+
 **Phase 3.1 — Delete legacy code and dependencies.**
 
 - Hono: removed in Phase 2.4 once its replacement landed, together with the `hono`

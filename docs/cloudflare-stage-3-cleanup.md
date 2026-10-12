@@ -91,6 +91,14 @@ checks are linked in the PR.
 The integration-branch CI gate closes after the stack is merged into `migrate/cloudflare`.
 The production workflow has not been dispatched, and no hosted settings/resources changed.
 
+## Legacy preview status
+
+Final readiness found that deleting `vercel.json` also removed its `migrate/**` deployment
+exclusion, allowing the existing Vercel integration to attempt previews. The owner explicitly
+confirmed on 2026-10-12 that these failures do not gate the migration and the file stays
+deleted. Cloudflare CI passes; no guard was restored or hosted Vercel setting changed.
+Its Git deployment disablement remains part of the approved Phase 4.2 cutover order.
+
 ## Remaining rollout work
 
 The live-provider Phase 2.6 result remains owner-deferred. Stage 4 hosted sign-offs are open.
