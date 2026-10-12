@@ -283,6 +283,15 @@ rows, schema-compatible code, R2 pointers, auth, ownership isolation, history, i
 limits, and a bounded Workflow analysis before resuming writes. D1 recovery does not recreate
 R2 objects or restart terminated instances.
 
+### Vercel decommission, 2026-10-12
+
+The owner deleted the Vercel project, including its variables, before cutover. The
+Vercel-created GitHub `Preview` and `Production` environments were deleted at the owner's
+direction. The repository has no Actions secrets or variables at repository level, so no
+Vercel or Neon secret remains in GitHub. Phase 0.2 confirmed no AI provider keys were
+configured, so there were no Vercel-held provider keys to rotate. PR checks since cutover
+show only Cloudflare CI.
+
 Sign-off: **pending**. Record stable-period approval, archived object names and SHA-256,
 archive verification, approved project IDs/deletion results, rotated key identifiers (never
 values), removed secret names, drill bookmarks/timings/results, and recovery owner.
