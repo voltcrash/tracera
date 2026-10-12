@@ -290,3 +290,40 @@ test("run history and completed-report reuse stay inside the ownership scope", a
     }),
   ).toBeNull();
 });
+
+test("an injected projection failure rolls back report publication and run completion", async () => {
+  const repository = repo();
+  const ctx = context("rollback-run");
+  await repository.createRun({ context: ctx });
+  const attempt = await repository.beginAttempt({
+    scope,
+    runId: ctx.runId,
+    stage: "score_report",
+    expectedVersion: 0,
+  });
+  const report = structuredClone(completeRunReportExample);
+  report.runId = ctx.runId;
+  report.replayManifest.runId = ctx.runId;
+  await runtime.db
+    .prepare(
+      "CREATE TRIGGER reject_decision BEFORE INSERT ON core_decisions BEGIN SELECT RAISE(ABORT,'injected projection failure'); END",
+    )
+    .run();
+  try {
+    await expect(
+      repository.finalize({ scope, ...attempt, reportHash: ctx.inputHash, report }),
+    ).rejects.toThrow(/injected/);
+    expect(await repository.getLatestReport({ scope, runId: ctx.runId })).toBeNull();
+    expect((await repository.getRunProgress({ scope, runId: ctx.runId }))?.status).toBe("running");
+    expect(
+      await runtime.db
+        .prepare("SELECT count(*) FROM core_report_snapshots WHERE run_id=?")
+        .bind(ctx.runId)
+        .first("count(*)"),
+    ).toBe(0);
+  } finally {
+    await runtime.db.prepare("DROP TRIGGER reject_decision").run();
+  }
+  await repository.finalize({ scope, ...attempt, reportHash: ctx.inputHash, report });
+  expect(await repository.getLatestReport({ scope, runId: ctx.runId })).toEqual(report);
+});
