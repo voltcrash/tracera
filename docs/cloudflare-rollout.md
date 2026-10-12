@@ -62,3 +62,58 @@ prerequisites are supplied; fixture metrics cannot close this gate.
 
 Sign-off: **pending**. Record reviewer, UTC window, model names, approved bounds, input types,
 run/instance IDs, verdict/evidence checks, observed usage, and any unresolved failures.
+
+## Phase 4.2 — Production cutover
+
+Start only after Phase 4.1 sign-off. Review the actual current DNS record and Vercel project
+settings before approval, and retain their exact values for rollback.
+
+Suggested current-site announcement:
+
+> Tracera is moving to Cloudflare. Accounts and report history will reset at cutover.
+> The initial rollout uses GitHub sign-in; Google sign-in returns after the final setup phase.
+
+Publish the announcement through the approved current-site change. Prepare production
+credentials and the GitHub `production` environment using the [production guide](production-setup.md).
+Preserve the generated production auth secret and the existing production GitHub callback.
+Approval must cover environment/secret setup as well as deployment; merging code alone does
+not approve credential or DNS changes.
+
+Approved setup command templates:
+
+```sh
+gh api --method PUT repos/voltcrash/tracera/environments/production
+gh secret set CLOUDFLARE_API_TOKEN --repo voltcrash/tracera --env production < /PRIVATE_PATH/cloudflare-token
+gh secret set PRODUCTION_WORKER_ENV --repo voltcrash/tracera --env production < apps/web/.dev.vars.production
+```
+
+Then perform the plan's cutover order:
+
+1. Turn off Vercel Git deployments for the verified Tracera project. Record the setting and
+   previous integration so rollback can restore it.
+2. Merge the reviewed migration stack into `migrate/cloudflare`, then merge its reviewed cutover
+   PR into `main`. Require the integrated CI result before the merge.
+3. Remove only the verified Vercel DNS record for `tracera.voltcrash.com`. Present its zone ID,
+   record ID, type, name, and current target in the approval batch; save them for rollback.
+4. Dispatch the first production release:
+
+```sh
+gh workflow run production-release.yml --repo voltcrash/tracera --ref main
+```
+
+5. Verify the release deployed the expected SHA, migrated the empty production D1, and published
+   its date tag after deployment. Run a real GitHub sign-in and bounded analysis smoke test.
+6. Observe Worker errors/latency, auth callbacks, Workflow outcomes, D1, R2, and provider usage
+   for 24–48 hours. Google remains deferred until Phase 4.4.
+
+Resolve hosted project/zone/record identifiers with read-only inventory before drafting their
+exact write commands. Placeholder deletion commands are not an approved action.
+
+Before decommission, rollback removes the Worker custom domain and restores the saved Vercel
+DNS record and Git integration. Review and approve the exact rollback actions first. Old data
+remains in Neon; Cloudflare-era accounts/history stay in D1 and are not imported back. Record
+this limitation and the agreed rollback window before cutover.
+
+Sign-off: **pending**. Record announcement/approval links, integration and deployed SHAs,
+release/tag URL, DNS record inventory, GitHub smoke result, observation window, and rollback
+owner. Decommission must not begin while production stability is unresolved.
