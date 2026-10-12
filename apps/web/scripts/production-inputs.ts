@@ -1,5 +1,6 @@
 import { resolveAnalysisProvider } from "@repo/ai";
 import { z } from "zod";
+import { analysisPolicy } from "../src/server/analysis-policy";
 
 type Values = Record<string, string | undefined>;
 
@@ -27,12 +28,14 @@ const productionConfig = resources.extend({
   workers_dev: z.literal(false),
   preview_urls: z.literal(false),
   routes: z.array(z.object({ pattern: z.string(), custom_domain: z.literal(true) })).length(1),
-  vars: z.object({
-    MODE: z.literal("production"),
-    ANALYSIS_MODE: z.literal("live"),
-    BETTER_AUTH_URL: z.url(),
-    VERSION: z.string(),
-  }),
+  vars: z
+    .object({
+      MODE: z.literal("production"),
+      ANALYSIS_MODE: z.literal("live"),
+      BETTER_AUTH_URL: z.url(),
+      VERSION: z.string(),
+    })
+    .catchall(z.string()),
   secrets: z.object({ required: z.array(z.string()) }),
   triggers: z.object({ crons: z.array(z.string()).min(1) }),
 });
@@ -116,6 +119,13 @@ export function validateProductionInputs(inputs: {
       `Production AI provider configuration is incomplete: ${(error as Error).message}`,
     );
   }
+
+  const runtime = analysisPolicy(
+    { ...settings, MODE: "production", ANALYSIS_MODE: "live" },
+    "production-check",
+  );
+  if (!runtime.enabled)
+    throw new Error(`Production analysis controls are incomplete: ${runtime.message}`);
 
   if (inputs.built !== undefined) {
     const built = resources.safeParse(inputs.built);

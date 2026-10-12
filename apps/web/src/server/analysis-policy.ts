@@ -80,7 +80,10 @@ function livePolicy(environment: RuntimeEnvironment, userId: string): AnalysisRu
 }
 
 /** Fixture analysis runs the scripted ports offline and only in local development (D9). */
-export function analysisPolicy(env: ServerEnv, userId: string): AnalysisRuntimePolicyResult {
+export function analysisPolicy(
+  env: Pick<ServerEnv, "MODE" | "ANALYSIS_MODE"> & RuntimeEnvironment,
+  userId: string,
+): AnalysisRuntimePolicyResult {
   if (env.ANALYSIS_MODE === "fixture") {
     if (env.MODE !== "dev") return unavailable("Fixture analysis runs only in local development.");
     return {
@@ -129,7 +132,7 @@ function readLiveBudget(environment: RuntimeEnvironment) {
   if (values.maxElapsedMs! > 300_000) {
     return {
       ok: false as const,
-      message: "ANALYSIS_MAX_ELAPSED_MS cannot exceed the existing 300-second web request bound.",
+      message: "ANALYSIS_MAX_ELAPSED_MS cannot exceed the 300-second analysis attempt bound.",
     };
   }
   return { ok: true as const, value: values as RunBudget };

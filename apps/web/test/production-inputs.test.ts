@@ -10,7 +10,22 @@ const read = (name: string) =>
   ) as Record<string, any>;
 const config = read("wrangler.production.json");
 const stagingConfig = read("wrangler.jsonc");
+const controls = {
+  ANALYSIS_MAX_EXTERNAL_REQUESTS: "120",
+  ANALYSIS_MAX_DISCOVERY_QUERIES_PER_CLAIM: "12",
+  ANALYSIS_MAX_FETCHED_CANDIDATES_PER_CLAIM: "20",
+  ANALYSIS_MAX_PROVENANCE_HOPS: "3",
+  ANALYSIS_MAX_TARGETED_RETRIEVAL_ROUNDS: "2",
+  ANALYSIS_MAX_ELAPSED_MS: "120000",
+  ANALYSIS_MAX_CONCURRENT_EXTERNAL_CALLS: "3",
+  ANALYSIS_MAX_COST_USD: "1",
+  AI_DAILY_SPEND_LIMIT_USD: "25",
+  AI_ESTIMATED_GENERATION_COST_USD: "0.01",
+  AI_ESTIMATED_IMAGE_COST_USD: "0.02",
+  AI_ESTIMATED_EMBEDDING_COST_USD: "0.0001",
+};
 const secrets = {
+  ...controls,
   BETTER_AUTH_SECRET: "synthetic-production-secret-with-at-least-32-chars",
   GITHUB_CLIENT_ID: "synthetic-github-client",
   GITHUB_CLIENT_SECRET: "synthetic-github-secret",
@@ -21,6 +36,25 @@ const secrets = {
 };
 const built = { ...config, main: "index.js", vars: { ...config.vars } };
 const valid = { config, stagingConfig, secrets, built };
+
+test.each(Object.keys(controls))("production rejects a missing %s runtime bound", (name) => {
+  expect(() => validateProductionInputs({ ...valid, secrets: { ...secrets, [name]: "" } })).toThrow(
+    "Production analysis controls are incomplete",
+  );
+});
+
+test("analysis bounds work as non-secret Wrangler vars", () => {
+  const credentialSettings = Object.fromEntries(
+    Object.entries(secrets).filter(([name]) => !(name in controls)),
+  );
+  expect(() =>
+    validateProductionInputs({
+      ...valid,
+      config: { ...config, vars: { ...config.vars, ...controls } },
+      secrets: credentialSettings,
+    }),
+  ).not.toThrow();
+});
 
 test("the committed production config passes with complete synthetic secrets", () => {
   expect(() => validateProductionInputs(valid)).not.toThrow();
