@@ -594,6 +594,10 @@ import and no write freeze.
    origin and paths stay the same. Google sign-in is enabled and checked in Phase 4.4.
 6. Watch logs for 24 to 48 hours.
 
+Under D18 the owner deleted the Vercel project and attached the custom domain before the
+merge, and waived the announcement and the observation window. The release workflow still
+performs the first production migration and deployment from `main`.
+
 Rollback until decommission: remove the custom domain and restore the Vercel DNS record. Neon
 still holds the old data, but anything created on Cloudflare after cutover stays behind, so
 keep this window short.
