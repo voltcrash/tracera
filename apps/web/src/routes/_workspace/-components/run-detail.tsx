@@ -1,27 +1,14 @@
-import { useEffect, useState } from "react";
-import { projectReport, type AnalysisReportView } from "@repo/ai/analysis/report-view";
+import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { projectReport } from "@repo/ai/analysis/report-view";
 import { AnalysisReport } from "@/components/analysis/analysis-report";
-import { useAuth } from "@/components/providers/auth-provider";
 import { apiUrl } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import type { RunState } from "@/server/analysis-api.server";
+import { cancelRun } from "@/server/analysis.functions";
 
-type Progress = {
-  status:
-    | "queued"
-    | "leased"
-    | "retry"
-    | "complete"
-    | "partial"
-    | "unavailable"
-    | "failed"
-    | "canceled";
-  currentStage: string | null;
-  attempt: number;
-  completedStages: string[];
-  cancellationRequested: boolean;
-};
+type Progress = RunState["progress"];
 
 const TERMINAL = new Set<Progress["status"]>([
   "complete",
@@ -31,57 +18,41 @@ const TERMINAL = new Set<Progress["status"]>([
   "canceled",
 ]);
 
-export function RunDetail({ id }: { id: string }) {
-  const { apiFetch, user, isLoading } = useAuth();
-  const [progress, setProgress] = useState<Progress | null>(null);
-  const [view, setView] = useState<AnalysisReportView | null>(null);
+// Leaving the page only closes the progress stream; the run continues until it finishes or is
+// explicitly canceled.
+export function RunDetail({ id, initial }: { id: string; initial: RunState }) {
+  const [state, setState] = useState(initial);
   const [error, setError] = useState<string | null>(null);
+  const requestCancel = useServerFn(cancelRun);
+  const terminal = TERMINAL.has(state.progress.status);
+  const view = useMemo(
+    () => (state.report ? projectReport(state.report, apiUrl) : null),
+    [state.report],
+  );
 
-  // Leaving the page only stops polling; the on-demand run continues until it finishes or is
-  // explicitly canceled.
   useEffect(() => {
-    if (!user || isLoading) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const poll = async () => {
-      try {
-        const response = await apiFetch(`${apiUrl}/runs/${encodeURIComponent(id)}`, {
-          signal: controller.signal,
-        });
-        const data = (await response.json()) as {
-          progress?: Progress;
-          report?: unknown;
-          error?: string;
-        };
-        if (!response.ok || !data.progress)
-          throw new Error(data.error ?? "Unable to load this run.");
-        setError(null);
-        setProgress(data.progress);
-        setView(data.report ? projectReport(data.report, apiUrl) : null);
-        if (!TERMINAL.has(data.progress.status)) timer = setTimeout(() => void poll(), 1_000);
-      } catch (requestError) {
-        if (controller.signal.aborted) return;
-        setError(requestError instanceof Error ? requestError.message : "Unable to load this run.");
-        timer = setTimeout(() => void poll(), 3_000);
-      }
-    };
-    void poll();
-    return () => {
-      controller.abort();
-      if (timer) clearTimeout(timer);
-    };
-  }, [apiFetch, id, isLoading, user]);
+    if (terminal) return;
+    const source = new EventSource(`${apiUrl}/runs/${encodeURIComponent(id)}/events`);
+    source.addEventListener("progress", (event) => {
+      const next = JSON.parse((event as MessageEvent<string>).data) as RunState;
+      setError(null);
+      setState({ progress: next.progress, report: next.report });
+      if (TERMINAL.has(next.progress.status)) source.close();
+    });
+    source.onerror = () => setError("Live progress was interrupted. Reconnecting…");
+    return () => source.close();
+  }, [id, terminal]);
 
   async function cancel() {
-    const response = await apiFetch(`${apiUrl}/runs/${encodeURIComponent(id)}/cancel`, {
-      method: "POST",
-    });
-    if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(body?.error ?? "Unable to cancel this run.");
+    const result = await requestCancel({ data: { runId: id } });
+    if (result.status !== 202) {
+      setError(result.body.error ?? "Unable to cancel this run.");
       return;
     }
-    setProgress((current) => (current ? { ...current, cancellationRequested: true } : current));
+    setState((current) => ({
+      ...current,
+      progress: { ...current.progress, cancellationRequested: true },
+    }));
   }
 
   if (view?.schemaVersion === 2)
@@ -90,6 +61,7 @@ export function RunDetail({ id }: { id: string }) {
         <AnalysisReport view={view} />
       </main>
     );
+  const { progress } = state;
   return (
     <main className="trace-page min-h-screen bg-background text-foreground">
       <section className="trace mt-16">
@@ -98,22 +70,18 @@ export function RunDetail({ id }: { id: string }) {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
-        {!progress ? (
-          <Skeleton className="h-40 rounded-xl" />
-        ) : (
-          <div className="rounded-3xl bg-panel p-7 text-panel-foreground">
-            <p className="text-sm text-white/60">Analysis in progress</p>
-            <h1 className="mt-2 text-2xl font-bold">{headline(progress)}</h1>
-            <p className="mt-3 text-sm text-white/60">
-              Attempt {progress.attempt} · {progress.completedStages.length} of 8 stages recorded
-            </p>
-            {!progress.cancellationRequested && !TERMINAL.has(progress.status) ? (
-              <Button className="mt-6" variant="outline" onClick={() => void cancel()}>
-                Cancel analysis
-              </Button>
-            ) : null}
-          </div>
-        )}
+        <div className="rounded-3xl bg-panel p-7 text-panel-foreground">
+          <p className="text-sm text-white/60">Analysis in progress</p>
+          <h1 className="mt-2 text-2xl font-bold">{headline(progress)}</h1>
+          <p className="mt-3 text-sm text-white/60">
+            Attempt {progress.attempt} · {progress.completedStages.length} of 8 stages recorded
+          </p>
+          {!progress.cancellationRequested && !terminal ? (
+            <Button className="mt-6" variant="outline" onClick={() => void cancel()}>
+              Cancel analysis
+            </Button>
+          ) : null}
+        </div>
       </section>
     </main>
   );
@@ -125,6 +93,5 @@ function headline(progress: Progress) {
   if (progress.status === "partial") return "Analysis completed with limitations";
   if (progress.status === "unavailable") return "Analysis unavailable";
   if (progress.cancellationRequested) return "Cancellation requested";
-  if (progress.status === "retry") return "Retrying after an interruption";
   return progress.currentStage ? `Stage: ${progress.currentStage.replaceAll("_", " ")}` : "Queued";
 }
