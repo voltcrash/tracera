@@ -111,7 +111,45 @@ skipped by the unit runner), `vp run check-types`, `vp run @repo/db#db:generate:
 [Phase 1.2 PR #37](https://github.com/voltcrash/tracera/pull/37) passed hosted CI and the Vercel
 build. No hosted resources, credentials or OAuth apps were changed in Phase 1.3.
 
-## Remaining phases
+## Phase 1.4 — D1 repositories
 
-Phases 1.4–1.5 have not started. Each gets its own stacked PR with validation and evidence
-recorded here before its handoff.
+Result: **PASS** locally, 2026-10-12.
+
+The additive `@repo/db/d1` entry exports analysis, admission and spend repository factories.
+The Vercel app continues importing the existing Postgres entry. Run creation is immutable
+and idempotent; conditional version updates mint fresh attempt fences. Checkpoints,
+finalization, cancellation and failure reject stale or canceled writers and retain full
+ownership filters. Finalization publishes the report and all projections in one guarded
+batch. Progress and history read D1 directly without job leases or outbox rows.
+
+Admission claims, rate counters, UTC quota, capacity leases and force cooldowns share one
+atomic batch. Rejected requests consume no counters. Completion stores the original response
+and releases capacity in one batch; an expired worker cannot overwrite a reclaimed request.
+Completed and failed responses replay without charging again. Provider/source/day spend
+uses integer micro-dollars; a reservation witness prevents duplicate charges, and concurrent
+settlement charges once. Migration `0001_provider_spend_guard.sql` adds that witness.
+
+Inputs, checkpoints, snapshots, reports, replay responses and individual report projections
+over the 1.5 MB threshold use content-addressed, hash-checked R2 pointers. Snapshot offload
+includes duplicated normalized text in row-size accounting. Projection batches use
+`json_each` with at most six bound parameters and are chunked by both row count and escaped
+JSON byte size. Full report reads restore the unchanged report contract.
+
+Validation: `vp install`, `vp check`, `vp test --run`, `vp run check-types`,
+`vp run @repo/db#test:d1`, `vp run @repo/db#db:generate:d1`,
+`vp run @repo/db#db:migrate:d1` and `vp run build` pass. The full run has 273 passing tests;
+the focused D1 suite has 47 passing tests and no skips. The 10 existing Postgres integration
+cases remain in hosted Docker CI because local Docker is unavailable. Schema generation
+reports no drift; the incremental migration applies locally and a repeat reports no work.
+
+Evidence: `packages/db/test/d1/repository.test.ts`, `admission.test.ts`, `spend.test.ts`,
+`payloads.test.ts`, `clock.test.ts` and `schema.test.ts`. Concurrent tests cover admission,
+spend reservation/settlement, attempt claims and finalization. Injected SQLite failures
+prove complete rollback of admission, completion, spend and report-publication batches.
+
+[Phase 1.3 PR #38](https://github.com/voltcrash/tracera/pull/38) passed hosted CI and its
+Vercel build. No hosted database was migrated or other Cloudflare resource changed.
+
+## Remaining phase
+
+Phase 1.5 adds Better Auth on D1 in its own stacked PR.
