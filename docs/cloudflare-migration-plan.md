@@ -255,13 +255,14 @@ staging and production `BETTER_AUTH_SECRET` values. Create a CI API token scoped
 R2, Workflows, and the custom domain. Exit: resource names and IDs ready for the Wrangler
 configs.
 
-Phase 0.3 result (2026-10-11): **resource exit criterion PASS; phase incomplete**.
+Phase 0.3 result (2026-10-12): **resource exit criterion PASS; phase incomplete**.
 [Resource notes](cloudflare-stage-0-resources.md) record the verified names and IDs,
 approved bootstrap deployments, and new private staging/production auth secrets.
-Both staging OAuth apps and the scoped CI token are deferred at the owner's request.
-Prepared GitHub OAuth and CI token settings remain in the resource notes for when the
-owner resumes this work. These requirements remain part of Phase 0.3, so Stage 0 is not
-complete and Stage 1 has not begun.
+The owner completed GitHub staging OAuth and CI token creation. GitHub credentials are
+present in the private mode-0600 staging file. The CI token is active, its scoped policy
+matches the prepared settings, and read-only checks of the intended resources pass.
+Google staging OAuth remains deferred at the owner's request. It is still a Phase 0.3
+requirement, so Stage 0 is not complete and Stage 1 has not begun.
 Production custom-domain activation remains a Stage 4 cutover action.
 
 ### Stage 1 — Cloudflare foundations in shared packages
