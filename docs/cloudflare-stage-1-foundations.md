@@ -70,7 +70,48 @@ skipped by the unit runner), `vp run check-types` and `vp run build` pass. Evide
 [Phase 1.1 PR #36](https://github.com/voltcrash/tracera/pull/36) also passed hosted CI, including
 the existing Docker integration workflow and Vercel build.
 
+## Phase 1.3 — D1 schema and baseline
+
+Result: **PASS** locally, 2026-10-12.
+
+The SQLite schema contains 21 live tables. It uses text IDs, application-generated
+millisecond timestamps, JSON text with hashes, boolean integers, integer micro-dollar spend,
+and real factual scores. Jobs, outbox, embeddings and execution-lease columns are absent.
+Admission leases remain for concurrency controls; they do not execute analysis work.
+
+Better Auth's current `auth` CLI generated the four auth tables. Reconciliation retains
+application-generated IDs and timestamps, unique provider/account identities and expiry
+indexes. Regenerate a comparison copy with:
+
+```sh
+vp exec --filter @repo/db auth generate --config auth-schema.d1.config.ts --adapter drizzle --dialect sqlite --output ../../tmp/auth-schema.sqlite.ts --yes
+```
+
+`vp run @repo/db#db:generate:d1` generates `packages/db/migrations/0000_baseline.sql` using
+`drizzle.d1.config.ts`. A second generation reports no schema changes. Both Wrangler configs
+point to that folder and use the real, isolated resource IDs from Stage 0. They contain D1
+foundations only; Phase 2.1 adds the app entry, remaining bindings and hosting configuration.
+
+The oxytype-style `createTestRuntime` applies the real SQL migrations to fresh Miniflare D1.
+Seven tests cover all live tables, retired-table exclusions, dates and booleans, whole-batch
+rollback, OAuth account uniqueness, provider/source spend separation, ownership foreign keys
+and exclusive inline/R2 payload storage.
+
+Wrangler applied the baseline to local staging state in `apps/web/.wrangler/state`: all 45
+SQL commands succeeded. The production config also applied all 45 commands to an isolated
+local test copy under `apps/web/.wrangler/production-migration-test`. Both commands used
+`--local`; neither hosted database was migrated. Reapplying the staging task reports no
+migrations to apply.
+
+Validation: `vp install`, `vp check`, `vp test --run` (233 passed; 10 existing Postgres cases
+skipped by the unit runner), `vp run check-types`, `vp run @repo/db#db:generate:d1`,
+`vp run @repo/db#db:migrate:d1` and `vp run build` pass. Evidence:
+`packages/db/test/d1/schema.test.ts`, the generated baseline, and both Wrangler local runs.
+
+[Phase 1.2 PR #37](https://github.com/voltcrash/tracera/pull/37) passed hosted CI and the Vercel
+build. No hosted resources, credentials or OAuth apps were changed in Phase 1.3.
+
 ## Remaining phases
 
-Phases 1.3–1.5 have not started. Each gets its own stacked PR with validation and evidence
+Phases 1.4–1.5 have not started. Each gets its own stacked PR with validation and evidence
 recorded here before its handoff.
