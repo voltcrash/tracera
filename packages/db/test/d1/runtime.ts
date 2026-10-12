@@ -1,12 +1,14 @@
 import { readFile, readdir } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
+export { Response, type Request } from "miniflare";
 
 export async function createTestRuntime(
   options: {
     script?: string;
     bindings?: Record<string, string>;
     workflows?: Record<string, { name: string; className: string }>;
+    outboundService?: ConstructorParameters<typeof Miniflare>[0]["outboundService"];
   } = {},
 ) {
   const runtime = new Miniflare({
