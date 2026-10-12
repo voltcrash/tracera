@@ -71,7 +71,9 @@ export function RunDetail({ id, initial }: { id: string; initial: RunState }) {
           </Alert>
         ) : null}
         <div className="rounded-3xl bg-panel p-7 text-panel-foreground">
-          <p className="text-sm text-white/60">Analysis in progress</p>
+          <p className="text-sm text-white/60">
+            {terminal ? "Analysis ended" : "Analysis in progress"}
+          </p>
           <h1 className="mt-2 text-2xl font-bold">{headline(progress)}</h1>
           <p className="mt-3 text-sm text-white/60">
             Attempt {progress.attempt} · {progress.completedStages.length} of 8 stages recorded
