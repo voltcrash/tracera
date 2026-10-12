@@ -167,3 +167,41 @@ R2 objects or restart terminated instances.
 Sign-off: **pending**. Record stable-period approval, archived object names and SHA-256,
 archive verification, approved project IDs/deletion results, rotated key identifiers (never
 values), removed secret names, drill bookmarks/timings/results, and recovery owner.
+
+## Phase 4.4 — Final Google OAuth completion
+
+This is the final phase after decommission. Its code PR targets `main` from
+`migrate/stage-4-4.4-google-oauth`; do not enforce missing Google credentials during the earlier
+GitHub-first rollout.
+
+Use the owner's existing Google Cloud project. Present the exact project and these Web client
+registration settings before making any app change:
+
+| Environment | JavaScript origin                               | Authorized redirect URI                                                  |
+| ----------- | ----------------------------------------------- | ------------------------------------------------------------------------ |
+| Staging     | `https://tracera-staging.voltcrash.workers.dev` | `https://tracera-staging.voltcrash.workers.dev/api/auth/callback/google` |
+| Production  | `https://tracera.voltcrash.com`                 | `https://tracera.voltcrash.com/api/auth/callback/google`                 |
+
+Register the approved staging client and prepare the production pair while preserving its
+unchanged callback. Obtain approval for required consent-screen, audience/test-user, publishing,
+or existing production-client edits. Save complete Google pairs only in the appropriate
+private mode-0600 files.
+
+The phase's reviewable code change will:
+
+- Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to production-required secret checks and
+  `wrangler.production.json` `secrets.required` alongside GitHub.
+- Preserve rejection of partial pairs and GitHub-only staging preparation.
+- Retain complete Google configuration, token-discard, session, and OAuth callback tests.
+- Update synthetic production validation inputs to include the now-required Google pair.
+- Run Vite+ install/check/tests/build, both deployment dry runs, and browser tests before
+  committing each change and opening the PR.
+
+After that PR and credentials are reviewed, present exact approved commands for staging secret
+upload/deploy, production environment-secret update, and the production release dispatch.
+Google and GitHub sign-in, linked accounts, reload/session persistence, and sign-out must all
+pass on both hosted origins before marking the overall migration complete.
+
+Sign-off: **pending**. Record project/client identifiers, approved registration and consent
+settings, final code PR, staging/production Worker versions and release, credential-pair
+presence checks, and both-provider browser results. Do not record credential values.
