@@ -1,5 +1,6 @@
 import handler from "@tanstack/react-start/server-entry";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import { withNonce } from "./server/nonce";
 
 export type AnalysisWorkflowParams = { runId: string };
 
@@ -12,7 +13,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisWorkflowPa
 
 export default {
   fetch(request) {
-    return handler.fetch(request);
+    return handler.fetch(withNonce(request).request);
   },
   async scheduled() {},
 } satisfies ExportedHandler<Env>;
