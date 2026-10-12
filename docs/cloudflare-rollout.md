@@ -43,6 +43,17 @@ Local validation at the same commit: `vp install`, `vp check`, and `vp test --ru
 the `ANALYSIS_WORKFLOW`, `DB`, and `BLOBS` bindings and the staging `MODE=production`,
 `ANALYSIS_MODE=live`, and `BETTER_AUTH_URL` vars.
 
+The private Stage 0 files are mode 0600 in a mode-0700 directory. Checked by setting name only:
+
+| Private file           | Present                                                          | Missing before hosted use                                    |
+| ---------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------ |
+| `.dev.vars.staging`    | `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | AI provider, models and keys; every run and spend bound      |
+| `.dev.vars.production` | `BETTER_AUTH_SECRET`                                             | Production GitHub pair; AI provider, models and keys; bounds |
+
+Neither ignored `apps/web/.dev.vars.staging` nor `apps/web/.dev.vars.production` exists in
+this worktree yet. Hosted `MODE=production` with `ANALYSIS_MODE=live` requires the provider
+settings and bounds, so staging cannot be deployed usefully until the owner chooses them.
+
 ## Phase 4.1 — Staging soak
 
 1. Complete the deferred local `vp run dev:live` analysis with owner-configured provider/model
