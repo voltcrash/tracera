@@ -9,7 +9,7 @@ DNS/OAuth changes, and decommission require approval of concrete actions before 
 | ----------------------------- | ---------------------------------------------------------------------------------------- |
 | Phase 2.6 local live analysis | Deferred by the owner under D18                                                          |
 | Phase 4.1 staging soak        | Deployed and smoke-checked under D18; owner GitHub round trip and provider checks remain |
-| Phase 4.2 production cutover  | Pending staging sign-off and approved cutover batch                                      |
+| Phase 4.2 production cutover  | Live on `v26.10.12` under D18; owner GitHub round trip remains                           |
 | Phase 4.3 decommission        | Pending agreed stable period, archive, deletion approvals, restore drill                 |
 | Phase 4.4 Google OAuth        | Pending final registration/credential approval, code PR, deploy, browser sign-off        |
 
@@ -228,6 +228,10 @@ Production smoke checks after the release:
 A second dispatch, [run 38288765452](https://github.com/voltcrash/tracera/actions/runs/38288765452),
 found no new commits and skipped install, build, migration, deployment, and publication.
 That closes the hosted skip-path check left open by Phase 3.3.
+
+Phase 4.2 sign-off under D18: **passed**, 2026-10-12. The owner waived the announcement,
+observation window, and rollback window. As in staging, the owner's real GitHub round trip is
+the remaining manual check.
 
 Sign-off: **pending**. Record announcement/approval links, integration and deployed SHAs,
 release/tag URL, DNS record inventory, GitHub smoke result, observation window, and rollback
