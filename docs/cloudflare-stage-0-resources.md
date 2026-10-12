@@ -1,8 +1,9 @@
 # Stage 0 resource preparation
 
-Date: 2026-10-11. Phase 0.3 is **incomplete**. R2 activation is verified. All six
+Date: 2026-10-11; updated 2026-10-12. Phase 0.3 is **incomplete**. R2 activation is verified. All six
 explicitly approved resource creation and bootstrap deployment commands succeeded. Google staging OAuth is deferred at the
-owner's request. GitHub staging OAuth and the scoped CI token are also deferred by the owner.
+owner's request. The owner has completed GitHub staging OAuth and CI token creation;
+their verification results are recorded below.
 
 This phase follows section 3 and Phase 0.3 of the
 [migration plan](cloudflare-migration-plan.md). Its PR contains documentation only.
@@ -92,9 +93,10 @@ Private files on the operator's machine:
 - `/Users/lakshmi/.t3/private/tracera/stage-0/.dev.vars.staging`
 - `/Users/lakshmi/.t3/private/tracera/stage-0/.dev.vars.production`
 
-Both files are outside Git. They currently contain only their environment's auth secret;
-OAuth credentials and provider keys have not been added. No secrets were uploaded to
-Cloudflare or GitHub. Keep existing production OAuth credentials private when preparing
+Both files are outside Git. Staging contains its auth secret and GitHub OAuth credentials;
+production still contains only its auth secret. Google credentials and provider keys have
+not been added. This phase has not uploaded secrets to Cloudflare or GitHub.
+Keep existing production OAuth credentials private when preparing
 the later production file, and retain these newly generated auth secrets for D6.
 
 Stage 2 adopts oxytype's ignored `.dev.vars` and `.dev.vars.production` files and
@@ -281,11 +283,10 @@ project with origin `https://tracera-staging.voltcrash.workers.dev` and redirect
 ID and secret in the private staging secrets file. Request approval for the exact
 registration settings before submitting them.
 
-## GitHub staging OAuth: deferred
+## GitHub staging OAuth: completed
 
-The owner deferred GitHub staging OAuth on 2026-10-11. The registration has not been
-submitted and no client secret was generated. Retain these prepared fields for when
-the owner resumes this work; review and approve them before using GitHub's
+The owner deferred GitHub staging OAuth on 2026-10-11, then confirmed registration and
+private credential storage on 2026-10-12 using the settings below. Registration used GitHub's
 [OAuth application registration form](https://github.com/settings/applications/new):
 
 | Field                      | Value                                                                    |
@@ -297,10 +298,11 @@ the owner resumes this work; review and approve them before using GitHub's
 | Authorization callback URL | `https://tracera-staging.voltcrash.workers.dev/api/auth/callback/github` |
 | Device flow                | Disabled                                                                 |
 
-After approved registration, generate one client secret and store `GITHUB_CLIENT_ID`
-and `GITHUB_CLIENT_SECRET` in the existing private `.dev.vars.staging` file, preserving
-mode 0600. Record only the app name, owner, callback, and completion status in Git.
-This operation does not change the existing production OAuth app.
+A private check confirmed nonempty `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and the
+retained `BETTER_AUTH_SECRET` in `.dev.vars.staging`, with file mode 0600 and directory
+mode 0700. Credential values remain outside Git and were not displayed. Registration
+evidence is the owner's confirmation; hosted sign-in is tested in Stage 4 after the
+auth endpoints are implemented. This operation does not change the production OAuth app.
 
 GitHub documents this registration as a Dashboard flow in
 [Creating an OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
@@ -363,16 +365,16 @@ Formatting fixes use Vite+; no check is bypassed. The existing suite reports 187
 tests and 10 pre-existing Postgres skips, with 27 passing files and two skipped files.
 No package script or application code changes in this PR.
 
-| Phase 0.3 requirement                     | Result and evidence                                                                  |
-| ----------------------------------------- | ------------------------------------------------------------------------------------ |
-| Resource names and IDs ready for Wrangler | Pass; manifests above, successful creates, and read-only inventory                   |
-| Isolated staging and production D1/R2     | Pass; distinct UUIDs and bucket names                                                |
-| Workers and Workflows exist               | Pass; successful deployments, version inventory, and Workflow script/class inventory |
-| Bootstrap configs validate                | Pass; dry runs before and after inserting real D1 IDs                                |
-| New staging and production auth secrets   | Pass; distinct random values in private mode-0600 files                              |
-| Staging Google OAuth                      | Incomplete; explicitly deferred by owner                                             |
-| Staging GitHub OAuth                      | Incomplete; explicitly deferred by owner; exact form retained                        |
-| Scoped CI API token                       | Incomplete; explicitly deferred by owner; policy retained                            |
+| Phase 0.3 requirement                     | Result and evidence                                                                    |
+| ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| Resource names and IDs ready for Wrangler | Pass; manifests above, successful creates, and read-only inventory                     |
+| Isolated staging and production D1/R2     | Pass; distinct UUIDs and bucket names                                                  |
+| Workers and Workflows exist               | Pass; successful deployments, version inventory, and Workflow script/class inventory   |
+| Bootstrap configs validate                | Pass; dry runs before and after inserting real D1 IDs                                  |
+| New staging and production auth secrets   | Pass; distinct random values in private mode-0600 files                                |
+| Staging Google OAuth                      | Incomplete; explicitly deferred by owner                                               |
+| Staging GitHub OAuth                      | Pass; owner confirmed registration; both credentials present in private mode-0600 file |
+| Scoped CI API token                       | Incomplete; explicitly deferred by owner; policy retained                              |
 
 The resource exit criterion passes. Phase 0.3 and Stage 0 remain incomplete while their
 OAuth and token requirements are unresolved. Keep this PR draft until those requirements
