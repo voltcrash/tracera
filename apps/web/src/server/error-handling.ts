@@ -134,3 +134,8 @@ function logServerDiagnostic(
     error: sanitizedErrorDetails(error),
   });
 }
+
+/** An error whose message is safe and useful to show the caller, such as invalid input. */
+export class ClientInputError extends Error {
+  override name = "ClientInputError";
+}

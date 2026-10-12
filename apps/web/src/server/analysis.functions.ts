@@ -9,6 +9,7 @@ import {
 } from "./analysis-api.server";
 import { authMiddleware } from "./auth-middleware";
 import { serverEnv } from "./env";
+import { ClientInputError } from "./error-handling";
 
 /** The Hono route's 7.1 MB body limit, now applied to the server function input. */
 export const MAX_ANALYSIS_INPUT_BYTES = 7_100_000;
@@ -30,7 +31,7 @@ export type ApiOutcome = { status: number; body: ApiBody };
 
 export function validateStartAnalysisInput(data: unknown): StartAnalysisInput {
   if (new TextEncoder().encode(JSON.stringify(data ?? null)).byteLength > MAX_ANALYSIS_INPUT_BYTES)
-    throw new Error("Request body is too large.");
+    throw new ClientInputError("Request body is too large.");
   const value = data as Partial<StartAnalysisInput> | null;
   if (
     !value ||
@@ -39,13 +40,13 @@ export function validateStartAnalysisInput(data: unknown): StartAnalysisInput {
     typeof value.input !== "object" ||
     Array.isArray(value.input)
   )
-    throw new Error("Provide an idempotency key and an analysis input.");
+    throw new ClientInputError("Provide an idempotency key and an analysis input.");
   return { idempotencyKey: value.idempotencyKey, input: value.input };
 }
 
 function runIdInput(data: unknown) {
   const runId = (data as { runId?: unknown } | null)?.runId;
-  if (typeof runId !== "string" || !runId) throw new Error("A run ID is required.");
+  if (typeof runId !== "string" || !runId) throw new ClientInputError("A run ID is required.");
   return { runId };
 }
 
