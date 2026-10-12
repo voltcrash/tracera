@@ -109,6 +109,18 @@ file with `wrangler secret bulk`; no AI settings were uploaded. `vp run deploy:s
 `0001_provider_spend_guard` to remote `tracera-staging`, then deployed Worker version
 `9d53b87f-4056-4515-a178-058e7eec1ccf` with the hourly cron and `tracera-staging-analysis`.
 
+Provider-free smoke checks against the deployed staging Worker:
+
+| Check                                           | Result                                                               |
+| ----------------------------------------------- | -------------------------------------------------------------------- |
+| `/` and `/auth/error`                           | 200 with per-request CSP nonce and `x-request-id`                    |
+| `/api/health`                                   | 200, `{"status":"ok","services":{"database":"connected"}}`           |
+| `/home` and `/settings` while signed out        | 307 to `/`                                                           |
+| Sign-in page providers                          | Only "Continue with GitHub"; Google returns `PROVIDER_NOT_FOUND`     |
+| GitHub sign-in start                            | Redirects to `github.com/login` with the staging client and callback |
+| Chromium console on `/`, `/auth/error`, `/home` | No errors and no CSP violations                                      |
+| Analysis without a provider                     | Covered by the `startAnalysisRun` unavailable test; returns 503      |
+
 ## Phase 4.2 — Production cutover
 
 Start only after Phase 4.1 sign-off. Review the actual current DNS record and Vercel project
