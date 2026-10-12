@@ -29,8 +29,10 @@ for (const [name, email] of [
     await page.getByRole("button", { name: "Open account menu" }).click();
     await page.getByRole("menuitem", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByText("Local development identities")).toBeVisible();
     expect(await (await page.request.get("/api/auth/get-session")).json()).toBeNull();
     await page.goto("/home");
     await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByText("Local development identities")).toBeVisible();
   });
 }
