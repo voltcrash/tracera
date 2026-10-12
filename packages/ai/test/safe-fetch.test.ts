@@ -175,3 +175,32 @@ test("honors abort signals without starting a transport request", async () => {
   );
   assert.equal(fetched, false);
 });
+
+test("cross-origin redirects never forward Gemini or Anthropic API-key headers", async () => {
+  let calls = 0;
+  const safeFetch = createSafeFetch({
+    fetchImplementation: async (_url, init) => {
+      calls += 1;
+      const headers = new Headers(init?.headers);
+      if (calls === 1) {
+        assert.equal(headers.get("x-api-key"), "anthropic-secret");
+        assert.equal(headers.get("x-goog-api-key"), "gemini-secret");
+        return new Response(null, {
+          status: 307,
+          headers: { location: "https://different.example/" },
+        });
+      }
+      assert.equal(headers.has("x-api-key"), false);
+      assert.equal(headers.has("x-goog-api-key"), false);
+      return new Response("done");
+    },
+  });
+  assert.equal(
+    await (
+      await safeFetch("https://first.example/", {
+        headers: { "x-api-key": "anthropic-secret", "x-goog-api-key": "gemini-secret" },
+      })
+    ).text(),
+    "done",
+  );
+});

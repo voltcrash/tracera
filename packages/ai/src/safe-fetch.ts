@@ -244,6 +244,8 @@ function redirectRequestInit(
     headers.delete("authorization");
     headers.delete("cookie");
     headers.delete("proxy-authorization");
+    headers.delete("x-api-key");
+    headers.delete("x-goog-api-key");
   }
   return {
     ...init,
