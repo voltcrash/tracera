@@ -509,3 +509,18 @@ export const analysisIdempotencyKeys = sqliteTable(
     ),
   ],
 );
+
+export const analysisDailyQuotas = sqliteTable(
+  "analysis_daily_quotas",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    periodStart: text("period_start").notNull(),
+    requestCount: integer("request_count").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.periodStart] }),
+    check("analysis_daily_quotas_count_check", sql`${table.requestCount} >= 0`),
+  ],
+);
