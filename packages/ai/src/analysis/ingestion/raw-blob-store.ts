@@ -9,7 +9,8 @@ export function createR2RawBlobStore(bucket: Pick<R2Bucket, "get" | "put">): Raw
   return {
     async put({ snapshotId, bytes, signal }) {
       signal.throwIfAborted();
-      if (!/^[a-zA-Z0-9_-]+$/.test(snapshotId)) throw new Error("Invalid snapshot ID.");
+      if (snapshotId.trim() !== snapshotId || !/^[a-zA-Z0-9_-]+$/.test(snapshotId))
+        throw new Error("Invalid snapshot ID.");
       const key = `snapshots/${snapshotId}/${digest(bytes)}`;
       await bucket.put(key, bytes);
       signal.throwIfAborted();
@@ -17,7 +18,7 @@ export function createR2RawBlobStore(bucket: Pick<R2Bucket, "get" | "put">): Raw
     },
     async read(uri, signal) {
       signal.throwIfAborted();
-      if (!locatorPattern.test(uri)) return null;
+      if (uri.trim() !== uri || !locatorPattern.test(uri)) return null;
       const key = uri.slice("r2://".length);
       const object = await bucket.get(key);
       signal.throwIfAborted();
