@@ -83,6 +83,7 @@ test("invalid input, missing keys and disabled analysis never admit a run", asyn
   });
   expect(production.status).toBe(503);
   expect(production.body.status).toBe("unavailable");
+  expect(production.body.error).toBe("Analysis is not available right now.");
   expect(harness.created.length).toBe(before);
 });
 

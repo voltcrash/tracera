@@ -188,6 +188,22 @@ DNS record and Git integration. Review and approve the exact rollback actions fi
 remains in Neon; Cloudflare-era accounts/history stay in D1 and are not imported back. Record
 this limitation and the agreed rollback window before cutover.
 
+### Cutover preparation, 2026-10-12
+
+The owner directed an immediate cutover and waived the announcement, the observation window,
+and the rollback window (D18). Actual order:
+
+1. The owner deleted the Vercel project, which ends Vercel Git deployments.
+2. The owner attached `tracera.voltcrash.com` to the production Worker `tracera` as a custom
+   domain (`e16f272b…`); public DNS now resolves to Cloudflare. The bootstrap version served
+   503 until the first release.
+3. The Vercel-created `Preview` and `Production` GitHub environments were deleted at the
+   owner's direction. A fresh `production` environment deploys from `main` only and holds
+   `CLOUDFLARE_API_TOKEN` (the scoped CI token) and `PRODUCTION_WORKER_ENV`.
+4. The owner created a fresh production GitHub OAuth app. The private production file holds
+   its pair and the Stage 0 auth secret, with no AI settings. Locally, `check:production`
+   passed with the D18 notice and `deploy:production-dry-run` showed the production bindings.
+
 Sign-off: **pending**. Record announcement/approval links, integration and deployed SHAs,
 release/tag URL, DNS record inventory, GitHub smoke result, observation window, and rollback
 owner. Decommission must not begin while production stability is unresolved.

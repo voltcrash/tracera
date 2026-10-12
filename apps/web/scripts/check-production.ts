@@ -22,7 +22,7 @@ async function main() {
   const built = await readOptional("dist/server/wrangler.json");
   if (built === undefined) throw new Error("Run build:production before checking production.");
   const stagingSecrets = await readOptional(".dev.vars.staging");
-  validateProductionInputs({
+  const { analysis } = validateProductionInputs({
     config: experimental_readRawConfig({ config: path("wrangler.production.json") }).rawConfig,
     stagingConfig: experimental_readRawConfig({ config: path("wrangler.jsonc") }).rawConfig,
     secrets: parseEnv(secrets),
@@ -30,6 +30,7 @@ async function main() {
     built: JSON.parse(built),
   });
   console.log("Production configuration, secrets and build checked.");
+  if (!analysis) console.log("No AI provider is configured; analysis stays unavailable (D18).");
 }
 
 main().catch((error: unknown) => {
