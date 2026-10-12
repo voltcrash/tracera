@@ -1,16 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
-import { projectReport, type AnalysisReportView } from "@repo/ai/analysis/report-view";
 import { Check, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
-import { apiUrl } from "@/lib/api";
-import { AnalysisReport } from "@/components/analysis/analysis-report";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { startAnalysis } from "@/server/analysis.functions";
 
 const example =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
@@ -19,14 +18,15 @@ const MAX_IMAGE_BYTES = 5_000_000;
 export const Route = createFileRoute("/_workspace/home")({ component: Home });
 
 function Home() {
-  const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
+  const { isLoading: isAuthLoading, user } = useAuth();
+  const start = useServerFn(startAnalysis);
+  const navigate = useNavigate();
   const [text, setText] = useState("");
   const [image, setImage] = useState<{
     dataUrl: string;
     mimeType: string;
     name: string;
   } | null>(null);
-  const [result, setResult] = useState<AnalysisReportView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("Preparing the evidence trace.");
@@ -38,48 +38,26 @@ function Home() {
     if (!user) return;
     setLoading(true);
     setError(null);
-    setResult(null);
     setProgress("Preparing claim checks.");
     try {
       const value = text.trim();
-      const request = image
+      const input = image
         ? { image: image.dataUrl, imageMimeType: image.mimeType }
         : isHttpUrl(value)
           ? { url: value }
           : { text: value };
-      const response = await apiFetch(`${apiUrl}/analyze`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": crypto.randomUUID(),
-        },
-        body: JSON.stringify({
-          ...request,
-        }),
+      const { status, body } = await start({
+        data: { idempotencyKey: crypto.randomUUID(), input },
       });
-      if (!response.ok) {
-        const failure = (await response.json().catch(() => null)) as { error?: unknown } | null;
-        throw new Error(
-          typeof failure?.error === "string" ? failure.error : "Unable to start this analysis.",
-        );
+      if (status >= 400 || !body.runId) {
+        throw new Error(body.error ?? "Unable to start this analysis.");
       }
-      const data = (await response.json()) as {
-        report?: unknown;
-        error?: unknown;
-      };
-      if (!data.report) {
-        throw new Error(typeof data.error === "string" ? data.error : "No report was saved.");
-      }
-      const view = projectReport(data.report, apiUrl);
-      if (view.schemaVersion !== 2) throw new Error("The report format was unavailable.");
-      setResult(view);
-      setProgress("Claim checks saved.");
       refreshHistory();
+      await navigate({ to: "/run/$id", params: { id: body.runId } });
     } catch (requestError) {
       setError(
         requestError instanceof Error ? requestError.message : "Unable to analyze this text.",
       );
-    } finally {
       setLoading(false);
     }
   }
@@ -127,8 +105,8 @@ function Home() {
 
   return (
     <main className="home">
-      <div className={cn("home-inner", (result || loading) && "home-inner-working")}>
-        {!result && !loading && <h1 className="home-headline">What did you see?</h1>}
+      <div className={cn("home-inner", loading && "home-inner-working")}>
+        {!loading && <h1 className="home-headline">What did you see?</h1>}
 
         <form onSubmit={analyze} className="composer">
           <label className="sr-only" htmlFor="story-input">
@@ -204,7 +182,7 @@ function Home() {
           </div>
         </form>
 
-        {!result && !loading && !text && !image && (
+        {!loading && !text && !image && (
           <div className="starters">
             <button type="button" className="starter" onClick={() => setText(example)}>
               <Sparkles />
@@ -217,7 +195,7 @@ function Home() {
           </div>
         )}
 
-        {(text || image) && !result && !loading && (
+        {(text || image) && !loading && (
           <p className="composer-note">Links are detected automatically. Images up to 5 MB.</p>
         )}
 
@@ -226,18 +204,6 @@ function Home() {
           <Alert variant="destructive" className="mt-6">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
-        )}
-
-        {result && (
-          <section className="pb-24 pt-10">
-            <p className="mb-6 flex items-center gap-2.5 text-sm text-ink-soft">
-              <Check className="size-4 text-brand-lime-ink" />
-              {result.status === "complete"
-                ? "Evidence trace assembled"
-                : `Evidence trace saved · ${result.status}`}
-            </p>
-            <AnalysisReport view={result} />
-          </section>
         )}
       </div>
     </main>
