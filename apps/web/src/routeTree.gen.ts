@@ -20,6 +20,7 @@ import { Route as AuthCompleteRouteImport } from "./routes/auth/complete";
 import { Route as AuthErrorRouteImport } from "./routes/auth/error";
 import { Route as WorkspaceRunIdRouteImport } from "./routes/_workspace/run.$id";
 import { Route as ApiAuthSplatRouteImport } from "./routes/api/auth/$";
+import { Route as ApiRunsIdEventsRouteImport } from "./routes/api/runs/$id/events";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -75,6 +76,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: "/api/auth/$",
   getParentRoute: () => rootRouteImport,
 } as any);
+const ApiRunsIdEventsRoute = ApiRunsIdEventsRouteImport.update({
+  id: "/api/runs/$id/events",
+  path: "/api/runs/$id/events",
+  getParentRoute: () => rootRouteImport,
+} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   "/auth/error": typeof AuthErrorRoute;
   "/run/$id": typeof WorkspaceRunIdRoute;
   "/api/auth/$": typeof ApiAuthSplatRoute;
+  "/api/runs/$id/events": typeof ApiRunsIdEventsRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   "/auth/error": typeof AuthErrorRoute;
   "/run/$id": typeof WorkspaceRunIdRoute;
   "/api/auth/$": typeof ApiAuthSplatRoute;
+  "/api/runs/$id/events": typeof ApiRunsIdEventsRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   "/auth/error": typeof AuthErrorRoute;
   "/_workspace/run/$id": typeof WorkspaceRunIdRoute;
   "/api/auth/$": typeof ApiAuthSplatRoute;
+  "/api/runs/$id/events": typeof ApiRunsIdEventsRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -126,7 +135,8 @@ export interface FileRouteTypes {
     | "/auth/complete"
     | "/auth/error"
     | "/run/$id"
-    | "/api/auth/$";
+    | "/api/auth/$"
+    | "/api/runs/$id/events";
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
@@ -138,7 +148,8 @@ export interface FileRouteTypes {
     | "/auth/complete"
     | "/auth/error"
     | "/run/$id"
-    | "/api/auth/$";
+    | "/api/auth/$"
+    | "/api/runs/$id/events";
   id:
     | "__root__"
     | "/"
@@ -151,7 +162,8 @@ export interface FileRouteTypes {
     | "/auth/complete"
     | "/auth/error"
     | "/_workspace/run/$id"
-    | "/api/auth/$";
+    | "/api/auth/$"
+    | "/api/runs/$id/events";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -163,6 +175,7 @@ export interface RootRouteChildren {
   AuthCompleteRoute: typeof AuthCompleteRoute;
   AuthErrorRoute: typeof AuthErrorRoute;
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute;
+  ApiRunsIdEventsRoute: typeof ApiRunsIdEventsRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -244,6 +257,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ApiAuthSplatRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/api/runs/$id/events": {
+      id: "/api/runs/$id/events";
+      path: "/api/runs/$id/events";
+      fullPath: "/api/runs/$id/events";
+      preLoaderRoute: typeof ApiRunsIdEventsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
@@ -270,6 +290,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCompleteRoute: AuthCompleteRoute,
   AuthErrorRoute: AuthErrorRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiRunsIdEventsRoute: ApiRunsIdEventsRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
