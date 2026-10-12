@@ -404,6 +404,11 @@ UUIDs and exact resource/binding names above into Stage 2's Wrangler configs; re
 the newly generated auth secrets. The hosted databases are empty and the baseline
 migration is still a Phase 1.3 deliverable.
 
+Carry D17 into Phase 1.5 auth configuration and Stage 2–3 deployment validation:
+GitHub credentials are required for hosted sign-in; both Google credentials may be
+absent until Phase 4.4. Reject partial Google pairs and keep the provider's implementation
+and stubbed tests. Phase 4.4 adds Google to production's required secrets and live checks.
+
 No live AI provider/model pairs are configured, as confirmed by the owner in Phase 0.2.
 Run the deployed staging structured-output probe before configuring any live provider.
 Keep provider keys in a private secrets file, and preserve D14's provider resolver seam.
