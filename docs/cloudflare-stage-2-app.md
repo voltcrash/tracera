@@ -129,3 +129,56 @@ and sign-out expires the cookie and clears the session.
 Validation: `vp install`, a Worker build, `vp check` and `vp test --run` (352 passed; 10
 existing Postgres cases skipped) pass before each commit. Evidence:
 `apps/web/test/auth-route.test.ts` and `packages/auth/test/dev-auth-bypass.d1.test.ts`.
+
+## Phase 2.4 — Server layer replacing Hono
+
+Result: **PASS** locally, 2026-10-12.
+
+| Hono                                         | Start                                                                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `requestIdMiddleware`, `onError`             | `securityMiddleware`: request ID, JSON error envelope; `serverFunctionErrors` for server functions                        |
+| Security headers, CSP, `private, no-store`   | `securedResponse` in the same middleware, with the per-request nonce                                                      |
+| `cors()`                                     | Removed; pages and API share one origin                                                                                   |
+| `authenticatedUser` with its `WeakMap` cache | `authMiddleware` reading the D1 session once per call                                                                     |
+| `configureDatabase`                          | D1 repositories from `env.DB` and `env.BLOBS`                                                                             |
+| `GET /api/tracera/`                          | Removed                                                                                                                   |
+| `GET /auth/me`                               | `getMe`                                                                                                                   |
+| `GET /health`                                | `/api/health`                                                                                                             |
+| `POST /analyze`                              | `startAnalysis`: one D1 admission batch, run row, Workflow instance; returns `{ runId, status }` or a typed control error |
+| `GET /runs`, `GET /runs/:id`, cancel         | `listRuns`, `getRun` (also the `/run/$id` loader), `cancelRun`                                                            |
+| `GET /runs/:id/events`                       | `/api/runs/$id/events`, same SSE format                                                                                   |
+| Evidence                                     | `/api/runs/$id/evidence/$snapshotId`                                                                                      |
+
+- The 7.1 MB body limit is in `startAnalysis`'s input validator. Validation errors use
+  `ClientInputError` so their messages survive the generic error mapping.
+- Admission and spend run on the D1 repositories. Admission passes only its limits, because
+  D1 rejects the fractional spend settings the Postgres path ignored. Client IPs come from
+  `cf-connecting-ip` first.
+- The policy reads `MODE` and `ANALYSIS_MODE`; fixture analysis needs `MODE=dev` (D9).
+- The workspace rail calls `listRuns`, the run page streams progress from the SSE route and
+  cancels through `cancelRun`, and the home page navigates to `/run/$id` after
+  `startAnalysis`. That navigation was listed under Phase 2.5 and moved here with the new
+  response shape.
+- The Hono app, its tests and the `hono` dependency are gone. Phase 3.1 listed this removal;
+  it happened here once nothing imported Hono.
+
+Until Phase 2.5 implements the Workflow, started runs stay queued and their admission
+leases stay held until they expire, so the second concurrent start per user returns the
+concurrency limit. The Postgres executor in `analysis-runtime.ts` is unused until then.
+
+### Exit criteria
+
+Ported tests invoke the server function cores and route handlers against Miniflare D1 and R2:
+`analysis-api.server.test.ts` (start for text, link and image; validation; disabled
+analysis; idempotency; start failure and replay; history; ownership; cancellation),
+`api-routes.test.ts` (SSE, evidence, health), `error-handling.test.ts`,
+`response-policy.test.ts`, `analysis-controls.test.ts`, `analysis-policy.test.ts`,
+`analysis-functions.test.ts` and `route-guards.d1.test.ts`. All pass.
+
+In the browser under `vp dev`, starting the example claim opens `/run/$id` with streamed
+progress, the rail lists the queued trace, cancellation streams back as canceled, and pages
+load under the new CSP without violations.
+
+Validation: `vp install`, a Worker build, `vp check` and `vp test --run` pass before each
+commit. The production client bundle contains no Drizzle, `node:crypto` or
+`cloudflare:workers` code.

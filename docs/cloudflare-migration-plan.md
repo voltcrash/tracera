@@ -1,7 +1,7 @@
 # Cloudflare migration plan
 
 Status: Stage 2 in progress, 2026-10-12. Stages 0 and 1 are complete and merged. Phases 2.1
-through 2.3 pass locally; their stacked PRs target `migrate/cloudflare`. D1–D17 are accepted. Stage 2–4
+through 2.4 pass locally; their stacked PRs target `migrate/cloudflare`. D1–D17 are accepted. Stage 2–4
 implementation and hosted rollout gates remain open.
 
 Tracera moves from Next.js + Hono on Vercel with Neon Postgres to a single TanStack Start
@@ -461,8 +461,8 @@ function and route handlers against a Miniflare environment.
 - Removed: `acquireLease`, `renewLease`, `acquireNextLease`, the renew and cancellation timers,
   and `process.pid` worker IDs.
 - In fixture mode the workflow uses the scripted ports from `packages/ai/scripts/support`.
-- The home page navigates to `/run/$id` after `startAnalysis`; the run page shows live progress
-  and then the report.
+- The home page navigates to `/run/$id` after `startAnalysis` (landed in Phase 2.4 with the
+  new response shape); the run page shows live progress and then the report.
 
 Exit: a local fixture analysis completes end to end in `vp dev`, cancellation works, and an
 injected failure resumes from its checkpoint.
@@ -488,7 +488,8 @@ Pull requests target `migrate/cloudflare`.
 
 **Phase 3.1 — Delete legacy code and dependencies.**
 
-- Hono: `apps/web/src/server/{index,server,auth-routes,base-path,cors-origin}.ts` and `hono`.
+- Hono: removed in Phase 2.4 once its replacement landed, together with the `hono`
+  dependency.
 - Postgres: `packages/db/src/connection.ts`, the Postgres schema, `packages/db/drizzle/` (31
   migrations and snapshots), `@neondatabase/serverless`, `pg`, `@types/pg`, and Postgres tests.
   D1 modules move from `src/d1/` to `src/`.
