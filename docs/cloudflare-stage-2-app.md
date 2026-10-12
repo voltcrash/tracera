@@ -285,3 +285,40 @@ Validation: `vp install`, `vp check`, `vp test --run` (412 passed; 10 legacy Pos
 skipped), `vp run check-types`, and `vp run build` pass. Evidence:
 `packages/db/test/d1/maintenance.test.ts`, `apps/web/test/maintenance.test.ts`, and the local
 scheduled invocation above. No hosted resources or settings changed.
+
+## Phase 2.8 — Browser tests
+
+Result: **PASS** locally and in CI, 2026-10-12. PR:
+[#49](https://github.com/voltcrash/tracera/pull/49).
+
+- Playwright starts `vp dev` at `http://127.0.0.1:3000` with `--strictPort`, applies the real
+  local D1 migrations, and removes its two synthetic identities and their analysis records
+  through `wrangler d1 execute --local`. It creates a mode-0600 fixture `.dev.vars` only when
+  the file is absent and validates existing settings without replacing them.
+- Both identities use real Better Auth D1 sessions. The browser checks their cookies, persisted
+  session rows, reloads, settings, sign-out, and the anonymous workspace redirect.
+- Real local Workflows process pasted text, public links, screenshots through fixture OCR,
+  and three selected claims. Missing evidence keeps the score null; screenshot authenticity
+  stays explicitly unassessed. Saved D1 fixtures cover exact snapshot/excerpt downloads,
+  report reloads, generic provider-failure messages, and cancellation through the server
+  function and SSE. Native Workflow termination and admission release are covered separately
+  by the Phase 2.5 workerd tests; the seeded browser cancellation case has no native instance.
+- Browser testing fixed composer input loss and inert cancellation clicks before hydration, plus
+  report/settings dates that differed between the server's UTC timezone and the browser's
+  timezone. Localized dates now
+  render after hydration with stable ISO fallback text. Reload checks run in `Asia/Kolkata`
+  and assert no page errors. Failed and canceled runs now say "Analysis ended".
+- CI runs `vp run test:browser` under the existing external-network denial wrapper after
+  acquiring Chromium. Docker and the old integration suites remain until Stage 3.
+
+Validation: `vp install`, `vp check`, `vp test --run` (412 passed; 10 legacy Postgres unit cases
+skipped), `vp run check-types`, `vp run build`, both targeted browser commands, and the full
+browser command (10 passed) pass. [CI evidence](https://github.com/voltcrash/tracera/actions/runs/38259938772)
+also passes its retained Postgres integration checks and the browser suites with external
+networking denied. All eight stacked Stage 2 PRs are green.
+
+Stage 2 implementation is ready for review. Phase 2.6's actual `dev:live` exit criterion remains
+pending until the owner configures a provider/model/key and explicit run/spend bounds locally.
+No hosted resources, secrets, deployments, DNS, or OAuth apps changed. Stage 3 removes the
+remaining Postgres/environment tooling and replaces the transitional CI; the hosted provider
+probe, staging rollout, and final Google OAuth work remain in their planned stages.
