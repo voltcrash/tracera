@@ -204,3 +204,70 @@ test("queued cancellation and terminal failure prevent later attempt claims", as
     }),
   ).rejects.toThrow(StaleWorkerError);
 });
+
+test("finalization rejects missing evidence, then atomically publishes one concurrent completion", async () => {
+  const repository = repo();
+  const ctx = context("finalize-run");
+  await repository.createRun({ context: ctx });
+  const attempt = await repository.beginAttempt({
+    scope,
+    runId: ctx.runId,
+    stage: "score_report",
+    expectedVersion: 0,
+  });
+  const report = structuredClone(completeRunReportExample);
+  report.runId = ctx.runId;
+  report.replayManifest.runId = ctx.runId;
+  const privateScope = { ...scope, ownerUserId: "finalize-owner" };
+  const privateContext = {
+    ...ctx,
+    runId: "finalize-private",
+    ownerUserId: privateScope.ownerUserId,
+  };
+  await repository.createRun({ context: privateContext });
+  const privateAttempt = await repository.beginAttempt({
+    scope: privateScope,
+    runId: privateContext.runId,
+    stage: "score_report",
+    expectedVersion: 0,
+  });
+  const privateReport = structuredClone(report);
+  privateReport.runId = privateContext.runId;
+  privateReport.replayManifest.runId = privateContext.runId;
+  await expect(
+    repository.finalize({
+      scope: privateScope,
+      ...privateAttempt,
+      reportHash: ctx.inputHash,
+      report: privateReport,
+    }),
+  ).rejects.toThrow(AnalysisStorageConflictError);
+  expect(
+    (await repository.getRunProgress({ scope: privateScope, runId: privateContext.runId }))?.status,
+  ).toBe("running");
+  for (const snapshot of report.snapshots) await repository.putSnapshot({ scope, snapshot });
+  const input = { scope, ...attempt, reportHash: ctx.inputHash, report };
+  const results = await Promise.allSettled([
+    repository.finalize(input),
+    repository.finalize(input),
+  ]);
+  expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+  expect(await repository.getLatestReport({ scope, runId: ctx.runId })).toEqual(report);
+  expect(
+    await repository.getLatestReport({
+      scope: { ...scope, ownerUserId: "other" },
+      runId: ctx.runId,
+    }),
+  ).toBeNull();
+  expect(await repository.getReportVersion({ scope, runId: ctx.runId, version: 1 })).toEqual(
+    report,
+  );
+  const stored = await runtime.db
+    .prepare("SELECT factual_score,diagnostic_labels FROM core_report_versions WHERE run_id=?")
+    .bind(ctx.runId)
+    .first<{ factual_score: number; diagnostic_labels: string }>();
+  expect(stored!.factual_score).toBe(report.scorecard?.factualScore);
+  expect(JSON.parse(stored!.diagnostic_labels)).toEqual(
+    report.decisions.map(({ claimId, diagnosticLabel }) => ({ claimId, label: diagnosticLabel })),
+  );
+});

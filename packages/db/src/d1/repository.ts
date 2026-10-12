@@ -1,8 +1,10 @@
 import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
 import {
   documentSnapshotSchema,
+  runReportSchema,
   runContextSchema,
   type DocumentSnapshot,
+  type RunReport,
   type RunContext,
   type StageName,
 } from "@repo/contracts/analysis";
@@ -124,6 +126,203 @@ export class D1AnalysisRepository {
       )
       .bind(runId, ...scopeValues(scope))
       .first<RunRow>();
+  }
+
+  async getLatestReport(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+  }): Promise<RunReport | null> {
+    return this.getReportVersion({ ...input });
+  }
+
+  async getReportVersion(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+    version?: number;
+  }): Promise<RunReport | null> {
+    const row = await this.database
+      .prepare(
+        `SELECT report,report_blob_uri FROM core_report_versions WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? ${input.version === undefined ? "" : "AND version=?"} ORDER BY version DESC LIMIT 1`,
+      )
+      .bind(
+        input.runId,
+        ...scopeValues(input.scope),
+        ...(input.version === undefined ? [] : [input.version]),
+      )
+      .first<{ report: string | null; report_blob_uri: string | null }>();
+    return row
+      ? runReportSchema.parse(
+          await this.payloads.read({ inline: row.report, blobUri: row.report_blob_uri }),
+        )
+      : null;
+  }
+
+  async finalize(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+    fencingToken: string;
+    reportHash: string;
+    report: RunReport;
+  }): Promise<void> {
+    const report = runReportSchema.parse(input.report);
+    if (report.runId !== input.runId || report.visibility !== input.scope.visibility)
+      throw new AnalysisStorageConflictError("Report identity does not match its storage scope.");
+    const stored = new Map(
+      (
+        await this.getSnapshots({
+          scope: input.scope,
+          snapshotIds: report.snapshots.map((snapshot) => snapshot.id),
+        })
+      ).map((snapshot) => [snapshot.id, hashJson(snapshot)]),
+    );
+    if (report.snapshots.some((snapshot) => stored.get(snapshot.id) !== hashJson(snapshot)))
+      throw new AnalysisStorageConflictError("Report references missing or conflicting snapshots.");
+    const payload = await this.payloads.encode(report, "reports");
+    const now = this.now();
+    const active =
+      "run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0";
+    const identity = [input.runId, ...scopeValues(input.scope), input.fencingToken];
+    const statements = [
+      this.database
+        .prepare(`INSERT INTO core_report_versions(run_id,version,tenant_id,owner_user_id,visibility,report_hash,schema_version,contract_version,engine_version,diagnostic_labels,published_labels,factual_score,score_null_reasons,evidence_set_hash,report,report_blob_uri,created_at)
+      SELECT run_id,1,tenant_id,owner_user_id,visibility,?,?,?,?,?,?,?,?,?,?,?,? FROM core_runs WHERE ${active} ON CONFLICT(run_id,version) DO NOTHING RETURNING run_id`)
+        .bind(
+          input.reportHash,
+          report.schemaVersion,
+          report.contractVersion,
+          report.engineVersion,
+          JSON.stringify(
+            report.decisions.map(({ claimId, diagnosticLabel }) => ({
+              claimId,
+              label: diagnosticLabel,
+            })),
+          ),
+          JSON.stringify(
+            report.decisions.map(({ claimId, publishedLabel }) => ({
+              claimId,
+              label: publishedLabel,
+            })),
+          ),
+          report.scorecard?.factualScore ?? null,
+          JSON.stringify(report.scorecard?.nullReasons ?? []),
+          report.evidenceSetHash,
+          payload.inline,
+          payload.blobUri,
+          now,
+          ...identity,
+        ),
+    ];
+    const projection = (table: string, columns: string[], rows: unknown[][]) => {
+      for (let offset = 0; offset < rows.length; offset += 50)
+        statements.push(
+          this.database
+            .prepare(
+              `INSERT INTO ${table}(${columns.join(",")}) SELECT ${columns.map((_, i) => `json_extract(value,'$[${i}]')`).join(",")} FROM json_each(?) WHERE EXISTS(SELECT 1 FROM core_runs WHERE ${active})`,
+            )
+            .bind(JSON.stringify(rows.slice(offset, offset + 50)), ...identity),
+        );
+    };
+    const prefix = [input.runId, 1];
+    const ownership = scopeValues(input.scope);
+    projection(
+      "core_report_snapshots",
+      ["run_id", "report_version", "snapshot_id", "tenant_id", "owner_user_id", "visibility"],
+      report.snapshots.map((snapshot) => [...prefix, snapshot.id, ...ownership]),
+    );
+    projection(
+      "core_report_claims",
+      ["run_id", "report_version", "claim_id", "tenant_id", "owner_user_id", "visibility", "claim"],
+      report.claims.map((claim) => [...prefix, claim.id, ...ownership, JSON.stringify(claim)]),
+    );
+    projection(
+      "core_evidence_assessments",
+      [
+        "run_id",
+        "report_version",
+        "assessment_id",
+        "claim_id",
+        "snapshot_id",
+        "tenant_id",
+        "owner_user_id",
+        "visibility",
+        "assessment",
+      ],
+      report.assessments.map((assessment) => [
+        ...prefix,
+        assessment.id,
+        assessment.claimId,
+        assessment.snapshotId,
+        ...ownership,
+        JSON.stringify(assessment),
+      ]),
+    );
+    projection(
+      "core_provenance_edges",
+      [
+        "run_id",
+        "report_version",
+        "claim_id",
+        "edge_index",
+        "tenant_id",
+        "owner_user_id",
+        "visibility",
+        "from_snapshot_id",
+        "to_snapshot_id",
+        "edge",
+      ],
+      report.provenance.flatMap((graph) =>
+        graph.edges.map((edge, i) => [
+          ...prefix,
+          graph.claimId,
+          i,
+          ...ownership,
+          edge.fromSnapshotId,
+          edge.toSnapshotId,
+          JSON.stringify(edge),
+        ]),
+      ),
+    );
+    projection(
+      "core_decisions",
+      [
+        "run_id",
+        "report_version",
+        "claim_id",
+        "tenant_id",
+        "owner_user_id",
+        "visibility",
+        "diagnostic_label",
+        "published_label",
+        "decision",
+      ],
+      report.decisions.map((decision) => [
+        ...prefix,
+        decision.claimId,
+        ...ownership,
+        decision.diagnosticLabel,
+        decision.publishedLabel,
+        JSON.stringify(decision),
+      ]),
+    );
+    statements.push(
+      this.database
+        .prepare(
+          `UPDATE core_stage_attempts SET finished_at=?,outcome='complete' WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=? AND EXISTS(SELECT 1 FROM core_runs WHERE ${active})`,
+        )
+        .bind(now, ...identity, ...identity),
+    );
+    statements.push(
+      this.database
+        .prepare(
+          `UPDATE core_runs SET status=?,finalized_at=?,updated_at=?,version=version+1 WHERE ${active}`,
+        )
+        .bind(report.status, now, now, ...identity),
+    );
+    const [inserted] = await this.database.batch(statements);
+    if (!inserted!.results.length)
+      throw new StaleWorkerError(
+        "Finalization rejected for canceled, finalized or superseded run.",
+      );
   }
 
   async requestCancellation(input: {
