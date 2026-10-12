@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from "./routes/index";
 import { Route as WorkspaceRouteImport } from "./routes/_workspace";
 import { Route as WorkspaceHomeRouteImport } from "./routes/_workspace/home";
 import { Route as WorkspaceSettingsRouteImport } from "./routes/_workspace/settings";
+import { Route as AuthCompleteRouteImport } from "./routes/auth/complete";
 import { Route as WorkspaceRunIdRouteImport } from "./routes/_workspace/run.$id";
 
 const IndexRoute = IndexRouteImport.update({
@@ -34,6 +35,11 @@ const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
   path: "/settings",
   getParentRoute: () => WorkspaceRoute,
 } as any);
+const AuthCompleteRoute = AuthCompleteRouteImport.update({
+  id: "/auth/complete",
+  path: "/auth/complete",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const WorkspaceRunIdRoute = WorkspaceRunIdRouteImport.update({
   id: "/run/$id",
   path: "/run/$id",
@@ -44,12 +50,14 @@ export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/home": typeof WorkspaceHomeRoute;
   "/settings": typeof WorkspaceSettingsRoute;
+  "/auth/complete": typeof AuthCompleteRoute;
   "/run/$id": typeof WorkspaceRunIdRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/home": typeof WorkspaceHomeRoute;
   "/settings": typeof WorkspaceSettingsRoute;
+  "/auth/complete": typeof AuthCompleteRoute;
   "/run/$id": typeof WorkspaceRunIdRoute;
 }
 export interface FileRoutesById {
@@ -58,25 +66,28 @@ export interface FileRoutesById {
   "/_workspace": typeof WorkspaceRouteWithChildren;
   "/_workspace/home": typeof WorkspaceHomeRoute;
   "/_workspace/settings": typeof WorkspaceSettingsRoute;
+  "/auth/complete": typeof AuthCompleteRoute;
   "/_workspace/run/$id": typeof WorkspaceRunIdRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/home" | "/settings" | "/run/$id";
+  fullPaths: "/" | "/home" | "/settings" | "/auth/complete" | "/run/$id";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/home" | "/settings" | "/run/$id";
+  to: "/" | "/home" | "/settings" | "/auth/complete" | "/run/$id";
   id:
     | "__root__"
     | "/"
     | "/_workspace"
     | "/_workspace/home"
     | "/_workspace/settings"
+    | "/auth/complete"
     | "/_workspace/run/$id";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   WorkspaceRoute: typeof WorkspaceRouteWithChildren;
+  AuthCompleteRoute: typeof AuthCompleteRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -109,6 +120,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof WorkspaceSettingsRouteImport;
       parentRoute: typeof WorkspaceRoute;
     };
+    "/auth/complete": {
+      id: "/auth/complete";
+      path: "/auth/complete";
+      fullPath: "/auth/complete";
+      preLoaderRoute: typeof AuthCompleteRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/_workspace/run/$id": {
       id: "/_workspace/run/$id";
       path: "/run/$id";
@@ -136,6 +154,7 @@ const WorkspaceRouteWithChildren = WorkspaceRoute._addFileChildren(WorkspaceRout
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   WorkspaceRoute: WorkspaceRouteWithChildren,
+  AuthCompleteRoute: AuthCompleteRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
