@@ -3,7 +3,7 @@ import {
   StaleWorkerError,
   type D1RepositoryOptions,
 } from "@repo/db/d1";
-import type { AnalysisAccessScope } from "@repo/db/analysis/repository";
+import type { AnalysisAccessScope } from "@repo/db/d1";
 import { analysisStorage, isTerminalRunStatus } from "./analysis-api.server";
 import { CANCELLATION_GRACE_MS } from "./analysis-cancellation.server";
 import { analysisControlConfig } from "./analysis-controls";

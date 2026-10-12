@@ -20,3 +20,11 @@ export { createD1AdmissionRepository, D1AdmissionRepository } from "./admission.
 export { createD1SpendRepository, D1SpendRepository, type D1SpendAdmission } from "./spend.js";
 export { D1PayloadStore, D1PayloadError, type StoredProjection } from "./payloads.js";
 export { createD1MaintenanceRepository } from "./maintenance.js";
+
+export type { AnalysisAccessScope, AnalysisVisibility } from "../access-scope.js";
+export type {
+  AnalysisAdmissionRejection,
+  AnalysisControlLimits,
+  AnalysisRateLimitState,
+  AnalysisAdmission,
+} from "../control-types.js";

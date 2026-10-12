@@ -9,7 +9,7 @@ import type {
   AnalysisAdmission,
   AnalysisAdmissionRejection,
   AnalysisControlLimits,
-} from "@repo/db";
+} from "@repo/db/d1";
 
 const DEFAULTS = {
   userRateLimit: 30,

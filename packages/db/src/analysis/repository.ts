@@ -1,3 +1,5 @@
+import type { AnalysisAccessScope, AnalysisVisibility } from "../access-scope.js";
+export type { AnalysisAccessScope, AnalysisVisibility } from "../access-scope.js";
 import { randomUUID } from "node:crypto";
 import {
   documentSnapshotSchema,
@@ -8,14 +10,6 @@ import {
   type RunReport,
   type StageName,
 } from "@repo/contracts/analysis";
-
-export type AnalysisVisibility = RunContext["visibility"];
-
-export interface AnalysisAccessScope {
-  tenantId: string;
-  ownerUserId: string;
-  visibility: AnalysisVisibility;
-}
 
 export interface AnalysisQueryResult<Row = Record<string, unknown>> {
   rows: Row[];

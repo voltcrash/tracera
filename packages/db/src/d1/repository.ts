@@ -8,7 +8,7 @@ import {
   type RunContext,
   type StageName,
 } from "@repo/contracts/analysis";
-import type { AnalysisAccessScope } from "../analysis/repository.js";
+import type { AnalysisAccessScope } from "../access-scope.js";
 import { D1PayloadStore, hashJson } from "./payloads.js";
 
 export class AnalysisStorageConflictError extends Error {}

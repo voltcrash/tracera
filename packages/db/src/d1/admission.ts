@@ -2,7 +2,7 @@ import type {
   AnalysisAdmission,
   AnalysisControlLimits,
   AnalysisAdmissionRejection,
-} from "../index.js";
+} from "../control-types.js";
 import type { D1RepositoryOptions } from "./repository.js";
 import { D1PayloadStore } from "./payloads.js";
 import { utcPeriod } from "./clock.js";
