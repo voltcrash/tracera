@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { parseServerEnv, serverEnv, ServerEnvError } from "../src/server/env";
 import { setTestEnv } from "./support/cloudflare-workers";
 
@@ -24,7 +24,10 @@ const production = {
   VERSION: "26.10.12",
 };
 
-afterEach(() => setTestEnv({}));
+afterEach(() => {
+  setTestEnv({});
+  vi.unstubAllEnvs();
+});
 
 test("local development settings parse with fixture analysis and the dev bypass", () => {
   const env = parseServerEnv(local);
@@ -86,4 +89,12 @@ test("serverEnv reads the Worker's bindings", () => {
   expect(serverEnv().MODE).toBe("dev");
   setTestEnv({});
   expect(() => serverEnv()).toThrow(ServerEnvError);
+});
+
+test("dev:live switches local analysis to live mode only in Vite's live dev mode", () => {
+  setTestEnv(local);
+  vi.stubEnv("MODE", "live");
+  expect(serverEnv().ANALYSIS_MODE).toBe("live");
+  vi.stubEnv("DEV", false);
+  expect(serverEnv().ANALYSIS_MODE).toBe("fixture");
 });

@@ -108,7 +108,9 @@ export function parseServerEnv(input: unknown): ServerEnv {
 }
 
 export function serverEnv(): ServerEnv {
-  return parseServerEnv(workerEnv);
+  // `vp run dev:live` serves in Vite's `live` mode, because .dev.vars wins over any config var.
+  const liveDevelopment = import.meta.env.DEV && import.meta.env.MODE === "live";
+  return parseServerEnv(liveDevelopment ? { ...workerEnv, ANALYSIS_MODE: "live" } : workerEnv);
 }
 
 function isHttpsOrigin(value: string | undefined) {

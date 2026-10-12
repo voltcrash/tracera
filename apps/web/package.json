@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev",
+    "dev:live": "vp dev --mode live",
     "build": "vp build",
     "check-types": "tsc --noEmit",
     "test:auth-browser": "playwright test local-auth.e2e.ts",
