@@ -226,3 +226,32 @@ No hosted resources, secrets, deployments, DNS, or OAuth apps changed. Browser r
 also found a timezone hydration mismatch in the report timestamp; Phase 2.8 will fix and cover it.
 The owner deferred the live-provider validation until credentials can be configured; Phase 2.6
 will record that gate as pending while subsequent Stage 2 implementation proceeds.
+
+## Phase 2.6 — Retrieval and evidence on Workers
+
+Result: **implementation and offline validation PASS; live exit criterion PENDING**,
+2026-10-12. PR: [#47](https://github.com/voltcrash/tracera/pull/47).
+
+- Google News RSS, GDELT, Google Fact Check, and NewsAPI retain their discovery transports
+  through Worker-safe `safeFetch`. Fact Check and NewsAPI are enabled only when their optional
+  keys exist. Discovery hints remain candidates, and source outages remain explicit failures.
+- `evidence-search.workerd.test.ts` exercises all four sources, credential transport, omitted
+  optional sources, outage behavior, and real HTTP document acquisition with raw bytes
+  round-tripping through R2. The existing workerd provider suites continue covering all five
+  provider adapters with stubbed upstreams.
+- Production input validation now enforces the same explicit budget and spend bounds as the
+  runtime policy, including non-secret Wrangler vars. Previously it checked the provider only.
+  Both secrets examples list the settings required for live mode, without choosing production
+  budgets or provider models.
+- Browser Rendering remains deferred until staging shows acquisition gaps, as planned.
+
+Validation: `vp install`, `vp check`, `vp test --run` (404 passed; 10 existing Postgres cases
+skipped), `vp run check-types`, `vp run build`, and the production deployment dry run with
+synthetic mode-0600 settings pass. The synthetic file was removed after the check.
+
+The owner deferred provider credentials on 2026-10-12 and asked implementation to continue.
+`dev:live` has therefore not been checked against a real provider. Before closing this gate,
+configure the chosen provider/model/key and explicit run/spend bounds in `.dev.vars`, then run
+`vp run dev:live` and complete an analysis. The hosted provider-network probe recorded in
+Stage 0 remains open and requires approval before deploying or changing hosted secrets.
+No hosted resources, secrets, deployments, DNS, or OAuth apps changed.
