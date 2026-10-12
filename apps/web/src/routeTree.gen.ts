@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from "./routes/__root";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as WorkspaceRouteImport } from "./routes/_workspace";
+import { Route as ResetPasswordRouteImport } from "./routes/reset-password";
+import { Route as VerifyEmailRouteImport } from "./routes/verify-email";
 import { Route as WorkspaceHomeRouteImport } from "./routes/_workspace/home";
 import { Route as WorkspaceSettingsRouteImport } from "./routes/_workspace/settings";
 import { Route as AuthCompleteRouteImport } from "./routes/auth/complete";
@@ -24,6 +26,16 @@ const IndexRoute = IndexRouteImport.update({
 } as any);
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: "/_workspace",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: "/reset-password",
+  path: "/reset-password",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: "/verify-email",
+  path: "/verify-email",
   getParentRoute: () => rootRouteImport,
 } as any);
 const WorkspaceHomeRoute = WorkspaceHomeRouteImport.update({
@@ -54,6 +66,8 @@ const WorkspaceRunIdRoute = WorkspaceRunIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
+  "/reset-password": typeof ResetPasswordRoute;
+  "/verify-email": typeof VerifyEmailRoute;
   "/home": typeof WorkspaceHomeRoute;
   "/settings": typeof WorkspaceSettingsRoute;
   "/auth/complete": typeof AuthCompleteRoute;
@@ -62,6 +76,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
+  "/reset-password": typeof ResetPasswordRoute;
+  "/verify-email": typeof VerifyEmailRoute;
   "/home": typeof WorkspaceHomeRoute;
   "/settings": typeof WorkspaceSettingsRoute;
   "/auth/complete": typeof AuthCompleteRoute;
@@ -72,6 +88,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
   "/_workspace": typeof WorkspaceRouteWithChildren;
+  "/reset-password": typeof ResetPasswordRoute;
+  "/verify-email": typeof VerifyEmailRoute;
   "/_workspace/home": typeof WorkspaceHomeRoute;
   "/_workspace/settings": typeof WorkspaceSettingsRoute;
   "/auth/complete": typeof AuthCompleteRoute;
@@ -80,13 +98,31 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/home" | "/settings" | "/auth/complete" | "/auth/error" | "/run/$id";
+  fullPaths:
+    | "/"
+    | "/reset-password"
+    | "/verify-email"
+    | "/home"
+    | "/settings"
+    | "/auth/complete"
+    | "/auth/error"
+    | "/run/$id";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/home" | "/settings" | "/auth/complete" | "/auth/error" | "/run/$id";
+  to:
+    | "/"
+    | "/reset-password"
+    | "/verify-email"
+    | "/home"
+    | "/settings"
+    | "/auth/complete"
+    | "/auth/error"
+    | "/run/$id";
   id:
     | "__root__"
     | "/"
     | "/_workspace"
+    | "/reset-password"
+    | "/verify-email"
     | "/_workspace/home"
     | "/_workspace/settings"
     | "/auth/complete"
@@ -97,6 +133,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   WorkspaceRoute: typeof WorkspaceRouteWithChildren;
+  ResetPasswordRoute: typeof ResetPasswordRoute;
+  VerifyEmailRoute: typeof VerifyEmailRoute;
   AuthCompleteRoute: typeof AuthCompleteRoute;
   AuthErrorRoute: typeof AuthErrorRoute;
 }
@@ -115,6 +153,20 @@ declare module "@tanstack/react-router" {
       path: "";
       fullPath: "/";
       preLoaderRoute: typeof WorkspaceRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/reset-password": {
+      id: "/reset-password";
+      path: "/reset-password";
+      fullPath: "/reset-password";
+      preLoaderRoute: typeof ResetPasswordRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/verify-email": {
+      id: "/verify-email";
+      path: "/verify-email";
+      fullPath: "/verify-email";
+      preLoaderRoute: typeof VerifyEmailRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/_workspace/home": {
@@ -172,6 +224,8 @@ const WorkspaceRouteWithChildren = WorkspaceRoute._addFileChildren(WorkspaceRout
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   WorkspaceRoute: WorkspaceRouteWithChildren,
+  ResetPasswordRoute: ResetPasswordRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
   AuthCompleteRoute: AuthCompleteRoute,
   AuthErrorRoute: AuthErrorRoute,
 };
