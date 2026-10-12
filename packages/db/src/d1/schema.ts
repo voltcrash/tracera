@@ -9,7 +9,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { RunContext, StageName } from "@repo/contracts/analysis";
+import type { DocumentSnapshot, RunContext, StageName } from "@repo/contracts/analysis";
 
 export { users, sessions, accounts, verifications } from "./auth-schema.js";
 
@@ -163,6 +163,46 @@ export const analysisStageCheckpoints = sqliteTable(
     check(
       "core_stage_checkpoints_storage_check",
       sql`(${table.payloadJson} IS NOT NULL) <> (${table.payloadBlobUri} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const analysisSnapshots = sqliteTable(
+  "core_snapshots",
+  {
+    snapshotId: text("snapshot_id").notNull(),
+    ...ownershipColumns(),
+    contentHash: text("content_hash").notNull(),
+    rawContentHash: text("raw_content_hash"),
+    normalizedText: text("normalized_text"),
+    snapshot: text("snapshot", { mode: "json" }).$type<DocumentSnapshot>(),
+    snapshotHash: text("snapshot_hash").notNull(),
+    snapshotBlobUri: text("snapshot_blob_uri"),
+    blobStatus: text("blob_status", { enum: ["stored", "unavailable"] }).notNull(),
+    blobUri: text("blob_uri"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.ownerUserId, table.visibility, table.snapshotId],
+    }),
+    index("core_snapshots_content_lookup_idx").on(
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+      table.contentHash,
+    ),
+    check(
+      "core_snapshots_visibility_check",
+      sql`${table.visibility} IN ('private','unlisted','public')`,
+    ),
+    check(
+      "core_snapshots_blob_check",
+      sql`(${table.blobStatus} = 'stored' AND ${table.blobUri} IS NOT NULL) OR (${table.blobStatus} = 'unavailable' AND ${table.blobUri} IS NULL)`,
+    ),
+    check(
+      "core_snapshots_storage_check",
+      sql`(${table.snapshot} IS NOT NULL) <> (${table.snapshotBlobUri} IS NOT NULL)`,
     ),
   ],
 );
