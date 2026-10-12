@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, PenLine, Settings, X } from "lucide-react";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { accountLabel, useAuth } from "@/components/providers/auth-provider";
@@ -16,9 +17,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiUrl } from "@/lib/api";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import { cn } from "@/lib/utils";
+import { listRuns } from "@/server/analysis.functions";
 
 type RunSummary = {
   runId: string;
@@ -38,7 +39,8 @@ export function useHistoryRefresh() {
 }
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
-  const { apiFetch, isLoading: isAuthLoading, user } = useAuth();
+  const { isLoading: isAuthLoading, user } = useAuth();
+  const fetchRuns = useServerFn(listRuns);
   const [traces, setTraces] = useState<RunSummary[] | null>(null);
   const [version, setVersion] = useState(0);
   const [railOpen, setRailOpen] = useState(false);
@@ -48,21 +50,22 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isAuthLoading || !user) return;
-    const controller = new AbortController();
+    let current = true;
     const cached = readSessionCache<RunSummary[]>(user.id, HISTORY_CACHE_KEY, HISTORY_CACHE_AGE);
     if (cached) queueMicrotask(() => setTraces(cached));
-    apiFetch(`${apiUrl}/runs`, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Unable to load your traces.");
-        const data = (await response.json()) as { runs: RunSummary[] };
-        setTraces(data.runs);
-        writeSessionCache(user.id, HISTORY_CACHE_KEY, data.runs);
+    fetchRuns()
+      .then(({ runs }) => {
+        if (!current) return;
+        setTraces(runs);
+        writeSessionCache(user.id, HISTORY_CACHE_KEY, runs);
       })
       .catch(() => {
-        if (!controller.signal.aborted) setTraces([]);
+        if (current) setTraces([]);
       });
-    return () => controller.abort();
-  }, [apiFetch, isAuthLoading, user, version]);
+    return () => {
+      current = false;
+    };
+  }, [fetchRuns, isAuthLoading, user, version]);
 
   return (
     <HistoryRefreshContext.Provider value={refresh}>
