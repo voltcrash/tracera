@@ -17,3 +17,8 @@ export class WorkflowEntrypoint<Env = unknown, Params = unknown> {
 export class NonRetryableError extends Error {
   override name = "NonRetryableError";
 }
+
+export const backgroundTasks: Promise<unknown>[] = [];
+export function waitUntil(promise: Promise<unknown>) {
+  backgroundTasks.push(promise);
+}

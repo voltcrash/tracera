@@ -1,6 +1,8 @@
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeaders } from "@tanstack/react-start/server";
+import { waitUntil } from "cloudflare:workers";
+import { terminateCanceledRun } from "./analysis-cancellation.server";
 import {
   cancelAnalysisRun,
   listAnalysisRuns,
@@ -9,7 +11,7 @@ import {
 } from "./analysis-api.server";
 import { authMiddleware } from "./auth-middleware";
 import { serverEnv } from "./env";
-import { ClientInputError } from "./error-handling";
+import { ClientInputError, logServerError } from "./error-handling";
 
 /** The Hono route's 7.1 MB body limit, now applied to the server function input. */
 export const MAX_ANALYSIS_INPUT_BYTES = 7_100_000;
@@ -94,6 +96,15 @@ export const getRun = createServerFn({ method: "GET" })
 export const cancelRun = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .inputValidator(runIdInput)
-  .handler(async ({ context, data }) =>
-    outcome(await cancelAnalysisRun(serverEnv(), context.user, data.runId)),
-  );
+  .handler(async ({ context, data }) => {
+    const env = serverEnv();
+    const request = getRequest();
+    const result = await cancelAnalysisRun(env, context.user, data.runId);
+    if (result.status === 202)
+      waitUntil(
+        terminateCanceledRun(env, context.user.id, data.runId).catch((error) => {
+          logServerError("Analysis cancellation cleanup failed", error, request);
+        }),
+      );
+    return outcome(result);
+  });
