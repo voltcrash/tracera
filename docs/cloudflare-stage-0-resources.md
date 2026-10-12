@@ -1,14 +1,15 @@
 # Stage 0 resource preparation
 
-Date: 2026-10-11; updated 2026-10-12. Phase 0.3 is **incomplete**. R2 activation is verified. All six
-explicitly approved resource creation and bootstrap deployment commands succeeded. Google staging OAuth is deferred at the
-owner's request. The owner has completed GitHub staging OAuth and CI token creation;
+Date: 2026-10-11; updated 2026-10-12. Phase 0.3 is **PASS** and Stage 0 is complete under
+accepted decision D17. R2 activation is verified. All six explicitly approved resource
+creation and bootstrap deployment commands succeeded. Google staging OAuth belongs to the
+final Phase 4.4 at the owner's request. The owner has completed GitHub staging OAuth and CI token creation;
 their verification results are recorded below.
 
 This phase follows section 3 and Phase 0.3 of the
 [migration plan](cloudflare-migration-plan.md). Its PR contains documentation only.
 Resource bootstrap artifacts live outside the repository and do not implement the product.
-Do not advance to Stage 1 until the remaining Phase 0.3 requirements are resolved.
+All current Phase 0.3 requirements are resolved; Stage 1 is next and has not begun.
 
 ## Account and inventory
 
@@ -387,17 +388,18 @@ No package script or application code changes in this PR.
 | Workers and Workflows exist               | Pass; successful deployments, version inventory, and Workflow script/class inventory                           |
 | Bootstrap configs validate                | Pass; dry runs before and after inserting real D1 IDs                                                          |
 | New staging and production auth secrets   | Pass; distinct random values in private mode-0600 files                                                        |
-| Staging Google OAuth                      | Incomplete; explicitly deferred by owner                                                                       |
 | Staging GitHub OAuth                      | Pass; owner confirmed registration; both credentials present in private mode-0600 file                         |
 | Scoped CI API token                       | Pass; owner confirmed scoped policy; private mode-0600 file; active token and inventory checks return HTTP 200 |
 
 The resource exit criterion passes. GitHub staging OAuth and the CI token are complete.
-Phase 0.3 and Stage 0 remain incomplete while Google staging OAuth is deferred. Keep this
-PR draft until that requirement is complete or the owner explicitly changes the plan's gate.
+The owner accepted D17, moving Google setup to the final Phase 4.4 and removing it from
+the Phase 0.3 gate. Phase 0.3 and Stage 0 now pass under the revised plan; this PR can be
+marked ready for review once its current checks pass. Google setup remains required for
+completion of the overall migration.
 
 ## Next-stage handoff
 
-Finish the pending Phase 0.3 requirements before starting Stage 1. Carry the real D1
+Stage 0 is complete under D17; Stage 1 can follow in phase order. Carry the real D1
 UUIDs and exact resource/binding names above into Stage 2's Wrangler configs; retain
 the newly generated auth secrets. The hosted databases are empty and the baseline
 migration is still a Phase 1.3 deliverable.
