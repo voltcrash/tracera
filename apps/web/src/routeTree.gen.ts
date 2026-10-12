@@ -15,6 +15,7 @@ import { Route as ResetPasswordRouteImport } from "./routes/reset-password";
 import { Route as VerifyEmailRouteImport } from "./routes/verify-email";
 import { Route as WorkspaceHomeRouteImport } from "./routes/_workspace/home";
 import { Route as WorkspaceSettingsRouteImport } from "./routes/_workspace/settings";
+import { Route as ApiHealthRouteImport } from "./routes/api/health";
 import { Route as AuthCompleteRouteImport } from "./routes/auth/complete";
 import { Route as AuthErrorRouteImport } from "./routes/auth/error";
 import { Route as WorkspaceRunIdRouteImport } from "./routes/_workspace/run.$id";
@@ -49,6 +50,11 @@ const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
   path: "/settings",
   getParentRoute: () => WorkspaceRoute,
 } as any);
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: "/api/health",
+  path: "/api/health",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const AuthCompleteRoute = AuthCompleteRouteImport.update({
   id: "/auth/complete",
   path: "/auth/complete",
@@ -76,6 +82,7 @@ export interface FileRoutesByFullPath {
   "/verify-email": typeof VerifyEmailRoute;
   "/home": typeof WorkspaceHomeRoute;
   "/settings": typeof WorkspaceSettingsRoute;
+  "/api/health": typeof ApiHealthRoute;
   "/auth/complete": typeof AuthCompleteRoute;
   "/auth/error": typeof AuthErrorRoute;
   "/run/$id": typeof WorkspaceRunIdRoute;
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   "/verify-email": typeof VerifyEmailRoute;
   "/home": typeof WorkspaceHomeRoute;
   "/settings": typeof WorkspaceSettingsRoute;
+  "/api/health": typeof ApiHealthRoute;
   "/auth/complete": typeof AuthCompleteRoute;
   "/auth/error": typeof AuthErrorRoute;
   "/run/$id": typeof WorkspaceRunIdRoute;
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   "/verify-email": typeof VerifyEmailRoute;
   "/_workspace/home": typeof WorkspaceHomeRoute;
   "/_workspace/settings": typeof WorkspaceSettingsRoute;
+  "/api/health": typeof ApiHealthRoute;
   "/auth/complete": typeof AuthCompleteRoute;
   "/auth/error": typeof AuthErrorRoute;
   "/_workspace/run/$id": typeof WorkspaceRunIdRoute;
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
     | "/verify-email"
     | "/home"
     | "/settings"
+    | "/api/health"
     | "/auth/complete"
     | "/auth/error"
     | "/run/$id"
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
     | "/verify-email"
     | "/home"
     | "/settings"
+    | "/api/health"
     | "/auth/complete"
     | "/auth/error"
     | "/run/$id"
@@ -136,6 +147,7 @@ export interface FileRouteTypes {
     | "/verify-email"
     | "/_workspace/home"
     | "/_workspace/settings"
+    | "/api/health"
     | "/auth/complete"
     | "/auth/error"
     | "/_workspace/run/$id"
@@ -147,6 +159,7 @@ export interface RootRouteChildren {
   WorkspaceRoute: typeof WorkspaceRouteWithChildren;
   ResetPasswordRoute: typeof ResetPasswordRoute;
   VerifyEmailRoute: typeof VerifyEmailRoute;
+  ApiHealthRoute: typeof ApiHealthRoute;
   AuthCompleteRoute: typeof AuthCompleteRoute;
   AuthErrorRoute: typeof AuthErrorRoute;
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute;
@@ -195,6 +208,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/settings";
       preLoaderRoute: typeof WorkspaceSettingsRouteImport;
       parentRoute: typeof WorkspaceRoute;
+    };
+    "/api/health": {
+      id: "/api/health";
+      path: "/api/health";
+      fullPath: "/api/health";
+      preLoaderRoute: typeof ApiHealthRouteImport;
+      parentRoute: typeof rootRouteImport;
     };
     "/auth/complete": {
       id: "/auth/complete";
@@ -246,6 +266,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkspaceRoute: WorkspaceRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  ApiHealthRoute: ApiHealthRoute,
   AuthCompleteRoute: AuthCompleteRoute,
   AuthErrorRoute: AuthErrorRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
