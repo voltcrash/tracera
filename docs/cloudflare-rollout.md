@@ -38,6 +38,11 @@ hosted change. Wrangler ran with the scoped CI token against account
 | R2 `tracera-production-blobs` | Present                                                             |
 | `tracera-production-analysis` | Present, bound to script `tracera` and class `AnalysisWorkflow`     |
 
+Local validation at the same commit: `vp install`, `vp check`, and `vp test --run` (442 tests,
+62 files) pass, and `vp run web#deploy:staging-dry-run` packages 3.9 MiB (0.9 MiB gzip) with
+the `ANALYSIS_WORKFLOW`, `DB`, and `BLOBS` bindings and the staging `MODE=production`,
+`ANALYSIS_MODE=live`, and `BETTER_AUTH_URL` vars.
+
 ## Phase 4.1 — Staging soak
 
 1. Complete the deferred local `vp run dev:live` analysis with owner-configured provider/model
