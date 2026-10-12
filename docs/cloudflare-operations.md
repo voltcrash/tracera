@@ -78,6 +78,11 @@ Google credentials remain optional until the final Phase 4.4.
 
 ## AI provider overrides
 
+Hosted Workers may run with no AI provider at all (D18). Analysis then answers
+`analysis_unavailable` with a plain message, and sign-in, history, and settings keep working.
+Enabling analysis later needs the settings below plus every run and spend bound, uploaded as
+secrets or reviewed vars, followed by a deploy.
+
 `vp run dev:live` selects live analysis while retaining local D1/R2 and development auth.
 It reads the provider settings in `apps/web/.dev.vars`. The focused runtime requires all of
 `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, and `AI_EMBEDDING_MODEL` explicitly. Configure model
