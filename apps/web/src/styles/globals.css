@@ -1,5 +1,20 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@fontsource-variable/newsreader";
+
+@font-face {
+  font-family: "Geist";
+  src: url("./fonts/GeistVF.woff") format("woff");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("./fonts/GeistMonoVF.woff") format("woff");
+  font-weight: 100 900;
+  font-display: swap;
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -9,6 +24,10 @@
  */
 :root {
   --radius: 0.875rem;
+
+  --font-geist-sans: "Geist";
+  --font-geist-mono: "Geist Mono";
+  --font-newsreader: "Newsreader Variable";
 
   /* @theme inline never emits these, so the hand-written CSS declares them. */
   --font-sans: var(--font-geist-sans), Arial, Helvetica, sans-serif;
