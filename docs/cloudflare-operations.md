@@ -75,3 +75,73 @@ Hosted credentials use distinct auth secrets and OAuth apps. Preserve the Stage 
 secrets in `/Users/lakshmi/.t3/private/tracera/stage-0/` when preparing the hosted files.
 A partial GitHub or Google pair is rejected. GitHub is required for initial production;
 Google credentials remain optional until the final Phase 4.4.
+
+## AI provider overrides
+
+`vp run dev:live` selects live analysis while retaining local D1/R2 and development auth.
+It reads the provider settings in `apps/web/.dev.vars`. The focused runtime requires all of
+`AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, and `AI_EMBEDDING_MODEL` explicitly. Configure model
+identifiers supported by the selected provider and account; adapter defaults do not satisfy
+the focused runtime's reproducibility checks.
+
+| Setting                 | Purpose                                                                 |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `AI_PROVIDER`           | `gemini`, `openai`, `anthropic`, `openrouter`, or `openai-compatible`   |
+| `AI_MODEL`              | Generation model recorded in the run version                            |
+| `AI_API_KEY`            | Private generation provider credential                                  |
+| `AI_BASE_URL`           | Optional override; required for `openai-compatible`                     |
+| `AI_EMBEDDING_MODEL`    | Embedding model recorded in the run version                             |
+| `AI_EMBEDDING_PROVIDER` | Separate embedding provider; required with Anthropic generation         |
+| `AI_EMBEDDING_API_KEY`  | Required with a separate embedding provider                             |
+| `AI_EMBEDDING_BASE_URL` | Optional override; required for separate `openai-compatible` embeddings |
+
+Anthropic cannot be the embedding provider. Without a separate embedding provider, its key
+and base URL overrides must be absent. The embedding adapter contract remains 1024 dimensions;
+this migration does not store claim vectors or use a persisted embedding corpus.
+`GOOGLE_FACT_CHECK_API_KEY` and `NEWS_API_KEY` are optional evidence-source credentials.
+BYOK key storage is a later follow-up; the current resolver uses platform credentials.
+
+Fixture evaluators require no settings and never fall back to a provider. The separate
+`vp run @repo/ai#test:live` adapter diagnostic reads provider settings from the invoking shell,
+not from Wrangler's private file, and makes a paid-capable provider request. Do not run it
+until the owner has chosen credentials and authorized the test. Evaluation scripts reject
+unsupported live/replay modes explicitly; the full release evaluator still requires its
+human-gold and authorization prerequisites before live evaluation.
+
+## Run and spend bounds
+
+Choose every live bound explicitly before enabling a provider. Non-secret hosted bounds can
+be reviewed in Wrangler vars; the private-file examples also support them.
+
+| Setting                                     | Meaning                                         |
+| ------------------------------------------- | ----------------------------------------------- |
+| `ANALYSIS_MAX_EXTERNAL_REQUESTS`            | External requests per run                       |
+| `ANALYSIS_MAX_DISCOVERY_QUERIES_PER_CLAIM`  | Discovery queries per selected claim            |
+| `ANALYSIS_MAX_FETCHED_CANDIDATES_PER_CLAIM` | Fetched candidates per selected claim           |
+| `ANALYSIS_MAX_PROVENANCE_HOPS`              | Provenance traversal depth                      |
+| `ANALYSIS_MAX_TARGETED_RETRIEVAL_ROUNDS`    | Targeted retrieval rounds; zero is allowed      |
+| `ANALYSIS_MAX_ELAPSED_MS`                   | Attempt duration, positive and at most 300000   |
+| `ANALYSIS_MAX_CONCURRENT_EXTERNAL_CALLS`    | Concurrent external requests                    |
+| `ANALYSIS_MAX_COST_USD`                     | Estimated per-run spend bound                   |
+| `AI_DAILY_SPEND_LIMIT_USD`                  | Estimated daily platform-provider spend circuit |
+| `AI_ESTIMATED_GENERATION_COST_USD`          | Conservative reservation per generation request |
+| `AI_ESTIMATED_IMAGE_COST_USD`               | Conservative reservation per image request      |
+| `AI_ESTIMATED_EMBEDDING_COST_USD`           | Conservative reservation per embedding request  |
+
+All other count bounds must be positive integers; money values must be finite and positive.
+The spend circuit uses configured estimates because adapters do not all return billable
+usage. Failed calls are settled too. Compare the estimates with the provider usage dashboard;
+they are not a guarantee of the provider's final invoice.
+
+D1 admission coordinates fixed-window rate limits, concurrency leases, daily quota,
+idempotency, and forced-reanalysis cooldown across Worker instances. Defaults are 30 requests
+per user and 60 per IP per hour, two concurrent runs per user and four per IP, 100 admissions
+per user per UTC day, one-hour forced-reanalysis cooldown, and one-day idempotency retention.
+Leases are extended to cover the bounded Workflow retry window when an override is too short.
+
+Overrides: `ANALYSIS_USER_RATE_LIMIT`, `ANALYSIS_IP_RATE_LIMIT`,
+`ANALYSIS_RATE_WINDOW_SECONDS`, `ANALYSIS_USER_CONCURRENCY_LIMIT`,
+`ANALYSIS_IP_CONCURRENCY_LIMIT`, `ANALYSIS_DAILY_QUOTA`,
+`ANALYSIS_FORCE_REANALYSIS_COOLDOWN_SECONDS`, `ANALYSIS_LEASE_SECONDS`, and
+`ANALYSIS_IDEMPOTENCY_TTL_SECONDS`. Reusing an idempotency key for a different request fails;
+reusing the same completed request replays the stored response.
