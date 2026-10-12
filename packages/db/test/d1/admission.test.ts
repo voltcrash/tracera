@@ -234,3 +234,56 @@ test("a failed guarded admission batch rolls back its claim, counters and lease"
   await runtime.db.exec("DROP TRIGGER reject_admission");
   expect((await repo().beginAnalysisAdmission(request("rollback"))).kind).toBe("admitted");
 });
+
+test("large idempotent responses replay from R2 and finish is scoped to its lease owner", async () => {
+  const admission = await repo().beginAnalysisAdmission(request("large-response"));
+  if (admission.kind !== "admitted") throw new Error("Expected admission");
+  const input = {
+    userId: "user-2",
+    endpoint: "/analyze",
+    idempotencyKey: "large-response",
+    leaseId: admission.leaseId,
+    responseBody: {},
+    responseStatus: 200,
+    idempotencyTtlSeconds: 600,
+  };
+  await repo().finishAnalysisAdmission(input);
+  expect(
+    await runtime.db
+      .prepare("SELECT released_at FROM analysis_leases WHERE id=?")
+      .bind(admission.leaseId)
+      .first("released_at"),
+  ).toBeNull();
+  const response = { body: "x".repeat(1_600_000) };
+  await finish("large-response", admission.leaseId, response);
+  expect(
+    await runtime.db
+      .prepare("SELECT response_body FROM analysis_idempotency_keys")
+      .first("response_body"),
+  ).toBeNull();
+  expect(await repo().beginAnalysisAdmission(request("large-response"))).toEqual({
+    kind: "replay",
+    responseBody: response,
+    responseStatus: 202,
+  });
+});
+
+test("failure in admission completion rolls back both reply and lease release", async () => {
+  const admission = await repo().beginAnalysisAdmission(request("finish-rollback"));
+  if (admission.kind !== "admitted") throw new Error("Expected admission");
+  await runtime.db.exec(
+    "CREATE TRIGGER reject_release BEFORE UPDATE ON analysis_leases BEGIN SELECT RAISE(ABORT, 'injected release failure'); END",
+  );
+  await expect(finish("finish-rollback", admission.leaseId)).rejects.toThrow();
+  expect(
+    await runtime.db
+      .prepare("SELECT request_status FROM analysis_idempotency_keys")
+      .first("request_status"),
+  ).toBe("in_progress");
+  expect(
+    await runtime.db.prepare("SELECT released_at FROM analysis_leases").first("released_at"),
+  ).toBeNull();
+  await runtime.db.exec("DROP TRIGGER reject_release");
+  await finish("finish-rollback", admission.leaseId);
+  expect((await repo().beginAnalysisAdmission(request("finish-rollback"))).kind).toBe("replay");
+});
