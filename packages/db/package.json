@@ -12,7 +12,8 @@
     "check-types": "tsc --noEmit",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "wrangler d1 migrations apply tracera-staging --local --config ../../apps/web/wrangler.jsonc --persist-to ../../apps/web/.wrangler/state",
-    "test:d1": "vp test --run test/d1"
+    "test:d1": "vp test --run test/d1",
+    "db:generate:auth": "auth generate --config auth-schema.config.ts --adapter drizzle --dialect sqlite --output ../../tmp/auth-schema.sqlite.ts --yes"
   },
   "dependencies": {
     "@repo/contracts": "workspace:*",
@@ -23,6 +24,7 @@
     "@cloudflare/workers-types": "^5.20261012.1",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^26.5.0",
+    "auth": "^1.7.7",
     "better-auth": "^1.7.7",
     "drizzle-kit": "^0.31.11",
     "miniflare": "^4.20260730.0",
