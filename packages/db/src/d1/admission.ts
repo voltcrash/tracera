@@ -50,6 +50,55 @@ export class D1AdmissionRepository {
     this.payloads = new D1PayloadStore(options.bucket);
   }
 
+  async finishAnalysisAdmission(input: {
+    userId: string;
+    endpoint: string;
+    idempotencyKey: string;
+    leaseId: string;
+    responseBody: unknown;
+    responseStatus: number;
+    idempotencyTtlSeconds: number;
+  }): Promise<void> {
+    if (!Number.isSafeInteger(input.idempotencyTtlSeconds) || input.idempotencyTtlSeconds <= 0)
+      throw new RangeError("Idempotency expiry must be a positive integer.");
+    if (
+      !Number.isInteger(input.responseStatus) ||
+      input.responseStatus < 100 ||
+      input.responseStatus > 599
+    )
+      throw new RangeError("Response status must be an HTTP status code.");
+    const now = this.now();
+    const payload = await this.payloads.encode(input.responseBody, "responses");
+    await this.database.batch([
+      this.database
+        .prepare(`UPDATE analysis_idempotency_keys SET request_status=?,response_body=?,response_blob_uri=?,response_hash=?,response_status=?,lease_id=NULL,expires_at=?,updated_at=?
+        WHERE user_id=? AND endpoint=? AND idempotency_key=? AND lease_id=? AND request_status='in_progress'
+        AND EXISTS(SELECT 1 FROM analysis_leases WHERE id=? AND user_id=? AND endpoint=? AND idempotency_key=? AND released_at IS NULL)`)
+        .bind(
+          input.responseStatus < 400 ? "completed" : "failed",
+          payload.inline,
+          payload.blobUri,
+          payload.hash,
+          input.responseStatus,
+          now + input.idempotencyTtlSeconds * 1000,
+          now,
+          input.userId,
+          input.endpoint,
+          input.idempotencyKey,
+          input.leaseId,
+          input.leaseId,
+          input.userId,
+          input.endpoint,
+          input.idempotencyKey,
+        ),
+      this.database
+        .prepare(
+          "UPDATE analysis_leases SET released_at=? WHERE id=? AND user_id=? AND endpoint=? AND idempotency_key=? AND released_at IS NULL",
+        )
+        .bind(now, input.leaseId, input.userId, input.endpoint, input.idempotencyKey),
+    ]);
+  }
+
   async beginAnalysisAdmission(input: AdmissionInput): Promise<AnalysisAdmission> {
     const now = this.now();
     const period = utcPeriod(now);

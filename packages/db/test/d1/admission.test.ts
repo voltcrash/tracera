@@ -71,3 +71,60 @@ test("idempotency claims reject duplicate active requests and changed input", as
   });
   expect(conflict.kind === "rejected" && conflict.reason).toBe("idempotency_conflict");
 });
+
+async function finish(
+  key: string,
+  leaseId: string,
+  responseBody: unknown = { runId: "run-1" },
+  responseStatus = 202,
+) {
+  await repo().finishAnalysisAdmission({
+    userId: "user-1",
+    endpoint: "/analyze",
+    idempotencyKey: key,
+    leaseId,
+    responseBody,
+    responseStatus,
+    idempotencyTtlSeconds: 600,
+  });
+}
+
+test.each([202, 503])(
+  "finishing releases capacity and replays the original %s response exactly once",
+  async (status) => {
+    const admission = await repo().beginAnalysisAdmission(request("reply"));
+    if (admission.kind !== "admitted") throw new Error("Expected admission");
+    const response = { runId: "run-1", nested: { status } };
+    await Promise.all(
+      Array.from({ length: 8 }, () => finish("reply", admission.leaseId, response, status)),
+    );
+    await finish("reply", admission.leaseId, { overwritten: true }, 200);
+    expect(await repo().beginAnalysisAdmission(request("reply"))).toEqual({
+      kind: "replay",
+      responseBody: response,
+      responseStatus: status,
+    });
+    expect((await repo().beginAnalysisAdmission(request("next"))).kind).toBe("admitted");
+    expect(
+      await runtime.db
+        .prepare("SELECT request_count FROM analysis_daily_quotas")
+        .first("request_count"),
+    ).toBe(2);
+  },
+);
+
+test("an expired worker cannot overwrite a reclaimed idempotency reply", async () => {
+  const old = await repo().beginAnalysisAdmission(request("retry"));
+  if (old.kind !== "admitted") throw new Error("Expected admission");
+  now += 61_000;
+  const retry = await repo().beginAnalysisAdmission(request("retry"));
+  if (retry.kind !== "admitted") throw new Error("Expected retry admission");
+  await finish("retry", old.leaseId, { old: true });
+  expect((await repo().beginAnalysisAdmission(request("retry"))).kind).toBe("rejected");
+  await finish("retry", retry.leaseId, { current: true });
+  expect(await repo().beginAnalysisAdmission(request("retry"))).toEqual({
+    kind: "replay",
+    responseBody: { current: true },
+    responseStatus: 202,
+  });
+});
