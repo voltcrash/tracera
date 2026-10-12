@@ -1,6 +1,7 @@
 # Cloudflare migration plan
 
-Status: decisions accepted in Phase 0.1, 2026-10-11. Implementation gates remain open.
+Status: Stage 0 complete, 2026-10-12. D1–D16 were accepted in Phase 0.1; the owner
+accepted D17 on 2026-10-12. Later-stage implementation and rollout gates remain open.
 
 Tracera moves from Next.js + Hono on Vercel with Neon Postgres to a single TanStack Start
 application running on one Cloudflare Worker, backed by D1, R2, and Workflows. AI stays on the
@@ -137,8 +138,11 @@ packages/
 6. `check:production` validates the production config, secrets file, and build before every
    production deploy (a port of oxytype's `production-inputs.ts`): resource names and IDs differ
    from staging, one HTTPS origin, `MODE=production`, no `DEV_AUTH_BYPASS`, no fixture mode,
-   no placeholder or local secrets, a long enough auth secret, complete OAuth pairs, and a
-   complete AI provider configuration (the same rules the runtime policy enforces today).
+   no placeholder or local secrets, a long enough auth secret, a complete GitHub OAuth pair,
+   and a complete AI provider configuration (the same rules the runtime policy enforces
+   today). During the D17 deferral, Google credentials may both be absent; a partial Google
+   pair always fails validation. Google is omitted from `secrets.required` until Phase 4.4,
+   which makes both OAuth pairs required before enabling Google sign-in.
 7. `MODE` (`dev` or `production`) is the only runtime switch. It replaces `TRACERA_PROFILE`,
    `TRACERA_CONFIG_ROLE`, and `NODE_ENV` checks. Dev-only behavior requires `MODE=dev` and a
    loopback request origin.
@@ -212,6 +216,7 @@ Run from the repository root with `vp run <script>` unless noted.
 | D14 | BYOK readiness           | Analysis resolves its provider inside workflow steps through `resolveAnalysisProvider({ userId })`, which returns `{ source: "platform", config }` until BYOK ships. API keys never enter workflow params, step results, run rows, reports, or logs. Runs record provider source, provider, and model.                                     | Accepted |
 | D15 | Staging origin           | `https://tracera-staging.voltcrash.workers.dev`, the account's workers.dev subdomain as oxytype staging uses. It serves the site and API together, so OAuth cookies stay first-party.                                                                                                                                                      | Accepted |
 | D16 | Production releases      | A daily release like oxytype's: a scheduled workflow deploys `main` once a day when there are new commits, tags a `YY.MM.DD` version, and publishes GitHub release notes. Merging to `main` does not deploy by itself.                                                                                                                     | Accepted |
+| D17 | Google OAuth timing      | Google OAuth registration, hosted credentials, and live sign-in checks move to the final Phase 4.4, after the other migration phases. Earlier phases and the initial Cloudflare rollout use GitHub sign-in. Google implementation and stubbed tests remain in scope; partial credential pairs are rejected.                                | Accepted |
 
 ## 6. Stages and phases
 
@@ -248,21 +253,22 @@ applicable because the owner confirmed no configured providers; run it before en
 live provider. Hosted R2 activation was verified during Phase 0.3.
 
 **Phase 0.3 — Cloudflare resources.** Create the staging and production resources in
-section 3. Register staging OAuth apps for Google and GitHub with homepage
-`https://tracera-staging.voltcrash.workers.dev` and callbacks
-`https://tracera-staging.voltcrash.workers.dev/api/auth/callback/{google,github}`. Generate new
+section 3. Register the staging GitHub OAuth app with homepage
+`https://tracera-staging.voltcrash.workers.dev` and callback
+`https://tracera-staging.voltcrash.workers.dev/api/auth/callback/github`. Google registration
+and credentials belong to Phase 4.4 under D17. Generate new
 staging and production `BETTER_AUTH_SECRET` values. Create a CI API token scoped to Workers, D1,
 R2, Workflows, and the custom domain. Exit: resource names and IDs ready for the Wrangler
 configs.
 
-Phase 0.3 result (2026-10-12): **resource exit criterion PASS; phase incomplete**.
+Phase 0.3 result (2026-10-12): **PASS; Stage 0 complete under D17**.
 [Resource notes](cloudflare-stage-0-resources.md) record the verified names and IDs,
 approved bootstrap deployments, and new private staging/production auth secrets.
 The owner completed GitHub staging OAuth and CI token creation. GitHub credentials are
 present in the private mode-0600 staging file. The CI token is active, its scoped policy
 matches the prepared settings, and read-only checks of the intended resources pass.
-Google staging OAuth remains deferred at the owner's request. It is still a Phase 0.3
-requirement, so Stage 0 is not complete and Stage 1 has not begun.
+The owner moved Google staging OAuth to the final Phase 4.4; it no longer blocks Stage 0
+or the intervening phases. Stage 1 is next and has not begun.
 Production custom-domain activation remains a Stage 4 cutover action.
 
 ### Stage 1 — Cloudflare foundations in shared packages
@@ -332,7 +338,9 @@ replay, and spend-circuit behavior under concurrent batches.
 
 - `createAuth({ db, env, origin })` uses `drizzleAdapter(db, { provider: "sqlite" })` and keeps
   the `tracera` cookie prefix, OAuth token encryption, token-discarding hooks, and Google and
-  GitHub providers.
+  GitHub provider implementations. Under D17, Google is enabled only with a complete
+  credential pair; missing Google credentials allow GitHub sign-in until Phase 4.4.
+  Stubbed tests cover both provider configurations and reject a partial Google pair.
 - The dev-login plugin requires `MODE=dev`, `DEV_AUTH_BYPASS=true`, and a loopback origin.
 - `tanstackStartCookies()` is the last plugin. `@repo/environment` assertions are replaced by
   typed input.
@@ -469,7 +477,8 @@ Hono, Neon, `pg`, Vercel, `DATABASE_URL`, or `TRACERA_PROFILE`.
 Replace `docs/environment.md` and `docs/local-development.md` with oxytype-style
 `docs/cloudflare-operations.md` (local development, bindings, secrets, migrations, staging
 deploys, recovery, D1 Time Travel), `docs/production-setup.md`, and `docs/staging-setup.md`.
-Keep the AI provider override documentation. Mark this plan complete.
+Keep the AI provider override documentation. Record implementation progress while leaving
+Stage 4 rollout gates, including the final Google OAuth phase, open.
 
 **Phase 3.3 — CI and production release.**
 
@@ -498,11 +507,11 @@ Keep the AI provider override documentation. Mark this plan complete.
 Exit: CI passes on `migrate/cloudflare`, and the release workflow's skip path and dry-run path
 both succeed.
 
-### Stage 4 — Staging, cutover, decommission
+### Stage 4 — Staging, cutover, decommission, final OAuth setup
 
 **Phase 4.1 — Staging soak.** Deploy staging to `https://tracera-staging.voltcrash.workers.dev`
-and set its secrets. In a browser, check Google and
-GitHub sign-in, text, link, and screenshot analysis, progress streaming, cancellation, evidence,
+and set its secrets. Under D17, use GitHub sign-in; Google's live sign-in check belongs to
+Phase 4.4. In a browser, check GitHub sign-in, text, link, and screenshot analysis, progress streaming, cancellation, evidence,
 run history, linked accounts in settings, sign-out, and CSP violations. Exercise rate limits,
 concurrency limits, idempotent replay, daily quota, and the spend circuit. Review Workers logs,
 workflow instances, D1 metrics, and provider usage dashboards, and run the live evaluation
@@ -511,15 +520,16 @@ against staging. Exit: checklist signed off.
 **Phase 4.2 — Production cutover.** Production starts with an empty D1 (D6), so there is no
 import and no write freeze.
 
-1. Announce on the current site that accounts and report history reset at cutover.
+1. Announce on the current site that accounts and report history reset at cutover, and that
+   the initial Cloudflare rollout uses GitHub sign-in until the final Google OAuth phase.
 2. Turn off Vercel Git deployments, then merge `migrate/cloudflare` into `main`.
 3. Remove the Vercel DNS record for `tracera.voltcrash.com`, so the Worker's custom domain can
    claim the hostname.
 4. Start the release workflow manually (`gh workflow run production-release.yml --ref main`).
    It migrates the empty production D1, deploys, and publishes the first release, which sets
    the baseline for later daily runs.
-5. Smoke-test production. OAuth callback URLs do not change because the origin and paths stay
-   the same.
+5. Smoke-test production with GitHub sign-in. OAuth callback URLs do not change because the
+   origin and paths stay the same. Google sign-in is enabled and checked in Phase 4.4.
 6. Watch logs for 24 to 48 hours.
 
 Rollback until decommission: remove the custom domain and restore the Vercel DNS record. Neon
@@ -530,6 +540,28 @@ keep this window short.
 in R2 for reference (nothing imports it), then delete the Neon project, the Vercel project and
 its variables. Rotate the AI provider keys that were stored in Vercel, and remove Vercel and
 Neon secrets from GitHub. Run and document a D1 Time Travel restore drill.
+
+**Phase 4.4 — Deferred Google OAuth completion.** This is the final migration phase,
+after Phase 4.3, as requested by the owner (D17). Its PR targets `main` after cutover.
+
+1. Select the owner's existing Google Cloud project. Present the exact registration settings
+   for approval, then register a staging Web application client with origin
+   `https://tracera-staging.voltcrash.workers.dev` and callback
+   `https://tracera-staging.voltcrash.workers.dev/api/auth/callback/google`.
+2. Prepare the production Google client credentials for the unchanged
+   `https://tracera.voltcrash.com/api/auth/callback/google` callback, obtaining approval for
+   any required OAuth app changes before making them. Store staging and production pairs
+   in their respective private mode-0600 files.
+3. Require both Google and GitHub pairs in `check:production` and the production config's
+   `secrets.required`, preserving the rejection of partial pairs. Retain tests for GitHub-only
+   staging preparation and complete Google configuration.
+4. Present exact secret-upload and deployment commands for the owner's approval, then enable
+   Google in staging and production.
+5. Check Google sign-in, linked accounts, session persistence, and sign-out in both
+   environments, and recheck GitHub sign-in.
+
+Exit: Google and GitHub sign-in pass in both environments, production checks require both
+credential pairs, and the overall migration is marked complete.
 
 ## 7. Follow-up: bring your own key
 
