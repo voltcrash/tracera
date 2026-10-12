@@ -4,12 +4,13 @@ import {
   foreignKey,
   index,
   integer,
+  real,
   primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { DocumentSnapshot, RunContext, StageName } from "@repo/contracts/analysis";
+import type { DocumentSnapshot, RunContext, RunReport, StageName } from "@repo/contracts/analysis";
 
 export { users, sessions, accounts, verifications } from "./auth-schema.js";
 
@@ -204,5 +205,237 @@ export const analysisSnapshots = sqliteTable(
       "core_snapshots_storage_check",
       sql`(${table.snapshot} IS NOT NULL) <> (${table.snapshotBlobUri} IS NOT NULL)`,
     ),
+  ],
+);
+
+export const analysisReportVersions = sqliteTable(
+  "core_report_versions",
+  {
+    runId: text("run_id").notNull(),
+    version: integer("version").notNull(),
+    ...ownershipColumns(),
+    reportHash: text("report_hash").notNull(),
+    schemaVersion: integer("schema_version").notNull(),
+    contractVersion: text("contract_version").notNull(),
+    engineVersion: text("engine_version").notNull(),
+    diagnosticLabels: text("diagnostic_labels", { mode: "json" }).$type<string[]>().notNull(),
+    publishedLabels: text("published_labels", { mode: "json" }).$type<string[]>().notNull(),
+    factualScore: real("factual_score"),
+    scoreNullReasons: text("score_null_reasons", { mode: "json" }).$type<string[]>().notNull(),
+    evidenceSetHash: text("evidence_set_hash"),
+    report: text("report", { mode: "json" }).$type<RunReport>(),
+    reportBlobUri: text("report_blob_uri"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.version] }),
+    uniqueIndex("core_report_versions_hash_idx").on(table.runId, table.reportHash),
+    uniqueIndex("core_report_versions_scope_idx").on(
+      table.runId,
+      table.version,
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+    ),
+    index("core_report_versions_owner_idx").on(
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+      table.runId,
+      table.version,
+    ),
+    foreignKey({
+      columns: [table.runId, table.tenantId, table.ownerUserId, table.visibility],
+      foreignColumns: [
+        analysisRuns.runId,
+        analysisRuns.tenantId,
+        analysisRuns.ownerUserId,
+        analysisRuns.visibility,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "core_report_versions_storage_check",
+      sql`(${table.report} IS NOT NULL) <> (${table.reportBlobUri} IS NOT NULL)`,
+    ),
+    check("core_report_versions_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const analysisReportClaims = sqliteTable(
+  "core_report_claims",
+  {
+    runId: text("run_id").notNull(),
+    reportVersion: integer("report_version").notNull(),
+    claimId: text("claim_id").notNull(),
+    ...ownershipColumns(),
+    claim: text("claim", { mode: "json" }).$type<RunReport["claims"][number]>().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.reportVersion, table.claimId] }),
+    foreignKey({
+      columns: [
+        table.runId,
+        table.reportVersion,
+        table.tenantId,
+        table.ownerUserId,
+        table.visibility,
+      ],
+      foreignColumns: [
+        analysisReportVersions.runId,
+        analysisReportVersions.version,
+        analysisReportVersions.tenantId,
+        analysisReportVersions.ownerUserId,
+        analysisReportVersions.visibility,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const analysisReportSnapshots = sqliteTable(
+  "core_report_snapshots",
+  {
+    runId: text("run_id").notNull(),
+    reportVersion: integer("report_version").notNull(),
+    snapshotId: text("snapshot_id").notNull(),
+    ...ownershipColumns(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.reportVersion, table.snapshotId] }),
+    index("core_report_snapshots_snapshot_idx").on(
+      table.tenantId,
+      table.ownerUserId,
+      table.visibility,
+      table.snapshotId,
+    ),
+    foreignKey({
+      columns: [
+        table.runId,
+        table.reportVersion,
+        table.tenantId,
+        table.ownerUserId,
+        table.visibility,
+      ],
+      foreignColumns: [
+        analysisReportVersions.runId,
+        analysisReportVersions.version,
+        analysisReportVersions.tenantId,
+        analysisReportVersions.ownerUserId,
+        analysisReportVersions.visibility,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.tenantId, table.ownerUserId, table.visibility, table.snapshotId],
+      foreignColumns: [
+        analysisSnapshots.tenantId,
+        analysisSnapshots.ownerUserId,
+        analysisSnapshots.visibility,
+        analysisSnapshots.snapshotId,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const analysisEvidenceAssessments = sqliteTable(
+  "core_evidence_assessments",
+  {
+    runId: text("run_id").notNull(),
+    reportVersion: integer("report_version").notNull(),
+    assessmentId: text("assessment_id").notNull(),
+    claimId: text("claim_id").notNull(),
+    snapshotId: text("snapshot_id").notNull(),
+    ...ownershipColumns(),
+    assessment: text("assessment", { mode: "json" })
+      .$type<RunReport["assessments"][number]>()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.reportVersion, table.assessmentId] }),
+    index("core_assessments_claim_idx").on(table.runId, table.reportVersion, table.claimId),
+    foreignKey({
+      columns: [
+        table.runId,
+        table.reportVersion,
+        table.tenantId,
+        table.ownerUserId,
+        table.visibility,
+      ],
+      foreignColumns: [
+        analysisReportVersions.runId,
+        analysisReportVersions.version,
+        analysisReportVersions.tenantId,
+        analysisReportVersions.ownerUserId,
+        analysisReportVersions.visibility,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const analysisProvenanceEdges = sqliteTable(
+  "core_provenance_edges",
+  {
+    runId: text("run_id").notNull(),
+    reportVersion: integer("report_version").notNull(),
+    claimId: text("claim_id").notNull(),
+    edgeIndex: integer("edge_index").notNull(),
+    ...ownershipColumns(),
+    fromSnapshotId: text("from_snapshot_id").notNull(),
+    toSnapshotId: text("to_snapshot_id").notNull(),
+    edge: text("edge", { mode: "json" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.reportVersion, table.claimId, table.edgeIndex] }),
+    index("core_provenance_edges_snapshots_idx").on(
+      table.runId,
+      table.fromSnapshotId,
+      table.toSnapshotId,
+    ),
+    foreignKey({
+      columns: [
+        table.runId,
+        table.reportVersion,
+        table.tenantId,
+        table.ownerUserId,
+        table.visibility,
+      ],
+      foreignColumns: [
+        analysisReportVersions.runId,
+        analysisReportVersions.version,
+        analysisReportVersions.tenantId,
+        analysisReportVersions.ownerUserId,
+        analysisReportVersions.visibility,
+      ],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const analysisDecisions = sqliteTable(
+  "core_decisions",
+  {
+    runId: text("run_id").notNull(),
+    reportVersion: integer("report_version").notNull(),
+    claimId: text("claim_id").notNull(),
+    ...ownershipColumns(),
+    diagnosticLabel: text("diagnostic_label").notNull(),
+    publishedLabel: text("published_label").notNull(),
+    decision: text("decision", { mode: "json" }).$type<RunReport["decisions"][number]>().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.reportVersion, table.claimId] }),
+    foreignKey({
+      columns: [
+        table.runId,
+        table.reportVersion,
+        table.tenantId,
+        table.ownerUserId,
+        table.visibility,
+      ],
+      foreignColumns: [
+        analysisReportVersions.runId,
+        analysisReportVersions.version,
+        analysisReportVersions.tenantId,
+        analysisReportVersions.ownerUserId,
+        analysisReportVersions.visibility,
+      ],
+    }).onDelete("restrict"),
   ],
 );
