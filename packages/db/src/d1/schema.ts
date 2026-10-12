@@ -477,3 +477,35 @@ export const analysisLeases = sqliteTable(
     index("analysis_leases_ip_active_idx").on(table.ipHash, table.releasedAt, table.expiresAt),
   ],
 );
+
+export const analysisIdempotencyKeys = sqliteTable(
+  "analysis_idempotency_keys",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    requestStatus: text("request_status", {
+      enum: ["in_progress", "completed", "failed"],
+    }).notNull(),
+    responseBody: text("response_body", { mode: "json" }),
+    responseBlobUri: text("response_blob_uri"),
+    responseHash: text("response_hash"),
+    responseStatus: integer("response_status"),
+    // The claim precedes its guarded admission lease write in the same batch.
+    leaseId: text("lease_id"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.endpoint, table.idempotencyKey] }),
+    index("analysis_idempotency_expires_idx").on(table.expiresAt),
+    check(
+      "analysis_idempotency_storage_check",
+      sql`NOT (${table.responseBody} IS NOT NULL AND ${table.responseBlobUri} IS NOT NULL)`,
+    ),
+  ],
+);
