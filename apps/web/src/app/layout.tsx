@@ -4,14 +4,14 @@ import localFont from "next/font/local";
 import { headers } from "next/headers";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { ThemeProvider, themeBootstrapScript } from "@/components/providers/theme-provider";
-import "./globals.css";
+import "../styles/globals.css";
 
 const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
+  src: "../styles/fonts/GeistVF.woff",
   variable: "--font-geist-sans",
 });
 const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
+  src: "../styles/fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
 });
 const newsreader = Newsreader({
