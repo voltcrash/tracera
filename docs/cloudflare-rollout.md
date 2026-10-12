@@ -5,13 +5,13 @@ This is reviewable preparation for Stage 4, not a record of completed hosted wor
 live-provider test until repository implementation is finished. Deployments, secret uploads,
 DNS/OAuth changes, and decommission require approval of concrete actions before execution.
 
-| Gate                          | Status                                                                                                    |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Phase 2.6 local live analysis | Pending owner credentials, explicit bounds, and live result                                               |
-| Phase 4.1 staging soak        | Preflight recorded; pending provider settings, approved secrets/deploy, live checks, and a live evaluator |
-| Phase 4.2 production cutover  | Pending staging sign-off and approved cutover batch                                                       |
-| Phase 4.3 decommission        | Pending agreed stable period, archive, deletion approvals, restore drill                                  |
-| Phase 4.4 Google OAuth        | Pending final registration/credential approval, code PR, deploy, browser sign-off                         |
+| Gate                          | Status                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------- |
+| Phase 2.6 local live analysis | Deferred by the owner under D18                                                          |
+| Phase 4.1 staging soak        | Deployed and smoke-checked under D18; owner GitHub round trip and provider checks remain |
+| Phase 4.2 production cutover  | Pending staging sign-off and approved cutover batch                                      |
+| Phase 4.3 decommission        | Pending agreed stable period, archive, deletion approvals, restore drill                 |
+| Phase 4.4 Google OAuth        | Pending final registration/credential approval, code PR, deploy, browser sign-off        |
 
 Record dates, reviewers, commit/Worker versions, run IDs, and outcomes beneath each gate.
 Keep keys, OAuth secrets, cookies, private inputs, and logs containing private data outside Git.
@@ -120,6 +120,11 @@ Provider-free smoke checks against the deployed staging Worker:
 | GitHub sign-in start                            | Redirects to `github.com/login` with the staging client and callback |
 | Chromium console on `/`, `/auth/error`, `/home` | No errors and no CSP violations                                      |
 | Analysis without a provider                     | Covered by the `startAnalysisRun` unavailable test; returns 503      |
+
+Phase 4.1 sign-off under D18: **passed for provider-free automated checks**, 2026-10-12. The
+automation browser has no GitHub session, so the owner's real GitHub round trip (callback,
+reload, settings linked accounts, sign-out) is the one manual check left. Every analysis,
+control, spend, and live-evaluation item waits for a configured provider.
 
 ## Phase 4.2 — Production cutover
 
