@@ -18,14 +18,18 @@ legacy import or write freeze. Initial sign-in uses GitHub; Google completion co
 ## Private settings
 
 Create ignored `apps/web/.dev.vars.production` from the production example and preserve the
-independent auth secret generated in Stage 0. Use mode `0600`, complete production GitHub
-credentials, explicit AI provider/generation/embedding model settings and keys, and chosen
-run/spend bounds. Credentials must differ from staging, and placeholders fail checks.
-Preserve the deployed auth secret on subsequent releases. Omit `DEV_AUTH_BYPASS`.
+independent auth secret generated in Stage 0. Use mode `0600` and complete production GitHub
+credentials. Credentials must differ from staging, and placeholders fail checks. Preserve the
+deployed auth secret on subsequent releases. Omit `DEV_AUTH_BYPASS`.
 
-GitHub homepage is `https://tracera.voltcrash.com` and its callback remains
-`https://tracera.voltcrash.com/api/auth/callback/github`. Approve any required OAuth app changes
-before making them. Google may be entirely absent until Phase 4.4; partial configuration fails.
+AI is optional under D18. Without any AI provider setting, production serves sign-in, history,
+and settings while analysis reports that it is unavailable, and `check:production` says so.
+To enable analysis, add the provider, generation and embedding models, keys, and every run and
+spend bound together; a partial configuration fails the check.
+
+The production GitHub OAuth app was created fresh for Cloudflare on 2026-10-12, with homepage
+`https://tracera.voltcrash.com` and callback
+`https://tracera.voltcrash.com/api/auth/callback/github`. Google may be entirely absent until Phase 4.4; partial configuration fails.
 Non-secret operational settings belong in reviewed Wrangler vars when practical.
 
 ## Local preflight
