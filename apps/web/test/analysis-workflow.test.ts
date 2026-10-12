@@ -150,6 +150,13 @@ test("an injected persistence failure resumes from the completed normalization c
   expect(normalizations).toBe(1);
   expect(generations).toBe(1);
   expect((await readRunState(harness.env, user, params.runId))?.progress.attempt).toBe(2);
+  const firstAttempt = await harness.env.DB.prepare(
+    "SELECT outcome,finished_at FROM core_stage_attempts WHERE run_id=? AND attempt=1",
+  )
+    .bind(params.runId)
+    .first<{ outcome: string; finished_at: number | null }>();
+  expect(firstAttempt?.outcome).toBe("failed");
+  expect(firstAttempt?.finished_at).not.toBeNull();
   expect(JSON.stringify(replay.errors)).not.toContain("secret-provider-canary");
   expect(await heldLeases()).toBe(0);
 });

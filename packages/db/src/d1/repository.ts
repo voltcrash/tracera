@@ -730,6 +730,11 @@ export class D1AnalysisRepository {
           input.expectedVersion,
         ),
       this.database
+        .prepare(`UPDATE core_stage_attempts SET finished_at=?,outcome='failed'
+        WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token<>? AND finished_at IS NULL
+        AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND fencing_token=?)`)
+        .bind(now, input.runId, ...scopeValues(input.scope), token, input.runId, token),
+      this.database
         .prepare(`INSERT INTO core_stage_attempts(run_id,tenant_id,owner_user_id,visibility,stage,attempt,fencing_token,started_at)
         SELECT run_id,tenant_id,owner_user_id,visibility,stage,attempt,fencing_token,? FROM core_runs
         WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=?`)
