@@ -46,8 +46,8 @@ uploading. Do not reuse a staging build for production.
 
 ## Daily production release
 
-Phase 3.3 supplies `production-release.yml`, scheduled daily at `00:17 UTC` and manually
-runnable from `main`. Configure the GitHub `production` environment and these secrets only
+The [production release workflow](../.github/workflows/production-release.yml) runs daily at
+`00:17 UTC` and supports manual dispatch from `main`. Configure the GitHub `production` environment and these secrets only
 through an approved owner action:
 
 | Secret                  | Value                                                                                           |
@@ -61,7 +61,8 @@ execution date as `YY.MM.DD`, checks its `v`-prefixed tag for collisions, writes
 with mode `0600`, validates/builds/dry-runs, applies production D1 migrations, and deploys with
 the version var. It publishes the exact deployed commit only after success and always removes
 the private file. It never resets or bootstraps D1. A second changed snapshot on the same UTC
-date cannot reuse that date's tag; resolve it through the documented release policy.
+date cannot reuse that date's tag. Keep the deployed date tag immutable and dispatch on the
+next UTC date; an urgent exception requires an explicit release-policy change in a reviewed PR.
 
 The first approved cutover release is started with:
 
