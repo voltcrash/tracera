@@ -206,7 +206,8 @@ vp run --filter cloudflare-spike test:runtime
 ```
 
 This proves the sqlite adapter and Start cookie integration together. It does not test
-Google or GitHub OAuth; their staging applications belong to Phase 0.3. No session tokens or
+Google or GitHub OAuth; GitHub staging setup belongs to Phase 0.3 and Google setup to the
+final Phase 4.4 under D17. No session tokens or
 real secrets are recorded in these notes.
 
 ## CSP nonces
@@ -298,11 +299,12 @@ auth secrets in private local files. The [resource notes](cloudflare-stage-0-res
 record the actual IDs and evidence. After initially deferring both staging OAuth apps
 and the CI token, the owner completed GitHub staging OAuth and the CI token on
 2026-10-12. Their credentials are in private mode-0600 files; the CI token verifies as
-active and the intended resource inventory checks pass. Google staging OAuth remains
-deferred, so Phase 0.3 is still incomplete. Production has no public bootstrap route;
+active and the intended resource inventory checks pass. The owner subsequently accepted
+D17, moving Google setup to the final Phase 4.4. Phase 0.3 and Stage 0 are now complete
+under the revised plan. Production has no public bootstrap route;
 the custom-domain cutover stays in Stage 4.
 
-Complete Phase 0.3 and its separate PR before advancing beyond Stage 0. Stage 1 should use
+Review the completed Stage 0 PRs in phase order before advancing. Stage 1 should use
 the validated Vite+/workerd patterns, preserve the existing provider adapters, implement
 the planned Worker-safe fetch and R2 blob store, and keep the resolver seam from D14. Stage
 2 must carry forward the generated-file checks, scoped Next lint rules during transition,
