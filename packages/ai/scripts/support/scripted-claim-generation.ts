@@ -1,7 +1,7 @@
 /*
  * Deterministic stand-in for a generation provider in claim-inventory fixtures.
- * It replays hand-written model output and lives outside src/ so no production
- * entry point can select it.
+ * It replays hand-written model output. The local fixture runtime also composes it;
+ * hosted environments reject fixture mode before these ports are selected.
  */
 import {
   CLAIM_EXTRACTION_PROMPT_VERSION,

@@ -1,5 +1,11 @@
 # Stage 1 Cloudflare foundations
 
+Historical implementation record: Phase 3.1 promoted `@repo/db/d1` and `@repo/auth/d1` to their
+package roots and moved D1 modules to `packages/db/src`. Current generation commands are
+`vp run db:generate` and `vp run @repo/db#db:generate:auth`; the latter uses
+`auth-schema.config.ts` and writes `tmp/auth-schema.sqlite.ts` for review. Use
+[Cloudflare operations](cloudflare-operations.md) for the current workflow.
+
 Stage 1 follows the phase order and exit criteria in the
 [accepted migration plan](cloudflare-migration-plan.md). The existing Next.js/Vercel app
 continues using Postgres until the later framework swap.

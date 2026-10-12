@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
-import { createD1AdmissionRepository } from "../../src/d1/admission.js";
+import { createD1AdmissionRepository } from "../../src/admission.js";
 import { createTestRuntime, seedUser } from "./runtime.js";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;

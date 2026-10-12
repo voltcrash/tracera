@@ -1,0 +1,284 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useRef } from "react";
+import type { CSSProperties } from "react";
+import { BrandLockup } from "@/components/brand/brand-lockup";
+import { SignInOptions } from "@/components/auth/sign-in-options";
+import { Button } from "@/components/ui/button";
+import { redirectSignedIn } from "@/lib/route-guards";
+import { cn } from "@/lib/utils";
+import { getSession, getSignInOptions } from "@/server/session";
+
+export const Route = createFileRoute("/")({
+  beforeLoad: async () => redirectSignedIn(await getSession()),
+  loader: () => getSignInOptions(),
+  component: LandingPage,
+});
+
+const notes = [
+  {
+    marker: "1",
+    verdict: "Supported",
+    tone: "text-lime-ink",
+    body: "A supplied source record quotes the 40% figure; corroboration is shown only when sources are independently validated.",
+  },
+  {
+    marker: "2",
+    verdict: "Not a claim",
+    tone: "text-ink-faint",
+    body: "Attributed to ministers rather than stated as fact, so it stays out of the score.",
+  },
+  {
+    marker: "3",
+    verdict: "Needs context",
+    tone: "text-tint-amber-foreground",
+    body: "40% is the average. The same table shows 9% for the lowest-income quartile.",
+  },
+];
+
+const trail = [
+  {
+    when: "Later observation",
+    source: "Related copy",
+    detail: "Syndicated or related material is context, not independent evidence.",
+  },
+  {
+    when: "Acquired observation",
+    source: "Publisher record",
+    detail: "A live report shows exact timestamps and source snapshots when they are available.",
+  },
+  {
+    when: "Scope boundary",
+    source: "Candidate root",
+    detail: "Earlier material may exist outside the searched scope.",
+    origin: true,
+  },
+];
+
+const scoreParts = [
+  {
+    label: "Factual score",
+    value: "Not available",
+    detail: "Requires resolved selected claims and valid evidence.",
+  },
+  {
+    label: "Source reputation",
+    value: "Context only",
+    detail: "No reputation record is supplied by this sample.",
+  },
+  {
+    label: "Framing and language",
+    value: "Separate",
+    detail: "Presentation observations do not change factual truth.",
+  },
+  {
+    label: "Origin and timeline",
+    value: "Observed scope",
+    detail: "Unknown history and timestamps stay unresolved.",
+  },
+];
+
+function LandingPage() {
+  const signInOptions = Route.useLoaderData();
+  const authCtaRef = useRef<HTMLDivElement>(null);
+
+  function showSignInOptions() {
+    const authCta = authCtaRef.current;
+    if (!authCta) return;
+
+    authCta.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "center",
+    });
+    authCta.classList.remove("auth-cta-highlight");
+    void authCta.offsetWidth;
+    authCta.classList.add("auth-cta-highlight");
+  }
+
+  return (
+    <main className="doc min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-50 border-b border-line bg-background/85 backdrop-blur-md">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+          <Link to="/" className="flex h-10 items-center" aria-label="Tracera home">
+            <BrandLockup />
+          </Link>
+          <div className="flex h-10 items-center gap-5">
+            <nav className="hidden h-10 items-center gap-5 text-sm text-ink-soft sm:flex">
+              <a href="#trail" className="hover:text-foreground">
+                Where a story starts
+              </a>
+              <a href="#score" className="hover:text-foreground">
+                The score
+              </a>
+            </nav>
+            <Button
+              type="button"
+              variant="outline"
+              className="color-sweep-button theme-primary-cta rounded-full px-5"
+              onClick={showSignInOptions}
+            >
+              Try Tracera
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-5xl px-6">
+        <section className="pb-20 pt-16 sm:pt-20">
+          <h1 className="max-w-[18ch] font-serif text-5xl leading-[1.05] tracking-[-0.02em] sm:text-6xl">
+            Every story is a stack of claims.
+          </h1>
+          <p className="mt-6 max-w-[58ch] text-lg leading-8 text-ink-soft">
+            Tracera takes them apart one at a time, checks each against sources it can name, and
+            shows whether the evidence supports, contradicts, or leaves each one unresolved.
+          </p>
+
+          <div className="mt-14 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14">
+            <div>
+              <p className="text-sm text-ink-faint">Sample excerpt, as Tracera marks it</p>
+              <blockquote className="mt-4 font-serif text-2xl leading-[1.6] sm:text-[1.7rem] sm:leading-[1.62]">
+                &ldquo;New research shows the policy{" "}
+                <span
+                  className="claim claim-supported"
+                  style={{ "--claim-delay": "500ms" } as CSSProperties}
+                >
+                  cut household energy costs by 40% in its first year
+                  <span className="claim-marker">1</span>
+                </span>
+                , and{" "}
+                <span
+                  className="claim claim-framing"
+                  style={{ "--claim-delay": "700ms" } as CSSProperties}
+                >
+                  ministers say
+                  <span className="claim-marker">2</span>
+                </span>{" "}
+                <span
+                  className="claim claim-context"
+                  style={{ "--claim-delay": "900ms" } as CSSProperties}
+                >
+                  every home will feel the benefit before winter, no matter where they live or what
+                  they earn
+                  <span className="claim-marker">3</span>
+                </span>
+                .&rdquo;
+              </blockquote>
+
+              <p className="mt-10 text-sm text-ink-faint">
+                Paste the text, drop the link, or upload a screenshot.
+              </p>
+              <div
+                id="try-tracera"
+                ref={authCtaRef}
+                className="mt-5 flex max-w-sm flex-col gap-3 rounded-2xl sm:max-w-none sm:flex-row"
+              >
+                <SignInOptions options={signInOptions} />
+              </div>
+            </div>
+
+            <div className="space-y-7 border-t border-line pt-7 lg:border-l lg:border-t-0 lg:pl-7 lg:pt-1">
+              {notes.map((note, index) => (
+                <div
+                  key={note.marker}
+                  className="note grid grid-cols-[1.25rem_1fr] gap-x-2"
+                  style={{ "--note-delay": `${1150 + index * 160}ms` } as CSSProperties}
+                >
+                  <span className={cn("text-sm font-bold", note.tone)}>{note.marker}</span>
+                  <div>
+                    <p className={cn("text-sm font-bold", note.tone)}>{note.verdict}</p>
+                    <p className="mt-1 text-sm leading-6 text-ink-soft">{note.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="trail" className="scroll-mt-8 border-t border-line py-20">
+          <h2 className="max-w-[20ch] font-serif text-4xl leading-[1.1] tracking-[-0.02em]">
+            The version you read is rarely the first one.
+          </h2>
+          <p className="mt-5 max-w-[60ch] text-base leading-7 text-ink-soft">
+            Tracera walks a story back through the reposts and rewrites to the earliest observed
+            source within the searched scope, and says so plainly when the trail runs cold.
+          </p>
+
+          <div className="mt-12">
+            {trail.map((entry) => (
+              <div
+                key={entry.source}
+                className="trail-entry grid gap-1 py-5 sm:grid-cols-[10rem_1fr] sm:gap-6"
+              >
+                <p className="text-sm text-ink-faint sm:pt-0.5">{entry.when}</p>
+                <div>
+                  <p className="font-serif text-xl">
+                    {entry.source}
+                    {entry.origin ? (
+                      <span className="ml-3 align-middle text-xs font-bold text-lime-ink font-sans">
+                        Earliest observed in scope
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="mt-1 max-w-[58ch] text-sm leading-6 text-ink-soft">
+                    {entry.detail}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section id="score" className="scroll-mt-8 border-t border-line py-20">
+          <div className="grid gap-12 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-20">
+            <div>
+              <h2 className="font-serif text-4xl leading-[1.1] tracking-[-0.02em]">
+                One number, kept in pieces.
+              </h2>
+              <p className="mt-5 max-w-[46ch] text-base leading-7 text-ink-soft">
+                A score appears only when selected claims are resolved with valid evidence. Source
+                context, framing, origin, and timing stay on the page as separate signals.
+              </p>
+              <p className="mt-6 max-w-[46ch] text-sm leading-6 text-ink-faint">
+                This sample has no scored report. Unknown and unavailable results stay explicit; the
+                factual score is not a ruling on whether a story is true.
+              </p>
+            </div>
+
+            <ul className="self-center">
+              {scoreParts.map((part) => (
+                <li key={part.label} className="py-4">
+                  <div className="flex items-baseline justify-between gap-6">
+                    <span className="text-sm text-ink-soft">{part.label}</span>
+                    <span className="font-serif text-lg">{part.value}</span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-ink-faint">{part.detail}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      </div>
+
+      <section className="landing-cta bg-panel text-panel-foreground">
+        <div className="mx-auto max-w-5xl px-6 py-24">
+          <h2 className="max-w-[16ch] font-serif text-4xl leading-[1.1] tracking-[-0.02em] sm:text-5xl">
+            Bring something you&rsquo;re not sure about.
+          </h2>
+          <div className="mt-10">
+            <Button
+              type="button"
+              variant="outline"
+              className="color-sweep-button login-cta rounded-full px-5"
+              onClick={showSignInOptions}
+            >
+              Try Tracera
+            </Button>
+          </div>
+          <p className="mt-8 max-w-[56ch] text-sm leading-6 text-panel-muted">
+            Tracera is automated, and it can be wrong. Every claim it marks shows the sources behind
+            it, so you can check the check.
+          </p>
+        </div>
+      </section>
+    </main>
+  );
+}

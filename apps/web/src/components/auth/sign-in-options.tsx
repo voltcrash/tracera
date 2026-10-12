@@ -1,33 +1,14 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import type { SignInOptions as Options } from "@/server/session";
 import { SocialSignInButton } from "./social-sign-in-button";
 
-type LocalIdentity = { id: string; name: string };
-
-export function SignInOptions() {
-  const [identities, setIdentities] = useState<LocalIdentity[] | null>(null);
-  const [localChecked, setLocalChecked] = useState(false);
-
-  useEffect(() => {
-    void fetch("/api/auth/dev-identities", { credentials: "same-origin" })
-      .then(async (response) => (response.ok ? ((await response.json()).identities ?? []) : []))
-      .then((value) => setIdentities(value))
-      .catch(() => setIdentities([]))
-      .finally(() => setLocalChecked(true));
-  }, []);
-
-  if (!localChecked) {
-    return <p className="text-sm text-ink-faint">Checking sign-in options…</p>;
-  }
-
-  if (identities && identities.length > 0) {
+export function SignInOptions({ options }: { options: Options }) {
+  if (options.identities && options.identities.length > 0) {
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-ink-soft">Local development identities</p>
         <div className="flex flex-col gap-3 sm:flex-row">
-          {identities.map((identity) => (
+          {options.identities.map((identity) => (
             <Button
               key={identity.id}
               render={
@@ -49,20 +30,21 @@ export function SignInOptions() {
     );
   }
 
+  if (options.providers.length === 0) {
+    return <p className="text-sm text-ink-faint">Sign-in is not available right now.</p>;
+  }
+
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
-      <SocialSignInButton
-        provider="google"
-        variant="brand"
-        size="lg"
-        className="color-sweep-button story-auth-cta"
-      />
-      <SocialSignInButton
-        provider="github"
-        variant="brand"
-        size="lg"
-        className="color-sweep-button story-auth-cta"
-      />
+      {options.providers.map((provider) => (
+        <SocialSignInButton
+          key={provider}
+          provider={provider}
+          variant="brand"
+          size="lg"
+          className="color-sweep-button story-auth-cta"
+        />
+      ))}
     </div>
   );
 }

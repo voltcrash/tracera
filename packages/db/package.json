@@ -5,37 +5,25 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./connection": "./src/connection.ts",
-    "./analysis": "./src/analysis/index.ts",
-    "./analysis/repository": "./src/analysis/repository.ts",
-    "./analysis/schema": "./src/analysis/schema.ts",
     "./schema": "./src/schema.ts",
-    "./d1/schema": "./src/d1/schema.ts",
-    "./d1": "./src/d1/index.ts",
     "./test-runtime": "./test/d1/runtime.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "db:generate": "node ../../scripts/environment/guard.mjs --role migration -- drizzle-kit generate --config=drizzle.config.ts",
-    "db:migrate": "node ../../scripts/environment/guard.mjs --role migration -- drizzle-kit migrate --config=drizzle.config.ts",
-    "test:analysis-storage": "node ../../scripts/database/test-analysis-storage.mjs",
-    "db:generate:d1": "drizzle-kit generate --config=drizzle.d1.config.ts",
-    "db:migrate:d1": "wrangler d1 migrations apply tracera-staging --local --config ../../apps/web/wrangler.jsonc --persist-to ../../apps/web/.wrangler/state",
-    "test:d1": "vp test --run test/d1"
+    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate": "wrangler d1 migrations apply tracera-staging --local --config ../../apps/web/wrangler.jsonc --persist-to ../../apps/web/.wrangler/state",
+    "test:d1": "vp test --run test/d1",
+    "db:generate:auth": "auth generate --config auth-schema.config.ts --adapter drizzle --dialect sqlite --output ../../tmp/auth-schema.sqlite.ts --yes"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.1.0",
     "@repo/contracts": "workspace:*",
-    "@repo/environment": "workspace:*",
-    "drizzle-orm": "^0.45.4",
-    "pg": "^8.23.0"
+    "drizzle-orm": "^0.45.4"
   },
   "devDependencies": {
     "@better-auth/drizzle-adapter": "^1.7.7",
     "@cloudflare/workers-types": "^5.20261012.1",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^26.5.0",
-    "@types/pg": "^8.23.1",
     "auth": "^1.7.7",
     "better-auth": "^1.7.7",
     "drizzle-kit": "^0.31.11",

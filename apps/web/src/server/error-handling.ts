@@ -1,5 +1,3 @@
-import type { Context, MiddlewareHandler } from "hono";
-
 export const REQUEST_ID_HEADER = "x-request-id";
 export const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again later.";
 export const SERVICE_UNAVAILABLE_MESSAGE =
@@ -11,13 +9,6 @@ const SENSITIVE_KEY_PATTERN =
   "(?:password|passwd|pwd|secret|token|api[-_]?key|authorization|cookie|credential|client[-_]?secret|private[-_]?key)";
 const requestIds = new WeakMap<Request, string>();
 
-export const requestIdMiddleware: MiddlewareHandler = async (context, next) => {
-  const requestId = requestIdFor(context.req.raw);
-  context.header(REQUEST_ID_HEADER, requestId);
-  await next();
-  context.header(REQUEST_ID_HEADER, requestId);
-};
-
 export function requestIdFor(request: Request) {
   const cached = requestIds.get(request);
   if (cached) return cached;
@@ -26,12 +17,6 @@ export function requestIdFor(request: Request) {
   const requestId =
     requested && REQUEST_ID_PATTERN.test(requested) ? requested : crypto.randomUUID();
   requestIds.set(request, requestId);
-  return requestId;
-}
-
-export function requestIdForContext(context: Context) {
-  const requestId = requestIdFor(context.req.raw);
-  context.header(REQUEST_ID_HEADER, requestId);
   return requestId;
 }
 
@@ -78,29 +63,6 @@ export function logServerWarning(label: string, error: unknown, request: Request
   logServerDiagnostic(console.warn, label, error, request);
 }
 
-export function internalErrorResponse(context: Context, error: unknown, label: string) {
-  const requestId = requestIdForContext(context);
-  logServerError(label, error, context.req.raw);
-  return context.json({ error: GENERIC_ERROR_MESSAGE, requestId }, 500);
-}
-
-export function serviceUnavailableResponse(
-  context: Context,
-  error: unknown,
-  message: string,
-  label: string,
-) {
-  const requestId = requestIdForContext(context);
-  logServerError(label, error, context.req.raw);
-  return context.json({ error: message, requestId }, 503);
-}
-
-export function healthErrorResponse(context: Context, error: unknown) {
-  const requestId = requestIdForContext(context);
-  logServerError("Health check failed", error, context.req.raw);
-  return context.json({ status: "error", message: SERVICE_UNAVAILABLE_MESSAGE, requestId }, 503);
-}
-
 function truncate(value: string) {
   return value.length <= MAX_DIAGNOSTIC_TEXT_LENGTH
     ? value
@@ -133,4 +95,9 @@ function logServerDiagnostic(
     requestId: requestIdFor(request),
     error: sanitizedErrorDetails(error),
   });
+}
+
+/** An error whose message is safe and useful to show the caller, such as invalid input. */
+export class ClientInputError extends Error {
+  override name = "ClientInputError";
 }

@@ -1,9 +1,15 @@
 # Cloudflare migration plan
 
-Status: Stage 1 foundations implemented, 2026-10-12; all five phase exit criteria pass
-locally and the stacked PRs remain open for review. Stage 0 is complete. D1–D16 were
-accepted in Phase 0.1; the owner accepted D17 on 2026-10-12. Stage 2–4 implementation and
-hosted rollout gates remain open.
+Status: Stage 4 preflight recorded, 2026-10-12. Stages 0 and 1 are merged to `main`; Stages 2
+and 3 are merged to `migrate/cloudflare`, where integration-branch CI passes. Phase 2.6's
+real-provider exit criterion remains owner-deferred. D1–D17 are accepted. Phase 4.1 waits on
+owner provider settings and approval of the staging secret upload and deploy; later Stage 4
+gates, including final Google OAuth, remain open.
+
+On 2026-10-12 the owner extended the live-test deferral through the remaining repository
+implementation. Complete Stage 3 and prepare the Stage 4 runbooks before requesting the
+provider configuration again. Keep the Phase 2.6 live exit criterion and Stage 4 hosted
+sign-offs open; deployment, DNS, OAuth, and decommission actions still require approval.
 
 Tracera moves from Next.js + Hono on Vercel with Neon Postgres to a single TanStack Start
 application running on one Cloudflare Worker, backed by D1, R2, and Workflows. AI stays on the
@@ -41,7 +47,7 @@ Non-goals:
 | Framework          | Next.js 16 App Router, RSC, `proxy.ts`                                                   | TanStack Start (React 19, file routes, SSR), built by Vite+                                    |
 | API                | Hono app behind `app/api/[[...route]]`                                                   | Start server functions for UI calls, server routes for HTTP-shaped endpoints, Start middleware |
 | Hosting            | Vercel project, Node runtime, `maxDuration` 300 s                                        | One Worker with Workers Static Assets and a custom domain                                      |
-| Database           | Neon Postgres 18 via `pg` and Neon serverless, 31 migrations, roles and grants           | D1 via Drizzle's `d1` driver, one new baseline migration                                       |
+| Database           | Neon Postgres 18 via `pg` and Neon serverless, 30 SQL migrations, roles and grants       | D1 via Drizzle's `d1` driver, one new baseline migration                                       |
 | AI                 | Gemini, OpenAI, Anthropic, OpenRouter, OpenAI-compatible adapters; config read from env  | Same adapters and keys, called with `fetch` from the Workflow; config from a per-run resolver  |
 | Embeddings         | pgvector `vector(1024)` table that nothing writes                                        | Not ported; the embedding port stays for future use (D13)                                      |
 | Raw blobs          | Filesystem store                                                                         | R2 bucket                                                                                      |
@@ -160,6 +166,13 @@ Live AI locally is opt-in: `dev:live` sets `ANALYSIS_MODE=live` and uses the pro
 in `.dev.vars`. This relaxes today's rule that local profiles reject provider credentials;
 `.dev.vars` is ignored by Git and never uploaded.
 
+The Cloudflare Vite plugin bakes the selected Wrangler config into `dist/server/wrangler.json`.
+`build:production` selects `wrangler.production.json` through the plugin's
+`CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH`, and deploys pass that built config to Wrangler: an
+explicit source config would make Wrangler rebundle `src/server.ts` without Vite. Because
+`.dev.vars` always overrides config vars, `dev:live` runs Vite in its `live` mode and
+`serverEnv()` switches `ANALYSIS_MODE` to `live` only in that dev mode (Phase 2.1 amendment).
+
 ### Commands
 
 Run from the repository root with `vp run <script>` unless noted.
@@ -168,18 +181,18 @@ Run from the repository root with `vp run <script>` unless noted.
 | -------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | First-time setup     | `vp install`, copy `apps/web/.dev.vars.example` to `.dev.vars`, `db:migrate` | Installs, configures, and migrates local D1                                                  |
 | Develop              | `dev`                                                                        | `vp dev` in `apps/web`: Vite and workerd with HMR, local D1, R2, and Workflows               |
-| Develop with live AI | `dev:live`                                                                   | Same, with `ANALYSIS_MODE=live` and the provider settings from `.dev.vars`                   |
+| Develop with live AI | `dev:live`                                                                   | Same in Vite's `live` mode, which switches to `ANALYSIS_MODE=live` with `.dev.vars` keys     |
 | Generate migration   | `db:generate`                                                                | `drizzle-kit generate` with the sqlite dialect                                               |
 | Migrate local        | `db:migrate`                                                                 | `wrangler d1 migrations apply tracera-staging --local`                                       |
 | Reset local data     | `db:reset`                                                                   | Deletes this worktree's local D1 state and migrates again                                    |
 | Binding types        | `cf-typegen`                                                                 | `wrangler types`                                                                             |
 | Check and test       | `vp check`, `vp test`                                                        | Format, lint, types, unit and Miniflare D1 suites                                            |
 | Build and preview    | `build`, `preview`                                                           | `vp build`, then `vp preview` runs the built Worker in workerd                               |
-| Deploy staging       | `deploy:staging`                                                             | Remote staging migrations, then `wrangler deploy`                                            |
-| Check production     | `check:production`                                                           | Validates production config, secrets, and build                                              |
-| Production dry run   | `deploy:production-dry-run`                                                  | Check, build, `wrangler deploy --config wrangler.production.json --secrets-file … --dry-run` |
+| Deploy staging       | `deploy:staging`                                                             | Remote staging migrations, build, then `wrangler deploy` of the built config                 |
+| Check production     | `check:production`                                                           | `build:production`, then validates production config, secrets, and the built config          |
+| Production dry run   | `deploy:production-dry-run`                                                  | Check, then `wrangler deploy --config dist/server/wrangler.json --secrets-file … --dry-run`  |
 | Migrate production   | `db:migrate:production`                                                      | `wrangler d1 migrations apply tracera-production --remote --config wrangler.production.json` |
-| Deploy production    | `deploy:production`                                                          | Check, build, deploy with the production config and secrets file                             |
+| Deploy production    | `deploy:production`                                                          | Check, then deploy the built production config with the secrets file                         |
 
 ### Variables
 
@@ -200,25 +213,26 @@ Run from the repository root with `vp run <script>` unless noted.
 
 ## 5. Decisions
 
-| ID  | Decision                 | Recommendation                                                                                                                                                                                                                                                                                                                             | Status   |
-| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| D1  | Delivery strategy        | Stages 0–1 are additive and merge to `main` (Vercel keeps serving). Stages 2–3 land as one PR per phase into `migrate/cloudflare`. `main` and Vercel stay untouched until cutover; freeze feature work on `main` meanwhile.                                                                                                                | Accepted |
-| D2  | API surface              | Server functions for everything the React UI calls. Server routes only where the HTTP shape matters: `/api/auth/$`, SSE progress, evidence download, health. No CORS: dev and production are both same-origin.                                                                                                                             | Accepted |
-| D3  | Analysis execution       | Workflows. `startAnalysis` returns the run ID and the run page streams progress. Retires the Postgres job queue, leases, fencing renewals, timers, and outbox.                                                                                                                                                                             | Accepted |
-| D4  | Cloudflare boundary      | All infrastructure runs on Cloudflare. AI providers stay external by choice: Workers AI behind AI Gateway costs more for this workload, and external providers keep BYOK possible. Sign-in providers and the pages being checked are inherently external. Google News RSS, GDELT, Google Fact Check, and NewsAPI stay as evidence sources. | Accepted |
-| D5  | AI providers             | Keep the provider-neutral `AiProvider` layer and the Gemini, OpenAI, Anthropic, OpenRouter, and OpenAI-compatible adapters, plus the D1 spend circuit. No Workers AI, AI Gateway, or model bake-off.                                                                                                                                       | Accepted |
-| D6  | Existing production data | Fresh start. New D1 baseline (Postgres migrations are not ported) and no data import. Production gets a new `BETTER_AUTH_SECRET`; users sign in again with Google or GitHub, and earlier reports are not carried over. A final `pg_dump` is archived in R2 before Neon is deleted.                                                         | Accepted |
-| D7  | Concurrency on D1        | Atomic `batch()` calls with guarded statements and optimistic version columns, as in oxytype. No interactive transactions. A Durable Object only if a guard cannot be expressed in one batch.                                                                                                                                              | Accepted |
-| D8  | Config layout            | Separate `wrangler.production.json` instead of Wrangler `env` blocks; secrets through `--secrets-file`. Mirrors oxytype.                                                                                                                                                                                                                   | Accepted |
-| D9  | Local analysis           | `MODE=dev` with `ANALYSIS_MODE=fixture` runs the deterministic scripted ports end to end, so the whole UI works offline. `live` is opt-in with your own key in `.dev.vars`. Production rejects fixture mode.                                                                                                                               | Accepted |
-| D10 | Test runtime             | Miniflare inside Vitest (oxytype) rather than `@cloudflare/vitest-pool-workers`, to stay on Vite+'s bundled Vitest.                                                                                                                                                                                                                        | Accepted |
-| D11 | Fonts                    | Self-host Newsreader with `@fontsource-variable/newsreader`; keep the local Geist files. No Google Fonts download at build time.                                                                                                                                                                                                           | Accepted |
-| D12 | Database privileges      | Postgres roles, grants, and the RLS analysis are retired. Only the Worker binding can reach D1; migrations use a scoped API token. Application-level tenant, owner, and visibility filters stay.                                                                                                                                           | Accepted |
-| D13 | Embeddings               | Do not port `core_snapshot_embeddings`: no engine stage calls the embedding port and nothing writes the table. Keep `EmbeddingPort` and `embed()`. Add storage when a feature first queries embeddings: a D1 BLOB column for small volumes, Vectorize for similarity search at scale.                                                      | Accepted |
-| D14 | BYOK readiness           | Analysis resolves its provider inside workflow steps through `resolveAnalysisProvider({ userId })`, which returns `{ source: "platform", config }` until BYOK ships. API keys never enter workflow params, step results, run rows, reports, or logs. Runs record provider source, provider, and model.                                     | Accepted |
-| D15 | Staging origin           | `https://tracera-staging.voltcrash.workers.dev`, the account's workers.dev subdomain as oxytype staging uses. It serves the site and API together, so OAuth cookies stay first-party.                                                                                                                                                      | Accepted |
-| D16 | Production releases      | A daily release like oxytype's: a scheduled workflow deploys `main` once a day when there are new commits, tags a `YY.MM.DD` version, and publishes GitHub release notes. Merging to `main` does not deploy by itself.                                                                                                                     | Accepted |
-| D17 | Google OAuth timing      | Google OAuth registration, hosted credentials, and live sign-in checks move to the final Phase 4.4, after the other migration phases. Earlier phases and the initial Cloudflare rollout use GitHub sign-in. Google implementation and stubbed tests remain in scope; partial credential pairs are rejected.                                | Accepted |
+| ID  | Decision                 | Recommendation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Status   |
+| --- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| D1  | Delivery strategy        | Stages 0–1 are additive and merge to `main` (Vercel keeps serving). Stages 2–3 land as one PR per phase into `migrate/cloudflare`. `main` and Vercel stay untouched until cutover; freeze feature work on `main` meanwhile.                                                                                                                                                                                                                                                                                     | Accepted |
+| D2  | API surface              | Server functions for everything the React UI calls. Server routes only where the HTTP shape matters: `/api/auth/$`, SSE progress, evidence download, health. No CORS: dev and production are both same-origin.                                                                                                                                                                                                                                                                                                  | Accepted |
+| D3  | Analysis execution       | Workflows. `startAnalysis` returns the run ID and the run page streams progress. Retires the Postgres job queue, leases, fencing renewals, timers, and outbox.                                                                                                                                                                                                                                                                                                                                                  | Accepted |
+| D4  | Cloudflare boundary      | All infrastructure runs on Cloudflare. AI providers stay external by choice: Workers AI behind AI Gateway costs more for this workload, and external providers keep BYOK possible. Sign-in providers and the pages being checked are inherently external. Google News RSS, GDELT, Google Fact Check, and NewsAPI stay as evidence sources.                                                                                                                                                                      | Accepted |
+| D5  | AI providers             | Keep the provider-neutral `AiProvider` layer and the Gemini, OpenAI, Anthropic, OpenRouter, and OpenAI-compatible adapters, plus the D1 spend circuit. No Workers AI, AI Gateway, or model bake-off.                                                                                                                                                                                                                                                                                                            | Accepted |
+| D6  | Existing production data | Fresh start. New D1 baseline (Postgres migrations are not ported) and no data import. Production gets a new `BETTER_AUTH_SECRET`; users sign in again with Google or GitHub, and earlier reports are not carried over. A final `pg_dump` is archived in R2 before Neon is deleted.                                                                                                                                                                                                                              | Accepted |
+| D7  | Concurrency on D1        | Atomic `batch()` calls with guarded statements and optimistic version columns, as in oxytype. No interactive transactions. A Durable Object only if a guard cannot be expressed in one batch.                                                                                                                                                                                                                                                                                                                   | Accepted |
+| D8  | Config layout            | Separate `wrangler.production.json` instead of Wrangler `env` blocks; secrets through `--secrets-file`. Mirrors oxytype.                                                                                                                                                                                                                                                                                                                                                                                        | Accepted |
+| D9  | Local analysis           | `MODE=dev` with `ANALYSIS_MODE=fixture` runs the deterministic scripted ports end to end, so the whole UI works offline. `live` is opt-in with your own key in `.dev.vars`. Production rejects fixture mode.                                                                                                                                                                                                                                                                                                    | Accepted |
+| D10 | Test runtime             | Miniflare inside Vitest (oxytype) rather than `@cloudflare/vitest-pool-workers`, to stay on Vite+'s bundled Vitest.                                                                                                                                                                                                                                                                                                                                                                                             | Accepted |
+| D11 | Fonts                    | Self-host Newsreader with `@fontsource-variable/newsreader`; keep the local Geist files. No Google Fonts download at build time.                                                                                                                                                                                                                                                                                                                                                                                | Accepted |
+| D12 | Database privileges      | Postgres roles, grants, and the RLS analysis are retired. Only the Worker binding can reach D1; migrations use a scoped API token. Application-level tenant, owner, and visibility filters stay.                                                                                                                                                                                                                                                                                                                | Accepted |
+| D13 | Embeddings               | Do not port `core_snapshot_embeddings`: no engine stage calls the embedding port and nothing writes the table. Keep `EmbeddingPort` and `embed()`. Add storage when a feature first queries embeddings: a D1 BLOB column for small volumes, Vectorize for similarity search at scale.                                                                                                                                                                                                                           | Accepted |
+| D14 | BYOK readiness           | Analysis resolves its provider inside workflow steps through `resolveAnalysisProvider({ userId })`, which returns `{ source: "platform", config }` until BYOK ships. API keys never enter workflow params, step results, run rows, reports, or logs. Runs record provider source, provider, and model.                                                                                                                                                                                                          | Accepted |
+| D15 | Staging origin           | `https://tracera-staging.voltcrash.workers.dev`, the account's workers.dev subdomain as oxytype staging uses. It serves the site and API together, so OAuth cookies stay first-party.                                                                                                                                                                                                                                                                                                                           | Accepted |
+| D16 | Production releases      | A daily release like oxytype's: a scheduled workflow deploys `main` once a day when there are new commits, tags a `YY.MM.DD` version, and publishes GitHub release notes. Merging to `main` does not deploy by itself.                                                                                                                                                                                                                                                                                          | Accepted |
+| D17 | Google OAuth timing      | Google OAuth registration, hosted credentials, and live sign-in checks move to the final Phase 4.4, after the other migration phases. Earlier phases and the initial Cloudflare rollout use GitHub sign-in. Google implementation and stubbed tests remain in scope; partial credential pairs are rejected.                                                                                                                                                                                                     | Accepted |
+| D18 | Rollout without AI       | The owner deferred AI provider settings, local and hosted live analysis checks, and the live evaluation until a later date (2026-10-12). Staging and production deploy without a provider; analysis reports `analysis_unavailable` until a complete provider configuration and every run and spend bound are added. `check:production` accepts no AI settings, rejects partial ones, and `AI_API_KEY` leaves `secrets.required`. Soak observation windows and the stable period before decommission are waived. | Accepted |
 
 ## 6. Stages and phases
 
@@ -368,6 +382,12 @@ resources, secrets, deployments, DNS or OAuth apps were changed during Stage 1.
 
 Pull requests target `migrate/cloudflare`.
 
+Stage 3 proceeds while the owner-deferred live-provider check remains pending. When removing
+legacy tooling in Phase 3.1, remove its calls from the transitional CI in the same PR so every
+phase stays green. Phase 3.3 replaces that workflow and adds production release automation.
+
+Progress and evidence: [Stage 2 notes](cloudflare-stage-2-app.md).
+
 **Phase 2.1 — Framework swap and the oxytype config model.**
 
 - Remove `next`, `next.config.js`, `postcss.config.mjs`, `src/proxy.ts`, the Next agent notes
@@ -450,11 +470,13 @@ function and route handlers against a Miniflare environment.
   follow-up.
 - `cancelRun` sets the D1 cancellation flag, which the engine already observes, and terminates
   the instance after a grace period.
+- Admission leases cover the bounded Workflow retry window; failure, finalize, and release steps
+  each have two retries and a 30-second attempt timeout. No lease renewal timer is needed.
 - Removed: `acquireLease`, `renewLease`, `acquireNextLease`, the renew and cancellation timers,
   and `process.pid` worker IDs.
 - In fixture mode the workflow uses the scripted ports from `packages/ai/scripts/support`.
-- The home page navigates to `/run/$id` after `startAnalysis`; the run page shows live progress
-  and then the report.
+- The home page navigates to `/run/$id` after `startAnalysis` (landed in Phase 2.4 with the
+  new response shape); the run page shows live progress and then the report.
 
 Exit: a local fixture analysis completes end to end in `vp dev`, cancellation works, and an
 injected failure resumes from its checkpoint.
@@ -463,6 +485,10 @@ injected failure resumes from its checkpoint.
 the new `safeFetch`. Fact Check and NewsAPI keys stay optional secrets (D4). Raw blobs go to
 R2. Browser Rendering is added only if staging shows acquisition gaps on script-rendered pages.
 Exit: `dev:live` completes an analysis with a provider key from `.dev.vars`.
+
+The owner deferred this live-provider validation on 2026-10-12 until credentials can be
+configured. Implement and validate the remaining Stage 2 phases meanwhile; leave this exit
+criterion pending and do not replace the live check with stubbed evidence.
 
 **Phase 2.7 — Scheduled maintenance.** The `scheduled` handler purges expired idempotency keys,
 released and expired leases, old rate windows, expired sessions and verifications, and stale
@@ -478,19 +504,26 @@ the API. Exit: both suites pass locally and in CI.
 
 Pull requests target `migrate/cloudflare`.
 
+On 2026-10-12 the owner confirmed that `vercel.json` stays deleted despite legacy Vercel
+preview failures. Cloudflare CI remains the migration validation gate. Do not restore the
+branch guard or change hosted Vercel settings during Stage 3; Git deployment disablement
+remains in Phase 4.2.
+
 **Phase 3.1 — Delete legacy code and dependencies.**
 
-- Hono: `apps/web/src/server/{index,server,auth-routes,base-path,cors-origin}.ts` and `hono`.
-- Postgres: `packages/db/src/connection.ts`, the Postgres schema, `packages/db/drizzle/` (31
-  migrations and snapshots), `@neondatabase/serverless`, `pg`, `@types/pg`, and Postgres tests.
+- Hono: removed in Phase 2.4 once its replacement landed, together with the `hono`
+  dependency.
+- Postgres: `packages/db/src/connection.ts`, the Postgres schema, `packages/db/drizzle/` (30 SQL
+  migrations and their snapshots), `@neondatabase/serverless`, `pg`, `@types/pg`, and Postgres tests.
   D1 modules move from `src/d1/` to `src/`.
 - Environment tooling: `packages/environment`, `scripts/environment`, `scripts/database`,
   `scripts/local`, `scripts/auth/test-browser.mjs`, `config/environment`, root `.env.example`,
   and the `.tracera/` ignore rule.
 - The `packages/ai` evaluation scripts drop the `guard.mjs` wrapper. Fixture evaluators need no
   settings; live evaluation reads provider settings from the invoking shell.
-- Vercel and Next: `vercel.json`, `.vercel` and `.next` ignore rules, the oxlint `nextjs`
-  plugin, and `packages/typescript-config/nextjs.json`.
+- Vercel and Next: `vercel.json`, `.vercel` and `.next` ignore rules, and
+  `packages/typescript-config/nextjs.json`. The oxlint `nextjs` plugin left with Next in
+  Phase 2.1, because its rules reject Start's document `<head>`.
 - Update `pnpm-workspace.yaml` `allowBuilds` for the new dependency set and trim root scripts to
   section 4.
 
@@ -541,6 +574,11 @@ concurrency limits, idempotent replay, daily quota, and the spend circuit. Revie
 workflow instances, D1 metrics, and provider usage dashboards, and run the live evaluation
 against staging. Exit: checklist signed off.
 
+Under D18, Phase 4.1 signs off the checks that need no AI provider: deployment, GitHub sign-in,
+sessions, settings, run history, CSP, logs, and analysis reporting `analysis_unavailable`.
+Analysis, progress, cancellation, evidence, control limits, spend, and the live evaluation are
+checked when a provider is configured.
+
 **Phase 4.2 — Production cutover.** Production starts with an empty D1 (D6), so there is no
 import and no write freeze.
 
@@ -555,6 +593,10 @@ import and no write freeze.
 5. Smoke-test production with GitHub sign-in. OAuth callback URLs do not change because the
    origin and paths stay the same. Google sign-in is enabled and checked in Phase 4.4.
 6. Watch logs for 24 to 48 hours.
+
+Under D18 the owner deleted the Vercel project and attached the custom domain before the
+merge, and waived the announcement and the observation window. The release workflow still
+performs the first production migration and deployment from `main`.
 
 Rollback until decommission: remove the custom domain and restore the Vercel DNS record. Neon
 still holds the old data, but anything created on Cloudflare after cutover stays behind, so

@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { microsToUsd, usdToMicros, utcPeriod } from "../../src/d1/clock.js";
+import { microsToUsd, usdToMicros, utcPeriod } from "../../src/clock.js";
 
 test("UTC periods cross midnight and month boundaries without local-time offsets", () => {
   expect(utcPeriod(Date.parse("2026-10-31T23:59:59.999Z"))).toEqual({

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
-import { D1PayloadStore, MAX_D1_PAYLOAD_BYTES, hashJson } from "../../src/d1/payloads.js";
+import { D1PayloadStore, MAX_D1_PAYLOAD_BYTES, hashJson } from "../../src/payloads.js";
 import { createTestRuntime } from "./runtime.js";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;
