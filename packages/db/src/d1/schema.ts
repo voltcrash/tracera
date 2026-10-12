@@ -455,3 +455,25 @@ export const analysisRateLimits = sqliteTable(
     check("analysis_rate_limits_count_check", sql`${table.requestCount} >= 0`),
   ],
 );
+
+export const analysisLeases = sqliteTable(
+  "analysis_leases",
+  {
+    id: text("id")
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    ipHash: text("ip_hash").notNull(),
+    endpoint: text("endpoint").notNull(),
+    idempotencyKey: text("idempotency_key"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    releasedAt: integer("released_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("analysis_leases_user_active_idx").on(table.userId, table.releasedAt, table.expiresAt),
+    index("analysis_leases_ip_active_idx").on(table.ipHash, table.releasedAt, table.expiresAt),
+  ],
+);
