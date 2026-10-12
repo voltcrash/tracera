@@ -100,6 +100,15 @@ authorization; fixture metrics cannot close this gate.
 Sign-off: **pending**. Record reviewer, UTC window, model names, approved bounds, input types,
 run/instance IDs, verdict/evidence checks, observed usage, and any unresolved failures.
 
+### Staging deployment, 2026-10-12
+
+The owner directed the deployment under D18. The scoped CI token uploaded
+`BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET` from the private staging
+file with `wrangler secret bulk`; no AI settings were uploaded. `vp run deploy:staging` from
+`migrate/stage-4-4.1-staging-soak` at `db77d7a` applied `0000_baseline` and
+`0001_provider_spend_guard` to remote `tracera-staging`, then deployed Worker version
+`9d53b87f-4056-4515-a178-058e7eec1ccf` with the hourly cron and `tracera-staging-analysis`.
+
 ## Phase 4.2 — Production cutover
 
 Start only after Phase 4.1 sign-off. Review the actual current DNS record and Vercel project
