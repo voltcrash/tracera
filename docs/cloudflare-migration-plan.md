@@ -6,6 +6,11 @@ passes offline validation with its live exit criterion deferred by the owner. Th
 stacked PRs target `migrate/cloudflare`. D1–D17 are accepted. The Stage 2 live exit criterion,
 Stage 3 implementation, and Stage 4 hosted rollout gates remain open.
 
+On 2026-10-12 the owner extended the live-test deferral through the remaining repository
+implementation. Complete Stage 3 and prepare the Stage 4 runbooks before requesting the
+provider configuration again. Keep the Phase 2.6 live exit criterion and Stage 4 hosted
+sign-offs open; deployment, DNS, OAuth, and decommission actions still require approval.
+
 Tracera moves from Next.js + Hono on Vercel with Neon Postgres to a single TanStack Start
 application running on one Cloudflare Worker, backed by D1, R2, and Workflows. AI stays on the
 existing provider-neutral layer (Gemini, OpenAI, Anthropic, OpenRouter, and OpenAI-compatible
@@ -375,6 +380,10 @@ resources, secrets, deployments, DNS or OAuth apps were changed during Stage 1.
 ### Stage 2 — The app on TanStack Start and Workers
 
 Pull requests target `migrate/cloudflare`.
+
+Stage 3 proceeds while the owner-deferred live-provider check remains pending. When removing
+legacy tooling in Phase 3.1, remove its calls from the transitional CI in the same PR so every
+phase stays green. Phase 3.3 replaces that workflow and adds production release automation.
 
 Progress and evidence: [Stage 2 notes](cloudflare-stage-2-app.md).
 
