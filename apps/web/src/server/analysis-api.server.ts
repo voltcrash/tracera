@@ -33,9 +33,9 @@ export type ApiResult = {
 
 const TERMINAL = new Set(["complete", "partial", "unavailable", "failed", "canceled"]);
 
-export function analysisStorage(env: ServerEnv) {
+export function analysisStorage(env: ServerEnv, now?: () => number) {
   // Wrangler's generated runtime types and @cloudflare/workers-types describe the same bindings.
-  const options = { database: env.DB, bucket: env.BLOBS } as unknown as D1RepositoryOptions;
+  const options = { database: env.DB, bucket: env.BLOBS, now } as unknown as D1RepositoryOptions;
   return {
     runs: createD1AnalysisRepository(options),
     admission: createD1AdmissionRepository(options),
