@@ -48,9 +48,6 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@repo/environment':
-        specifier: workspace:*
-        version: link:../../packages/environment
       '@tanstack/react-router':
         specifier: ^1.170.42
         version: 1.170.42(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
