@@ -75,3 +75,48 @@ test("retry across UTC midnight retains the original period and does not recharg
   ).toEqual({ period_start: "2026-10-12", reserved_micros: 0, actual_micros: 100_000 });
   expect((await repository.reserveProviderSpend(input)).allowed).toBe(true);
 });
+
+test("actual spend opens the circuit through UTC reset even after budget changes", async () => {
+  await repo().reserveProviderSpend({ ...input, reservationId: "actual-spend" });
+  await repo().settleProviderSpend({ reservationId: "actual-spend", actualUsd: 1.2 });
+  expect(await repo().reserveProviderSpend({ ...input, dailyBudgetUsd: 100 })).toEqual({
+    allowed: false,
+    retryAt: "2026-10-13T00:00:00.000Z",
+  });
+  now = Date.parse("2026-10-13T00:00:00Z");
+  expect((await repo().reserveProviderSpend(input)).allowed).toBe(true);
+});
+
+test("failed reservation and settlement batches never leave partial charges", async () => {
+  await runtime.db.exec(
+    "CREATE TRIGGER reject_charge BEFORE UPDATE OF reserved_micros ON ai_provider_spend BEGIN SELECT RAISE(ABORT, 'injected spend failure'); END",
+  );
+  await expect(
+    repo().reserveProviderSpend({ ...input, reservationId: "rollback" }),
+  ).rejects.toThrow();
+  expect(
+    await runtime.db.prepare("SELECT count(*) FROM ai_spend_reservations").first("count(*)"),
+  ).toBe(0);
+  expect(await runtime.db.prepare("SELECT count(*) FROM ai_provider_spend").first("count(*)")).toBe(
+    0,
+  );
+  await runtime.db.exec("DROP TRIGGER reject_charge");
+  await repo().reserveProviderSpend({ ...input, reservationId: "rollback" });
+  await runtime.db.exec(
+    "CREATE TRIGGER reject_settlement BEFORE UPDATE ON ai_spend_reservations BEGIN SELECT RAISE(ABORT, 'injected settlement failure'); END",
+  );
+  await expect(
+    repo().settleProviderSpend({ reservationId: "rollback", actualUsd: 0.05 }),
+  ).rejects.toThrow();
+  expect(
+    await runtime.db.prepare("SELECT reserved_micros,actual_micros FROM ai_provider_spend").first(),
+  ).toEqual({ reserved_micros: 100_000, actual_micros: 0 });
+  expect(
+    await runtime.db.prepare("SELECT settled_at FROM ai_spend_reservations").first("settled_at"),
+  ).toBeNull();
+  await runtime.db.exec("DROP TRIGGER reject_settlement");
+  await repo().settleProviderSpend({ reservationId: "rollback", actualUsd: 0.05 });
+  expect(
+    await runtime.db.prepare("SELECT reserved_micros,actual_micros FROM ai_provider_spend").first(),
+  ).toEqual({ reserved_micros: 0, actual_micros: 50_000 });
+});
