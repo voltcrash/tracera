@@ -60,7 +60,13 @@ export async function startAnalysisRun(input: {
   if (!runtime.enabled)
     return {
       status: 503,
-      body: { schemaVersion: 2, status: "unavailable", code: runtime.code, error: runtime.message },
+      // The policy message names settings, which is operator detail rather than user copy.
+      body: {
+        schemaVersion: 2,
+        status: "unavailable",
+        code: runtime.code,
+        error: "Analysis is not available right now.",
+      },
     };
   const idempotency = validIdempotencyKey(input.idempotencyKey);
   if (!idempotency.valid) return { status: 400, body: { error: idempotency.message } };
