@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { createAiProvider, safeFetch, type AiProviderConfig, type AiProviderName } from "@repo/ai";
+import {
+  createAiProvider,
+  safeFetch,
+  resolveAnalysisProvider,
+  type AiProviderConfig,
+} from "@repo/ai";
 import {
   ANALYSIS_ENGINE_VERSION,
   acceptStoredSnapshots,
@@ -51,6 +56,7 @@ type RuntimeEnvironment = Record<string, string | undefined>;
 export interface AnalysisRuntimePolicy {
   mode: "fixture" | "live";
   providerConfig: AiProviderConfig | null;
+  providerIdentity?: RunContext["provider"];
   versions: RunContext["versions"];
   budget: RunBudget;
 }
@@ -61,6 +67,7 @@ export type AnalysisRuntimePolicyResult =
 
 export function analysisRuntimePolicy(
   environment: RuntimeEnvironment,
+  userId = "platform-policy-validation",
 ): AnalysisRuntimePolicyResult {
   const profile = environment.TRACERA_PROFILE?.trim();
   const mode = environment.TRACERA_ANALYSIS_MODE?.trim();
@@ -89,78 +96,29 @@ export function analysisRuntimePolicy(
     return unavailable("The deployed focused runtime requires TRACERA_ANALYSIS_MODE=live.");
   }
 
-  const provider = parseProvider(environment.AI_PROVIDER);
-  if (!provider)
-    return unavailable("A supported live AI_PROVIDER is required before analysis can start.");
-  const apiKey = required(environment, "AI_API_KEY");
-  const model = required(environment, "AI_MODEL");
-  const embeddingModel = required(environment, "AI_EMBEDDING_MODEL");
-  if (!apiKey || !model || !embeddingModel) {
+  let resolved: ReturnType<typeof resolveAnalysisProvider>;
+  try {
+    resolved = resolveAnalysisProvider({ userId, env: environment });
+  } catch (error) {
     return unavailable(
-      "AI_API_KEY, AI_MODEL, and AI_EMBEDDING_MODEL must be configured before focused analysis can start.",
+      error instanceof Error ? error.message : "AI provider configuration is unavailable.",
     );
   }
-  if (provider === "openai-compatible" && !optional(environment, "AI_BASE_URL")) {
-    return unavailable("AI_BASE_URL is required for an openai-compatible live provider.");
-  }
-
-  const embeddingProviderValue = optional(environment, "AI_EMBEDDING_PROVIDER");
-  const embeddingProvider = embeddingProviderValue
-    ? parseProvider(embeddingProviderValue)
-    : undefined;
-  if (embeddingProviderValue && !embeddingProvider) {
-    return unavailable("AI_EMBEDDING_PROVIDER is not a supported live provider.");
-  }
-  if (
-    embeddingProvider === "openai-compatible" &&
-    !optional(environment, "AI_EMBEDDING_BASE_URL")
-  ) {
-    return unavailable(
-      "AI_EMBEDDING_BASE_URL is required for an openai-compatible embedding provider.",
-    );
-  }
-  if (embeddingProvider && !optional(environment, "AI_EMBEDDING_API_KEY")) {
-    return unavailable(
-      "AI_EMBEDDING_API_KEY is required when a separate embedding provider is configured.",
-    );
-  }
-  if (provider === "anthropic" && !embeddingProvider) {
-    return unavailable(
-      "Anthropic needs an explicit AI_EMBEDDING_PROVIDER, key, and model for analysis.",
-    );
-  }
+  const providerConfig = resolved.config;
+  const model = providerConfig.model;
+  const embeddingModel = providerConfig.embedding?.model ?? providerConfig.embeddingModel!;
 
   const budget = readLiveBudget(environment);
   if (!budget.ok) return unavailable(budget.message);
   const spend = readLiveSpend(environment);
   if (!spend.ok) return unavailable(spend.message);
 
-  const providerConfig: AiProviderConfig = {
-    provider,
-    apiKey,
-    model,
-    baseUrl: optional(environment, "AI_BASE_URL"),
-    ...(embeddingProvider
-      ? {
-          embedding: {
-            provider: embeddingProvider,
-            apiKey: optional(environment, "AI_EMBEDDING_API_KEY")!,
-            model: embeddingModel,
-            baseUrl: optional(environment, "AI_EMBEDDING_BASE_URL"),
-            dimensions: EMBEDDING_DIMENSIONS,
-          },
-        }
-      : {
-          embeddingModel,
-          embeddingDimensions: EMBEDDING_DIMENSIONS,
-        }),
-  };
-
   return {
     enabled: true,
     policy: {
       mode: "live",
       providerConfig,
+      providerIdentity: { source: resolved.source, provider: providerConfig.provider },
       versions: {
         engine: ANALYSIS_ENGINE_VERSION,
         prompt: ANALYSIS_PROMPT_VERSION,
@@ -844,24 +802,6 @@ function readPositiveMoney(environment: RuntimeEnvironment, name: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function parseProvider(value: string | undefined): AiProviderName | null {
-  const supported: AiProviderName[] = [
-    "anthropic",
-    "gemini",
-    "openai",
-    "openrouter",
-    "openai-compatible",
-  ];
-  const normalized = value?.trim().toLowerCase();
-  return normalized && supported.includes(normalized as AiProviderName)
-    ? (normalized as AiProviderName)
-    : null;
-}
-
-function required(environment: RuntimeEnvironment, name: string) {
-  return optional(environment, name);
-}
-
 function optional(environment: RuntimeEnvironment, name: string) {
   const value = environment[name]?.trim();
   return value || undefined;
@@ -899,6 +839,7 @@ export function analysisRunContext(
     inputHash: hashValue(input),
     asOfTime: new Date().toISOString(),
     versions: policy.versions,
+    ...(policy.providerIdentity ? { provider: policy.providerIdentity } : {}),
     executionMode: policy.mode,
     budget: policy.budget,
     cancellation: { requested: false, requestedAt: null, reason: null },

@@ -3,17 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#auth-policy": "./src/auth-policy.ts"
+  },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./d1": "./src/d1.ts"
   },
   "scripts": {
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test:d1": "vp test --run test"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.7",
     "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/environment": "workspace:*",
-    "better-auth": "^1.7.3"
+    "@tanstack/react-start": "^1.168.61",
+    "better-auth": "^1.7.7"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

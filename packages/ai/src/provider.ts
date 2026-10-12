@@ -187,12 +187,9 @@ export abstract class StructuredOutputProvider implements AiProvider {
         return { success: true, data: parsed.data };
       }
 
-      return { success: false, reason: parsed.error.message };
-    } catch (error) {
-      return {
-        success: false,
-        reason: error instanceof Error ? error.message : "Response was not valid JSON.",
-      };
+      return { success: false, reason: "Response did not match the requested schema." };
+    } catch {
+      return { success: false, reason: "Response was not valid JSON." };
     }
   }
 }

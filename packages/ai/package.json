@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#safe-fetch-transport": {
+      "workerd": "./src/safe-fetch.worker.ts",
+      "default": "./src/safe-fetch.node.ts"
+    }
+  },
   "exports": {
     ".": "./src/index.ts",
     "./analysis": "./src/analysis/index.ts",
@@ -48,8 +54,11 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261012.1",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^26.5.0",
+    "esbuild": "^0.28.2",
+    "miniflare": "^4.20260730.0",
     "tsx": "^4.23.13",
     "typescript": "7.0.2"
   }

@@ -1,0 +1,15 @@
+{
+  "$schema": "../../packages/db/node_modules/wrangler/config-schema.json",
+  "name": "tracera-staging",
+  "account_id": "eb2679ce4f23ae7db4e6c4e3fcf8c3c1",
+  "compatibility_date": "2026-10-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tracera-staging",
+      "database_id": "4df15d26-839d-46aa-a7fa-341c228569c2",
+      "migrations_dir": "../../packages/db/migrations",
+    },
+  ],
+}

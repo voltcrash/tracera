@@ -33,3 +33,12 @@ export {
   type AiProviderName,
   type ModelProviderConfig,
 } from "./create-provider";
+export {
+  resolveAnalysisProvider,
+  AnalysisProviderConfigurationError,
+  type AnalysisProviderEnvironment,
+  type ResolvedAnalysisProvider,
+  type ProviderKeySource,
+} from "./resolve-analysis-provider";
+export { providerSpendIdentity, type ProviderSpendIdentity } from "./provider-spend-identity";
+export { ProviderRequestError } from "./provider-request";

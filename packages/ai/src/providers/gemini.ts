@@ -1,5 +1,5 @@
 import type { AiRequestOptions, GenerateOptions, ImageInput, JsonSchema } from "../provider";
-import { safeFetch } from "../safe-fetch";
+import { requestProviderJson } from "../provider-request";
 import { StructuredOutputProvider } from "../provider";
 
 export interface GeminiProviderOptions {
@@ -114,31 +114,24 @@ export class GeminiProvider extends StructuredOutputProvider {
     return content;
   }
 
-  private async request<TResponse>(
+  private request<TResponse>(
     path: string,
     body: unknown,
     signal?: AbortSignal,
   ): Promise<TResponse> {
-    const response = await safeFetch(`https://generativelanguage.googleapis.com/v1beta/${path}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-goog-api-key": this.apiKey,
+    return requestProviderJson<TResponse>(
+      this.providerName,
+      `https://generativelanguage.googleapis.com/v1beta/${path}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": this.apiKey,
+        },
+        body: JSON.stringify(body),
+        signal,
       },
-      body: JSON.stringify(body),
-      signal,
-    });
-    const payload = (await response.json()) as TResponse & {
-      error?: { message?: string };
-    };
-
-    if (!response.ok || payload.error) {
-      throw new Error(
-        payload.error?.message ?? `Gemini request failed with HTTP ${response.status}.`,
-      );
-    }
-
-    return payload;
+    );
   }
 }
 

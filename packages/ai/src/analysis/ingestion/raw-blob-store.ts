@@ -1,72 +1,33 @@
 import { createHash } from "node:crypto";
-import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, join, resolve, sep } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import type { R2Bucket } from "@cloudflare/workers-types";
 import type { RawBlobStore } from "../storage";
 
-const abort = (signal: AbortSignal) => signal.throwIfAborted();
+const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+const locatorPattern = /^r2:\/\/snapshots\/[a-zA-Z0-9_-]+\/[a-f0-9]{64}$/;
 
-export function createFilesystemRawBlobStore(rootDirectory: string): RawBlobStore {
-  const root = resolve(rootDirectory);
+export function createR2RawBlobStore(bucket: Pick<R2Bucket, "get" | "put">): RawBlobStore {
   return {
     async put({ snapshotId, bytes, signal }) {
-      abort(signal);
-      await mkdir(root, { recursive: true, mode: 0o700 });
-      const digest = createHash("sha256").update(bytes).digest("hex");
-      const filename = `${safeName(snapshotId)}-${digest}.blob`;
-      const path = join(root, filename);
-      try {
-        await writeFile(path, bytes, { flag: "wx", mode: 0o600 });
-      } catch (error) {
-        if (!isAlreadyExists(error)) throw error;
-        const metadata = await lstat(path);
-        if (!metadata.isFile() || metadata.isSymbolicLink()) {
-          throw new Error("An immutable raw-blob path is not a regular file.");
-        }
-        const existing = await readFile(path);
-        if (!existing.equals(Buffer.from(bytes))) {
-          throw new Error("An immutable raw-blob path already contains different bytes.");
-        }
-      }
-      abort(signal);
-      return { status: "stored", uri: pathToFileURL(path).href };
+      signal.throwIfAborted();
+      if (snapshotId.trim() !== snapshotId || !/^[a-zA-Z0-9_-]+$/.test(snapshotId))
+        throw new Error("Invalid snapshot ID.");
+      const key = `snapshots/${snapshotId}/${digest(bytes)}`;
+      await bucket.put(key, bytes);
+      signal.throwIfAborted();
+      return { status: "stored", uri: `r2://${key}` };
     },
     async read(uri, signal) {
-      abort(signal);
-      let path: string;
-      try {
-        const parsed = new URL(uri);
-        if (parsed.protocol !== "file:") return null;
-        path = resolve(fileURLToPath(parsed));
-      } catch {
-        return null;
-      }
-      if (!path.startsWith(`${root}${sep}`) || basename(path) !== path.slice(root.length + 1)) {
-        return null;
-      }
-      try {
-        const metadata = await lstat(path);
-        if (!metadata.isFile() || metadata.isSymbolicLink()) return null;
-        const bytes = await readFile(path);
-        abort(signal);
-        return bytes;
-      } catch (error) {
-        if (isNotFound(error)) return null;
-        throw error;
-      }
+      signal.throwIfAborted();
+      if (uri.trim() !== uri || !locatorPattern.test(uri)) return null;
+      const key = uri.slice("r2://".length);
+      const object = await bucket.get(key);
+      signal.throwIfAborted();
+      if (!object) return null;
+      const bytes = new Uint8Array(await object.arrayBuffer());
+      signal.throwIfAborted();
+      if (digest(bytes) !== key.split("/").at(-1))
+        throw new Error("Raw blob content hash mismatch.");
+      return bytes;
     },
   };
-}
-
-function safeName(value: string) {
-  const name = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
-  return name || "snapshot";
-}
-
-function isAlreadyExists(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error && error.code === "EEXIST";
-}
-
-function isNotFound(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }

@@ -245,6 +245,12 @@ export const runContextSchema = z.strictObject({
   budget: runBudgetSchema,
   cancellation: cancellationStateSchema,
   auditSinkId: z.string().min(1),
+  provider: z
+    .strictObject({
+      source: z.enum(["platform", "user"]),
+      provider: z.enum(["anthropic", "gemini", "openai", "openrouter", "openai-compatible"]),
+    })
+    .optional(),
 });
 
 // ---------------------------------------------------------------------------

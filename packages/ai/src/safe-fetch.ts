@@ -1,8 +1,6 @@
 import { resolve4, resolve6 } from "node:dns/promises";
-import { request as httpRequest, type IncomingMessage, type RequestOptions } from "node:http";
-import { request as httpsRequest, type RequestOptions as HttpsRequestOptions } from "node:https";
-import { isIP, type LookupFunction } from "node:net";
-import { Readable } from "node:stream";
+import { fetchValidatedTarget } from "#safe-fetch-transport";
+import type { ResolvedAddress } from "./safe-fetch-transport";
 
 const nativeFetch = globalThis.fetch;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
@@ -60,8 +58,6 @@ type ParsedAddress =
   | { version: 4; value: number; octets: [number, number, number, number] }
   | { version: 6; value: bigint; groups: number[] };
 
-type ResolvedAddress = { address: string; family: 4 | 6 };
-
 export type HostAddressResolver = (hostname: string) => Promise<readonly string[]>;
 
 export interface SafeFetchOptions {
@@ -98,14 +94,13 @@ export async function safeFetch(
 
   for (let redirectCount = 0; ; redirectCount += 1) {
     currentInit.signal?.throwIfAborted();
-    const response = await fetchOnce(
-      currentUrl,
-      currentInit,
-      currentBody,
-      target,
-      redirected,
-      fetchImplementation,
-    );
+    const response = fetchImplementation
+      ? await fetchImplementation(currentUrl, {
+          ...currentInit,
+          body: currentBody as unknown as BodyInit | undefined,
+          redirect: "manual",
+        })
+      : await fetchValidatedTarget(currentUrl, currentInit, currentBody, target.addresses);
     if (!REDIRECT_STATUSES.has(response.status)) {
       return withResponseUrl(response, currentUrl, redirected);
     }
@@ -123,11 +118,17 @@ export async function safeFetch(
       await cancelResponse(response);
       throw new Error("The link redirected to an invalid destination.");
     }
-    const nextTarget = await resolvePublicTarget(
-      nextUrl,
-      options.resolveHostAddresses,
-      skipHostnameResolution,
-    );
+    let nextTarget: { addresses: ResolvedAddress[] };
+    try {
+      nextTarget = await resolvePublicTarget(
+        nextUrl,
+        options.resolveHostAddresses,
+        skipHostnameResolution,
+      );
+    } catch (error) {
+      await cancelResponse(response);
+      throw error;
+    }
 
     if (redirectMode === "error") {
       await cancelResponse(response);
@@ -205,160 +206,8 @@ function isRequest(input: string | URL | Request): input is Request {
   return typeof Request !== "undefined" && input instanceof Request;
 }
 
-async function fetchOnce(
-  url: URL,
-  init: RequestInit,
-  body: Buffer | undefined,
-  target: { addresses: ResolvedAddress[] },
-  redirected: boolean,
-  fetchImplementation: typeof fetch | undefined,
-) {
-  if (fetchImplementation) {
-    const response = await fetchImplementation(url, {
-      ...init,
-      body: body as unknown as BodyInit | undefined,
-      redirect: "manual",
-    });
-    return withResponseUrl(response, url, redirected);
-  }
-  return requestPinned(url, init, body, target.addresses, redirected);
-}
-
 function getFetchOverride() {
   return globalThis.fetch !== nativeFetch ? globalThis.fetch : undefined;
-}
-
-function requestPinned(
-  url: URL,
-  init: RequestInit,
-  body: Buffer | undefined,
-  addresses: ResolvedAddress[],
-  redirected: boolean,
-) {
-  return new Promise<Response>((resolve, reject) => {
-    const signal = init.signal;
-    if (signal?.aborted) {
-      reject(signal.reason);
-      return;
-    }
-
-    let responseStarted = false;
-    let responseStream: IncomingMessage | undefined;
-    let request!: ReturnType<typeof httpRequest>;
-    const detachAbort = () => signal?.removeEventListener("abort", onAbort);
-    const onAbort = () => {
-      const reason = abortError(signal);
-      responseStream?.destroy(reason);
-      request.destroy(reason);
-      if (!responseStarted) reject(signal?.reason ?? reason);
-    };
-    const onResponse = (incoming: IncomingMessage) => {
-      responseStarted = true;
-      responseStream = incoming;
-      incoming.once("close", detachAbort);
-      const bodyStream = Readable.toWeb(incoming) as ReadableStream<Uint8Array>;
-      resolve(
-        withResponseUrl(
-          new Response(bodyStream, {
-            status: incoming.statusCode ?? 500,
-            statusText: incoming.statusMessage ?? "",
-            headers: responseHeaders(incoming),
-          }),
-          url,
-          redirected,
-        ),
-      );
-    };
-    const requestOptions = {
-      protocol: url.protocol,
-      hostname: stripBrackets(url.hostname),
-      port: url.port || undefined,
-      path: `${url.pathname}${url.search}`,
-      method: String(init.method ?? "GET").toUpperCase(),
-      headers: requestHeaders(init.headers),
-      lookup: pinnedLookup(addresses),
-      agent: false,
-    };
-
-    try {
-      request =
-        url.protocol === "https:"
-          ? httpsRequest(
-              {
-                ...requestOptions,
-                ...(isIP(requestOptions.hostname) === 0
-                  ? { servername: requestOptions.hostname }
-                  : {}),
-              } as HttpsRequestOptions,
-              onResponse,
-            )
-          : httpRequest(requestOptions as RequestOptions, onResponse);
-    } catch (error) {
-      detachAbort();
-      reject(error);
-      return;
-    }
-
-    const onRequestError = (error: Error) => {
-      detachAbort();
-      if (!responseStarted) reject(error);
-    };
-    request.once("error", onRequestError);
-    if (signal) signal.addEventListener("abort", onAbort, { once: true });
-    try {
-      if (body?.byteLength) request.write(body);
-      request.end();
-    } catch (error) {
-      detachAbort();
-      request.destroy(error instanceof Error ? error : new Error(String(error)));
-      if (!responseStarted) reject(error);
-    }
-  });
-}
-
-function requestHeaders(headersInit: HeadersInit | undefined) {
-  const headers = new Headers(headersInit);
-  headers.delete("host");
-  if (!headers.has("accept-encoding")) headers.set("accept-encoding", "identity");
-  const headersObject: Record<string, string> = {};
-  headers.forEach((value, key) => {
-    headersObject[key] = value;
-  });
-  return headersObject;
-}
-
-function responseHeaders(incoming: IncomingMessage) {
-  const headers = new Headers();
-  for (const [key, value] of Object.entries(incoming.headers)) {
-    if (Array.isArray(value)) {
-      for (const item of value) headers.append(key, item);
-    } else if (value !== undefined) {
-      headers.append(key, value);
-    }
-  }
-  return headers;
-}
-
-function pinnedLookup(addresses: ResolvedAddress[]): LookupFunction {
-  return (_hostname, options, callback) => {
-    const matching = addresses.filter(({ family }) => !options.family || options.family === family);
-    if (!matching.length) {
-      callback(
-        Object.assign(new Error("No validated address matches the requested family."), {
-          code: "ENOTFOUND",
-        }),
-        "",
-        0,
-      );
-      return;
-    }
-    if (options.all) {
-      callback(null, matching);
-      return;
-    }
-    const first = matching[0]!;
-    callback(null, first.address, first.family);
-  };
 }
 
 function withResponseUrl(response: Response, url: URL, redirected: boolean) {
@@ -395,6 +244,8 @@ function redirectRequestInit(
     headers.delete("authorization");
     headers.delete("cookie");
     headers.delete("proxy-authorization");
+    headers.delete("x-api-key");
+    headers.delete("x-goog-api-key");
   }
   return {
     ...init,
@@ -415,6 +266,7 @@ async function resolvePublicTarget(
   skipHostnameResolution = false,
 ): Promise<{ addresses: ResolvedAddress[] }> {
   if (!/^https?:$/.test(url.protocol)) throw new Error("Only HTTP(S) links are supported.");
+  if (url.port) throw new Error("Only the default HTTP(S) ports are supported.");
   if (url.username || url.password) {
     throw new Error("Links with embedded credentials are not supported.");
   }
@@ -478,7 +330,7 @@ function uniqueAddresses(rawAddresses: readonly string[]) {
 function parseIp(address: string): ParsedAddress | undefined {
   const normalized = stripBrackets(address.trim());
   if (normalized.includes(":")) return parseIpv6(normalized);
-  if (isIP(normalized) === 4 || /^[0-9a-fx.]+$/i.test(normalized)) {
+  if (/^[0-9a-fx.]+$/i.test(normalized)) {
     return parseIpv4(normalized);
   }
   return undefined;
@@ -623,8 +475,4 @@ function validMaxRedirects(value: number | undefined) {
   if (value === undefined) return DEFAULT_MAX_REDIRECTS;
   if (!Number.isInteger(value) || value < 0) throw new Error("Invalid redirect limit.");
   return value;
-}
-
-function abortError(signal: AbortSignal | null | undefined) {
-  return signal?.reason instanceof Error ? signal.reason : new Error("The request was aborted.");
 }

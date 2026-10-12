@@ -6,6 +6,7 @@ import {
   GeminiProvider,
   OpenAiCompatibleProvider,
   StructuredOutputProvider,
+  StructuredOutputError,
   type GenerateOptions,
   type ImageInput,
   type JsonSchema,
@@ -224,3 +225,24 @@ function jsonResponse(value: unknown) {
     headers: { "content-type": "application/json" },
   });
 }
+
+test("structured-output failures and observability hooks never retain echoed keys", async () => {
+  const secret = "secret-sentinel-echoed-in-output";
+  const attempts: StructuredOutputAttempt[] = [];
+  const provider = new QueueProvider(
+    [`invalid JSON ${secret}`, JSON.stringify({ text: 42, echoedKey: secret })],
+    [],
+  );
+  const error = await provider
+    .generate("prompt", textSchema, {
+      onStructuredOutputAttempt: (attempt) => attempts.push(attempt),
+    })
+    .catch((error) => error);
+  assert.ok(error instanceof StructuredOutputError);
+  assert.equal(error.attempts.length, 2);
+  assert.equal(JSON.stringify({ error, attempts }).includes(secret), false);
+  assert.deepEqual(error.attempts, [
+    "Response was not valid JSON.",
+    "Response did not match the requested schema.",
+  ]);
+});

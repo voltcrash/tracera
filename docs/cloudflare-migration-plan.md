@@ -1,7 +1,9 @@
 # Cloudflare migration plan
 
-Status: Stage 0 complete, 2026-10-12. D1–D16 were accepted in Phase 0.1; the owner
-accepted D17 on 2026-10-12. Later-stage implementation and rollout gates remain open.
+Status: Stage 1 foundations implemented, 2026-10-12; all five phase exit criteria pass
+locally and the stacked PRs remain open for review. Stage 0 is complete. D1–D16 were
+accepted in Phase 0.1; the owner accepted D17 on 2026-10-12. Stage 2–4 implementation and
+hosted rollout gates remain open.
 
 Tracera moves from Next.js + Hono on Vercel with Neon Postgres to a single TanStack Start
 application running on one Cloudflare Worker, backed by D1, R2, and Workflows. AI stays on the
@@ -268,7 +270,7 @@ The owner completed GitHub staging OAuth and CI token creation. GitHub credentia
 present in the private mode-0600 staging file. The CI token is active, its scoped policy
 matches the prepared settings, and read-only checks of the intended resources pass.
 The owner moved Google staging OAuth to the final Phase 4.4; it no longer blocks Stage 0
-or the intervening phases. Stage 1 is next and has not begun.
+or the intervening phases. Stage 1 implementation is recorded below.
 Production custom-domain activation remains a Stage 4 cutover action.
 
 ### Stage 1 — Cloudflare foundations in shared packages
@@ -277,10 +279,14 @@ Additive changes merged to `main`. Nothing on Vercel changes.
 
 **Phase 1.1 — Worker-safe `@repo/ai` runtime.**
 
-- Rewrite `safeFetch` on Web `fetch` with `redirect: "manual"` and validation on every hop:
-  protocol and port allowlist, hostname and IP-literal blocklists, and a resolved-address check
-  through `node:dns` as defense in depth. Remove `node:http`, `node:https`, `node:net`, and
-  `node:stream`. Workers cannot reach private networks, so DNS pinning is no longer needed.
+- Share `safeFetch` URL and redirect validation across two runtime transports: Web `fetch`
+  with `redirect: "manual"` for the `workerd` package condition, and the existing pinned Node
+  HTTP transport by default for Vercel. Both validate protocol and port allowlists, hostname
+  and IP-literal blocklists, and resolved addresses through `node:dns` on every hop. The Worker
+  bundle excludes `node:http`, `node:https`, `node:net`, and `node:stream`; Vercel retains DNS
+  pinning until Phase 2.1 switches the app runtime. Workers cannot reach private networks, so
+  their transport does not need DNS pinning. The owner accepted this rollout correction on
+  2026-10-12 to preserve Vercel's protection during additive Stage 1 work.
 - The provider adapters already call `safeFetch` and honor `AbortSignal`, so they run on
   Workers unchanged once `safeFetch` does.
 - Add `createR2RawBlobStore(bucket)` implementing `RawBlobStore`, with content-addressed keys
@@ -347,6 +353,17 @@ replay, and spend-circuit behavior under concurrent batches.
 
 Exit: ported `dev-auth-bypass` and `auth-token-storage` tests pass against Miniflare D1.
 
+Stage 1 result (2026-10-12): **PASS locally; implementation complete, pending PR review**.
+The phase stack is [#36](https://github.com/voltcrash/tracera/pull/36) →
+[#37](https://github.com/voltcrash/tracera/pull/37) →
+[#38](https://github.com/voltcrash/tracera/pull/38) →
+[#39](https://github.com/voltcrash/tracera/pull/39) →
+[#40](https://github.com/voltcrash/tracera/pull/40). The final local run has 298 passing tests;
+47 D1 repository/schema tests and 25 D1 auth tests pass without skips. Existing Postgres
+integration cases run in hosted Docker CI. [Evidence and Stage 2 handoff](cloudflare-stage-1-foundations.md)
+record the approved Phase 1.1 transport amendment and additive package entries. No hosted
+resources, secrets, deployments, DNS or OAuth apps were changed during Stage 1.
+
 ### Stage 2 — The app on TanStack Start and Workers
 
 Pull requests target `migrate/cloudflare`.
@@ -355,6 +372,8 @@ Pull requests target `migrate/cloudflare`.
 
 - Remove `next`, `next.config.js`, `postcss.config.mjs`, `src/proxy.ts`, the Next agent notes
   in `apps/web/AGENTS.md` and `apps/web/CLAUDE.md`, and the root `next` dev dependency.
+- Remove the temporary pinned Node `safeFetch` transport and its conditional package mapping
+  after switching this branch's app to Workers; `safeFetch` then uses only the Worker transport.
 - Add TanStack Start, TanStack Router, `@cloudflare/vite-plugin`, `@vitejs/plugin-react`,
   `@tailwindcss/vite`, and `wrangler` with `vp add` at their latest versions.
 - Add `vite.config.ts`, both Wrangler configs, both `.dev.vars` examples, `src/server.ts`,

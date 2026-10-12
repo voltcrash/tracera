@@ -50,7 +50,10 @@ export interface AnalysisDependencies {
   admit?: Admit;
   finish?: Finish;
   execute?: Execute;
-  policy?: (environment: Record<string, string | undefined>) => AnalysisRuntimePolicyResult;
+  policy?: (
+    environment: Record<string, string | undefined>,
+    userId?: string,
+  ) => AnalysisRuntimePolicyResult;
 }
 
 export function createAnalysisApp(dependencies: AnalysisDependencies = {}) {
@@ -74,7 +77,7 @@ export function createAnalysisApp(dependencies: AnalysisDependencies = {}) {
       return context.json({ error: "Sign in or create an account to start a fact-check." }, 401);
     const parsed = parseFirstPartyAnalysisInput(requestBody.body);
     if (!parsed.success) return context.json({ error: parsed.error }, 400);
-    const runtime = policy(environment);
+    const runtime = policy(environment, user.id);
     if (!runtime.enabled) return focusedUnavailableResponse(context, runtime);
     const idempotency = readIdempotencyKey(context.req.raw);
     if (!idempotency.valid) return context.json({ error: idempotency.message }, 400);

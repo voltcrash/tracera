@@ -6,10 +6,11 @@ import { join } from "node:path";
 import { test } from "vite-plus/test";
 import {
   createDocumentAcquisitionPort,
-  createFilesystemRawBlobStore,
   extractStructuredHtml,
   type OcrPort,
 } from "../src/analysis/ingestion/index.js";
+
+import { createFilesystemRawBlobStore } from "./support/filesystem-raw-blob-store";
 
 const NOW = "2026-09-14T00:00:00.000Z";
 const publicResolver = async () => ["8.8.8.8"];
