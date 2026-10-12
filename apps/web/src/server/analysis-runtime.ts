@@ -56,6 +56,7 @@ type RuntimeEnvironment = Record<string, string | undefined>;
 export interface AnalysisRuntimePolicy {
   mode: "fixture" | "live";
   providerConfig: AiProviderConfig | null;
+  providerIdentity?: RunContext["provider"];
   versions: RunContext["versions"];
   budget: RunBudget;
 }
@@ -117,6 +118,7 @@ export function analysisRuntimePolicy(
     policy: {
       mode: "live",
       providerConfig,
+      providerIdentity: { source: resolved.source, provider: providerConfig.provider },
       versions: {
         engine: ANALYSIS_ENGINE_VERSION,
         prompt: ANALYSIS_PROMPT_VERSION,
@@ -837,6 +839,7 @@ export function analysisRunContext(
     inputHash: hashValue(input),
     asOfTime: new Date().toISOString(),
     versions: policy.versions,
+    ...(policy.providerIdentity ? { provider: policy.providerIdentity } : {}),
     executionMode: policy.mode,
     budget: policy.budget,
     cancellation: { requested: false, requestedAt: null, reason: null },

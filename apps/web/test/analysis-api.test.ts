@@ -7,6 +7,7 @@ import type { AnalysisRunProgress } from "@repo/db/analysis/repository";
 import { createAnalysisApp, type AnalysisDependencies } from "../src/server/analysis";
 import {
   analysisRuntimePolicy,
+  analysisRunContext,
   type AnalysisRuntimeRepository,
   type AnalysisRunExecutionInput,
 } from "../src/server/analysis-runtime";
@@ -381,6 +382,15 @@ test("deployed focused policy requires explicit live provider and budget setting
   if (enabled.enabled) {
     assert.equal(enabled.policy.mode, "live");
     assert.equal(enabled.policy.providerConfig?.model, "configured-model");
+    const context = analysisRunContext(
+      "owner",
+      { kind: "text", text: "A factual claim" },
+      enabled.policy,
+    );
+    assert.deepEqual(context.provider, { source: "platform", provider: "openai" });
+    assert.equal(context.versions.model, "configured-model");
+    assert.equal(JSON.stringify(context).includes('"apiKey"'), false);
+    assert.equal(JSON.stringify(context).includes('"configured"'), false);
     assert.equal(enabled.policy.budget.maxCostUsd, 1);
     assert.equal(enabled.policy.versions.engine, "tracera-analysis-1.0.0");
     assert.equal(enabled.policy.versions.prompt, "tracera-prompts-1.0.0");
