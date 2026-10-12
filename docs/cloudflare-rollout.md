@@ -303,13 +303,13 @@ recorded a baseline bookmark, inserted an already-expired `verifications` canary
 `wrangler d1 time-travel restore`, then rechecked the canary, users, migrations, and
 `/api/health`.
 
-| Step              | `tracera-staging`                                             |
-| ----------------- | ------------------------------------------------------------- |
-| Baseline bookmark | `00000004-00000000-00005102-c8ea53b112e026e7013fe12036f764cc` |
-| Canary rows       | 1 after insert, 0 after restore                               |
-| Restore duration  | 3 s                                                           |
-| Undo bookmark     | `00000004-ffffffff-00005102-f3346fd8291f3c297d99301d723cdc86` |
-| After restore     | Users 0; no migrations pending; health reports D1 connected   |
+| Step              | `tracera-staging`                                             | `tracera-production`                                          |
+| ----------------- | ------------------------------------------------------------- | ------------------------------------------------------------- |
+| Baseline bookmark | `00000004-00000000-00005102-c8ea53b112e026e7013fe12036f764cc` | `00000003-00000000-00005102-775edc09af2270cd96e4888f301e1eff` |
+| Canary rows       | 1 after insert, 0 after restore                               | 1 after insert, 0 after restore                               |
+| Restore duration  | 3 s                                                           | 3 s                                                           |
+| Undo bookmark     | `00000004-ffffffff-00005102-f3346fd8291f3c297d99301d723cdc86` | `00000003-ffffffff-00005102-1b23c1e0c64ecc1313ce1bbb7e9d29d5` |
+| After restore     | Users 0; no migrations pending; health reports D1 connected   | Users 0; no migrations pending; health reports D1 connected   |
 
 Sign-off: **pending**. Record stable-period approval, archived object names and SHA-256,
 archive verification, approved project IDs/deletion results, rotated key identifiers (never
