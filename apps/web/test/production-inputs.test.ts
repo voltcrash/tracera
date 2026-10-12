@@ -29,6 +29,8 @@ const secrets = {
   BETTER_AUTH_SECRET: "synthetic-production-secret-with-at-least-32-chars",
   GITHUB_CLIENT_ID: "synthetic-github-client",
   GITHUB_CLIENT_SECRET: "synthetic-github-secret",
+  GOOGLE_CLIENT_ID: "synthetic-google-client",
+  GOOGLE_CLIENT_SECRET: "synthetic-google-secret",
   AI_PROVIDER: "gemini",
   AI_MODEL: "synthetic-generation-model",
   AI_API_KEY: "synthetic-provider-key",
@@ -78,17 +80,14 @@ test.each(["AI_PROVIDER", "AI_MODEL", "AI_API_KEY", "AI_EMBEDDING_MODEL"] as con
   },
 );
 
-test("Google stays optional while both credentials are absent", () => {
-  expect(() =>
-    validateProductionInputs({
-      ...valid,
-      secrets: { ...secrets, GOOGLE_CLIENT_ID: "google-id", GOOGLE_CLIENT_SECRET: "google-secret" },
-    }),
-  ).not.toThrow();
-  expect(() =>
-    validateProductionInputs({ ...valid, secrets: { ...secrets, GOOGLE_CLIENT_ID: "google-id" } }),
-  ).toThrow("both Google OAuth credentials");
-});
+test.each(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"])(
+  "production requires the complete Google pair, rejecting a missing %s",
+  (name) => {
+    expect(() =>
+      validateProductionInputs({ ...valid, secrets: { ...secrets, [name]: "" } }),
+    ).toThrow(`Configure ${name}`);
+  },
+);
 
 test.each([
   [
@@ -101,6 +100,16 @@ test.each([
     "a second origin",
     { config: { ...config, routes: [{ pattern: "staging.example", custom_domain: true }] } },
     "one HTTPS origin",
+  ],
+  [
+    "missing Google in secrets.required",
+    {
+      config: {
+        ...config,
+        secrets: { required: ["BETTER_AUTH_SECRET", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"] },
+      },
+    },
+    "require the GOOGLE_CLIENT_ID",
   ],
   [
     "missing GitHub in secrets.required",
