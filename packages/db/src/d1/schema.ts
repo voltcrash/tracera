@@ -537,3 +537,25 @@ export const analysisForceCooldowns = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.userId, table.inputHash] })],
 );
+
+export const aiProviderSpend = sqliteTable(
+  "ai_provider_spend",
+  {
+    providerKey: text("provider_key").notNull(),
+    keySource: text("key_source", { enum: ["platform", "user"] }).notNull(),
+    periodStart: text("period_start").notNull(),
+    budgetMicros: integer("budget_micros").notNull(),
+    reservedMicros: integer("reserved_micros").notNull().default(0),
+    actualMicros: integer("actual_micros").notNull().default(0),
+    openUntil: integer("open_until", { mode: "timestamp_ms" }),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.providerKey, table.keySource, table.periodStart] }),
+    check(
+      "ai_provider_spend_amounts_check",
+      sql`${table.budgetMicros} >= 0 AND ${table.reservedMicros} >= 0 AND ${table.actualMicros} >= 0`,
+    ),
+    check("ai_provider_spend_source_check", sql`${table.keySource} IN ('platform','user')`),
+  ],
+);
