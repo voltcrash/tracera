@@ -277,10 +277,14 @@ Additive changes merged to `main`. Nothing on Vercel changes.
 
 **Phase 1.1 — Worker-safe `@repo/ai` runtime.**
 
-- Rewrite `safeFetch` on Web `fetch` with `redirect: "manual"` and validation on every hop:
-  protocol and port allowlist, hostname and IP-literal blocklists, and a resolved-address check
-  through `node:dns` as defense in depth. Remove `node:http`, `node:https`, `node:net`, and
-  `node:stream`. Workers cannot reach private networks, so DNS pinning is no longer needed.
+- Share `safeFetch` URL and redirect validation across two runtime transports: Web `fetch`
+  with `redirect: "manual"` for the `workerd` package condition, and the existing pinned Node
+  HTTP transport by default for Vercel. Both validate protocol and port allowlists, hostname
+  and IP-literal blocklists, and resolved addresses through `node:dns` on every hop. The Worker
+  bundle excludes `node:http`, `node:https`, `node:net`, and `node:stream`; Vercel retains DNS
+  pinning until Phase 2.1 switches the app runtime. Workers cannot reach private networks, so
+  their transport does not need DNS pinning. The owner accepted this rollout correction on
+  2026-10-12 to preserve Vercel's protection during additive Stage 1 work.
 - The provider adapters already call `safeFetch` and honor `AbortSignal`, so they run on
   Workers unchanged once `safeFetch` does.
 - Add `createR2RawBlobStore(bucket)` implementing `RawBlobStore`, with content-addressed keys
@@ -355,6 +359,8 @@ Pull requests target `migrate/cloudflare`.
 
 - Remove `next`, `next.config.js`, `postcss.config.mjs`, `src/proxy.ts`, the Next agent notes
   in `apps/web/AGENTS.md` and `apps/web/CLAUDE.md`, and the root `next` dev dependency.
+- Remove the temporary pinned Node `safeFetch` transport and its conditional package mapping
+  after switching this branch's app to Workers; `safeFetch` then uses only the Worker transport.
 - Add TanStack Start, TanStack Router, `@cloudflare/vite-plugin`, `@vitejs/plugin-react`,
   `@tailwindcss/vite`, and `wrangler` with `vp add` at their latest versions.
 - Add `vite.config.ts`, both Wrangler configs, both `.dev.vars` examples, `src/server.ts`,

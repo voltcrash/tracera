@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#safe-fetch-transport": {
+      "workerd": "./src/safe-fetch.worker.ts",
+      "default": "./src/safe-fetch.node.ts"
+    }
+  },
   "exports": {
     ".": "./src/index.ts",
     "./analysis": "./src/analysis/index.ts",

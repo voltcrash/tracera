@@ -15,7 +15,7 @@ export async function createWorkerRuntime(
     write: false,
     format: "esm",
     platform: "browser",
-    conditions: ["browser", "worker", "import"],
+    conditions: ["workerd", "browser", "worker", "import"],
     external: ["node:*"],
     metafile: true,
   });
