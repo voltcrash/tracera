@@ -117,3 +117,53 @@ this limitation and the agreed rollback window before cutover.
 Sign-off: **pending**. Record announcement/approval links, integration and deployed SHAs,
 release/tag URL, DNS record inventory, GitHub smoke result, observation window, and rollback
 owner. Decommission must not begin while production stability is unresolved.
+
+## Phase 4.3 — Decommission
+
+Start only after the agreed stable period and an explicit owner decision to close rollback.
+Inventory the exact Neon and Vercel project IDs and obsolete GitHub secret names with
+read-only tools. Approve archive, deletion, key rotation, secret removal, and restore actions
+separately from the earlier deployment batch.
+
+Create a final private archive using a PostgreSQL client compatible with the source server.
+Keep credentials in a mode-0600 service file rather than command arguments:
+
+```sh
+umask 077
+PGSERVICEFILE=/PRIVATE_PATH/pg_service.conf pg_dump --dbname=service=tracera-archive --format=custom --file=/PRIVATE_PATH/tracera-neon-final.dump
+shasum -a 256 /PRIVATE_PATH/tracera-neon-final.dump > /PRIVATE_PATH/tracera-neon-final.dump.sha256
+vp exec --filter web -- wrangler r2 object put tracera-production-blobs/archive/neon-final-ARCHIVE_DATE.dump --remote --config wrangler.production.json --file /PRIVATE_PATH/tracera-neon-final.dump
+vp exec --filter web -- wrangler r2 object put tracera-production-blobs/archive/neon-final-ARCHIVE_DATE.dump.sha256 --remote --config wrangler.production.json --file /PRIVATE_PATH/tracera-neon-final.dump.sha256
+```
+
+Resolve `ARCHIVE_DATE` and private paths before approval. Verify the remote archive and checksum
+through an approved download before deleting the source. The private R2 archive is for reference;
+no migration imports it into D1.
+
+After archive verification, delete only the approved Neon and Vercel projects and their
+variables. Rotate AI provider keys previously held by Vercel, update the private production
+file and `PRODUCTION_WORKER_ENV`, and remove reviewed obsolete GitHub secrets. Preserve active
+Cloudflare, production auth/OAuth, and new provider credentials. Recheck a bounded production
+analysis after the approved credential update.
+
+### D1 restore drill
+
+Use [Time Travel recovery](cloudflare-operations.md#d1-capacity-and-time-travel). Agree on a
+maintenance/write-pause procedure and inspect active Workflow instances before restoring;
+pausing browser traffic alone does not pause Workflows or Cron. Record a baseline export and
+current bookmark. Rehearse on staging first, then approve the production drill's exact database
+and bookmark, maintenance actions, restore, verification, and undo commands.
+
+```sh
+vp exec --filter web -- wrangler d1 time-travel info tracera-production --config wrangler.production.json --json
+vp exec --filter web -- wrangler d1 time-travel restore tracera-production --config wrangler.production.json --bookmark BOOKMARK --json
+```
+
+Record the previous bookmark returned by the restore and retain it for undo. Confirm expected
+rows, schema-compatible code, R2 pointers, auth, ownership isolation, history, idempotency,
+limits, and a bounded Workflow analysis before resuming writes. D1 recovery does not recreate
+R2 objects or restart terminated instances.
+
+Sign-off: **pending**. Record stable-period approval, archived object names and SHA-256,
+archive verification, approved project IDs/deletion results, rotated key identifiers (never
+values), removed secret names, drill bookmarks/timings/results, and recovery owner.
