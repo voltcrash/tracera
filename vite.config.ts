@@ -15,10 +15,6 @@ export default defineConfig({
     },
     overrides: [
       {
-        files: ["apps/web/src/app/**", "apps/web/src/proxy.ts"],
-        plugins: ["nextjs"],
-      },
-      {
         files: ["**/*.test.ts"],
         rules: { "typescript/no-base-to-string": "off" },
       },
