@@ -51,11 +51,21 @@ test.each([
   });
   expect(JSON.stringify(created.params)).not.toMatch(/library|news\.example|base64/);
 
-  const input = (await harness.env.DB.prepare("SELECT input_json FROM core_runs WHERE run_id=?")
+  const inputRow = (await harness.env.DB.prepare(
+    "SELECT input_json,input_blob_uri FROM core_runs WHERE run_id=?",
+  )
     .bind(runId)
-    .first<string>("input_json"))!;
+    .first<{ input_json: string | null; input_blob_uri: string | null }>())!;
+  const input =
+    inputRow.input_json ??
+    (await (await harness.env.BLOBS.get(inputRow.input_blob_uri!.slice("r2://".length)))!.text());
   expect(JSON.parse(input).input.kind).toBe(kind);
-  if (kind === "image") expect(JSON.parse(input).input.data).toBe("data:image/png;base64,AA==");
+  if (kind === "image") {
+    expect(inputRow.input_json).toBeNull();
+    expect(inputRow.input_blob_uri).toMatch(/^r2:\/\/payloads\/run-inputs\//);
+    expect(JSON.parse(input).input.data).toBe("data:image/png;base64,AA==");
+  }
+  expect(JSON.parse(input).admission).toEqual((created.params as { admission: unknown }).admission);
   expect((await readRunState(harness.env, ada, runId))?.progress.status).toBe("queued");
   await cancelAnalysisRun(harness.env, ada, runId);
 });

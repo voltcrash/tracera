@@ -111,7 +111,12 @@ export async function startAnalysisRun(input: {
   try {
     await storage.runs.createRun({
       context,
-      payload: { input: analysisInput(parsed.data), seed: ANALYSIS_SEED },
+      payload: {
+        input: analysisInput(parsed.data),
+        seed: ANALYSIS_SEED,
+        admission: params.admission,
+      },
+      offloadInput: "image" in parsed.data,
     });
     await env.ANALYSIS_WORKFLOW.create({ id: context.runId, params });
   } catch (error) {

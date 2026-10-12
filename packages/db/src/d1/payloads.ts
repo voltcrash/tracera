@@ -46,11 +46,16 @@ export class D1PayloadStore {
     return value;
   }
 
-  async encode(value: unknown, kind: PayloadKind, extraBytes = 0): Promise<StoredPayload> {
+  async encode(
+    value: unknown,
+    kind: PayloadKind,
+    extraBytes = 0,
+    forceBlob = false,
+  ): Promise<StoredPayload> {
     const inline = canonicalJson(value);
     const bytes = new TextEncoder().encode(inline);
     const hash = sha256(bytes);
-    if (bytes.byteLength + extraBytes <= MAX_D1_PAYLOAD_BYTES)
+    if (!forceBlob && bytes.byteLength + extraBytes <= MAX_D1_PAYLOAD_BYTES)
       return { inline, hash, blobUri: null };
     if (!this.bucket) throw new D1PayloadError("Large payload storage requires the R2 binding.");
     const key = `payloads/${kind}/${hash.slice("sha256:".length)}`;

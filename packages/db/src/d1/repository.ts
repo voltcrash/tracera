@@ -77,9 +77,15 @@ export class D1AnalysisRepository {
   async createRun(input: {
     context: RunContext;
     payload?: unknown;
+    offloadInput?: boolean;
   }): Promise<{ runId: string; created: boolean; version: number }> {
     const context = runContextSchema.parse(input.context);
-    const payload = await this.payloads.encode(input.payload ?? null, "run-inputs");
+    const payload = await this.payloads.encode(
+      input.payload ?? null,
+      "run-inputs",
+      0,
+      input.offloadInput,
+    );
     const contextHash = hashJson(context);
     const now = this.now();
     const [inserted, existing] = await this.database.batch<RunRow>([
