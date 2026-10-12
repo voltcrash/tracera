@@ -295,9 +295,12 @@ on 2026-10-11; the bucket list subsequently succeeded. Wrangler has no R2 activa
 command. Phase 0.3 then created both environments' resources using six explicitly approved
 commands, including the Worker deployments that create Workflows. It also generated new
 auth secrets in private local files. The [resource notes](cloudflare-stage-0-resources.md)
-record the actual IDs and evidence. The owner deferred both staging OAuth apps and
-the CI token; their Phase 0.3 requirements remain open. Production has no public bootstrap
-route; the custom-domain cutover stays in Stage 4.
+record the actual IDs and evidence. After initially deferring both staging OAuth apps
+and the CI token, the owner completed GitHub staging OAuth and the CI token on
+2026-10-12. Their credentials are in private mode-0600 files; the CI token verifies as
+active and the intended resource inventory checks pass. Google staging OAuth remains
+deferred, so Phase 0.3 is still incomplete. Production has no public bootstrap route;
+the custom-domain cutover stays in Stage 4.
 
 Complete Phase 0.3 and its separate PR before advancing beyond Stage 0. Stage 1 should use
 the validated Vite+/workerd patterns, preserve the existing provider adapters, implement
