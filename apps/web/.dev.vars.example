@@ -1,0 +1,24 @@
+# Copy to .dev.vars for local development. Local values only; never reuse them anywhere else.
+MODE=dev
+ANALYSIS_MODE=fixture
+DEV_AUTH_BYPASS=true
+BETTER_AUTH_SECRET=tracera-local-development-secret-only
+VERSION=local
+# Optional sign-in providers. Configure each pair completely or not at all.
+# Callbacks: http://localhost:3000/api/auth/callback/github (or /google)
+# GITHUB_CLIENT_ID=
+# GITHUB_CLIENT_SECRET=
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+# Live analysis with `vp run dev:live`, using your own provider key.
+# AI_PROVIDER=gemini
+# AI_MODEL=
+# AI_API_KEY=
+# AI_BASE_URL=
+# AI_EMBEDDING_MODEL=
+# AI_EMBEDDING_PROVIDER=
+# AI_EMBEDDING_API_KEY=
+# AI_EMBEDDING_BASE_URL=
+# Optional evidence sources.
+# GOOGLE_FACT_CHECK_API_KEY=
+# NEWS_API_KEY=

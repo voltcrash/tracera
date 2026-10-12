@@ -1,0 +1,21 @@
+# Copy to .dev.vars.production, chmod 600; never commit actual secrets.
+# Generate once and preserve across deployments. Do not reuse staging or local secrets.
+BETTER_AUTH_SECRET=replace-with-a-random-secret-at-least-32-characters
+# OAuth homepage: https://tracera.voltcrash.com
+# Callback: https://tracera.voltcrash.com/api/auth/callback/github
+GITHUB_CLIENT_ID=replace-with-production-oauth-client-id
+GITHUB_CLIENT_SECRET=replace-with-production-oauth-client-secret
+# Google stays optional until Phase 4.4; configure both values or neither.
+# Callback: https://tracera.voltcrash.com/api/auth/callback/google
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+AI_PROVIDER=replace-with-gemini-openai-anthropic-openrouter-or-openai-compatible
+AI_MODEL=replace-with-generation-model
+AI_API_KEY=replace-with-provider-api-key
+AI_EMBEDDING_MODEL=replace-with-embedding-model
+# AI_BASE_URL=
+# AI_EMBEDDING_PROVIDER=
+# AI_EMBEDDING_API_KEY=
+# AI_EMBEDDING_BASE_URL=
+# GOOGLE_FACT_CHECK_API_KEY=
+# NEWS_API_KEY=
