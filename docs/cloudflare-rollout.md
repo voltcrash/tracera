@@ -124,6 +124,11 @@ gh secret set CLOUDFLARE_API_TOKEN --repo voltcrash/tracera --env production < /
 gh secret set PRODUCTION_WORKER_ENV --repo voltcrash/tracera --env production < apps/web/.dev.vars.production
 ```
 
+The repository already has `Preview` and `Production` environments from the Vercel
+integration, with no protection rules, branch policy, or secrets. GitHub environment names are
+case-insensitive, so the release workflow's `production` job and the `PUT` above both use the
+existing `Production` environment. The repository has no Actions secrets yet.
+
 Then perform the plan's cutover order:
 
 1. Turn off Vercel Git deployments for the verified Tracera project. Record the setting and
