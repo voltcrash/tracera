@@ -56,6 +56,7 @@ export interface AnalysisControlConfig extends AnalysisControlLimits {
 export interface AnalysisAdmissionStore {
   beginAnalysisAdmission(input: {
     userId: string;
+    keySource?: "platform" | "user";
     ipHash: string;
     endpoint: string;
     idempotencyKey: string;
@@ -165,6 +166,7 @@ export function validIdempotencyKey(
 
 export async function admitAnalysis(input: {
   userId: string;
+  keySource?: "platform" | "user";
   request: Request;
   endpoint: string;
   body: unknown;
@@ -178,6 +180,7 @@ export async function admitAnalysis(input: {
   try {
     return await input.store.beginAnalysisAdmission({
       userId: input.userId,
+      keySource: input.keySource,
       ipHash: identity.ipHash,
       endpoint: input.endpoint,
       idempotencyKey: input.idempotencyKey,

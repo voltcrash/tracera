@@ -36,6 +36,48 @@ const request = (key: string) => ({
   limits,
 });
 
+test("user keys bypass a spent daily quota while retaining rate and concurrency limits", async () => {
+  const repository = repo();
+  const settings = { ...limits, dailyQuota: 1, userRateLimit: 2, userConcurrencyLimit: 2 };
+  const first = await repository.beginAnalysisAdmission({
+    ...request("platform"),
+    limits: settings,
+  });
+  expect(first.kind).toBe("admitted");
+  expect(
+    await repository.beginAnalysisAdmission({
+      ...request("platform-over-quota"),
+      limits: settings,
+    }),
+  ).toMatchObject({ kind: "rejected", reason: "daily_quota" });
+  expect(
+    await repository.beginAnalysisAdmission({
+      ...request("personal"),
+      limits: settings,
+      keySource: "user",
+    }),
+  ).toMatchObject({ kind: "admitted" });
+  expect(
+    await runtime.db
+      .prepare("SELECT request_count FROM analysis_daily_quotas")
+      .first("request_count"),
+  ).toBe(1);
+  expect(
+    await repository.beginAnalysisAdmission({
+      ...request("personal-rate-limited"),
+      limits: settings,
+      keySource: "user",
+    }),
+  ).toMatchObject({ kind: "rejected", reason: "user_rate_limit" });
+  expect(
+    await repository.beginAnalysisAdmission({
+      ...request("personal-concurrency-limited"),
+      limits: { ...settings, userRateLimit: 20 },
+      keySource: "user",
+    }),
+  ).toMatchObject({ kind: "rejected", reason: "user_concurrency_limit" });
+});
+
 test("one atomic admission batch limits concurrent work without charging rejected requests", async () => {
   const repository = repo();
   const results = await Promise.all(
