@@ -12,7 +12,7 @@ export interface AnalysisProviderEnvironment {
   AI_EMBEDDING_BASE_URL?: string;
 }
 export interface ResolvedAnalysisProvider {
-  source: "platform";
+  source: ProviderKeySource;
   config: AiProviderConfig & { model: string };
 }
 
@@ -40,11 +40,29 @@ function parseProvider(value: string | undefined): AiProviderName | undefined {
 export function resolveAnalysisProvider({
   userId,
   env,
+  userConfig,
 }: {
   userId: string;
   env: AnalysisProviderEnvironment;
+  userConfig?: AiProviderConfig & { model: string };
 }): ResolvedAnalysisProvider {
   if (!userId.trim()) reject("A user ID is required to resolve the analysis provider.");
+  if (userConfig) {
+    const resolved = resolveAnalysisProvider({
+      userId,
+      env: {
+        AI_PROVIDER: userConfig.provider,
+        AI_API_KEY: userConfig.apiKey,
+        AI_MODEL: userConfig.model,
+        AI_BASE_URL: userConfig.baseUrl,
+        AI_EMBEDDING_MODEL: userConfig.embedding?.model ?? userConfig.embeddingModel,
+        AI_EMBEDDING_PROVIDER: userConfig.embedding?.provider,
+        AI_EMBEDDING_API_KEY: userConfig.embedding?.apiKey,
+        AI_EMBEDDING_BASE_URL: userConfig.embedding?.baseUrl,
+      },
+    });
+    return { source: "user", config: resolved.config };
+  }
   const provider = parseProvider(env.AI_PROVIDER);
   if (!provider) reject("A supported live AI_PROVIDER is required before analysis can start.");
   const apiKey = setting(env.AI_API_KEY);

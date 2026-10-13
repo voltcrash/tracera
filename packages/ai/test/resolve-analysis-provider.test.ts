@@ -14,6 +14,37 @@ const platform: AnalysisProviderEnvironment = {
 const resolve = (env: AnalysisProviderEnvironment = platform) =>
   resolveAnalysisProvider({ userId: "user-1", env });
 
+test("active personal configuration takes precedence and never borrows platform credentials", () => {
+  const userConfig = {
+    provider: "anthropic" as const,
+    apiKey: "user-generation-key",
+    model: "user-model",
+    embedding: {
+      provider: "openai" as const,
+      apiKey: "user-embedding-key",
+      model: "user-embedding-model",
+    },
+  };
+  const resolved = resolveAnalysisProvider({ userId: "user-1", env: platform, userConfig });
+  expect(resolved).toMatchObject({
+    source: "user",
+    config: {
+      apiKey: "user-generation-key",
+      model: "user-model",
+      embedding: { apiKey: "user-embedding-key" },
+    },
+  });
+  expect(JSON.stringify(resolved)).not.toContain("platform-secret");
+  expect(resolveAnalysisProvider({ userId: "user-1", env: {}, userConfig }).source).toBe("user");
+  expect(() =>
+    resolveAnalysisProvider({
+      userId: "user-1",
+      env: platform,
+      userConfig: { ...userConfig, apiKey: undefined },
+    }),
+  ).toThrow(AnalysisProviderConfigurationError);
+});
+
 test("the resolver returns platform configuration from explicit vars and secrets", () => {
   expect(resolve()).toEqual({
     source: "platform",
