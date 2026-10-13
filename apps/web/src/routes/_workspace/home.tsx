@@ -9,11 +9,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { CircleAlert, ImagePlus, Loader2, X } from "lucide-react";
 import { type AttachedImage, SubmissionMargin } from "@/components/compose/submission-margin";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { isHttpUrl, MAX_IMAGE_BYTES, readSubmission } from "@/lib/submission";
 import { startAnalysis } from "@/server/analysis.functions";
@@ -225,7 +224,11 @@ function Home() {
               <textarea
                 id="story-input"
                 value={text}
-                onChange={(event) => setText(event.target.value)}
+                onChange={(event) => {
+                  setText(event.target.value);
+                  setError(null);
+                }}
+                aria-invalid={reading?.kind !== "empty" && reading?.tooLong ? true : undefined}
                 onPaste={pasteImage}
                 onKeyDown={submitOnShortcut}
                 ref={field}
@@ -275,6 +278,12 @@ function Home() {
                 </Button>
               </span>
             </div>
+            {error ? (
+              <p className="sheet-error" role="alert">
+                <CircleAlert aria-hidden="true" />
+                {error}
+              </p>
+            ) : null}
           </div>
           <SubmissionMargin reading={reading} image={image} starting={loading} />
         </form>
@@ -300,12 +309,6 @@ function Home() {
               ))}
             </ul>
           </section>
-        )}
-
-        {error && (
-          <Alert variant="destructive" className="mt-6">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
         )}
       </div>
     </main>
