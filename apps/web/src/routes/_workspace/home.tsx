@@ -7,9 +7,8 @@ import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { isHttpUrl, MAX_IMAGE_BYTES } from "@/lib/submission";
+import { isHttpUrl, MAX_IMAGE_BYTES, readSubmission } from "@/lib/submission";
 import { startAnalysis } from "@/server/analysis.functions";
 
 const example =
@@ -104,57 +103,54 @@ function Home() {
     }
   }
 
+  const reading = image ? null : readSubmission(text);
+
   return (
     <main className="home">
-      <div className={cn("home-inner", loading && "home-inner-working")}>
-        {!loading && <h1 className="home-headline">What did you see?</h1>}
+      <div className="sheet">
+        <h1 className="sr-only">New trace</h1>
 
-        <form onSubmit={analyze} className="composer">
-          <label className="sr-only" htmlFor="story-input">
-            Story or claim to analyze
-          </label>
-          {image ? (
-            <div className="composer-image">
-              <img
-                src={image.dataUrl}
-                alt="Selected for analysis"
-                width={800}
-                height={400}
-                className="h-52 w-full rounded-lg object-contain"
-              />
-              <div className="mt-3 flex items-center justify-between gap-3 text-sm text-ink-soft">
-                <span className="truncate">{image.name}</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => setImage(null)}>
-                  <Trash2 />
-                  Remove
-                </Button>
+        <form onSubmit={analyze} className="sheet-form">
+          <div className="sheet-column">
+            <label className="sr-only" htmlFor="story-input">
+              Story or claim to analyze
+            </label>
+            {image ? (
+              <div className="composer-image">
+                <img
+                  src={image.dataUrl}
+                  alt="Selected for analysis"
+                  width={800}
+                  height={400}
+                  className="h-52 w-full rounded-lg object-contain"
+                />
+                <div className="mt-3 flex items-center justify-between gap-3 text-sm text-ink-soft">
+                  <span className="truncate">{image.name}</span>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setImage(null)}>
+                    <Trash2 />
+                    Remove
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <Textarea
-              id="story-input"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              onPaste={pasteImage}
-              disabled={!hydrated || loading}
-              required={!image}
-              rows={4}
-              placeholder="Paste a headline, claim, article, public link, or image…"
-              className="composer-input"
-            />
-          )}
-          <div className="composer-bar">
-            <div className="flex min-w-0 items-center gap-3">
-              <Button
-                render={
-                  <label htmlFor="trace-image" className="cursor-pointer" aria-label="Add image" />
-                }
-                nativeButton={false}
-                variant="ghost"
-                size="icon-sm"
-                className="text-ink-faint hover:text-foreground"
-              >
+            ) : (
+              <textarea
+                id="story-input"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                onPaste={pasteImage}
+                disabled={!hydrated || loading}
+                required={!image}
+                rows={1}
+                placeholder="What did you see?"
+                data-kind={reading?.kind}
+                className="sheet-input"
+              />
+            )}
+            <span className="sheet-rule" aria-hidden="true" />
+            <div className="sheet-tools">
+              <label htmlFor="trace-image" className="sheet-tool">
                 <ImagePlus />
+                Screenshot
                 <input
                   id="trace-image"
                   type="file"
@@ -164,22 +160,22 @@ function Home() {
                   onChange={selectImage}
                   disabled={!hydrated || loading}
                 />
+              </label>
+              <Button
+                type="submit"
+                variant="outline"
+                className="color-sweep-button theme-primary-cta sheet-submit rounded-full px-5"
+                disabled={!hydrated || loading || isAuthLoading || (!text.trim() && !image)}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin" /> Tracing evidence
+                  </>
+                ) : (
+                  "Analyze"
+                )}
               </Button>
             </div>
-            <Button
-              type="submit"
-              variant="brand"
-              className="rounded-full px-5"
-              disabled={!hydrated || loading || isAuthLoading || (!text.trim() && !image)}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="animate-spin" /> Tracing evidence
-                </>
-              ) : (
-                "Analyze"
-              )}
-            </Button>
           </div>
         </form>
 
