@@ -352,3 +352,20 @@ pass on both hosted origins before marking the overall migration complete.
 Sign-off: **pending**. Record project/client identifiers, approved registration and consent
 settings, final code PR, staging/production Worker versions and release, credential-pair
 presence checks, and both-provider browser results. Do not record credential values.
+
+### Staging Google enablement, 2026-10-13
+
+The owner registered both Google Web clients with the origins and callbacks above and saved
+complete pairs in the private staging and production files. `wrangler secret bulk` uploaded the
+staging file, so staging now holds `BETTER_AUTH_SECRET`, both GitHub settings, and both Google
+settings. `vp run web#deploy:staging` from this branch found no pending migrations and deployed
+Worker version `be3bbc08-3c90-4abb-b19d-6ddbd1fd357a`.
+
+| Check                       | Result                                                                  |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `/api/health`               | `ok`, database connected                                                |
+| Google sign-in start        | Redirects to `accounts.google.com` with the staging Google callback     |
+| Google client acceptance    | Google shows its account sign-in page, not a client or redirect error   |
+| GitHub sign-in start        | Redirects to `github.com` with the staging GitHub callback              |
+| Production settings dry run | `check:production` and the Wrangler dry run pass with the real settings |
+| `PRODUCTION_WORKER_ENV`     | Updated in the GitHub `production` environment from the private file    |

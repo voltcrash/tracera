@@ -73,8 +73,8 @@ build scripts and evaluator CLIs use their own explicit inputs.
 
 Hosted credentials use distinct auth secrets and OAuth apps. Preserve the Stage 0 generated
 secrets in `/Users/lakshmi/.t3/private/tracera/stage-0/` when preparing the hosted files.
-A partial GitHub or Google pair is rejected. GitHub is required for initial production;
-Google credentials remain optional until the final Phase 4.4.
+A partial GitHub or Google pair is rejected. Production requires both pairs; staging and local
+development offer whichever complete pairs are configured.
 
 ## AI provider overrides
 

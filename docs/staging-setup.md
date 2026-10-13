@@ -13,7 +13,8 @@ existing file, then use mode `0600`. Keep the local `.dev.vars` in fixture/devel
 The hosted file must contain its auth secret, complete GitHub credentials, provider/model/key
 settings, and explicitly chosen run/spend bounds described in `cloudflare-operations.md`.
 It must omit `DEV_AUTH_BYPASS`; hosted config already selects production/live mode and its
-HTTPS auth origin. Google remains deferred until Phase 4.4, and partial pairs are rejected.
+HTTPS auth origin. Add the staging Google pair once registered (callback
+`https://tracera-staging.voltcrash.workers.dev/api/auth/callback/google`); partial pairs are rejected.
 
 Existing staging GitHub registration:
 

@@ -50,6 +50,7 @@ jobs:
             BETTER_AUTH_SECRET: 'ci-only-production-auth-secret-at-least-32-characters',
             GITHUB_CLIENT_ID: 'ci-only-github-client',
             GITHUB_CLIENT_SECRET: 'ci-only-github-secret',
+            GOOGLE_CLIENT_ID: 'ci-only-google-client', GOOGLE_CLIENT_SECRET: 'ci-only-google-secret',
             AI_PROVIDER: 'gemini', AI_MODEL: 'ci-only-generation-model',
             AI_API_KEY: 'ci-only-provider-key', AI_EMBEDDING_MODEL: 'ci-only-embedding-model',
             ANALYSIS_MAX_EXTERNAL_REQUESTS: '120', ANALYSIS_MAX_DISCOVERY_QUERIES_PER_CLAIM: '12',

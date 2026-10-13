@@ -5,7 +5,13 @@ import { analysisPolicy } from "../src/server/analysis-policy";
 type Values = Record<string, string | undefined>;
 
 const LOCAL_AUTH_SECRET = "tracera-local-development-secret-only";
-const REQUIRED_SECRETS = ["BETTER_AUTH_SECRET", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"];
+const REQUIRED_SECRETS = [
+  "BETTER_AUTH_SECRET",
+  "GITHUB_CLIENT_ID",
+  "GITHUB_CLIENT_SECRET",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+];
 const PROVIDER_SETTINGS = [
   "AI_PROVIDER",
   "AI_MODEL",
@@ -117,10 +123,6 @@ export function validateProductionInputs(inputs: {
   const authSecret = inputs.secrets.BETTER_AUTH_SECRET!;
   if (authSecret.length < 32 || authSecret === LOCAL_AUTH_SECRET)
     throw new Error("Use a new production BETTER_AUTH_SECRET with at least 32 characters.");
-  if (
-    configured(inputs.secrets.GOOGLE_CLIENT_ID) !== configured(inputs.secrets.GOOGLE_CLIENT_SECRET)
-  )
-    throw new Error("Configure both Google OAuth credentials or neither.");
 
   // D18: without any provider settings, production runs with analysis unavailable.
   const analysis = PROVIDER_SETTINGS.some((name) => configured(settings[name]));

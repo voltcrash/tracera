@@ -28,8 +28,8 @@ Tracera also preserves report artifacts, related context, and immutable timeline
   Anthropic, and OpenAI-compatible APIs
 
 Tracera runs on Cloudflare at https://tracera.voltcrash.com, released daily from `main`. See the
-[migration plan](docs/cloudflare-migration-plan.md). Hosted sign-in uses GitHub; Google
-completion is the final migration phase. No AI provider is configured yet (D18), so hosted
+[migration plan](docs/cloudflare-migration-plan.md). Hosted sign-in offers
+Google and GitHub. No AI provider is configured yet (D18), so hosted
 analysis reports that it is unavailable.
 
 ## Quick start
