@@ -361,11 +361,13 @@ staging file, so staging now holds `BETTER_AUTH_SECRET`, both GitHub settings, a
 settings. `vp run web#deploy:staging` from this branch found no pending migrations and deployed
 Worker version `be3bbc08-3c90-4abb-b19d-6ddbd1fd357a`.
 
-| Check                       | Result                                                                  |
-| --------------------------- | ----------------------------------------------------------------------- |
-| `/api/health`               | `ok`, database connected                                                |
-| Google sign-in start        | Redirects to `accounts.google.com` with the staging Google callback     |
-| Google client acceptance    | Google shows its account sign-in page, not a client or redirect error   |
-| GitHub sign-in start        | Redirects to `github.com` with the staging GitHub callback              |
-| Production settings dry run | `check:production` and the Wrangler dry run pass with the real settings |
-| `PRODUCTION_WORKER_ENV`     | Updated in the GitHub `production` environment from the private file    |
+| Check                       | Result                                                                      |
+| --------------------------- | --------------------------------------------------------------------------- |
+| `/api/health`               | `ok`, database connected                                                    |
+| Google sign-in start        | Redirects to `accounts.google.com` with the staging Google callback         |
+| Google client acceptance    | Google shows its account sign-in page, not a client or redirect error       |
+| GitHub sign-in start        | Redirects to `github.com` with the staging GitHub callback                  |
+| Production settings dry run | `check:production` and the Wrangler dry run pass with the real settings     |
+| `PRODUCTION_WORKER_ENV`     | Updated in the GitHub `production` environment from the private file        |
+| Browser sign-in page        | Signed-out `/home` returns to `/`, showing one Google and one GitHub button |
+| Browser provider redirects  | Each button reaches its provider's sign-in page; no console or CSP errors   |
