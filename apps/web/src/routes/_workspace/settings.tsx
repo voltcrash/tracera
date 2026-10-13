@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
+import { PersonalProviderKeys } from "@/components/settings/personal-provider-keys";
 
 export const Route = createFileRoute("/_workspace/settings")({
   component: SettingsPage,
@@ -69,6 +70,7 @@ function SettingsPage() {
         <div className="settings-rows">
           <AccountRow />
           <AvatarRow />
+          {user ? <PersonalProviderKeys key={user.id} /> : null}
 
           <section className="settings-row" aria-labelledby="settings-name">
             <div className="settings-margin">
