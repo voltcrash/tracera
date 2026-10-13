@@ -1312,6 +1312,21 @@
   border-radius: 2px;
 }
 
+@media (max-width: 639px) {
+  .example {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+
+  .example-kind {
+    padding-top: 0;
+  }
+
+  .sheet-shortcut {
+    display: none;
+  }
+}
+
 .rail-scrim {
   position: fixed;
   inset: 0;
