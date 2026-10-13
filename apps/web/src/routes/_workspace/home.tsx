@@ -9,14 +9,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { Check, ImagePlus, Loader2, X } from "lucide-react";
+import { ImagePlus, Loader2, X } from "lucide-react";
 import { type AttachedImage, SubmissionMargin } from "@/components/compose/submission-margin";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { isHttpUrl, MAX_IMAGE_BYTES, readSubmission } from "@/lib/submission";
 import { startAnalysis } from "@/server/analysis.functions";
 
@@ -48,7 +46,6 @@ function Home() {
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState("Preparing the evidence trace.");
   const [dropping, setDropping] = useState(false);
   const canvas = useRef<HTMLElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -62,7 +59,6 @@ function Home() {
     if (!user) return;
     setLoading(true);
     setError(null);
-    setProgress("Preparing claim checks.");
     try {
       const value = text.trim();
       const input = image
@@ -241,7 +237,7 @@ function Home() {
                 className="sheet-input"
               />
             )}
-            <span className="sheet-rule" aria-hidden="true" />
+            <span className="sheet-rule" data-busy={loading || undefined} aria-hidden="true" />
             <div className="sheet-tools">
               <label htmlFor="trace-image" className="sheet-tool">
                 <ImagePlus />
@@ -271,7 +267,7 @@ function Home() {
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="animate-spin" /> Tracing evidence
+                      <Loader2 className="animate-spin" /> Starting
                     </>
                   ) : (
                     "Analyze"
@@ -280,7 +276,7 @@ function Home() {
               </span>
             </div>
           </div>
-          <SubmissionMargin reading={reading} image={image} />
+          <SubmissionMargin reading={reading} image={image} starting={loading} />
         </form>
 
         {!loading && !text && !image && (
@@ -306,7 +302,6 @@ function Home() {
           </section>
         )}
 
-        {loading && <TraceProgress progress={progress} />}
         {error && (
           <Alert variant="destructive" className="mt-6">
             <AlertDescription>{error}</AlertDescription>
@@ -315,64 +310,6 @@ function Home() {
       </div>
     </main>
   );
-}
-
-const traceStages = [
-  { label: "Prepare", detail: "Read submission" },
-  { label: "Claims", detail: "Separate facts" },
-  { label: "Evidence", detail: "Check sources" },
-  { label: "Provenance", detail: "Compare observed sources" },
-  { label: "Complete", detail: "Save the report" },
-];
-
-function TraceProgress({ progress }: { progress: string }) {
-  const current = traceProgressIndex(progress);
-  return (
-    <section
-      className="trace-progress-panel noise mt-6 overflow-hidden rounded-3xl bg-panel p-6 text-panel-foreground shadow-(--shadow-panel) sm:p-7"
-      role="status"
-      aria-live="polite"
-    >
-      <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
-        <h2 className="text-xl font-bold tracking-[-.02em]">{progress}</h2>
-        <Badge className="bg-white/10 text-white/60">
-          <Loader2 className="animate-spin" /> Analyzing
-        </Badge>
-      </div>
-      <ol className="relative z-10 mt-8 grid gap-y-4 sm:grid-cols-5 sm:gap-x-3">
-        {traceStages.map((stage, index) => {
-          const done = index < current;
-          const active = index === current;
-          return (
-            <li
-              key={stage.label}
-              className={cn(
-                "border-t-2 pt-3 transition-opacity",
-                done && "border-brand-lime",
-                active && "border-brand-lime",
-                !done && !active && "border-white/15 opacity-45",
-              )}
-            >
-              <p className="flex items-center gap-1.5 text-sm font-semibold">
-                {done && <Check className="size-3.5 text-brand-lime" />}
-                {stage.label}
-              </p>
-              <p className="mt-0.5 text-xs text-white/45">{stage.detail}</p>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
-function traceProgressIndex(progress: string) {
-  const message = progress.toLowerCase();
-  if (message.includes("saved") || message.includes("completed")) return 4;
-  if (message.includes("earliest") || message.includes("publication")) return 3;
-  if (message.includes("evidence") || message.includes("scored claim")) return 2;
-  if (message.includes("separating") || message.includes("factual claims")) return 1;
-  return 0;
 }
 
 type SelectedImage = AttachedImage & { dataUrl: string; mimeType: string };

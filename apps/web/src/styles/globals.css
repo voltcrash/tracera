@@ -575,28 +575,10 @@
   }
 }
 
-.trace-progress-panel::before {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  top: -8rem;
-  right: -7rem;
-  width: 20rem;
-  height: 20rem;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(137, 243, 54, 0.13), transparent 68%);
-}
-
-.trace-progress-panel {
-  position: relative;
-}
 .dark .noise::after {
   opacity: 0.14;
 }
 
-.dark .trace-progress-panel::before {
-  opacity: 0.55;
-}
 @media (prefers-reduced-motion: reduce) {
   body,
   .theme-toggle-icons > svg,
@@ -1019,6 +1001,30 @@
   transform: scaleX(1);
 }
 
+/* While the run is being created, the proof rule is inked over and over. */
+.sheet-rule[data-busy]::after {
+  background: var(--lime-ink);
+  transform: scaleX(1);
+  transform-origin: left;
+  animation: sheet-rule-ink 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes sheet-rule-ink {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  50% {
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+.sheet-margin[data-tone="busy"] {
+  border-color: var(--lime-ink);
+}
+
 .sheet-tools {
   display: flex;
   align-items: center;
@@ -1346,6 +1352,10 @@
   .sheet-rule::after,
   .example-text {
     transition: none;
+  }
+
+  .sheet-rule[data-busy]::after {
+    animation: none;
   }
 }
 

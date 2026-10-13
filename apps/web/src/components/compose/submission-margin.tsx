@@ -15,16 +15,24 @@ export type AttachedImage = { name: string; bytes: number; width?: number; heigh
 export function SubmissionMargin({
   reading,
   image,
+  starting,
 }: {
   reading: Reading | null;
   image: AttachedImage | null;
+  starting: boolean;
 }) {
-  const note = image ? imageNote(image) : reading ? readingNote(reading) : null;
+  const note = starting
+    ? STARTING
+    : image
+      ? imageNote(image)
+      : reading
+        ? readingNote(reading)
+        : null;
   if (!note) return null;
 
   return (
     <aside className="sheet-margin" data-tone={note.tone} aria-label="About this submission">
-      <p className="sheet-margin-name" aria-live="polite">
+      <p className="sheet-margin-name" role={starting ? "status" : undefined} aria-live="polite">
         {note.name}
       </p>
       {note.subject ? <p className="sheet-margin-subject">{note.subject}</p> : null}
@@ -40,10 +48,16 @@ export function SubmissionMargin({
 
 type Note = {
   name: string;
-  tone: "idle" | "ready" | "blocked";
+  tone: "idle" | "ready" | "blocked" | "busy";
   subject?: string;
   lines: string[];
   warning?: string;
+};
+
+const STARTING: Note = {
+  name: "Starting the trace",
+  tone: "busy",
+  lines: ["The report opens as soon as the run is saved, and fills in while Tracera works."],
 };
 
 const TEXT_NAMES = { claim: "One claim", passage: "A passage", article: "An article" };
