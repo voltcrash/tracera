@@ -2,6 +2,7 @@ import { createFileRoute, useHydrated, useNavigate } from "@tanstack/react-route
 import { useServerFn } from "@tanstack/react-start";
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
 import { Check, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { type AttachedImage, SubmissionMargin } from "@/components/compose/submission-margin";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -22,11 +23,9 @@ function Home() {
   const start = useServerFn(startAnalysis);
   const navigate = useNavigate();
   const [text, setText] = useState("");
-  const [image, setImage] = useState<{
-    dataUrl: string;
-    mimeType: string;
-    name: string;
-  } | null>(null);
+  const [image, setImage] = useState<
+    (AttachedImage & { dataUrl: string; mimeType: string }) | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("Preparing the evidence trace.");
@@ -34,7 +33,8 @@ function Home() {
 
   async function analyze(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (!text.trim() && !image) return;
+    const draft = readSubmission(text);
+    if (!image && (draft.kind === "empty" || draft.tooLong)) return;
     if (!user) return;
     setLoading(true);
     setError(null);
@@ -97,6 +97,7 @@ function Home() {
         dataUrl: await readFileAsDataUrl(file),
         mimeType: file.type,
         name: file.name || fallbackName,
+        bytes: file.size,
       });
     } catch (readError) {
       setError(readError instanceof Error ? readError.message : "The image could not be read.");
@@ -165,7 +166,12 @@ function Home() {
                 type="submit"
                 variant="outline"
                 className="color-sweep-button theme-primary-cta sheet-submit rounded-full px-5"
-                disabled={!hydrated || loading || isAuthLoading || (!text.trim() && !image)}
+                disabled={
+                  !hydrated ||
+                  loading ||
+                  isAuthLoading ||
+                  (!image && (!reading || reading.kind === "empty" || reading.tooLong))
+                }
               >
                 {loading ? (
                   <>
@@ -177,6 +183,7 @@ function Home() {
               </Button>
             </div>
           </div>
+          <SubmissionMargin reading={reading} image={image} />
         </form>
 
         {!loading && !text && !image && (
@@ -195,10 +202,6 @@ function Home() {
               Upload a screenshot
             </label>
           </div>
-        )}
-
-        {(text || image) && !loading && (
-          <p className="composer-note">Links are detected automatically. Images up to 5 MB.</p>
         )}
 
         {loading && <TraceProgress progress={progress} />}

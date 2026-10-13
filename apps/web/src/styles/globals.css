@@ -1042,6 +1042,67 @@
   opacity: 0.5;
 }
 
+.sheet-margin {
+  margin-top: 2.5rem;
+  max-width: 34rem;
+  border-left: 2px solid var(--line);
+  padding: 0.125rem 0 0.125rem 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ink-faint);
+  transition: border-color 220ms ease;
+}
+
+.sheet-margin[data-tone="ready"] {
+  border-color: var(--lime-ink);
+}
+
+.sheet-margin[data-tone="blocked"] {
+  border-color: var(--destructive);
+}
+
+.sheet-margin-name {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.sheet-margin-subject {
+  margin-top: 0.375rem;
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  line-height: 1.25;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.sheet-margin-line {
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.sheet-margin-line + .sheet-margin-line {
+  margin-top: 0.5rem;
+}
+
+.sheet-margin-warning {
+  margin-top: 0.5rem;
+  font-weight: 600;
+  color: var(--destructive);
+}
+
+/* From here the note moves out beside the draft, where a proof's margin is. */
+@media (min-width: 1100px) {
+  .sheet-form {
+    grid-template-columns: minmax(0, 1fr) 13.5rem;
+    gap: 0 3.5rem;
+    align-items: start;
+  }
+
+  .sheet-margin {
+    margin-top: 0.5rem;
+  }
+}
+
 .composer-image {
   border-radius: 1rem;
   background: var(--muted);
