@@ -62,6 +62,7 @@ const serverEnvSchema = z
     AI_PROVIDER: optional,
     AI_MODEL: optional,
     AI_API_KEY: optional,
+    PROVIDER_KEYS_ENCRYPTION_KEY: optional,
     AI_BASE_URL: optional,
     AI_EMBEDDING_PROVIDER: optional,
     AI_EMBEDDING_MODEL: optional,

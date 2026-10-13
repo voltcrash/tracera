@@ -16,6 +16,10 @@ It must omit `DEV_AUTH_BYPASS`; hosted config already selects production/live mo
 HTTPS auth origin. Add the staging Google pair once registered (callback
 `https://tracera-staging.voltcrash.workers.dev/api/auth/callback/google`); partial pairs are rejected.
 
+Staging may instead use personal AI keys with its own `PROVIDER_KEYS_ENCRYPTION_KEY`, run
+bounds, and cost estimates. Keep its encryption material separate from production; platform
+provider settings remain optional. See [bring your own key](bring-your-own-key.md).
+
 Existing staging GitHub registration:
 
 | Field    | Value                                                                    |

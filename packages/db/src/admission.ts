@@ -9,6 +9,7 @@ import { utcPeriod } from "./clock.js";
 
 interface AdmissionInput {
   userId: string;
+  keySource?: "platform" | "user";
   ipHash: string;
   endpoint: string;
   idempotencyKey: string;
@@ -132,7 +133,7 @@ export class D1AdmissionRepository {
         SELECT ?,?,?,?,?,?,? FROM analysis_idempotency_keys WHERE user_id=? AND endpoint=? AND idempotency_key=? AND lease_id=?
         AND COALESCE((SELECT request_count FROM analysis_rate_limits WHERE scope_type='ip' AND scope_key=? AND window_started_at+?>?),0)<?
         AND COALESCE((SELECT request_count FROM analysis_rate_limits WHERE scope_type='user' AND scope_key=? AND window_started_at+?>?),0)<?
-        AND COALESCE((SELECT request_count FROM analysis_daily_quotas WHERE user_id=? AND period_start=?),0)<?
+        AND (?=1 OR COALESCE((SELECT request_count FROM analysis_daily_quotas WHERE user_id=? AND period_start=?),0)<?)
         AND (SELECT count(*) FROM analysis_leases WHERE user_id=? AND released_at IS NULL AND expires_at>?)<?
         AND (SELECT count(*) FROM analysis_leases WHERE ip_hash=? AND released_at IS NULL AND expires_at>?)<?
         AND (?=0 OR COALESCE((SELECT cooldown_until FROM analysis_force_cooldowns WHERE user_id=? AND input_hash=?),0)<=?) RETURNING id`)
@@ -154,6 +155,7 @@ export class D1AdmissionRepository {
           window,
           now,
           limits.userRateLimit,
+          input.keySource === "user" ? 1 : 0,
           input.userId,
           period.periodStart,
           limits.dailyQuota,
@@ -183,9 +185,9 @@ export class D1AdmissionRepository {
     statements.push(
       this.database
         .prepare(
-          `INSERT INTO analysis_daily_quotas(user_id,period_start,request_count) SELECT ?,?,1 WHERE ${witness} ON CONFLICT(user_id,period_start) DO UPDATE SET request_count=request_count+1`,
+          `INSERT INTO analysis_daily_quotas(user_id,period_start,request_count) SELECT ?,?,1 WHERE ?=0 AND ${witness} ON CONFLICT(user_id,period_start) DO UPDATE SET request_count=request_count+1`,
         )
-        .bind(input.userId, period.periodStart, id),
+        .bind(input.userId, period.periodStart, input.keySource === "user" ? 1 : 0, id),
     );
     statements.push(
       this.database
@@ -298,7 +300,8 @@ export class D1AdmissionRepository {
     if (rate("user").count >= limits.userRateLimit)
       return reject("user_rate_limit", rate("user").reset);
     const quota = Number(results[9]!.results[0]?.request_count ?? 0);
-    if (quota >= limits.dailyQuota) return reject("daily_quota", period.resetAt);
+    if (input.keySource !== "user" && quota >= limits.dailyQuota)
+      return reject("daily_quota", period.resetAt);
     const userLeases = leases.filter((lease) => lease.user_id === input.userId),
       ipLeases = leases.filter((lease) => lease.ip_hash === input.ipHash);
     if (userLeases.length >= limits.userConcurrencyLimit)

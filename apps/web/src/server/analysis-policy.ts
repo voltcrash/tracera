@@ -2,6 +2,7 @@ import {
   resolveAnalysisProvider,
   type AiProviderConfig,
   type AnalysisProviderEnvironment,
+  type ResolvedAnalysisProvider,
 } from "@repo/ai";
 import { ANALYSIS_ENGINE_VERSION } from "@repo/ai/analysis";
 import { hashValue } from "@repo/ai/analysis/hashing";
@@ -38,10 +39,16 @@ export type AnalysisRuntimePolicyResult =
   | { enabled: true; policy: AnalysisRuntimePolicy }
   | { enabled: false; code: "analysis_unavailable"; message: string };
 
-function livePolicy(environment: RuntimeEnvironment, userId: string): AnalysisRuntimePolicyResult {
+function livePolicy(
+  environment: RuntimeEnvironment,
+  userId: string,
+  selection?: ResolvedAnalysisProvider,
+): AnalysisRuntimePolicyResult {
   let resolved: ReturnType<typeof resolveAnalysisProvider>;
   try {
-    resolved = resolveAnalysisProvider({ userId, env: environment as AnalysisProviderEnvironment });
+    resolved =
+      selection ??
+      resolveAnalysisProvider({ userId, env: environment as AnalysisProviderEnvironment });
   } catch (error) {
     return unavailable(
       error instanceof Error ? error.message : "AI provider configuration is unavailable.",
@@ -53,7 +60,7 @@ function livePolicy(environment: RuntimeEnvironment, userId: string): AnalysisRu
 
   const budget = readLiveBudget(environment);
   if (!budget.ok) return unavailable(budget.message);
-  const spend = readLiveSpend(environment);
+  const spend = readLiveSpend(environment, resolved.source === "user");
   if (!spend.ok) return unavailable(spend.message);
 
   return {
@@ -83,6 +90,7 @@ function livePolicy(environment: RuntimeEnvironment, userId: string): AnalysisRu
 export function analysisPolicy(
   env: Pick<ServerEnv, "MODE" | "ANALYSIS_MODE"> & RuntimeEnvironment,
   userId: string,
+  selection?: ResolvedAnalysisProvider,
 ): AnalysisRuntimePolicyResult {
   if (env.ANALYSIS_MODE === "fixture") {
     if (env.MODE !== "dev") return unavailable("Fixture analysis runs only in local development.");
@@ -96,7 +104,7 @@ export function analysisPolicy(
       },
     };
   }
-  return livePolicy(env, userId);
+  return livePolicy(env, userId, selection);
 }
 
 function readLiveBudget(environment: RuntimeEnvironment) {
@@ -138,9 +146,9 @@ function readLiveBudget(environment: RuntimeEnvironment) {
   return { ok: true as const, value: values as RunBudget };
 }
 
-function readLiveSpend(environment: RuntimeEnvironment) {
+function readLiveSpend(environment: RuntimeEnvironment, personal = false) {
   const names = [
-    "AI_DAILY_SPEND_LIMIT_USD",
+    ...(personal ? [] : ["AI_DAILY_SPEND_LIMIT_USD"]),
     "AI_ESTIMATED_GENERATION_COST_USD",
     "AI_ESTIMATED_IMAGE_COST_USD",
     "AI_ESTIMATED_EMBEDDING_COST_USD",

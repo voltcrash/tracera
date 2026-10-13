@@ -1,5 +1,6 @@
 import type { WorkflowStep } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
+import { ProviderKeyRejectedError } from "@repo/ai";
 import {
   acceptStoredSnapshots,
   createRunAnalysis,
@@ -14,6 +15,7 @@ import { runReportSchema, type RunStatus } from "@repo/contracts/analysis";
 import { analysisStorage, accessScope, isTerminalRunStatus } from "./analysis-api.server";
 import { analysisControlConfig } from "./analysis-controls";
 import { createWorkflowAnalysisPorts } from "./analysis-runtime";
+import { resolveWorkflowProvider } from "./provider-selection.server";
 import type { ServerEnv } from "./env";
 import {
   ANALYSIS_WORKFLOW_RETRIES,
@@ -82,6 +84,9 @@ export async function runAnalysisWorkflow(
             context,
             clock,
             blobStore,
+            ...(context.executionMode === "live"
+              ? { resolvedProvider: await resolveWorkflowProvider(env, context) }
+              : {}),
           });
           const runs = createRunStore({ repository: storage.runs, context });
           const result = await createRunAnalysis({
@@ -114,6 +119,7 @@ export async function runAnalysisWorkflow(
             },
           });
           await checkCancellation();
+          ports.assertProviderAccepted();
           if (result.status === "failed" || !result.report)
             throw new Error("The engine did not complete a report.");
           const report = runReportSchema.parse(result.report);
@@ -129,10 +135,18 @@ export async function runAnalysisWorkflow(
             reportUri: pointer.uri,
             fencingToken: attempt.fencingToken,
           };
-        } catch {
+        } catch (error) {
           if ((await storage.runs.getRunProgress(identity))?.cancellationRequested) {
             await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
             return { status: "canceled", reportUri: null, fencingToken: null };
+          }
+          if (error instanceof ProviderKeyRejectedError) {
+            await storage.runs.failRun({
+              ...identity,
+              fencingToken: attempt.fencingToken,
+              error: "provider_key_rejected",
+            });
+            throw new NonRetryableError(error.message);
           }
           // Workflow errors are persisted; never attach provider errors or request bodies.
           throw new Error("The analysis attempt failed before its report could be saved.");

@@ -53,6 +53,7 @@ interface RunRow {
   created_at: number;
   updated_at: number;
   finalized_at: number | null;
+  last_error: string | null;
 }
 const scopeValues = (scope: AnalysisAccessScope) => [
   scope.tenantId,
@@ -508,6 +509,9 @@ export class D1AnalysisRepository {
           cancellationRequested: JSON.parse(row.cancellation).requested === true,
           completedStages: checkpoints!.results.map((row) => row.stage),
           updatedAt: new Date(row.updated_at).toISOString(),
+          ...(row.last_error === "provider_key_rejected"
+            ? { errorCode: "provider_key_rejected" as const }
+            : {}),
         }
       : null;
   }

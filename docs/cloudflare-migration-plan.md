@@ -654,8 +654,11 @@ rate and concurrency limits. Provider 401 and 403 responses become a "your key w
 error. User-supplied OpenAI-compatible base URLs must pass `safeFetch` validation (HTTPS and
 public hosts only).
 
-Open for later: which providers accept user keys first, and whether platform keys remain
-available once BYOK exists.
+Implementation supports all existing providers: Gemini, OpenAI, Anthropic (with separate
+personal embeddings), OpenRouter, and public OpenAI-compatible HTTPS endpoints. Platform
+keys remain the fallback for new runs without an active personal key. See the
+[BYOK operations guide](bring-your-own-key.md) for activation, verification, key rotation,
+and the required runtime controls. Hosted activation remains a separate rollout step.
 
 ## Appendix A — Next.js to TanStack Start
 

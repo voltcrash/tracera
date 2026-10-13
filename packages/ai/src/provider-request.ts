@@ -17,7 +17,8 @@ export async function requestProviderJson<T>(
 ): Promise<T> {
   let response: Response;
   try {
-    response = await safeFetch(url, init);
+    if (new URL(url).protocol !== "https:") throw new ProviderRequestError(provider);
+    response = await safeFetch(url, { ...init, redirect: "error" });
   } catch {
     if (init.signal?.aborted)
       throw new DOMException("The provider request was aborted.", "AbortError");

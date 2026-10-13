@@ -67,6 +67,13 @@ export function RunDetail({ id, initial }: { id: string; initial: RunState }) {
   return (
     <main className="trace-page min-h-screen bg-background text-foreground">
       <section className="trace mt-16">
+        {progress.errorCode === "provider_key_rejected" ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Your key was rejected. Update your provider key in Settings and try again.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>

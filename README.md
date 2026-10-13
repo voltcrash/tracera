@@ -16,6 +16,7 @@ Tracera also preserves report artifacts, related context, and immutable timeline
 - **Factual score:** Report the supported share of resolved selected claims only; source context, framing, provenance, and recency never become factual truth points.
 - **Trace timelines:** Show immutable published, updated, event, indexed, archived, and captured observations with unknown times left unresolved.
 - **Related context:** Similar stories remain context and do not stand in for evidence about the submitted claim.
+- **Personal AI keys:** Save encrypted provider credentials in Settings, choose an active provider, and run analyses with your own generation and embedding keys.
 
 ## Stack
 
@@ -66,6 +67,10 @@ explicit live budgets, migrations, and recovery. [Staging setup](docs/staging-se
 [production setup](docs/production-setup.md), and the [rollout runbook](docs/cloudflare-rollout.md)
 cover the hosted gates. The Phase 2.6 real-provider test is deferred by the owner; fixture
 results do not close it.
+
+See [bring your own key](docs/bring-your-own-key.md) for personal provider settings, encryption
+setup and rotation, and hosted activation. Personal keys support every existing AI adapter;
+platform providers remain available when no personal key is active.
 
 ## Architecture
 

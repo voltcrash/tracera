@@ -1,4 +1,4 @@
-import { resolveAnalysisProvider } from "@repo/ai";
+import { resolveAnalysisProvider, validateProviderKeyEncryptionConfiguration } from "@repo/ai";
 import { z } from "zod";
 import { analysisPolicy } from "../src/server/analysis-policy";
 
@@ -58,6 +58,11 @@ const productionConfig = resources.extend({
 
 function configured(value: string | undefined): value is string {
   return value !== undefined && value.trim() !== "" && !/^(replace-|your-)/i.test(value.trim());
+}
+
+function encryptionKeys(secret: string) {
+  const ring = JSON.parse(secret) as { keys: Record<string, string> };
+  return Object.values(ring.keys).map((value) => btoa(atob(value)));
 }
 
 function resourceIds(config: z.infer<typeof resources>) {
@@ -125,8 +130,8 @@ export function validateProductionInputs(inputs: {
     throw new Error("Use a new production BETTER_AUTH_SECRET with at least 32 characters.");
 
   // D18: without any provider settings, production runs with analysis unavailable.
-  const analysis = PROVIDER_SETTINGS.some((name) => configured(settings[name]));
-  if (analysis) {
+  const platform = PROVIDER_SETTINGS.some((name) => configured(settings[name]));
+  if (platform) {
     try {
       resolveAnalysisProvider({ userId: "production-check", env: settings });
     } catch (error) {
@@ -143,6 +148,48 @@ export function validateProductionInputs(inputs: {
       throw new Error(`Production analysis controls are incomplete: ${runtime.message}`);
   }
 
+  const personal = configured(inputs.secrets.PROVIDER_KEYS_ENCRYPTION_KEY);
+  if (configured(config.vars.PROVIDER_KEYS_ENCRYPTION_KEY))
+    throw new Error("PROVIDER_KEYS_ENCRYPTION_KEY must be a Worker secret, not a Wrangler var.");
+  if (personal) {
+    try {
+      validateProviderKeyEncryptionConfiguration(inputs.secrets.PROVIDER_KEYS_ENCRYPTION_KEY);
+    } catch {
+      throw new Error(
+        "Configure a valid versioned PROVIDER_KEYS_ENCRYPTION_KEY in .dev.vars.production.",
+      );
+    }
+    const stagingEncryption = inputs.stagingSecrets?.PROVIDER_KEYS_ENCRYPTION_KEY;
+    if (configured(stagingEncryption)) {
+      try {
+        validateProviderKeyEncryptionConfiguration(stagingEncryption);
+      } catch {
+        throw new Error(
+          "Configure a valid staging PROVIDER_KEYS_ENCRYPTION_KEY before comparing environments.",
+        );
+      }
+      const productionMaterial = new Set(
+        encryptionKeys(inputs.secrets.PROVIDER_KEYS_ENCRYPTION_KEY!),
+      );
+      if (encryptionKeys(stagingEncryption).some((key) => productionMaterial.has(key)))
+        throw new Error("PROVIDER_KEYS_ENCRYPTION_KEY must be separate from staging.");
+    }
+    const runtime = analysisPolicy(
+      { ...settings, MODE: "production", ANALYSIS_MODE: "live" },
+      "personal-production-check",
+      {
+        source: "user",
+        config: {
+          provider: "openai",
+          model: "personal-model",
+          embeddingModel: "personal-embedding",
+        },
+      },
+    );
+    if (!runtime.enabled)
+      throw new Error(`Production BYOK controls are incomplete: ${runtime.message}`);
+  }
+
   if (inputs.built !== undefined) {
     const built = resources.safeParse(inputs.built);
     if (
@@ -152,5 +199,5 @@ export function validateProductionInputs(inputs: {
     )
       throw new Error("Rebuild with build:production; dist/server is not the production Worker.");
   }
-  return { analysis };
+  return { analysis: platform || personal };
 }

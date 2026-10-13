@@ -11,6 +11,23 @@ const request = () =>
     headers: { authorization: `Bearer ${secret}` },
   });
 
+test("provider credentials never travel over HTTP or follow redirects", async () => {
+  const transport = vi.fn(
+    async () =>
+      new Response(null, { status: 307, headers: { location: "http://public.example/v1" } }),
+  );
+  vi.stubGlobal("fetch", transport);
+  await expect(
+    requestProviderJson("Test provider", "http://public.example/v1", {
+      headers: { authorization: secret },
+    }),
+  ).rejects.toBeInstanceOf(ProviderRequestError);
+  expect(transport).not.toHaveBeenCalled();
+  await expect(request()).rejects.toBeInstanceOf(ProviderRequestError);
+  expect(transport).toHaveBeenCalledTimes(1);
+  expect(transport.mock.calls[0]).toHaveLength(2);
+});
+
 for (const [name, response] of [
   [
     "HTTP errors",

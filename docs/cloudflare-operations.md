@@ -104,7 +104,9 @@ Anthropic cannot be the embedding provider. Without a separate embedding provide
 and base URL overrides must be absent. The embedding adapter contract remains 1024 dimensions;
 this migration does not store claim vectors or use a persisted embedding corpus.
 `GOOGLE_FACT_CHECK_API_KEY` and `NEWS_API_KEY` are optional evidence-source credentials.
-BYOK key storage is a later follow-up; the current resolver uses platform credentials.
+The resolver prefers the user's active encrypted key and uses platform credentials when none
+is active. See [bring your own key](bring-your-own-key.md) for setup, supported providers,
+verification, rotation, and the BYOK-only deployment controls.
 
 Fixture evaluators require no settings and never fall back to a provider. The separate
 `vp run @repo/ai#test:live` adapter diagnostic reads provider settings from the invoking shell,
