@@ -1,6 +1,14 @@
 import { createFileRoute, useHydrated, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ChangeEvent, ClipboardEvent, FormEvent, useEffect, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  ClipboardEvent,
+  FormEvent,
+  KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Check, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
 import { type AttachedImage, SubmissionMargin } from "@/components/compose/submission-margin";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -31,6 +39,8 @@ function Home() {
   const [progress, setProgress] = useState("Preparing the evidence trace.");
   const [dropping, setDropping] = useState(false);
   const canvas = useRef<HTMLElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
+  const modifier = hydrated ? shortcutModifier() : null;
   const refreshHistory = useHistoryRefresh();
 
   async function analyze(event?: FormEvent<HTMLFormElement>) {
@@ -64,6 +74,12 @@ function Home() {
     }
   }
 
+  function submitOnShortcut(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+
   async function selectImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -89,6 +105,13 @@ function Home() {
     setError("error" in attached ? attached.error : null);
     if ("image" in attached) setImage(attached.image);
   }
+
+  // A pointer user arrives to write, so the sheet takes focus; on touch screens
+  // that would throw up the keyboard before anything has been chosen.
+  useEffect(() => {
+    if (!hydrated || !window.matchMedia("(pointer: fine)").matches) return;
+    field.current?.focus();
+  }, [hydrated]);
 
   useEffect(() => {
     const target = canvas.current;
@@ -139,6 +162,11 @@ function Home() {
   }, [loading]);
 
   const reading = image ? null : readSubmission(text);
+  const canSubmit =
+    hydrated &&
+    !loading &&
+    !isAuthLoading &&
+    (image !== null || (reading !== null && reading.kind !== "empty" && !reading.tooLong));
 
   return (
     <main className="home" ref={canvas} data-dropping={dropping || undefined}>
@@ -183,6 +211,8 @@ function Home() {
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 onPaste={pasteImage}
+                onKeyDown={submitOnShortcut}
+                ref={field}
                 disabled={!hydrated || loading}
                 required={!image}
                 rows={1}
@@ -206,25 +236,28 @@ function Home() {
                   disabled={!hydrated || loading}
                 />
               </label>
-              <Button
-                type="submit"
-                variant="outline"
-                className="color-sweep-button theme-primary-cta sheet-submit rounded-full px-5"
-                disabled={
-                  !hydrated ||
-                  loading ||
-                  isAuthLoading ||
-                  (!image && (!reading || reading.kind === "empty" || reading.tooLong))
-                }
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="animate-spin" /> Tracing evidence
-                  </>
-                ) : (
-                  "Analyze"
-                )}
-              </Button>
+              <span className="sheet-send">
+                {modifier && canSubmit ? (
+                  <kbd className="sheet-shortcut" aria-hidden="true">
+                    {modifier} Enter
+                  </kbd>
+                ) : null}
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className="color-sweep-button theme-primary-cta sheet-submit rounded-full px-5"
+                  aria-keyshortcuts={modifier ? "Meta+Enter Control+Enter" : undefined}
+                  disabled={!canSubmit}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="animate-spin" /> Tracing evidence
+                    </>
+                  ) : (
+                    "Analyze"
+                  )}
+                </Button>
+              </span>
             </div>
           </div>
           <SubmissionMargin reading={reading} image={image} />
@@ -340,6 +373,12 @@ async function readAttachment(
       error: readError instanceof Error ? readError.message : "The image could not be read.",
     };
   }
+}
+
+/** Touch screens have no shortcut to offer, so they get no hint. */
+function shortcutModifier() {
+  if (!window.matchMedia("(pointer: fine)").matches) return null;
+  return /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
 }
 
 function carriesFiles(event: DragEvent) {
