@@ -1,7 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, PenLine, Settings, X } from "lucide-react";
+import {
+  ArrowLeft,
+  LogOut,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PenLine,
+  Settings,
+  X,
+} from "lucide-react";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { accountLabel, useAuth } from "@/components/providers/auth-provider";
 import { ThemeToggle } from "@/components/navigation/theme-toggle";
@@ -214,13 +223,14 @@ function Rail({
         )}
       </nav>
 
-      <RailAccount />
+      <RailFooter />
     </aside>
   );
 }
 
-function RailAccount() {
+function RailFooter() {
   const { user, isLoading, signOut } = useAuth();
+  const pathname = useLocation({ select: (location) => location.pathname });
   const navigate = useNavigate();
   const router = useRouter();
 
@@ -241,7 +251,12 @@ function RailAccount() {
 
   return (
     <div className="rail-foot">
-      {isLoading || !user ? (
+      {pathname === "/settings" ? (
+        <Link to="/home" className="rail-link flex-1">
+          <ArrowLeft aria-hidden="true" />
+          Back
+        </Link>
+      ) : isLoading || !user ? (
         <Skeleton className="h-10 flex-1 rounded-lg" aria-label="Loading account" />
       ) : (
         <DropdownMenu>

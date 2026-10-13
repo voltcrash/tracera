@@ -26,6 +26,8 @@ for (const [name, email] of [
     expect(Number(rows[0]!.results[0]!.count)).toBeGreaterThan(0);
     await page.goto("/settings");
     await expect(page.getByText(email, { exact: true }).first()).toBeVisible();
+    await page.getByRole("link", { name: "Back", exact: true }).click();
+    await expect(page).toHaveURL(/\/home$/);
     await page.getByRole("button", { name: "Open account menu" }).click();
     await page.getByRole("menuitem", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/$/);
