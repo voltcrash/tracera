@@ -43,6 +43,12 @@ export {
 export { providerSpendIdentity, type ProviderSpendIdentity } from "./provider-spend-identity";
 export { ProviderRequestError } from "./provider-request";
 export {
+  verifyProviderKey,
+  ProviderKeyRejectedError,
+  ProviderKeyVerificationError,
+  isProviderKeyRejection,
+} from "./verify-provider-key";
+export {
   personalProviderConfig,
   providerKeyInputSchema,
   personalProviderSchema,
