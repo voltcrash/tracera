@@ -19,6 +19,9 @@ VERSION=local
 # AI_EMBEDDING_PROVIDER=
 # AI_EMBEDDING_API_KEY=
 # AI_EMBEDDING_BASE_URL=
+# Personal key storage: generate a private encryption keyring with
+# vp run web#provider-keys:generate-secret /PRIVATE_DIR/local-byok.env
+# Add that file's PROVIDER_KEYS_ENCRYPTION_KEY line here; preserve it across restarts.
 # Optional evidence sources.
 # GOOGLE_FACT_CHECK_API_KEY=
 # NEWS_API_KEY=

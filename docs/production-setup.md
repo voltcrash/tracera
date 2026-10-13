@@ -27,6 +27,11 @@ and settings while analysis reports that it is unavailable, and `check:productio
 To enable analysis, add the provider, generation and embedding models, keys, and every run and
 spend bound together; a partial configuration fails the check.
 
+For BYOK-only analysis, configure an independent `PROVIDER_KEYS_ENCRYPTION_KEY`, all run
+bounds, and the three cost estimates. Platform credentials and the platform daily spend
+budget may remain absent. Production checks validate every retained encryption version and
+reject key material shared with staging. See [bring your own key](bring-your-own-key.md).
+
 The production GitHub OAuth app was created fresh for Cloudflare on 2026-10-12, with homepage
 `https://tracera.voltcrash.com` and callback
 `https://tracera.voltcrash.com/api/auth/callback/github`. Google may be entirely absent until Phase 4.4; partial configuration fails.
