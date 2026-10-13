@@ -1,7 +1,7 @@
 import { createFileRoute, useHydrated, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
-import { Check, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { Check, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
 import { type AttachedImage, SubmissionMargin } from "@/components/compose/submission-margin";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
@@ -98,6 +98,7 @@ function Home() {
         mimeType: file.type,
         name: file.name || fallbackName,
         bytes: file.size,
+        ...(await readImageSize(file)),
       });
     } catch (readError) {
       setError(readError instanceof Error ? readError.message : "The image could not be read.");
@@ -117,22 +118,27 @@ function Home() {
               Story or claim to analyze
             </label>
             {image ? (
-              <div className="composer-image">
+              <figure className="clipping">
                 <img
                   src={image.dataUrl}
-                  alt="Selected for analysis"
-                  width={800}
-                  height={400}
-                  className="h-52 w-full rounded-lg object-contain"
+                  alt="Screenshot selected for analysis"
+                  width={image.width ?? 800}
+                  height={image.height ?? 400}
+                  className="clipping-image"
                 />
-                <div className="mt-3 flex items-center justify-between gap-3 text-sm text-ink-soft">
+                <figcaption className="clipping-caption">
                   <span className="truncate">{image.name}</span>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setImage(null)}>
-                    <Trash2 />
+                  <button
+                    type="button"
+                    className="clipping-action"
+                    disabled={loading}
+                    onClick={() => setImage(null)}
+                  >
+                    <X />
                     Remove
-                  </Button>
-                </div>
-              </div>
+                  </button>
+                </figcaption>
+              </figure>
             ) : (
               <textarea
                 id="story-input"
@@ -151,7 +157,7 @@ function Home() {
             <div className="sheet-tools">
               <label htmlFor="trace-image" className="sheet-tool">
                 <ImagePlus />
-                Screenshot
+                {image ? "Replace screenshot" : "Add screenshot"}
                 <input
                   id="trace-image"
                   type="file"
@@ -271,6 +277,17 @@ function traceProgressIndex(progress: string) {
   if (message.includes("evidence") || message.includes("scored claim")) return 2;
   if (message.includes("separating") || message.includes("factual claims")) return 1;
   return 0;
+}
+
+async function readImageSize(file: File) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return size;
+  } catch {
+    return {};
+  }
 }
 
 function readFileAsDataUrl(file: File) {
