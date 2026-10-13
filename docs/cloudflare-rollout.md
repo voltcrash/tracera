@@ -11,7 +11,7 @@ DNS/OAuth changes, and decommission require approval of concrete actions before 
 | Phase 4.1 staging soak        | Deployed and smoke-checked under D18; owner GitHub round trip and provider checks remain                  |
 | Phase 4.2 production cutover  | Live on `v26.10.12` under D18; owner GitHub round trip remains                                            |
 | Phase 4.3 decommission        | Vercel gone and restore drills passed; Neon archive and deletion and the Vercel GitHub App removal remain |
-| Phase 4.4 Google OAuth        | Pending final registration/credential approval, code PR, deploy, browser sign-off                         |
+| Phase 4.4 Google OAuth        | Both providers enabled on both origins; owner sign-in round trips remain                                  |
 
 Record dates, reviewers, commit/Worker versions, run IDs, and outcomes beneath each gate.
 Keep keys, OAuth secrets, cookies, private inputs, and logs containing private data outside Git.
@@ -349,9 +349,11 @@ upload/deploy, production environment-secret update, and the production release 
 Google and GitHub sign-in, linked accounts, reload/session persistence, and sign-out must all
 pass on both hosted origins before marking the overall migration complete.
 
-Sign-off: **pending**. Record project/client identifiers, approved registration and consent
-settings, final code PR, staging/production Worker versions and release, credential-pair
-presence checks, and both-provider browser results. Do not record credential values.
+Sign-off: **partial**, 2026-10-13. Both Google Web clients are registered, #58 enforces the
+complete Google pair in production, and both origins start Google and GitHub sign-in with
+accepted clients and exact callbacks. Completing a sign-in needs the owner's accounts, so a
+full round trip with each provider on each origin remains: callback, reload, linked accounts
+in settings, and sign-out. Credential values stay in the private files.
 
 ### Staging Google enablement, 2026-10-13
 
