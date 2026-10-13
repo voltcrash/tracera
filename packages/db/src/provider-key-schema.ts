@@ -20,7 +20,9 @@ export const userProviderKeys = sqliteTable(
     provider: text("provider", { enum: providers }).notNull(),
     baseUrl: text("base_url"),
     model: text("model").notNull(),
-    embeddingProvider: text("embedding_provider", { enum: providers }),
+    embeddingProvider: text("embedding_provider", {
+      enum: ["gemini", "openai", "openrouter", "openai-compatible"],
+    }),
     embeddingBaseUrl: text("embedding_base_url"),
     embeddingModel: text("embedding_model").notNull(),
     ciphertext: text("ciphertext").notNull(),
