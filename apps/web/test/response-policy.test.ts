@@ -8,6 +8,18 @@ const request = (headers: Record<string, string> = {}) =>
     headers: { [NONCE_HEADER]: "abc123", ...headers },
   });
 
+test.each([200, 302, 403, 500])(
+  "anonymous server-function HTTP %s responses are never cacheable",
+  (status) => {
+    const response = securedResponse(
+      new Response(null, { status, headers: { "cache-control": "public, max-age=60" } }),
+      new Request("https://tracera.voltcrash.com/_serverFn/provider-keys"),
+      false,
+    );
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  },
+);
+
 test("responses carry the security headers and a CSP for the request nonce", () => {
   const response = securedResponse(new Response("ok"), request({ "x-request-id": "req-7" }), false);
   const csp = response.headers.get("content-security-policy")!;

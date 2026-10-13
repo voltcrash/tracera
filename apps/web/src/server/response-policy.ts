@@ -24,7 +24,8 @@ export function securedResponse(response: Response, request: Request, developmen
   const authenticated = Boolean(
     getSessionCookie(request, { cookiePrefix: "tracera" }) || request.headers.get("authorization"),
   );
-  if (authenticated || secured.headers.has("set-cookie"))
+  const serverFunction = new URL(request.url).pathname.startsWith("/_serverFn/");
+  if (authenticated || serverFunction || secured.headers.has("set-cookie"))
     secured.headers.set("cache-control", PRIVATE_NO_STORE_CACHE);
   return secured;
 }
