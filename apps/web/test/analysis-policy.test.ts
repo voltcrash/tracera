@@ -60,3 +60,29 @@ test("live analysis requires the provider, budget and spend settings", () => {
   expect(context.versions.model).toBe("configured-model");
   expect(JSON.stringify(context)).not.toContain("configured-provider-key");
 });
+
+test("personal analysis needs run bounds and cost estimates but skips the platform daily spend bound", () => {
+  const selection = {
+    source: "user" as const,
+    config: {
+      provider: "openai" as const,
+      model: "personal-model",
+      embeddingModel: "personal-embedding",
+    },
+  };
+  const env = {
+    ...base,
+    ANALYSIS_MODE: "live" as const,
+    ...budget,
+    ...spend,
+    AI_DAILY_SPEND_LIMIT_USD: undefined,
+  };
+  expect(analysisPolicy(env, "ada", selection).enabled).toBe(true);
+  expect(
+    analysisPolicy({ ...env, ANALYSIS_MAX_COST_USD: undefined }, "ada", selection).enabled,
+  ).toBe(false);
+  expect(
+    analysisPolicy({ ...env, AI_ESTIMATED_GENERATION_COST_USD: undefined }, "ada", selection)
+      .enabled,
+  ).toBe(false);
+});

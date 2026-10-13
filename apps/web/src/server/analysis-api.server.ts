@@ -17,6 +17,7 @@ import {
 } from "./analysis-controls";
 import { parseFirstPartyAnalysisInput, type FirstPartyAnalysisInput } from "./analysis-input";
 import { analysisPolicy, analysisRunContext } from "./analysis-policy";
+import { personalProviderSelection } from "./provider-selection.server";
 import type { ServerEnv } from "./env";
 import { logServerError } from "./error-handling";
 import type { SessionUser } from "./session";
@@ -56,7 +57,20 @@ export async function startAnalysisRun(input: {
   const { env, user, request } = input;
   const parsed = parseFirstPartyAnalysisInput(input.body);
   if (!parsed.success) return { status: 400, body: { error: parsed.error } };
-  const runtime = analysisPolicy(env, user.id);
+  let selection: Awaited<ReturnType<typeof personalProviderSelection>>;
+  try {
+    if (env.ANALYSIS_MODE === "live") selection = await personalProviderSelection(env, user.id);
+  } catch {
+    return {
+      status: 503,
+      body: {
+        code: "analysis_unavailable",
+        status: "unavailable",
+        error: "Analysis is not available right now.",
+      },
+    };
+  }
+  const runtime = analysisPolicy(env, user.id, selection);
   if (!runtime.enabled)
     return {
       status: 503,
@@ -81,6 +95,7 @@ export async function startAnalysisRun(input: {
   try {
     admission = await admitAnalysis({
       userId: user.id,
+      keySource: runtime.policy.providerIdentity?.source,
       request,
       endpoint: START_ANALYSIS_ENDPOINT,
       body: parsed.data,
