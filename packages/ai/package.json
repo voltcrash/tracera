@@ -47,7 +47,7 @@
     "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
     "cheerio": "^1.2.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261012.1",
