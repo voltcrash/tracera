@@ -9,11 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { isHttpUrl, MAX_IMAGE_BYTES } from "@/lib/submission";
 import { startAnalysis } from "@/server/analysis.functions";
 
 const example =
   "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
-const MAX_IMAGE_BYTES = 5_000_000;
 
 export const Route = createFileRoute("/_workspace/home")({ component: Home });
 
@@ -272,15 +272,6 @@ function traceProgressIndex(progress: string) {
   if (message.includes("evidence") || message.includes("scored claim")) return 2;
   if (message.includes("separating") || message.includes("factual claims")) return 1;
   return 0;
-}
-
-function isHttpUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return /^https?:$/.test(url.protocol);
-  } catch {
-    return false;
-  }
 }
 
 function readFileAsDataUrl(file: File) {
