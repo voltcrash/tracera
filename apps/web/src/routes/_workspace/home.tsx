@@ -1,6 +1,6 @@
 import { createFileRoute, useHydrated, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
+import { ChangeEvent, ClipboardEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { Check, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
 import { type AttachedImage, SubmissionMargin } from "@/components/compose/submission-margin";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -29,6 +29,8 @@ function Home() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("Preparing the evidence trace.");
+  const [dropping, setDropping] = useState(false);
+  const canvas = useRef<HTMLElement>(null);
   const refreshHistory = useHistoryRefresh();
 
   async function analyze(event?: FormEvent<HTMLFormElement>) {
@@ -83,32 +85,68 @@ function Home() {
   }
 
   async function addImage(file: File, fallbackName = "Image") {
-    if (!file.type.startsWith("image/")) {
-      setError("Choose an image file to analyze.");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError("Choose an image smaller than 5 MB.");
-      return;
-    }
-    try {
-      setError(null);
-      setImage({
-        dataUrl: await readFileAsDataUrl(file),
-        mimeType: file.type,
-        name: file.name || fallbackName,
-        bytes: file.size,
-        ...(await readImageSize(file)),
-      });
-    } catch (readError) {
-      setError(readError instanceof Error ? readError.message : "The image could not be read.");
-    }
+    const attached = await readAttachment(file, fallbackName);
+    setError("error" in attached ? attached.error : null);
+    if ("image" in attached) setImage(attached.image);
   }
+
+  useEffect(() => {
+    const target = canvas.current;
+    if (!target || loading) return;
+    let depth = 0;
+
+    function enter(event: DragEvent) {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      depth += 1;
+      setDropping(true);
+    }
+    function over(event: DragEvent) {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      event.dataTransfer!.dropEffect = "copy";
+    }
+    function leave(event: DragEvent) {
+      if (!carriesFiles(event)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setDropping(false);
+    }
+    function drop(event: DragEvent) {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      depth = 0;
+      setDropping(false);
+      const files = Array.from(event.dataTransfer!.files);
+      const file = files.find((item) => item.type.startsWith("image/")) ?? files[0];
+      if (!file) return;
+      void readAttachment(file, "Dropped image").then((attached) => {
+        setError("error" in attached ? attached.error : null);
+        if ("image" in attached) setImage(attached.image);
+      });
+    }
+
+    target.addEventListener("dragenter", enter);
+    target.addEventListener("dragover", over);
+    target.addEventListener("dragleave", leave);
+    target.addEventListener("drop", drop);
+    return () => {
+      target.removeEventListener("dragenter", enter);
+      target.removeEventListener("dragover", over);
+      target.removeEventListener("dragleave", leave);
+      target.removeEventListener("drop", drop);
+      setDropping(false);
+    };
+  }, [loading]);
 
   const reading = image ? null : readSubmission(text);
 
   return (
-    <main className="home">
+    <main className="home" ref={canvas} data-dropping={dropping || undefined}>
+      {dropping ? (
+        <div className="drop-veil" aria-hidden="true">
+          <p>Drop the screenshot to attach it</p>
+        </div>
+      ) : null}
       <div className="sheet">
         <h1 className="sr-only">New trace</h1>
 
@@ -277,6 +315,35 @@ function traceProgressIndex(progress: string) {
   if (message.includes("evidence") || message.includes("scored claim")) return 2;
   if (message.includes("separating") || message.includes("factual claims")) return 1;
   return 0;
+}
+
+type SelectedImage = AttachedImage & { dataUrl: string; mimeType: string };
+
+async function readAttachment(
+  file: File,
+  fallbackName: string,
+): Promise<{ image: SelectedImage } | { error: string }> {
+  if (!file.type.startsWith("image/")) return { error: "Choose an image file to analyze." };
+  if (file.size > MAX_IMAGE_BYTES) return { error: "Choose an image smaller than 5 MB." };
+  try {
+    return {
+      image: {
+        dataUrl: await readFileAsDataUrl(file),
+        mimeType: file.type,
+        name: file.name || fallbackName,
+        bytes: file.size,
+        ...(await readImageSize(file)),
+      },
+    };
+  } catch (readError) {
+    return {
+      error: readError instanceof Error ? readError.message : "The image could not be read.",
+    };
+  }
+}
+
+function carriesFiles(event: DragEvent) {
+  return event.dataTransfer?.types.includes("Files") ?? false;
 }
 
 async function readImageSize(file: File) {
