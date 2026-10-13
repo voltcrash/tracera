@@ -3,7 +3,8 @@
 Status: production cut over to Cloudflare on 2026-10-12 as release `v26.10.12`, under D18
 without an AI provider. Stages 0–3 and Phases 4.1–4.2 are complete. Phase 4.3 has removed Vercel
 and passed both D1 restore drills; the Neon archive and deletion and the Vercel GitHub App
-removal remain. Phase 4.4 waits on the owner's Google OAuth registration.
+removal remain. Phase 4.4 enabled Google and GitHub sign-in on both origins on 2026-10-13; the
+owner's sign-in round trips remain.
 
 On 2026-10-12 the owner extended the live-test deferral through the remaining repository
 implementation. Complete Stage 3 and prepare the Stage 4 runbooks before requesting the

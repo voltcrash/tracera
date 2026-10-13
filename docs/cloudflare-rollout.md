@@ -11,7 +11,7 @@ DNS/OAuth changes, and decommission require approval of concrete actions before 
 | Phase 4.1 staging soak        | Deployed and smoke-checked under D18; owner GitHub round trip and provider checks remain                  |
 | Phase 4.2 production cutover  | Live on `v26.10.12` under D18; owner GitHub round trip remains                                            |
 | Phase 4.3 decommission        | Vercel gone and restore drills passed; Neon archive and deletion and the Vercel GitHub App removal remain |
-| Phase 4.4 Google OAuth        | Pending final registration/credential approval, code PR, deploy, browser sign-off                         |
+| Phase 4.4 Google OAuth        | Both providers enabled on both origins; owner sign-in round trips remain                                  |
 
 Record dates, reviewers, commit/Worker versions, run IDs, and outcomes beneath each gate.
 Keep keys, OAuth secrets, cookies, private inputs, and logs containing private data outside Git.
@@ -349,9 +349,11 @@ upload/deploy, production environment-secret update, and the production release 
 Google and GitHub sign-in, linked accounts, reload/session persistence, and sign-out must all
 pass on both hosted origins before marking the overall migration complete.
 
-Sign-off: **pending**. Record project/client identifiers, approved registration and consent
-settings, final code PR, staging/production Worker versions and release, credential-pair
-presence checks, and both-provider browser results. Do not record credential values.
+Sign-off: **partial**, 2026-10-13. Both Google Web clients are registered, #58 enforces the
+complete Google pair in production, and both origins start Google and GitHub sign-in with
+accepted clients and exact callbacks. Completing a sign-in needs the owner's accounts, so a
+full round trip with each provider on each origin remains: callback, reload, linked accounts
+in settings, and sign-out. Credential values stay in the private files.
 
 ### Staging Google enablement, 2026-10-13
 
@@ -361,11 +363,38 @@ staging file, so staging now holds `BETTER_AUTH_SECRET`, both GitHub settings, a
 settings. `vp run web#deploy:staging` from this branch found no pending migrations and deployed
 Worker version `be3bbc08-3c90-4abb-b19d-6ddbd1fd357a`.
 
-| Check                       | Result                                                                  |
-| --------------------------- | ----------------------------------------------------------------------- |
-| `/api/health`               | `ok`, database connected                                                |
-| Google sign-in start        | Redirects to `accounts.google.com` with the staging Google callback     |
-| Google client acceptance    | Google shows its account sign-in page, not a client or redirect error   |
-| GitHub sign-in start        | Redirects to `github.com` with the staging GitHub callback              |
-| Production settings dry run | `check:production` and the Wrangler dry run pass with the real settings |
-| `PRODUCTION_WORKER_ENV`     | Updated in the GitHub `production` environment from the private file    |
+| Check                       | Result                                                                      |
+| --------------------------- | --------------------------------------------------------------------------- |
+| `/api/health`               | `ok`, database connected                                                    |
+| Google sign-in start        | Redirects to `accounts.google.com` with the staging Google callback         |
+| Google client acceptance    | Google shows its account sign-in page, not a client or redirect error       |
+| GitHub sign-in start        | Redirects to `github.com` with the staging GitHub callback                  |
+| Production settings dry run | `check:production` and the Wrangler dry run pass with the real settings     |
+| `PRODUCTION_WORKER_ENV`     | Updated in the GitHub `production` environment from the private file        |
+| Browser sign-in page        | Signed-out `/home` returns to `/`, showing one Google and one GitHub button |
+| Browser provider redirects  | Each button reaches its provider's sign-in page; no console or CSP errors   |
+
+### Production Google enablement, 2026-10-13
+
+[#58](https://github.com/voltcrash/tracera/pull/58) merged as `c0fe247`. Its
+[release dispatch](https://github.com/voltcrash/tracera/actions/runs/38365873090) stopped at
+planning with "Tag v26.10.13 points to a different commit": the delayed daily
+[scheduled run](https://github.com/voltcrash/tracera/actions/runs/38358733501) had already
+released `cedd471` as `v26.10.13` at 06:48 UTC, before the merge. That run also used the
+previous `PRODUCTION_WORKER_ENV`, so production had no Google pair and returned
+`PROVIDER_NOT_FOUND`. The collision guard behaved as designed; nothing was deployed or tagged.
+
+#58 changes no runtime code, and the deployed code enables Google whenever both settings exist.
+`wrangler secret bulk --name tracera` therefore uploaded only the Google pair, creating Worker
+version `a1a68f22-c27a-4544-a033-cc40fbac02c4` from the `v26.10.13` code. The next daily
+release deploys `c0fe247` with the updated `PRODUCTION_WORKER_ENV`, which now passes the
+required-Google check.
+
+| Check                      | Result                                                                      |
+| -------------------------- | --------------------------------------------------------------------------- |
+| `/api/health`              | `ok`, database connected                                                    |
+| Google sign-in start       | Redirects to `accounts.google.com` with the production Google callback      |
+| Google client acceptance   | Google shows its account sign-in page, not a client or redirect error       |
+| GitHub sign-in start       | Redirects to `github.com` with the production GitHub callback               |
+| Browser sign-in page       | Signed-out `/home` returns to `/`, showing one Google and one GitHub button |
+| Browser provider redirects | Each button reaches its provider's sign-in page; no console or CSP errors   |
