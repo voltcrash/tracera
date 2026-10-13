@@ -84,3 +84,22 @@ test("Settings and Back dismiss the mobile traces drawer", async ({ page }) => {
   await expect(rail.getByRole("button", { name: "Open account menu" })).toBeVisible();
   await expect(rail.getByRole("link", { name: "Back", exact: true })).toHaveCount(0);
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`Back remains available in the ${theme} theme`, async ({ page }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme });
+    await signIn(page);
+    await openSettings(page);
+    const back = page.getByRole("link", { name: "Back", exact: true });
+    await expect(back).toBeVisible();
+    const nextTheme = theme === "light" ? "dark" : "light";
+    await expect(page.getByRole("button", { name: `Switch to ${nextTheme} theme` })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`settings-back-${theme}.png`) });
+    await page.getByRole("button", { name: `Switch to ${nextTheme} theme` }).click();
+    await expect(page.getByRole("button", { name: `Switch to ${theme} theme` })).toBeVisible();
+    await expect(back).toBeVisible();
+    await back.click();
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByRole("button", { name: "Open account menu" })).toBeVisible();
+  });
+}
