@@ -235,7 +235,7 @@ function Home() {
                 disabled={!hydrated || loading}
                 required={!image}
                 rows={1}
-                placeholder="What did you see?"
+                placeholder="Paste a claim, an article, or a link"
                 data-kind={reading?.kind}
                 className="sheet-input"
               />
