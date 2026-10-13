@@ -26,7 +26,7 @@
     "test:browser": "playwright test"
   },
   "dependencies": {
-    "@base-ui/react": "^1.8.0",
+    "@base-ui/react": "^1.9.0",
     "@fontsource-variable/newsreader": "^5.3.0",
     "@repo/ai": "workspace:*",
     "@repo/auth": "workspace:*",
