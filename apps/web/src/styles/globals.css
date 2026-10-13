@@ -741,7 +741,6 @@
 }
 
 .rail-link,
-.starter,
 .rail-account {
   display: flex;
   align-items: center;
@@ -1140,6 +1139,10 @@
   .sheet-margin {
     margin-top: 0.5rem;
   }
+
+  .examples {
+    max-width: calc(100% - 17rem);
+  }
 }
 
 /* A screenshot is pinned to the sheet as a clipping, at its own proportions. */
@@ -1200,31 +1203,72 @@
   outline-offset: 2px;
 }
 
-.starters {
-  display: grid;
-  justify-items: start;
-  gap: 0.125rem;
-  width: 100%;
-  max-width: 46rem;
-  margin: 1.5rem auto 0;
-  padding-left: 0.125rem;
+/*
+ * Examples are set like the sentences they are, and a hover inks the same
+ * underline the report draws beneath a claim it has picked to check.
+ */
+.examples {
+  margin-top: clamp(3.5rem, 9vh, 5.5rem);
+  max-width: 42rem;
 }
 
-.starter {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
+.examples-title {
+  font-size: 0.8125rem;
+  color: var(--ink-faint);
+}
+
+.examples ul {
+  margin-top: 0.75rem;
+}
+
+.example {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 0 1.5rem;
+  width: 100%;
+  border-top: 1px solid var(--line-weak);
+  padding: 0.875rem 0;
+  text-align: left;
   cursor: pointer;
 }
 
-.starter svg {
-  width: 1rem;
-  height: 1rem;
-  color: var(--lime-ink);
+.examples li:last-child .example {
+  border-bottom: 1px solid var(--line-weak);
 }
 
-.starter:hover {
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+.example-kind {
+  padding-top: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+
+.example-text {
+  justify-self: start;
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  background-image: linear-gradient(var(--lime-ink), var(--lime-ink));
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition:
+    background-size 420ms cubic-bezier(0.65, 0, 0.35, 1),
+    color 140ms ease;
+}
+
+.example:hover .example-text,
+.example:focus-visible .example-text {
   color: var(--foreground);
+  background-size: 100% 2px;
+}
+
+.example:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .rail-scrim {
@@ -1299,7 +1343,8 @@
 @media (prefers-reduced-motion: reduce) {
   .rail,
   .sheet-input,
-  .sheet-rule::after {
+  .sheet-rule::after,
+  .example-text {
     transition: none;
   }
 }

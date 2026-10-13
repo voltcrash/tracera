@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Check, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
+import { Check, ImagePlus, Loader2, X } from "lucide-react";
 import { type AttachedImage, SubmissionMargin } from "@/components/compose/submission-margin";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
@@ -20,8 +20,20 @@ import { cn } from "@/lib/utils";
 import { isHttpUrl, MAX_IMAGE_BYTES, readSubmission } from "@/lib/submission";
 import { startAnalysis } from "@/server/analysis.functions";
 
-const example =
-  "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
+const examples = [
+  {
+    kind: "Statistic",
+    text: "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.",
+  },
+  {
+    kind: "Popular belief",
+    text: "The Great Wall of China is the only human-made structure visible from space with the naked eye.",
+  },
+  {
+    kind: "Passage",
+    text: "The Eiffel Tower was completed in 1889 for the World’s Fair. It stayed the tallest structure in the world until 1930, and it grows about 15 centimetres taller in summer.",
+  },
+];
 
 export const Route = createFileRoute("/_workspace/home")({ component: Home });
 
@@ -72,6 +84,14 @@ function Home() {
       );
       setLoading(false);
     }
+  }
+
+  function applyExample(value: string) {
+    setText(value);
+    const target = field.current;
+    if (!target) return;
+    target.focus();
+    requestAnimationFrame(() => target.setSelectionRange(value.length, value.length));
   }
 
   function submitOnShortcut(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -264,21 +284,26 @@ function Home() {
         </form>
 
         {!loading && !text && !image && (
-          <div className="starters">
-            <button
-              type="button"
-              className="starter"
-              disabled={!hydrated}
-              onClick={() => setText(example)}
-            >
-              <Sparkles />
-              Try an example claim
-            </button>
-            <label htmlFor="trace-image" className="starter">
-              <ImagePlus />
-              Upload a screenshot
-            </label>
-          </div>
+          <section className="examples" aria-labelledby="examples-title">
+            <p id="examples-title" className="examples-title">
+              Not sure where to start? Try one of these.
+            </p>
+            <ul>
+              {examples.map((example) => (
+                <li key={example.kind}>
+                  <button
+                    type="button"
+                    className="example"
+                    disabled={!hydrated}
+                    onClick={() => applyExample(example.text)}
+                  >
+                    <span className="example-kind">{example.kind}</span>
+                    <span className="example-text">{example.text}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         {loading && <TraceProgress progress={progress} />}
