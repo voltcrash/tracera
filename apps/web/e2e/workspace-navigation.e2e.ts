@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { seedBrowserRun } from "./support/reports";
 
 async function signIn(page: Page) {
   await page.goto("/");
@@ -34,4 +35,32 @@ test("opening Settings directly returns home", async ({ page }) => {
   await expect(back).toHaveAttribute("href", "/home");
   await back.click();
   await expect(page).toHaveURL(/\/home$/);
+});
+
+test("Back restores the originating trace, search and fragment after a Settings reload", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  await signIn(page);
+  const session = (await (await page.request.get("/api/auth/get-session")).json()) as {
+    user: { id: string };
+  };
+  const { runId } = seedBrowserRun(session.user.id, "failed");
+  const tracePath = `/run/${runId}?view=source#report`;
+  await page.goto(tracePath);
+  await expect(page.getByRole("heading", { name: "Analysis could not finish" })).toBeVisible();
+  await openSettings(page);
+  const back = page.getByRole("link", { name: "Back", exact: true });
+  await expect(back).toHaveAttribute("href", tracePath);
+  await page.reload();
+  await expect(back).toHaveAttribute("href", tracePath);
+  await back.click();
+  await expect(page).toHaveURL(new URL(tracePath, page.url()).href);
+  await expect(page.getByRole("button", { name: "Open account menu" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back", exact: true })).toHaveCount(0);
+  expect(errors).toEqual([]);
 });

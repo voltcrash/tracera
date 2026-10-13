@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { Link, useHydrated, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
@@ -230,7 +230,9 @@ function Rail({
 
 function RailFooter() {
   const { user, isLoading, signOut } = useAuth();
-  const pathname = useLocation({ select: (location) => location.pathname });
+  const location = useLocation();
+  const isHydrated = useHydrated();
+  const returnTo = isHydrated ? location.state.settingsReturnTo : undefined;
   const navigate = useNavigate();
   const router = useRouter();
 
@@ -251,8 +253,14 @@ function RailFooter() {
 
   return (
     <div className="rail-foot">
-      {pathname === "/settings" ? (
-        <Link to="/home" className="rail-link flex-1">
+      {location.pathname === "/settings" ? (
+        <Link
+          to={returnTo?.pathname ?? "/home"}
+          search={returnTo?.search}
+          hash={returnTo?.hash}
+          replace
+          className="rail-link flex-1"
+        >
           <ArrowLeft aria-hidden="true" />
           Back
         </Link>
@@ -285,7 +293,20 @@ function RailFooter() {
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link to="/settings" />}>
+            <DropdownMenuItem
+              render={
+                <Link
+                  to="/settings"
+                  state={{
+                    settingsReturnTo: {
+                      pathname: location.pathname,
+                      search: location.search,
+                      hash: location.hash,
+                    },
+                  }}
+                />
+              }
+            >
               <Settings />
               Settings
             </DropdownMenuItem>
