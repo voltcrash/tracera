@@ -74,10 +74,28 @@ test("personal key settings stay private across switching, reload, removal and a
 
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect
+    .poll(() =>
+      keys.locator("input, select, button").evaluateAll((elements) =>
+        elements.every((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.left >= 0 && rect.right <= innerWidth;
+        }),
+      ),
+    )
+    .toBe(true);
   await keys.scrollIntoViewIfNeeded();
-  await keys.screenshot({ path: testInfo.outputPath("personal-provider-settings-mobile.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("personal-provider-settings-mobile.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
   await page.setViewportSize({ width: 1280, height: 800 });
-  await keys.screenshot({ path: testInfo.outputPath("personal-provider-settings-desktop.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("personal-provider-settings-desktop.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
   await keys.getByRole("button", { name: "Remove OpenAI key" }).click();
   await expect(keys.getByText("••••5678")).toHaveCount(0);
   await keys.getByRole("button", { name: "Use Gemini key" }).click();
