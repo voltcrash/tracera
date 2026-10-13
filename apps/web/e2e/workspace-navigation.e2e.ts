@@ -103,3 +103,26 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.getByRole("button", { name: "Open account menu" })).toBeVisible();
   });
 }
+
+test("Back supports the keyboard after reopening the sidebar and does not reopen Settings", async ({
+  page,
+}) => {
+  await signIn(page);
+  await openSettings(page);
+  const back = page.getByRole("link", { name: "Back", exact: true });
+  await page.getByRole("button", { name: "Hide sidebar", exact: true }).click();
+  await expect(back).not.toBeVisible();
+  await page.getByRole("button", { name: "Show sidebar", exact: true }).click();
+  await expect(back).toBeVisible();
+  await back.focus();
+  await expect(back).toBeFocused();
+  await back.press("Enter");
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(page.getByRole("button", { name: "Open account menu" })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(back).toHaveCount(0);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(back).toHaveCount(0);
+});
