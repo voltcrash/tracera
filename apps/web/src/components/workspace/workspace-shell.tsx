@@ -223,12 +223,12 @@ function Rail({
         )}
       </nav>
 
-      <RailFooter />
+      <RailFooter onClose={onClose} />
     </aside>
   );
 }
 
-function RailFooter() {
+function RailFooter({ onClose }: { onClose: () => void }) {
   const { user, isLoading, signOut } = useAuth();
   const location = useLocation();
   const isHydrated = useHydrated();
@@ -260,6 +260,7 @@ function RailFooter() {
           hash={returnTo?.hash}
           replace
           className="rail-link flex-1"
+          onClick={onClose}
         >
           <ArrowLeft aria-hidden="true" />
           Back
@@ -297,6 +298,7 @@ function RailFooter() {
               render={
                 <Link
                   to="/settings"
+                  onClick={onClose}
                   state={{
                     settingsReturnTo: {
                       pathname: location.pathname,

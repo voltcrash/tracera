@@ -64,3 +64,23 @@ test("Back restores the originating trace, search and fragment after a Settings 
   await expect(page.getByRole("link", { name: "Back", exact: true })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("Settings and Back dismiss the mobile traces drawer", async ({ page }) => {
+  await signIn(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const rail = page.getByRole("complementary", { name: "Traces", exact: true });
+  await page.getByRole("button", { name: "Open traces", exact: true }).click();
+  await expect(rail).toBeInViewport();
+  await openSettings(page);
+  await expect(rail).not.toHaveAttribute("data-open", "true");
+  await expect(rail).not.toBeInViewport();
+  await page.getByRole("button", { name: "Open traces", exact: true }).click();
+  await expect(rail).toBeInViewport();
+  await rail.getByRole("link", { name: "Back", exact: true }).click();
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(rail).not.toHaveAttribute("data-open", "true");
+  await expect(rail).not.toBeInViewport();
+  await page.getByRole("button", { name: "Open traces", exact: true }).click();
+  await expect(rail.getByRole("button", { name: "Open account menu" })).toBeVisible();
+  await expect(rail.getByRole("link", { name: "Back", exact: true })).toHaveCount(0);
+});
