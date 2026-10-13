@@ -106,6 +106,21 @@ test("BYOK-only production requires a private valid encryption keyring and bound
   ).toThrow("Worker secret");
 });
 
+test("encryption material cannot be reused across environments by changing formatting or version numbers", () => {
+  const production = JSON.stringify({
+    activeVersion: 2,
+    keys: { 1: btoa("x".repeat(32)), 2: btoa("y".repeat(32)) },
+  });
+  const staging = JSON.stringify({ activeVersion: 7, keys: { 7: btoa("x".repeat(32)) } }, null, 2);
+  expect(() =>
+    validateProductionInputs({
+      ...valid,
+      secrets: { ...secrets, PROVIDER_KEYS_ENCRYPTION_KEY: production },
+      stagingSecrets: { PROVIDER_KEYS_ENCRYPTION_KEY: staging },
+    }),
+  ).toThrow("separate from staging");
+});
+
 test.each(["AI_PROVIDER", "AI_MODEL", "AI_API_KEY", "AI_EMBEDDING_MODEL"] as const)(
   "a lone %s is rejected as an incomplete provider",
   (name) => {

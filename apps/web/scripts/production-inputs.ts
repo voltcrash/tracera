@@ -54,6 +54,11 @@ function configured(value: string | undefined): value is string {
   return value !== undefined && value.trim() !== "" && !/^(replace-|your-)/i.test(value.trim());
 }
 
+function encryptionKeys(secret: string) {
+  const ring = JSON.parse(secret) as { keys: Record<string, string> };
+  return Object.values(ring.keys).map((value) => btoa(atob(value)));
+}
+
 function resourceIds(config: z.infer<typeof resources>) {
   return [
     config.name,
@@ -152,11 +157,21 @@ export function validateProductionInputs(inputs: {
         "Configure a valid versioned PROVIDER_KEYS_ENCRYPTION_KEY in .dev.vars.production.",
       );
     }
-    if (
-      inputs.secrets.PROVIDER_KEYS_ENCRYPTION_KEY ===
-      inputs.stagingSecrets?.PROVIDER_KEYS_ENCRYPTION_KEY
-    )
-      throw new Error("PROVIDER_KEYS_ENCRYPTION_KEY must be separate from staging.");
+    const stagingEncryption = inputs.stagingSecrets?.PROVIDER_KEYS_ENCRYPTION_KEY;
+    if (configured(stagingEncryption)) {
+      try {
+        validateProviderKeyEncryptionConfiguration(stagingEncryption);
+      } catch {
+        throw new Error(
+          "Configure a valid staging PROVIDER_KEYS_ENCRYPTION_KEY before comparing environments.",
+        );
+      }
+      const productionMaterial = new Set(
+        encryptionKeys(inputs.secrets.PROVIDER_KEYS_ENCRYPTION_KEY!),
+      );
+      if (encryptionKeys(stagingEncryption).some((key) => productionMaterial.has(key)))
+        throw new Error("PROVIDER_KEYS_ENCRYPTION_KEY must be separate from staging.");
+    }
     const runtime = analysisPolicy(
       { ...settings, MODE: "production", ANALYSIS_MODE: "live" },
       "personal-production-check",
