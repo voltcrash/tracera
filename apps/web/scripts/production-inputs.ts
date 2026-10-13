@@ -1,4 +1,4 @@
-import { resolveAnalysisProvider } from "@repo/ai";
+import { resolveAnalysisProvider, validateProviderKeyEncryptionConfiguration } from "@repo/ai";
 import { z } from "zod";
 import { analysisPolicy } from "../src/server/analysis-policy";
 
@@ -123,8 +123,8 @@ export function validateProductionInputs(inputs: {
     throw new Error("Configure both Google OAuth credentials or neither.");
 
   // D18: without any provider settings, production runs with analysis unavailable.
-  const analysis = PROVIDER_SETTINGS.some((name) => configured(settings[name]));
-  if (analysis) {
+  const platform = PROVIDER_SETTINGS.some((name) => configured(settings[name]));
+  if (platform) {
     try {
       resolveAnalysisProvider({ userId: "production-check", env: settings });
     } catch (error) {
@@ -141,6 +141,38 @@ export function validateProductionInputs(inputs: {
       throw new Error(`Production analysis controls are incomplete: ${runtime.message}`);
   }
 
+  const personal = configured(inputs.secrets.PROVIDER_KEYS_ENCRYPTION_KEY);
+  if (configured(config.vars.PROVIDER_KEYS_ENCRYPTION_KEY))
+    throw new Error("PROVIDER_KEYS_ENCRYPTION_KEY must be a Worker secret, not a Wrangler var.");
+  if (personal) {
+    try {
+      validateProviderKeyEncryptionConfiguration(inputs.secrets.PROVIDER_KEYS_ENCRYPTION_KEY);
+    } catch {
+      throw new Error(
+        "Configure a valid versioned PROVIDER_KEYS_ENCRYPTION_KEY in .dev.vars.production.",
+      );
+    }
+    if (
+      inputs.secrets.PROVIDER_KEYS_ENCRYPTION_KEY ===
+      inputs.stagingSecrets?.PROVIDER_KEYS_ENCRYPTION_KEY
+    )
+      throw new Error("PROVIDER_KEYS_ENCRYPTION_KEY must be separate from staging.");
+    const runtime = analysisPolicy(
+      { ...settings, MODE: "production", ANALYSIS_MODE: "live" },
+      "personal-production-check",
+      {
+        source: "user",
+        config: {
+          provider: "openai",
+          model: "personal-model",
+          embeddingModel: "personal-embedding",
+        },
+      },
+    );
+    if (!runtime.enabled)
+      throw new Error(`Production BYOK controls are incomplete: ${runtime.message}`);
+  }
+
   if (inputs.built !== undefined) {
     const built = resources.safeParse(inputs.built);
     if (
@@ -150,5 +182,5 @@ export function validateProductionInputs(inputs: {
     )
       throw new Error("Rebuild with build:production; dist/server is not the production Worker.");
   }
-  return { analysis };
+  return { analysis: platform || personal };
 }

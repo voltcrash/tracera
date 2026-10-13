@@ -60,6 +60,7 @@ export {
   encryptProviderKey,
   decryptProviderKey,
   validateProviderKeyEncryption,
+  validateProviderKeyEncryptionConfiguration,
   ProviderKeyEncryptionError,
   type ProviderKeyCredentials,
   type EncryptedProviderKey,

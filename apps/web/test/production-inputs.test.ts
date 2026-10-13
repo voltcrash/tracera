@@ -69,6 +69,43 @@ test("production may omit every AI provider setting and bound", () => {
   expect(validateProductionInputs(valid)).toEqual({ analysis: true });
 });
 
+test("BYOK-only production requires a private valid encryption keyring and bounded runs", () => {
+  const ring = JSON.stringify({ activeVersion: 1, keys: { 1: btoa("x".repeat(32)) } });
+  const personal = {
+    ...withoutAi,
+    ...controls,
+    AI_DAILY_SPEND_LIMIT_USD: undefined,
+    PROVIDER_KEYS_ENCRYPTION_KEY: ring,
+  };
+  expect(validateProductionInputs({ ...valid, secrets: personal })).toEqual({ analysis: true });
+  expect(() =>
+    validateProductionInputs({
+      ...valid,
+      secrets: { ...personal, ANALYSIS_MAX_COST_USD: undefined },
+    }),
+  ).toThrow("BYOK controls are incomplete");
+  expect(() =>
+    validateProductionInputs({
+      ...valid,
+      secrets: { ...personal, PROVIDER_KEYS_ENCRYPTION_KEY: "invalid-keyring-sentinel" },
+    }),
+  ).toThrow("valid versioned PROVIDER_KEYS_ENCRYPTION_KEY");
+  expect(() =>
+    validateProductionInputs({
+      ...valid,
+      secrets: personal,
+      stagingSecrets: { PROVIDER_KEYS_ENCRYPTION_KEY: ring },
+    }),
+  ).toThrow("separate from staging");
+  expect(() =>
+    validateProductionInputs({
+      ...valid,
+      secrets: personal,
+      config: { ...config, vars: { ...config.vars, PROVIDER_KEYS_ENCRYPTION_KEY: ring } },
+    }),
+  ).toThrow("Worker secret");
+});
+
 test.each(["AI_PROVIDER", "AI_MODEL", "AI_API_KEY", "AI_EMBEDDING_MODEL"] as const)(
   "a lone %s is rejected as an incomplete provider",
   (name) => {

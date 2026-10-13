@@ -3,6 +3,7 @@ import {
   decryptProviderKey,
   encryptProviderKey,
   validateProviderKeyEncryption,
+  validateProviderKeyEncryptionConfiguration,
 } from "../src/provider-key-crypto";
 
 const oldKey = btoa("a".repeat(32));
@@ -10,6 +11,18 @@ const newKey = btoa("b".repeat(32));
 const secret = JSON.stringify({ activeVersion: 1, keys: { 1: oldKey } });
 const identity = { userId: "user-1", provider: "openai" };
 const credentials = { apiKey: "private-generation-key", embeddingApiKey: "private-embedding-key" };
+
+test("every retained encryption version is valid before activation", () => {
+  expect(() => validateProviderKeyEncryptionConfiguration(secret)).not.toThrow();
+  for (const ring of [
+    { activeVersion: 2, keys: { 1: oldKey } },
+    { activeVersion: 1, keys: { 1: oldKey, 2: "invalid-retained-key" } },
+    { activeVersion: 1, keys: { 1: oldKey, "invalid-version": newKey } },
+  ])
+    expect(() => validateProviderKeyEncryptionConfiguration(JSON.stringify(ring))).toThrow(
+      "encryption is unavailable",
+    );
+});
 
 test("AES-GCM stores both keys with a fresh IV and authenticates their owner and provider", async () => {
   const encrypted = await encryptProviderKey({ secret, ...identity, credentials });

@@ -26,9 +26,31 @@ function encode(value: Uint8Array) {
   return btoa(String.fromCharCode(...value));
 }
 
-async function encryptionKey(secret: string | undefined, version?: number) {
+function encryptionConfiguration(secret: string | undefined) {
   try {
     const ring = keyringSchema.parse(JSON.parse(secret ?? ""));
+    if (!ring.keys[String(ring.activeVersion)]) throw new ProviderKeyEncryptionError();
+    for (const [version, value] of Object.entries(ring.keys)) {
+      if (
+        !/^[1-9]\d*$/.test(version) ||
+        !Number.isSafeInteger(Number(version)) ||
+        decode(value).byteLength !== 32
+      )
+        throw new ProviderKeyEncryptionError();
+    }
+    return ring;
+  } catch {
+    throw new ProviderKeyEncryptionError();
+  }
+}
+
+export function validateProviderKeyEncryptionConfiguration(secret: string | undefined) {
+  encryptionConfiguration(secret);
+}
+
+async function encryptionKey(secret: string | undefined, version?: number) {
+  try {
+    const ring = encryptionConfiguration(secret);
     const selectedVersion = version ?? ring.activeVersion;
     const bytes = decode(ring.keys[String(selectedVersion)] ?? "");
     if (bytes.byteLength !== 32) throw new ProviderKeyEncryptionError();
