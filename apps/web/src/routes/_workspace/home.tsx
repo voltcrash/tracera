@@ -1,19 +1,36 @@
 import { createFileRoute, useHydrated, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ChangeEvent, ClipboardEvent, FormEvent, useState } from "react";
-import { Check, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
+import {
+  ChangeEvent,
+  ClipboardEvent,
+  FormEvent,
+  KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { CircleAlert, ImagePlus, Loader2, X } from "lucide-react";
+import { type AttachedImage, SubmissionMargin } from "@/components/compose/submission-margin";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { isHttpUrl, MAX_IMAGE_BYTES, readSubmission } from "@/lib/submission";
 import { startAnalysis } from "@/server/analysis.functions";
 
-const example =
-  "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.";
-const MAX_IMAGE_BYTES = 5_000_000;
+const examples = [
+  {
+    kind: "Statistic",
+    text: "A new study found that drinking coffee after 2pm doubles the risk of insomnia for all adults.",
+  },
+  {
+    kind: "Popular belief",
+    text: "The Great Wall of China is the only human-made structure visible from space with the naked eye.",
+  },
+  {
+    kind: "Passage",
+    text: "The Eiffel Tower was completed in 1889 for the World’s Fair. It stayed the tallest structure in the world until 1930, and it grows about 15 centimetres taller in summer.",
+  },
+];
 
 export const Route = createFileRoute("/_workspace/home")({ component: Home });
 
@@ -23,23 +40,24 @@ function Home() {
   const start = useServerFn(startAnalysis);
   const navigate = useNavigate();
   const [text, setText] = useState("");
-  const [image, setImage] = useState<{
-    dataUrl: string;
-    mimeType: string;
-    name: string;
-  } | null>(null);
+  const [image, setImage] = useState<
+    (AttachedImage & { dataUrl: string; mimeType: string }) | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState("Preparing the evidence trace.");
+  const [dropping, setDropping] = useState(false);
+  const canvas = useRef<HTMLElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
+  const modifier = hydrated ? shortcutModifier() : null;
   const refreshHistory = useHistoryRefresh();
 
   async function analyze(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (!text.trim() && !image) return;
+    const draft = readSubmission(text);
+    if (!image && (draft.kind === "empty" || draft.tooLong)) return;
     if (!user) return;
     setLoading(true);
     setError(null);
-    setProgress("Preparing claim checks.");
     try {
       const value = text.trim();
       const input = image
@@ -63,6 +81,20 @@ function Home() {
     }
   }
 
+  function applyExample(value: string) {
+    setText(value);
+    const target = field.current;
+    if (!target) return;
+    target.focus();
+    requestAnimationFrame(() => target.setSelectionRange(value.length, value.length));
+  }
+
+  function submitOnShortcut(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+
   async function selectImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -84,77 +116,135 @@ function Home() {
   }
 
   async function addImage(file: File, fallbackName = "Image") {
-    if (!file.type.startsWith("image/")) {
-      setError("Choose an image file to analyze.");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError("Choose an image smaller than 5 MB.");
-      return;
-    }
-    try {
-      setError(null);
-      setImage({
-        dataUrl: await readFileAsDataUrl(file),
-        mimeType: file.type,
-        name: file.name || fallbackName,
-      });
-    } catch (readError) {
-      setError(readError instanceof Error ? readError.message : "The image could not be read.");
-    }
+    const attached = await readAttachment(file, fallbackName);
+    setError("error" in attached ? attached.error : null);
+    if ("image" in attached) setImage(attached.image);
   }
 
-  return (
-    <main className="home">
-      <div className={cn("home-inner", loading && "home-inner-working")}>
-        {!loading && <h1 className="home-headline">What did you see?</h1>}
+  // A pointer user arrives to write, so the sheet takes focus; on touch screens
+  // that would throw up the keyboard before anything has been chosen.
+  useEffect(() => {
+    if (!hydrated || !window.matchMedia("(pointer: fine)").matches) return;
+    field.current?.focus();
+  }, [hydrated]);
 
-        <form onSubmit={analyze} className="composer">
-          <label className="sr-only" htmlFor="story-input">
-            Story or claim to analyze
-          </label>
-          {image ? (
-            <div className="composer-image">
-              <img
-                src={image.dataUrl}
-                alt="Selected for analysis"
-                width={800}
-                height={400}
-                className="h-52 w-full rounded-lg object-contain"
+  useEffect(() => {
+    const target = canvas.current;
+    if (!target || loading) return;
+    let depth = 0;
+
+    function enter(event: DragEvent) {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      depth += 1;
+      setDropping(true);
+    }
+    function over(event: DragEvent) {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      event.dataTransfer!.dropEffect = "copy";
+    }
+    function leave(event: DragEvent) {
+      if (!carriesFiles(event)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setDropping(false);
+    }
+    function drop(event: DragEvent) {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      depth = 0;
+      setDropping(false);
+      const files = Array.from(event.dataTransfer!.files);
+      const file = files.find((item) => item.type.startsWith("image/")) ?? files[0];
+      if (!file) return;
+      void readAttachment(file, "Dropped image").then((attached) => {
+        setError("error" in attached ? attached.error : null);
+        if ("image" in attached) setImage(attached.image);
+      });
+    }
+
+    target.addEventListener("dragenter", enter);
+    target.addEventListener("dragover", over);
+    target.addEventListener("dragleave", leave);
+    target.addEventListener("drop", drop);
+    return () => {
+      target.removeEventListener("dragenter", enter);
+      target.removeEventListener("dragover", over);
+      target.removeEventListener("dragleave", leave);
+      target.removeEventListener("drop", drop);
+      setDropping(false);
+    };
+  }, [loading]);
+
+  const reading = image ? null : readSubmission(text);
+  const canSubmit =
+    hydrated &&
+    !loading &&
+    !isAuthLoading &&
+    (image !== null || (reading !== null && reading.kind !== "empty" && !reading.tooLong));
+
+  return (
+    <main className="home" ref={canvas} data-dropping={dropping || undefined}>
+      {dropping ? (
+        <div className="drop-veil" aria-hidden="true">
+          <p>Drop the screenshot to attach it</p>
+        </div>
+      ) : null}
+      <div className="sheet">
+        <h1 className="sr-only">New trace</h1>
+
+        <form onSubmit={analyze} className="sheet-form">
+          <div className="sheet-column">
+            <label className="sr-only" htmlFor="story-input">
+              Story or claim to analyze
+            </label>
+            {image ? (
+              <figure className="clipping">
+                <img
+                  src={image.dataUrl}
+                  alt="Screenshot selected for analysis"
+                  width={image.width ?? 800}
+                  height={image.height ?? 400}
+                  className="clipping-image"
+                />
+                <figcaption className="clipping-caption">
+                  <span className="truncate">{image.name}</span>
+                  <button
+                    type="button"
+                    className="clipping-action"
+                    disabled={loading}
+                    onClick={() => setImage(null)}
+                  >
+                    <X />
+                    Remove
+                  </button>
+                </figcaption>
+              </figure>
+            ) : (
+              <textarea
+                id="story-input"
+                value={text}
+                onChange={(event) => {
+                  setText(event.target.value);
+                  setError(null);
+                }}
+                aria-invalid={reading?.kind !== "empty" && reading?.tooLong ? true : undefined}
+                onPaste={pasteImage}
+                onKeyDown={submitOnShortcut}
+                ref={field}
+                disabled={!hydrated || loading}
+                required={!image}
+                rows={1}
+                placeholder="Paste a claim, an article, or a link"
+                data-kind={reading?.kind}
+                className="sheet-input"
               />
-              <div className="mt-3 flex items-center justify-between gap-3 text-sm text-ink-soft">
-                <span className="truncate">{image.name}</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => setImage(null)}>
-                  <Trash2 />
-                  Remove
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <Textarea
-              id="story-input"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              onPaste={pasteImage}
-              disabled={!hydrated || loading}
-              required={!image}
-              rows={4}
-              placeholder="Paste a headline, claim, article, public link, or image…"
-              className="composer-input"
-            />
-          )}
-          <div className="composer-bar">
-            <div className="flex min-w-0 items-center gap-3">
-              <Button
-                render={
-                  <label htmlFor="trace-image" className="cursor-pointer" aria-label="Add image" />
-                }
-                nativeButton={false}
-                variant="ghost"
-                size="icon-sm"
-                className="text-ink-faint hover:text-foreground"
-              >
+            )}
+            <span className="sheet-rule" data-busy={loading || undefined} aria-hidden="true" />
+            <div className="sheet-tools">
+              <label htmlFor="trace-image" className="sheet-tool">
                 <ImagePlus />
+                {image ? "Replace screenshot" : "Add screenshot"}
                 <input
                   id="trace-image"
                   type="file"
@@ -164,122 +254,111 @@ function Home() {
                   onChange={selectImage}
                   disabled={!hydrated || loading}
                 />
-              </Button>
+              </label>
+              <span className="sheet-send">
+                {modifier && canSubmit ? (
+                  <kbd className="sheet-shortcut" aria-hidden="true">
+                    {modifier} Enter
+                  </kbd>
+                ) : null}
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className="color-sweep-button theme-primary-cta sheet-submit rounded-full px-5"
+                  aria-keyshortcuts={modifier ? "Meta+Enter Control+Enter" : undefined}
+                  disabled={!canSubmit}
+                  aria-busy={loading || undefined}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="animate-spin" /> Starting
+                    </>
+                  ) : (
+                    "Analyze"
+                  )}
+                </Button>
+              </span>
             </div>
-            <Button
-              type="submit"
-              variant="brand"
-              className="rounded-full px-5"
-              disabled={!hydrated || loading || isAuthLoading || (!text.trim() && !image)}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="animate-spin" /> Tracing evidence
-                </>
-              ) : (
-                "Analyze"
-              )}
-            </Button>
+            {error ? (
+              <p className="sheet-error" role="alert">
+                <CircleAlert aria-hidden="true" />
+                {error}
+              </p>
+            ) : null}
           </div>
+          <SubmissionMargin reading={reading} image={image} starting={loading} />
         </form>
 
         {!loading && !text && !image && (
-          <div className="starters">
-            <button
-              type="button"
-              className="starter"
-              disabled={!hydrated}
-              onClick={() => setText(example)}
-            >
-              <Sparkles />
-              Try an example claim
-            </button>
-            <label htmlFor="trace-image" className="starter">
-              <ImagePlus />
-              Upload a screenshot
-            </label>
-          </div>
-        )}
-
-        {(text || image) && !loading && (
-          <p className="composer-note">Links are detected automatically. Images up to 5 MB.</p>
-        )}
-
-        {loading && <TraceProgress progress={progress} />}
-        {error && (
-          <Alert variant="destructive" className="mt-6">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <section className="examples" aria-labelledby="examples-title">
+            <p id="examples-title" className="examples-title">
+              Not sure where to start? Try one of these.
+            </p>
+            <ul>
+              {examples.map((example) => (
+                <li key={example.kind}>
+                  <button
+                    type="button"
+                    className="example"
+                    disabled={!hydrated}
+                    onClick={() => applyExample(example.text)}
+                  >
+                    <span className="example-kind">{example.kind}</span>
+                    <span className="example-text">{example.text}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
     </main>
   );
 }
 
-const traceStages = [
-  { label: "Prepare", detail: "Read submission" },
-  { label: "Claims", detail: "Separate facts" },
-  { label: "Evidence", detail: "Check sources" },
-  { label: "Provenance", detail: "Compare observed sources" },
-  { label: "Complete", detail: "Save the report" },
-];
+type SelectedImage = AttachedImage & { dataUrl: string; mimeType: string };
 
-function TraceProgress({ progress }: { progress: string }) {
-  const current = traceProgressIndex(progress);
-  return (
-    <section
-      className="trace-progress-panel noise mt-6 overflow-hidden rounded-3xl bg-panel p-6 text-panel-foreground shadow-(--shadow-panel) sm:p-7"
-      role="status"
-      aria-live="polite"
-    >
-      <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
-        <h2 className="text-xl font-bold tracking-[-.02em]">{progress}</h2>
-        <Badge className="bg-white/10 text-white/60">
-          <Loader2 className="animate-spin" /> Analyzing
-        </Badge>
-      </div>
-      <ol className="relative z-10 mt-8 grid gap-y-4 sm:grid-cols-5 sm:gap-x-3">
-        {traceStages.map((stage, index) => {
-          const done = index < current;
-          const active = index === current;
-          return (
-            <li
-              key={stage.label}
-              className={cn(
-                "border-t-2 pt-3 transition-opacity",
-                done && "border-brand-lime",
-                active && "border-brand-lime",
-                !done && !active && "border-white/15 opacity-45",
-              )}
-            >
-              <p className="flex items-center gap-1.5 text-sm font-semibold">
-                {done && <Check className="size-3.5 text-brand-lime" />}
-                {stage.label}
-              </p>
-              <p className="mt-0.5 text-xs text-white/45">{stage.detail}</p>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
-function traceProgressIndex(progress: string) {
-  const message = progress.toLowerCase();
-  if (message.includes("saved") || message.includes("completed")) return 4;
-  if (message.includes("earliest") || message.includes("publication")) return 3;
-  if (message.includes("evidence") || message.includes("scored claim")) return 2;
-  if (message.includes("separating") || message.includes("factual claims")) return 1;
-  return 0;
-}
-
-function isHttpUrl(value: string) {
+async function readAttachment(
+  file: File,
+  fallbackName: string,
+): Promise<{ image: SelectedImage } | { error: string }> {
+  if (!file.type.startsWith("image/")) return { error: "Choose an image file to analyze." };
+  if (file.size > MAX_IMAGE_BYTES) return { error: "Choose an image smaller than 5 MB." };
   try {
-    const url = new URL(value);
-    return /^https?:$/.test(url.protocol);
+    return {
+      image: {
+        dataUrl: await readFileAsDataUrl(file),
+        mimeType: file.type,
+        name: file.name || fallbackName,
+        bytes: file.size,
+        ...(await readImageSize(file)),
+      },
+    };
+  } catch (readError) {
+    return {
+      error: readError instanceof Error ? readError.message : "The image could not be read.",
+    };
+  }
+}
+
+/** Touch screens have no shortcut to offer, so they get no hint. */
+function shortcutModifier() {
+  if (!window.matchMedia("(pointer: fine)").matches) return null;
+  return /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
+}
+
+function carriesFiles(event: DragEvent) {
+  return event.dataTransfer?.types.includes("Files") ?? false;
+}
+
+async function readImageSize(file: File) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return size;
   } catch {
-    return false;
+    return {};
   }
 }
 

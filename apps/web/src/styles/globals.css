@@ -575,28 +575,10 @@
   }
 }
 
-.trace-progress-panel::before {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  top: -8rem;
-  right: -7rem;
-  width: 20rem;
-  height: 20rem;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(137, 243, 54, 0.13), transparent 68%);
-}
-
-.trace-progress-panel {
-  position: relative;
-}
 .dark .noise::after {
   opacity: 0.14;
 }
 
-.dark .trace-progress-panel::before {
-  opacity: 0.55;
-}
 @media (prefers-reduced-motion: reduce) {
   body,
   .theme-toggle-icons > svg,
@@ -741,7 +723,6 @@
 }
 
 .rail-link,
-.starter,
 .rail-account {
   display: flex;
   align-items: center;
@@ -892,118 +873,458 @@
   overscroll-behavior: contain;
 }
 
+/*
+ * The composer is a proof sheet rather than a chat box: what the reader pastes
+ * is set on the page in the report's serif, at the size its kind deserves, and
+ * a single proof rule underneath is the only edge the field has.
+ */
 .home {
+  position: relative;
   display: flex;
   min-height: 100dvh;
 }
 
-.home-inner {
-  display: flex;
-  width: 100%;
-  max-width: 48rem;
-  min-height: 100dvh;
-  flex-direction: column;
-  justify-content: center;
-  margin: 0 auto;
-  padding: 1.5rem 1.5rem 3rem;
-}
-
-.home-inner-working {
-  max-width: 58rem;
-  min-height: 0;
-  justify-content: flex-start;
-  padding-top: 3rem;
-}
-
-.home-headline {
-  margin-bottom: 1.75rem;
-  font-family: var(--font-serif);
-  font-size: clamp(2rem, 4.6vw, 3rem);
-  line-height: 1.06;
-  letter-spacing: -0.02em;
-  text-align: center;
-}
-
-.composer {
-  width: 100%;
-  max-width: 46rem;
-  margin-inline: auto;
-  overflow: hidden;
-  border: 1px solid var(--line);
+/* While a file is dragged over the canvas, the whole page becomes the target. */
+.drop-veil {
+  pointer-events: none;
+  position: absolute;
+  inset: 0.75rem;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--lime-ink);
   border-radius: 1.25rem;
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
-  transition: border-color 160ms ease;
+  background: color-mix(in srgb, var(--background) 94%, transparent);
 }
 
-.composer:focus-within {
-  border-color: color-mix(in srgb, var(--foreground) 26%, transparent);
+.drop-veil p {
+  font-family: var(--font-serif);
+  font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.5rem);
+  letter-spacing: -0.02em;
+  color: var(--foreground);
 }
 
-.composer-input {
-  min-height: 7rem;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 1.125rem 1.25rem 0.25rem;
-  font-size: 1rem;
-  line-height: 1.6;
+.sheet {
+  width: 100%;
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: clamp(4rem, 20vh, 11rem) clamp(1.5rem, 5vw, 4rem) 4rem;
+}
+
+.sheet-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sheet-column {
+  min-width: 0;
+}
+
+.sheet-input {
+  display: block;
+  width: 100%;
+  min-height: 1.15em;
+  max-height: 58dvh;
+  field-sizing: content;
   resize: none;
+  overflow-y: auto;
+  border: 0;
+  background: transparent;
+  padding: 0 0 0.35em;
+  outline: none;
+  color: var(--foreground);
+  font-family: var(--font-serif);
+  font-size: clamp(1.625rem, 1.15rem + 1.25vw, 2.25rem);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.018em;
+  text-wrap: pretty;
+  caret-color: var(--lime-ink);
+  transition:
+    font-size 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    line-height 220ms ease,
+    letter-spacing 220ms ease;
 }
 
-.composer-input:focus-visible {
-  box-shadow: none;
-  border-color: transparent;
+.sheet-input::placeholder {
+  color: color-mix(in srgb, var(--foreground) 34%, transparent);
+  opacity: 1;
 }
 
-.composer-image {
-  margin: 0.75rem;
-  border-radius: 1rem;
-  background: var(--muted);
-  padding: 0.75rem;
+.sheet-input:disabled {
+  cursor: default;
+  color: var(--ink-soft);
 }
 
-.composer-bar {
+.sheet-input[data-kind="passage"] {
+  font-size: clamp(1.3125rem, 1.05rem + 0.6vw, 1.625rem);
+  line-height: 1.38;
+  letter-spacing: -0.01em;
+}
+
+.sheet-input[data-kind="article"] {
+  font-size: 1.125rem;
+  line-height: 1.7;
+  letter-spacing: 0;
+}
+
+/* An address is not prose, so it drops the serif and may break anywhere. */
+.sheet-input[data-kind="link"] {
+  font-family: var(--font-sans);
+  font-size: clamp(1.1875rem, 1rem + 0.45vw, 1.375rem);
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  word-break: break-all;
+}
+
+.sheet-rule {
+  position: relative;
+  display: block;
+  height: 2px;
+  margin-top: 0.75rem;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.sheet-rule::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--foreground);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 420ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.sheet-column:focus-within .sheet-rule::after {
+  transform: scaleX(1);
+}
+
+/* While the run is being created, the proof rule is inked over and over. */
+.sheet-rule[data-busy]::after {
+  background: var(--lime-ink);
+  transform: scaleX(1);
+  transform-origin: left;
+  animation: sheet-rule-ink 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes sheet-rule-ink {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  50% {
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+.sheet-margin[data-tone="busy"] {
+  border-color: var(--lime-ink);
+}
+
+.sheet-tools {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.5rem 0.625rem 0.625rem 0.875rem;
+  gap: 1rem;
+  margin-top: 1rem;
 }
 
-.composer-note {
-  margin-top: 0.875rem;
-  text-align: center;
+.sheet-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: -0.625rem;
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.sheet-tool svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.sheet-tool:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+
+.sheet-tool:has(:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.sheet-tool:has(:disabled) {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.sheet-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: 60ch;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--destructive);
+}
+
+.sheet-error svg {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.15rem;
+}
+
+.sheet-column:has(.sheet-error) .sheet-rule {
+  background: color-mix(in srgb, var(--destructive) 45%, transparent);
+}
+
+.sheet-column:has(.sheet-error) .sheet-rule::after {
+  background: var(--destructive);
+}
+
+.sheet-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Until there is something to check, Analyze is an empty outline, not a dimmed button. */
+.sheet-submit:disabled:not([aria-busy]) {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--ink-faint);
+  box-shadow: none;
+  opacity: 1;
+}
+
+.sheet-shortcut {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.sheet-form:focus-within .sheet-shortcut {
+  opacity: 1;
+}
+
+.sheet-margin {
+  margin-top: 2.5rem;
+  max-width: 34rem;
+  border-left: 2px solid var(--line);
+  padding: 0.125rem 0 0.125rem 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ink-faint);
+  transition: border-color 220ms ease;
+}
+
+.sheet-margin[data-tone="ready"] {
+  border-color: var(--lime-ink);
+}
+
+.sheet-margin[data-tone="blocked"] {
+  border-color: var(--destructive);
+}
+
+.sheet-margin-name {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.sheet-margin-subject {
+  margin-top: 0.375rem;
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  line-height: 1.25;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.sheet-margin-line {
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.sheet-margin-line + .sheet-margin-line {
+  margin-top: 0.5rem;
+}
+
+.sheet-margin-warning {
+  margin-top: 0.5rem;
+  font-weight: 600;
+  color: var(--destructive);
+}
+
+/* From here the note moves out beside the draft, where a proof's margin is. */
+@media (min-width: 1100px) {
+  .sheet-form {
+    grid-template-columns: minmax(0, 1fr) 13.5rem;
+    gap: 0 3.5rem;
+    align-items: start;
+  }
+
+  .sheet-margin {
+    margin-top: 0.5rem;
+  }
+
+  .sheet .examples {
+    max-width: calc(100% - 17rem);
+  }
+}
+
+/* A screenshot is pinned to the sheet as a clipping, at its own proportions. */
+.clipping {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.clipping-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(24rem, 50dvh);
+  border: 1px solid var(--line);
+  border-radius: 0.375rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  object-fit: contain;
+}
+
+.clipping-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.clipping-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.625rem;
+  margin-right: -0.625rem;
+  color: var(--ink-soft);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.clipping-action svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.clipping-action:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+
+.clipping-action:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/*
+ * Examples are set like the sentences they are, and a hover inks the same
+ * underline the report draws beneath a claim it has picked to check.
+ */
+.examples {
+  margin-top: clamp(3.5rem, 9vh, 5.5rem);
+  max-width: 42rem;
+}
+
+.examples-title {
+  font-size: 0.8125rem;
+  color: var(--ink-faint);
+}
+
+.examples ul {
+  margin-top: 0.75rem;
+}
+
+.example {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 0 1.5rem;
+  width: 100%;
+  border-top: 1px solid var(--line-weak);
+  padding: 0.875rem 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.examples li:last-child .example {
+  border-bottom: 1px solid var(--line-weak);
+}
+
+.example-kind {
+  padding-top: 0.2rem;
   font-size: 0.75rem;
   color: var(--ink-faint);
 }
 
-.starters {
-  display: grid;
-  justify-items: start;
-  gap: 0.125rem;
-  width: 100%;
-  max-width: 46rem;
-  margin: 1.5rem auto 0;
-  padding-left: 0.125rem;
+.example-text {
+  justify-self: start;
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  background-image: linear-gradient(var(--lime-ink), var(--lime-ink));
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition:
+    background-size 420ms cubic-bezier(0.65, 0, 0.35, 1),
+    color 140ms ease;
 }
 
-.starter {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  cursor: pointer;
-}
-
-.starter svg {
-  width: 1rem;
-  height: 1rem;
-  color: var(--lime-ink);
-}
-
-.starter:hover {
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+.example:hover .example-text,
+.example:focus-visible .example-text {
   color: var(--foreground);
+  background-size: 100% 2px;
+}
+
+.example:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (max-width: 639px) {
+  .example {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+
+  .example-kind {
+    padding-top: 0;
+  }
+
+  .sheet-shortcut {
+    display: none;
+  }
 }
 
 .rail-scrim {
@@ -1070,14 +1391,21 @@
     position: relative;
   }
 
-  .home-inner {
-    padding-top: 4rem;
+  .sheet {
+    padding-top: 5rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rail {
+  .rail,
+  .sheet-input,
+  .sheet-rule::after,
+  .example-text {
     transition: none;
+  }
+
+  .sheet-rule[data-busy]::after {
+    animation: none;
   }
 }
 
