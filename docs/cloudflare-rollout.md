@@ -371,3 +371,28 @@ Worker version `be3bbc08-3c90-4abb-b19d-6ddbd1fd357a`.
 | `PRODUCTION_WORKER_ENV`     | Updated in the GitHub `production` environment from the private file        |
 | Browser sign-in page        | Signed-out `/home` returns to `/`, showing one Google and one GitHub button |
 | Browser provider redirects  | Each button reaches its provider's sign-in page; no console or CSP errors   |
+
+### Production Google enablement, 2026-10-13
+
+[#58](https://github.com/voltcrash/tracera/pull/58) merged as `c0fe247`. Its
+[release dispatch](https://github.com/voltcrash/tracera/actions/runs/38365873090) stopped at
+planning with "Tag v26.10.13 points to a different commit": the delayed daily
+[scheduled run](https://github.com/voltcrash/tracera/actions/runs/38358733501) had already
+released `cedd471` as `v26.10.13` at 06:48 UTC, before the merge. That run also used the
+previous `PRODUCTION_WORKER_ENV`, so production had no Google pair and returned
+`PROVIDER_NOT_FOUND`. The collision guard behaved as designed; nothing was deployed or tagged.
+
+#58 changes no runtime code, and the deployed code enables Google whenever both settings exist.
+`wrangler secret bulk --name tracera` therefore uploaded only the Google pair, creating Worker
+version `a1a68f22-c27a-4544-a033-cc40fbac02c4` from the `v26.10.13` code. The next daily
+release deploys `c0fe247` with the updated `PRODUCTION_WORKER_ENV`, which now passes the
+required-Google check.
+
+| Check                      | Result                                                                      |
+| -------------------------- | --------------------------------------------------------------------------- |
+| `/api/health`              | `ok`, database connected                                                    |
+| Google sign-in start       | Redirects to `accounts.google.com` with the production Google callback      |
+| Google client acceptance   | Google shows its account sign-in page, not a client or redirect error       |
+| GitHub sign-in start       | Redirects to `github.com` with the production GitHub callback               |
+| Browser sign-in page       | Signed-out `/home` returns to `/`, showing one Google and one GitHub button |
+| Browser provider redirects | Each button reaches its provider's sign-in page; no console or CSP errors   |
