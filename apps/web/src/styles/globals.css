@@ -934,10 +934,10 @@
   outline: none;
   color: var(--foreground);
   font-family: var(--font-serif);
-  font-size: clamp(2.125rem, 1.25rem + 2.6vw, 3.375rem);
+  font-size: clamp(1.625rem, 1.15rem + 1.25vw, 2.25rem);
   font-weight: 400;
-  line-height: 1.1;
-  letter-spacing: -0.022em;
+  line-height: 1.2;
+  letter-spacing: -0.018em;
   text-wrap: pretty;
   caret-color: var(--lime-ink);
   transition:
@@ -957,13 +957,13 @@
 }
 
 .sheet-input[data-kind="passage"] {
-  font-size: clamp(1.5rem, 1.05rem + 1.25vw, 2.125rem);
-  line-height: 1.28;
-  letter-spacing: -0.015em;
+  font-size: clamp(1.3125rem, 1.05rem + 0.6vw, 1.625rem);
+  line-height: 1.38;
+  letter-spacing: -0.01em;
 }
 
 .sheet-input[data-kind="article"] {
-  font-size: 1.1875rem;
+  font-size: 1.125rem;
   line-height: 1.7;
   letter-spacing: 0;
 }
@@ -971,7 +971,7 @@
 /* An address is not prose, so it drops the serif and may break anywhere. */
 .sheet-input[data-kind="link"] {
   font-family: var(--font-sans);
-  font-size: clamp(1.375rem, 1.05rem + 0.9vw, 1.75rem);
+  font-size: clamp(1.1875rem, 1rem + 0.45vw, 1.375rem);
   font-weight: 500;
   line-height: 1.35;
   letter-spacing: -0.015em;
