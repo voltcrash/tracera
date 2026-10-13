@@ -1,7 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { Link, useHydrated, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, PenLine, Settings, X } from "lucide-react";
+import {
+  ArrowLeft,
+  LogOut,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PenLine,
+  Settings,
+  X,
+} from "lucide-react";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { accountLabel, useAuth } from "@/components/providers/auth-provider";
 import { ThemeToggle } from "@/components/navigation/theme-toggle";
@@ -214,13 +223,16 @@ function Rail({
         )}
       </nav>
 
-      <RailAccount />
+      <RailFooter onClose={onClose} />
     </aside>
   );
 }
 
-function RailAccount() {
+function RailFooter({ onClose }: { onClose: () => void }) {
   const { user, isLoading, signOut } = useAuth();
+  const location = useLocation();
+  const isHydrated = useHydrated();
+  const returnTo = isHydrated ? location.state.settingsReturnTo : undefined;
   const navigate = useNavigate();
   const router = useRouter();
 
@@ -241,7 +253,19 @@ function RailAccount() {
 
   return (
     <div className="rail-foot">
-      {isLoading || !user ? (
+      {location.pathname === "/settings" ? (
+        <Link
+          to={returnTo?.pathname ?? "/home"}
+          search={returnTo?.search}
+          hash={returnTo?.hash}
+          replace
+          className="rail-link flex-1"
+          onClick={onClose}
+        >
+          <ArrowLeft aria-hidden="true" />
+          Back
+        </Link>
+      ) : isLoading || !user ? (
         <Skeleton className="h-10 flex-1 rounded-lg" aria-label="Loading account" />
       ) : (
         <DropdownMenu>
@@ -270,7 +294,21 @@ function RailAccount() {
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link to="/settings" />}>
+            <DropdownMenuItem
+              render={
+                <Link
+                  to="/settings"
+                  onClick={onClose}
+                  state={{
+                    settingsReturnTo: {
+                      pathname: location.pathname,
+                      search: location.search,
+                      hash: location.hash,
+                    },
+                  }}
+                />
+              }
+            >
               <Settings />
               Settings
             </DropdownMenuItem>

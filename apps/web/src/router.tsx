@@ -16,4 +16,12 @@ declare module "@tanstack/react-router" {
   interface Register {
     router: ReturnType<typeof getRouter>;
   }
+
+  interface HistoryState {
+    settingsReturnTo?: {
+      pathname: string;
+      search: Record<string, unknown>;
+      hash: string;
+    };
+  }
 }
