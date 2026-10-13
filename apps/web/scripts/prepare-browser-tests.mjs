@@ -1,4 +1,12 @@
-import { copyFileSync, existsSync, readFileSync, chmodSync, constants } from "node:fs";
+import {
+  appendFileSync,
+  copyFileSync,
+  existsSync,
+  readFileSync,
+  chmodSync,
+  constants,
+} from "node:fs";
+import { randomBytes } from "node:crypto";
 import { parseEnv } from "node:util";
 
 const path = new URL("../.dev.vars", import.meta.url);
@@ -14,4 +22,12 @@ for (const [name, required] of Object.entries({
 })) {
   if (settings[name] !== required)
     throw new Error(`Browser tests require ${name}=${required} in .dev.vars.`);
+}
+if (!settings.PROVIDER_KEYS_ENCRYPTION_KEY) {
+  const ring = JSON.stringify({
+    activeVersion: 1,
+    keys: { 1: randomBytes(32).toString("base64") },
+  });
+  chmodSync(path, 0o600);
+  appendFileSync(path, `\nPROVIDER_KEYS_ENCRYPTION_KEY='${ring}'\n`);
 }
