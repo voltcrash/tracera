@@ -11,14 +11,14 @@ afterAll(async () => {
   await runtime?.dispose();
 });
 
-test("the real baseline creates all 21 live tables without retired execution tables", async () => {
+test("the migrations create all 22 live tables without retired execution tables", async () => {
   const rows = await runtime.db
     .prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'sqlite_%'",
     )
     .all<{ name: string }>();
   const names = rows.results.map((row) => row.name);
-  expect(names).toHaveLength(21);
+  expect(names).toHaveLength(22);
   for (const name of [
     "users",
     "sessions",
@@ -30,6 +30,7 @@ test("the real baseline creates all 21 live tables without retired execution tab
     "core_report_versions",
     "analysis_leases",
     "ai_provider_spend",
+    "user_provider_keys",
   ])
     expect(names).toContain(name);
   for (const name of ["core_jobs", "core_outbox", "core_snapshot_embeddings"])

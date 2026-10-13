@@ -15,6 +15,7 @@ import type { DocumentSnapshot, RunContext, RunReport, StageName } from "@repo/c
 
 import { users, sessions, accounts, verifications } from "./auth-schema.js";
 export { users, sessions, accounts, verifications };
+export { userProviderKeys } from "./provider-key-schema.js";
 
 const ownershipColumns = () => ({
   tenantId: text("tenant_id").notNull(),
