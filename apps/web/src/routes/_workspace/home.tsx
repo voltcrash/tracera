@@ -267,6 +267,7 @@ function Home() {
                   className="color-sweep-button theme-primary-cta sheet-submit rounded-full px-5"
                   aria-keyshortcuts={modifier ? "Meta+Enter Control+Enter" : undefined}
                   disabled={!canSubmit}
+                  aria-busy={loading || undefined}
                 >
                   {loading ? (
                     <>

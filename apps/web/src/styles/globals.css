@@ -1100,6 +1100,15 @@
   gap: 1rem;
 }
 
+/* Until there is something to check, Analyze is an empty outline, not a dimmed button. */
+.sheet-submit:disabled:not([aria-busy]) {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--ink-faint);
+  box-shadow: none;
+  opacity: 1;
+}
+
 .sheet-shortcut {
   font-family: var(--font-sans);
   font-size: 0.75rem;
@@ -1172,7 +1181,7 @@
     margin-top: 0.5rem;
   }
 
-  .examples {
+  .sheet .examples {
     max-width: calc(100% - 17rem);
   }
 }
