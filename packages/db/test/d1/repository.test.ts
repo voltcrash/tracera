@@ -3,7 +3,7 @@ import {
   runContextExample,
   type RunContext,
 } from "@repo/contracts/analysis";
-import { afterAll, beforeAll, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, expect, test, vi } from "vite-plus/test";
 import {
   createD1AnalysisRepository,
   AnalysisStorageConflictError,
@@ -135,6 +135,24 @@ test("large snapshots, reports and claim projections preserve the complete repor
   });
   await repository.finalize({ scope: largeScope, ...attempt, reportHash: ctx.inputHash, report });
   expect(await repository.getLatestReport({ scope: largeScope, runId: ctx.runId })).toEqual(report);
+  const summaries = await createD1AnalysisRepository({ database: runtime.db }).listRunSummaries({
+    scope: largeScope,
+    limit: 30,
+  });
+  expect(summaries).toEqual([
+    {
+      runId: ctx.runId,
+      status: report.status,
+      createdAt: "2026-10-12T00:00:00.000Z",
+      headline: report.claims[0]!.text,
+      score: report.scorecard?.factualScore ?? null,
+    },
+  ]);
+  await runtime.db
+    .prepare("UPDATE core_report_versions SET summary_headline=NULL WHERE run_id=?")
+    .bind(ctx.runId)
+    .run();
+  expect(await repository.listRunSummaries({ scope: largeScope, limit: 30 })).toEqual(summaries);
   const claim = await runtime.db
     .prepare("SELECT claim FROM core_report_claims WHERE run_id=?")
     .bind(ctx.runId)
@@ -428,7 +446,39 @@ test("finalization rejects missing evidence, then atomically publishes one concu
 
 test("run history and completed-report reuse stay inside the ownership scope", async () => {
   const repository = repo();
-  const history = await repository.listRuns({ scope, limit: 100 });
+  const prepare = vi.fn((sql: string) => runtime.db.prepare(sql));
+  const history = await createD1AnalysisRepository({
+    database: { prepare } as unknown as typeof runtime.db,
+    bucket: runtime.bucket,
+  }).listRuns({ scope, limit: 100 });
+  expect(prepare).toHaveBeenCalledTimes(1);
+  prepare.mockClear();
+  const summaries = await createD1AnalysisRepository({
+    database: { prepare } as unknown as typeof runtime.db,
+  }).listRunSummaries({ scope, limit: 100 });
+  expect(prepare).toHaveBeenCalledTimes(1);
+  const plan = await runtime.db
+    .prepare(`EXPLAIN QUERY PLAN ${prepare.mock.calls[0]![0]}`)
+    .bind(scope.tenantId, scope.ownerUserId, scope.visibility, 100)
+    .all<{ detail: string }>();
+  expect(plan.results.some(({ detail }) => detail.includes("TEMP B-TREE"))).toBe(false);
+  expect(summaries).toEqual(
+    history.map(({ report, ...run }) => ({
+      ...run,
+      headline:
+        report?.claims.find(
+          ({ duplicateOfClaimId, coverageDisposition }) =>
+            duplicateOfClaimId === null && coverageDisposition !== "deferred",
+        )?.text ??
+        report?.claims.find(({ duplicateOfClaimId }) => duplicateOfClaimId === null)?.text ??
+        "Focused analysis",
+      score: report?.scorecard?.factualScore ?? null,
+    })),
+  );
+  expect(
+    await repository.listRunSummaries({ scope: { ...scope, ownerUserId: "other" }, limit: 100 }),
+  ).toEqual([]);
+  await expect(repository.listRunSummaries({ scope, limit: 0 })).rejects.toThrow(RangeError);
   expect(history.some((run) => run.runId === "finalize-run" && run.report !== null)).toBe(true);
   expect(await repository.listRuns({ scope: { ...scope, tenantId: "other" }, limit: 100 })).toEqual(
     [],
@@ -480,4 +530,73 @@ test("an injected projection failure rolls back report publication and run compl
   }
   await repository.finalize({ scope, ...attempt, reportHash: ctx.inputHash, report });
   expect(await repository.getLatestReport({ scope, runId: ctx.runId })).toEqual(report);
+});
+
+test("progress polling projects metadata without returning the submitted payload", async () => {
+  const prepare = vi.fn((sql: string) => runtime.db.prepare(sql));
+  const database = {
+    prepare,
+    batch: runtime.db.batch.bind(runtime.db),
+  } as unknown as typeof runtime.db;
+  const repository = createD1AnalysisRepository({ database });
+  const ctx = context("progress-projection");
+  await repository.createRun({ context: ctx, payload: { text: "x".repeat(100_000) } });
+  prepare.mockClear();
+  expect(await repository.getRunProgress({ scope, runId: ctx.runId })).toMatchObject({
+    runId: ctx.runId,
+    status: "queued",
+    completedStages: [],
+    cancellationRequested: false,
+  });
+  expect(
+    prepare.mock.calls.every(([sql]) => !sql.includes("SELECT *") && !sql.includes("input_json")),
+  ).toBe(true);
+  expect(
+    await repository.getRunProgress({
+      scope: { ...scope, ownerUserId: "other" },
+      runId: ctx.runId,
+    }),
+  ).toBeNull();
+});
+
+test("snapshot bulk reads overlap R2 requests within a bounded window and preserve order", async () => {
+  const repository = repo();
+  const bulkScope = { ...scope, ownerUserId: "bulk-snapshots" };
+  const snapshots = Array.from({ length: 12 }, (_, index) => ({
+    ...structuredClone(completeRunReportExample.snapshots[0]!),
+    id: `bulk-${String(index).padStart(2, "0")}`,
+  }));
+  for (const snapshot of snapshots) {
+    await repository.putSnapshot({ scope: bulkScope, snapshot });
+    const pointer = await repository.payloads.encode(snapshot, "snapshots", 0, true);
+    await runtime.db
+      .prepare(
+        "UPDATE core_snapshots SET snapshot=NULL,normalized_text=NULL,snapshot_blob_uri=? WHERE snapshot_id=? AND owner_user_id=?",
+      )
+      .bind(pointer.blobUri, snapshot.id, bulkScope.ownerUserId)
+      .run();
+  }
+  let active = 0;
+  let maximum = 0;
+  const bucket = {
+    get: async (key: string) => {
+      active += 1;
+      maximum = Math.max(maximum, active);
+      try {
+        return await runtime.bucket.get(key);
+      } finally {
+        active -= 1;
+      }
+    },
+  } as unknown as typeof runtime.bucket;
+  const reader = createD1AnalysisRepository({ database: runtime.db, bucket });
+  const ids = snapshots.map(({ id }) => id).reverse();
+  expect(
+    await reader.getSnapshots({ scope: bulkScope, snapshotIds: [...ids, ids[0]!, "missing"] }),
+  ).toEqual(snapshots);
+  expect(maximum).toBeGreaterThan(1);
+  expect(maximum).toBeLessThanOrEqual(8);
+  expect(
+    await reader.getSnapshots({ scope: { ...bulkScope, tenantId: "other" }, snapshotIds: ids }),
+  ).toEqual([]);
 });

@@ -1,4 +1,4 @@
-import { runReportSchema, stageNameSchema, type RunStatus } from "@repo/contracts/analysis";
+import { stageNameSchema, type RunStatus } from "@repo/contracts/analysis";
 import type { AnalysisAccessScope } from "@repo/db";
 import {
   createD1AdmissionRepository,
@@ -187,20 +187,7 @@ export async function startAnalysisRun(input: {
 }
 
 export async function listAnalysisRuns(env: ServerEnv, user: SessionUser) {
-  const runs = await analysisStorage(env).runs.listRuns({ scope: accessScope(user), limit: 30 });
-  return runs.map(({ runId, status, createdAt, report }) => ({
-    runId,
-    status,
-    createdAt,
-    headline:
-      report?.claims.find(
-        ({ duplicateOfClaimId, coverageDisposition }) =>
-          duplicateOfClaimId === null && coverageDisposition !== "deferred",
-      )?.text ??
-      report?.claims.find(({ duplicateOfClaimId }) => duplicateOfClaimId === null)?.text ??
-      "Focused analysis",
-    score: report?.scorecard?.factualScore ?? null,
-  }));
+  return analysisStorage(env).runs.listRunSummaries({ scope: accessScope(user), limit: 30 });
 }
 
 export async function readRunState(env: ServerEnv, user: SessionUser, runId: string) {
@@ -219,7 +206,7 @@ export async function readRunState(env: ServerEnv, user: SessionUser, runId: str
     : (stageNameSchema.options.find((stage) => !completed.has(stage)) ?? null);
   return {
     progress: { ...progress, currentStage },
-    report: report ? runReportSchema.parse(report) : null,
+    report,
   };
 }
 

@@ -41,7 +41,8 @@
     "test:analysis-orchestration": "vp test --run test/analysis-orchestration.test.ts",
     "test:analysis-publication": "vp test --run test/analysis-publication.test.ts",
     "test:analysis-release": "vp test --run test/analysis-release-evaluation.test.ts",
-    "test:live": "node --import tsx scripts/live-test.ts"
+    "test:live": "node --import tsx scripts/live-test.ts",
+    "benchmark:performance": "node --import tsx scripts/benchmark-performance.ts"
   },
   "dependencies": {
     "@repo/contracts": "workspace:*",

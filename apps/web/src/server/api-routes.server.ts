@@ -12,6 +12,7 @@ import {
   requestIdFor,
   SERVICE_UNAVAILABLE_MESSAGE,
 } from "./error-handling";
+import { projectRunState } from "./run-view.server";
 import { readSessionUser } from "./session.server";
 
 const POLL_MS = 1_000;
@@ -26,6 +27,7 @@ export async function runEventsResponse(env: ServerEnv, request: Request, runId:
   if (!user) return json({ error: "Not authenticated." }, 401);
   const initial = await readRunState(env, user, runId);
   if (!initial) return json({ error: "Run not found." }, 404);
+  const displayView = new URL(request.url).searchParams.get("view") === "report";
   const encoder = new TextEncoder();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
@@ -39,7 +41,7 @@ export async function runEventsResponse(env: ServerEnv, request: Request, runId:
           lastEventId = eventId;
           controller.enqueue(
             encoder.encode(
-              `id: ${eventId}\nevent: progress\ndata: ${JSON.stringify({ schemaVersion: 2, ...state })}\n\n`,
+              `id: ${eventId}\nevent: progress\ndata: ${JSON.stringify({ schemaVersion: 2, ...(displayView ? projectRunState(state) : state) })}\n\n`,
             ),
           );
         }
@@ -94,9 +96,7 @@ export async function evidenceResponse(
   const runs = analysisStorage(env).runs;
   const scope = accessScope(user);
   const report = await runs.getLatestReport({ scope, runId });
-  if (!report || !report.snapshots.some(({ id }) => id === snapshotId))
-    return json({ error: "Evidence not found." }, 404);
-  const snapshot = await runs.getSnapshot({ scope, snapshotId });
+  const snapshot = report?.snapshots.find(({ id }) => id === snapshotId);
   if (!snapshot) return json({ error: "Evidence not found." }, 404);
   const search = new URL(request.url).searchParams;
   const start = search.get("start");

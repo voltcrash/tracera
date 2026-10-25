@@ -32,7 +32,11 @@ export class D1PayloadStore {
   async encodeProjection<T>(value: T): Promise<string> {
     const json = canonicalJson(value);
     const bytes = (text: string) => new TextEncoder().encode(text).byteLength;
-    const payload = await this.encode(value, "reports", bytes(JSON.stringify(json)) - bytes(json));
+    const payload = await this.encodeJson(
+      json,
+      "reports",
+      bytes(JSON.stringify(json)) - bytes(json),
+    );
     return (
       payload.inline ?? JSON.stringify({ r2Payload: { uri: payload.blobUri, hash: payload.hash } })
     );
@@ -52,7 +56,15 @@ export class D1PayloadStore {
     extraBytes = 0,
     forceBlob = false,
   ): Promise<StoredPayload> {
-    const inline = canonicalJson(value);
+    return this.encodeJson(canonicalJson(value), kind, extraBytes, forceBlob);
+  }
+
+  private async encodeJson(
+    inline: string,
+    kind: PayloadKind,
+    extraBytes = 0,
+    forceBlob = false,
+  ): Promise<StoredPayload> {
     const bytes = new TextEncoder().encode(inline);
     const hash = sha256(bytes);
     if (!forceBlob && bytes.byteLength + extraBytes <= MAX_D1_PAYLOAD_BYTES)

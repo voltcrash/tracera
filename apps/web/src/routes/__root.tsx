@@ -1,6 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, Scripts, useRouter } from "@tanstack/react-router";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { ThemeProvider, themeBootstrapScript } from "@/components/providers/theme-provider";
+import geistFont from "../styles/fonts/GeistVF.woff?url";
 import globals from "../styles/globals.css?url";
 
 const SITE = "https://tracera.voltcrash.com";
@@ -36,6 +37,7 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: globals },
+      { rel: "preload", href: geistFont, as: "font", type: "font/woff", crossOrigin: "anonymous" },
       { rel: "icon", href: "/favicon.ico", sizes: "any" },
       { rel: "icon", href: "/icon.svg", type: "image/svg+xml" },
       { rel: "apple-touch-icon", href: "/apple-icon.png" },

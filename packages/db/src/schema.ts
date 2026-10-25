@@ -79,6 +79,7 @@ export const analysisRuns = sqliteTable(
       table.ownerUserId,
       table.visibility,
       table.createdAt,
+      table.runId,
     ),
     check(
       "core_runs_visibility_check",
@@ -228,6 +229,7 @@ export const analysisReportVersions = sqliteTable(
       .$type<Array<{ claimId: string; label: string }>>()
       .notNull(),
     factualScore: real("factual_score"),
+    summaryHeadline: text("summary_headline"),
     scoreNullReasons: text("score_null_reasons", { mode: "json" }).$type<string[]>().notNull(),
     evidenceSetHash: text("evidence_set_hash"),
     report: text("report", { mode: "json" }).$type<RunReport>(),

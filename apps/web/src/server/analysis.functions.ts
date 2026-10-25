@@ -9,6 +9,7 @@ import {
   readRunState,
   startAnalysisRun,
 } from "./analysis-api.server";
+import { projectRunState } from "./run-view.server";
 import { authMiddleware } from "./auth-middleware";
 import { serverEnv } from "./env";
 import { ClientInputError, logServerError } from "./error-handling";
@@ -90,7 +91,7 @@ export const getRun = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const state = await readRunState(serverEnv(), context.user, data.runId);
     if (!state) throw notFound();
-    return state;
+    return projectRunState(state);
   });
 
 export const cancelRun = createServerFn({ method: "POST" })

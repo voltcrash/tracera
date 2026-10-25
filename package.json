@@ -27,7 +27,8 @@
     "evaluate:analysis-retrieval:replay": "vp run @repo/ai#evaluate:analysis-retrieval --mode replay --split all --seed 20260910",
     "prepare": "vp config",
     "test:focused-browser": "vp run web#test:focused-browser",
-    "test:browser": "vp run web#test:browser"
+    "test:browser": "vp run web#test:browser",
+    "benchmark:performance": "vp run @repo/ai#benchmark:performance"
   },
   "devDependencies": {
     "typescript": "7.0.2",
