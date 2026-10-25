@@ -526,3 +526,30 @@ test("an injected projection failure rolls back report publication and run compl
   await repository.finalize({ scope, ...attempt, reportHash: ctx.inputHash, report });
   expect(await repository.getLatestReport({ scope, runId: ctx.runId })).toEqual(report);
 });
+
+test("progress polling projects metadata without returning the submitted payload", async () => {
+  const prepare = vi.fn((sql: string) => runtime.db.prepare(sql));
+  const database = {
+    prepare,
+    batch: runtime.db.batch.bind(runtime.db),
+  } as unknown as typeof runtime.db;
+  const repository = createD1AnalysisRepository({ database });
+  const ctx = context("progress-projection");
+  await repository.createRun({ context: ctx, payload: { text: "x".repeat(100_000) } });
+  prepare.mockClear();
+  expect(await repository.getRunProgress({ scope, runId: ctx.runId })).toMatchObject({
+    runId: ctx.runId,
+    status: "queued",
+    completedStages: [],
+    cancellationRequested: false,
+  });
+  expect(
+    prepare.mock.calls.every(([sql]) => !sql.includes("SELECT *") && !sql.includes("input_json")),
+  ).toBe(true);
+  expect(
+    await repository.getRunProgress({
+      scope: { ...scope, ownerUserId: "other" },
+      runId: ctx.runId,
+    }),
+  ).toBeNull();
+});

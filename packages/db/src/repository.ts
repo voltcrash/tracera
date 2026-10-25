@@ -549,7 +549,7 @@ export class D1AnalysisRepository {
     const [runs, checkpoints] = await this.database.batch<RunRow & { stage: StageName }>([
       this.database
         .prepare(
-          "SELECT * FROM core_runs WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=?",
+          "SELECT run_id,status,stage,attempt,version,cancellation,updated_at,last_error FROM core_runs WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=?",
         )
         .bind(input.runId, ...scopeValues(input.scope)),
       this.database
