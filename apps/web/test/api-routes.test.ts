@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test, vi } from "vite-plus/test";
+import { projectReport } from "@repo/ai/analysis/report-view";
 import { startAnalysisRun } from "../src/server/analysis-api.server";
 import {
   evidenceResponse,
@@ -132,4 +133,21 @@ test("an unavailable database gives a generic 503 with the request ID", async ()
   });
   expect(JSON.stringify(error.mock.calls)).not.toContain("secret");
   error.mockRestore();
+});
+
+test("display streams send the report view without raw snapshots or replay artifacts", async () => {
+  const report = await seedFinishedRun(harness.env, ada.user.id, crypto.randomUUID());
+  const response = await runEventsResponse(
+    harness.env,
+    as(ada, `/api/runs/${report.runId}/events?view=report`),
+    report.runId,
+  );
+  const event = (await response.text())
+    .split("\n\n")
+    .find((item) => item.includes("event: progress"))!;
+  const data = JSON.parse(event.split("data: ")[1]!);
+  expect(data.report).toEqual(projectReport(report, "/api"));
+  expect(data.report).not.toHaveProperty("snapshots");
+  expect(data.report).not.toHaveProperty("replayManifest");
+  expect(JSON.stringify(data.report).length).toBeLessThan(JSON.stringify(report).length);
 });

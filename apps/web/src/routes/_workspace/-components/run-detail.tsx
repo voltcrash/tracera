@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useHydrated } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { projectReport } from "@repo/ai/analysis/report-view";
 import { AnalysisReport } from "@/components/analysis/analysis-report";
 import { apiUrl } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import type { RunState } from "@/server/analysis-api.server";
+import type { RunViewState } from "@/server/run-view.server";
 import { cancelRun } from "@/server/analysis.functions";
 
-type Progress = RunState["progress"];
+type Progress = RunViewState["progress"];
 
 const TERMINAL = new Set<Progress["status"]>([
   "complete",
@@ -21,22 +20,19 @@ const TERMINAL = new Set<Progress["status"]>([
 
 // Leaving the page only closes the progress stream; the run continues until it finishes or is
 // explicitly canceled.
-export function RunDetail({ id, initial }: { id: string; initial: RunState }) {
+export function RunDetail({ id, initial }: { id: string; initial: RunViewState }) {
   const hydrated = useHydrated();
   const [state, setState] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const requestCancel = useServerFn(cancelRun);
   const terminal = TERMINAL.has(state.progress.status);
-  const view = useMemo(
-    () => (state.report ? projectReport(state.report, apiUrl) : null),
-    [state.report],
-  );
+  const view = state.report;
 
   useEffect(() => {
     if (terminal) return;
-    const source = new EventSource(`${apiUrl}/runs/${encodeURIComponent(id)}/events`);
+    const source = new EventSource(`${apiUrl}/runs/${encodeURIComponent(id)}/events?view=report`);
     source.addEventListener("progress", (event) => {
-      const next = JSON.parse((event as MessageEvent<string>).data) as RunState;
+      const next = JSON.parse((event as MessageEvent<string>).data) as RunViewState;
       setError(null);
       setState({ progress: next.progress, report: next.report });
       if (TERMINAL.has(next.progress.status)) source.close();
