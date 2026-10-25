@@ -113,6 +113,8 @@ export function validateProductionInputs(inputs: {
   if (settings.MODE !== "production") throw new Error("Production requires MODE=production.");
   if (settings.ANALYSIS_MODE !== "live")
     throw new Error("Production requires ANALYSIS_MODE=live; fixture analysis is local only.");
+  if ("VERSION" in inputs.secrets)
+    throw new Error("Remove VERSION from .dev.vars.production; the build assigns its identity.");
   if ("DEV_AUTH_BYPASS" in inputs.secrets)
     throw new Error("Remove DEV_AUTH_BYPASS from .dev.vars.production.");
 
