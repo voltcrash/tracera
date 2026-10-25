@@ -50,6 +50,8 @@ Local fixture analysis runs offline through real D1/R2 and Workflows. Keep an ex
 file when repeating setup. Cloudflare login, Docker, OAuth credentials, and paid provider keys
 are unnecessary for this fixture workflow.
 
+See [performance measurements](docs/performance.md) for benchmarks, transport sizes, and migration behavior.
+
 Workspace scripts run through `vp run`. The website's scripts invoke the Vite+ built-ins
 from `apps/web`, where its Vite and Wrangler configurations live.
 
