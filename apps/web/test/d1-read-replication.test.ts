@@ -4,7 +4,7 @@ import { enableD1ReadReplication } from "../scripts/d1-read-replication";
 const target = {
   accountId: "account-fixture",
   databaseId: "database-fixture",
-  databaseName: "oxytype-production",
+  databaseName: "tracera-production",
   apiToken: "token-fixture",
 };
 
