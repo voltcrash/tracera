@@ -3,7 +3,7 @@ import {
   runContextExample,
   type RunContext,
 } from "@repo/contracts/analysis";
-import { afterAll, beforeAll, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, expect, test, vi } from "vite-plus/test";
 import {
   createD1AnalysisRepository,
   AnalysisStorageConflictError,
@@ -428,7 +428,12 @@ test("finalization rejects missing evidence, then atomically publishes one concu
 
 test("run history and completed-report reuse stay inside the ownership scope", async () => {
   const repository = repo();
-  const history = await repository.listRuns({ scope, limit: 100 });
+  const prepare = vi.fn((sql: string) => runtime.db.prepare(sql));
+  const history = await createD1AnalysisRepository({
+    database: { prepare } as unknown as typeof runtime.db,
+    bucket: runtime.bucket,
+  }).listRuns({ scope, limit: 100 });
+  expect(prepare).toHaveBeenCalledTimes(1);
   expect(history.some((run) => run.runId === "finalize-run" && run.report !== null)).toBe(true);
   expect(await repository.listRuns({ scope: { ...scope, tenantId: "other" }, limit: 100 })).toEqual(
     [],

@@ -140,16 +140,32 @@ export class D1AnalysisRepository {
       throw new RangeError("Run history limit must be between 1 and 100.");
     const rows = await this.database
       .prepare(
-        "SELECT * FROM core_runs WHERE tenant_id=? AND owner_user_id=? AND visibility=? ORDER BY created_at DESC,run_id DESC LIMIT ?",
+        `SELECT runs.run_id,runs.status,runs.created_at,reports.report,reports.report_blob_uri
+        FROM core_runs AS runs LEFT JOIN core_report_versions AS reports
+        ON reports.run_id=runs.run_id AND reports.tenant_id=runs.tenant_id
+          AND reports.owner_user_id=runs.owner_user_id AND reports.visibility=runs.visibility
+          AND reports.version=(SELECT MAX(version) FROM core_report_versions WHERE run_id=runs.run_id)
+        WHERE runs.tenant_id=? AND runs.owner_user_id=? AND runs.visibility=?
+        ORDER BY runs.created_at DESC,runs.run_id DESC LIMIT ?`,
       )
       .bind(...scopeValues(input.scope), input.limit)
-      .all<RunRow>();
+      .all<
+        Pick<RunRow, "run_id" | "status" | "created_at"> & {
+          report: string | null;
+          report_blob_uri: string | null;
+        }
+      >();
     return Promise.all(
       rows.results.map(async (row) => ({
         runId: row.run_id,
         status: row.status,
         createdAt: new Date(row.created_at).toISOString(),
-        report: await this.getLatestReport({ scope: input.scope, runId: row.run_id }),
+        report:
+          row.report !== null || row.report_blob_uri !== null
+            ? runReportSchema.parse(
+                await this.payloads.read({ inline: row.report, blobUri: row.report_blob_uri }),
+              )
+            : null,
       })),
     );
   }
