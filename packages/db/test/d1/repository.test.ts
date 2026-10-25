@@ -553,3 +553,45 @@ test("progress polling projects metadata without returning the submitted payload
     }),
   ).toBeNull();
 });
+
+test("snapshot bulk reads overlap R2 requests within a bounded window and preserve order", async () => {
+  const repository = repo();
+  const bulkScope = { ...scope, ownerUserId: "bulk-snapshots" };
+  const snapshots = Array.from({ length: 12 }, (_, index) => ({
+    ...structuredClone(completeRunReportExample.snapshots[0]!),
+    id: `bulk-${String(index).padStart(2, "0")}`,
+  }));
+  for (const snapshot of snapshots) {
+    await repository.putSnapshot({ scope: bulkScope, snapshot });
+    const pointer = await repository.payloads.encode(snapshot, "snapshots", 0, true);
+    await runtime.db
+      .prepare(
+        "UPDATE core_snapshots SET snapshot=NULL,normalized_text=NULL,snapshot_blob_uri=? WHERE snapshot_id=? AND owner_user_id=?",
+      )
+      .bind(pointer.blobUri, snapshot.id, bulkScope.ownerUserId)
+      .run();
+  }
+  let active = 0;
+  let maximum = 0;
+  const bucket = {
+    get: async (key: string) => {
+      active += 1;
+      maximum = Math.max(maximum, active);
+      try {
+        return await runtime.bucket.get(key);
+      } finally {
+        active -= 1;
+      }
+    },
+  } as unknown as typeof runtime.bucket;
+  const reader = createD1AnalysisRepository({ database: runtime.db, bucket });
+  const ids = snapshots.map(({ id }) => id).reverse();
+  expect(
+    await reader.getSnapshots({ scope: bulkScope, snapshotIds: [...ids, ids[0]!, "missing"] }),
+  ).toEqual(snapshots);
+  expect(maximum).toBeGreaterThan(1);
+  expect(maximum).toBeLessThanOrEqual(8);
+  expect(
+    await reader.getSnapshots({ scope: { ...bulkScope, tenantId: "other" }, snapshotIds: ids }),
+  ).toEqual([]);
+});

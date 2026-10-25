@@ -652,16 +652,21 @@ export class D1AnalysisRepository {
           snapshot_hash: string;
           snapshot_blob_uri: string | null;
         }>();
-      for (const row of result.results)
+      for (let index = 0; index < result.results.length; index += 8) {
         output.push(
-          documentSnapshotSchema.parse(
-            await this.payloads.read({
-              inline: row.snapshot,
-              blobUri: row.snapshot_blob_uri,
-              hash: row.snapshot_hash,
-            }),
-          ),
+          ...(await Promise.all(
+            result.results.slice(index, index + 8).map(async (row) =>
+              documentSnapshotSchema.parse(
+                await this.payloads.read({
+                  inline: row.snapshot,
+                  blobUri: row.snapshot_blob_uri,
+                  hash: row.snapshot_hash,
+                }),
+              ),
+            ),
+          )),
         );
+      }
     }
     return output;
   }
