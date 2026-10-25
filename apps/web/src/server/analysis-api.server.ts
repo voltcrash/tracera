@@ -1,4 +1,4 @@
-import { runReportSchema, stageNameSchema, type RunStatus } from "@repo/contracts/analysis";
+import { stageNameSchema, type RunStatus } from "@repo/contracts/analysis";
 import type { AnalysisAccessScope } from "@repo/db";
 import {
   createD1AdmissionRepository,
@@ -206,7 +206,7 @@ export async function readRunState(env: ServerEnv, user: SessionUser, runId: str
     : (stageNameSchema.options.find((stage) => !completed.has(stage)) ?? null);
   return {
     progress: { ...progress, currentStage },
-    report: report ? runReportSchema.parse(report) : null,
+    report,
   };
 }
 
