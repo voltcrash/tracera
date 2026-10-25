@@ -92,11 +92,12 @@ vp check
 vp test --run
 vp run check-types
 vp run web#deploy:staging-dry-run
+vp run build:production
 vp run deploy:production-dry-run
 ```
 
 Apply migration `0002_right_meteorite.sql` before running the new Worker. The normal staging
-deploy and production release workflow already apply pending migrations. Validate a real
+deploy and production deployment workflow already apply pending migrations. Validate a real
 provider on staging with a private user key before enabling hosted use; synthetic tests do
 not establish account billing, provider availability, or live analysis quality.
 

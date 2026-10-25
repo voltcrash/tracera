@@ -222,7 +222,7 @@ restored rows; D1 Time Travel does not restore R2. Recheck auth, run history, ow
 controls, and a bounded analysis before reopening writes. The Stage 4 restore drill records
 actual bookmarks, timings, recovery results, and approval; this document is preparation only.
 
-## CI and release validation
+## CI and deployment validation
 
 [CI](../.github/workflows/ci.yml) installs dependencies and Chromium, checks formatting/types,
 runs unit tests with external networking denied, builds the Worker, dry-runs both configs,
@@ -230,7 +230,9 @@ and runs Playwright with external networking denied. Only loopback is allowed du
 suites, and no Docker or hosted credentials are needed. The production dry run uses temporary
 synthetic settings, mode `0600`, and always removes them.
 
-The [release helpers](../packages/release/README.md) test UTC version boundaries, real Git
-history, skip/collision/retry behavior, and actual workflow scripts using local command stubs.
-Both real Worker deploy dry runs validate packaging separately. Hosted staging remains manual;
-production publication follows deployment and never resets or bootstraps the database.
+The [deployment helpers](../packages/release/README.md) test exact-commit CI gating, retry behavior,
+unchanged deployments, read-only GitHub permissions and actual workflow scripts using command
+stubs. Artifact tests cover tampering, mixed build identities and private-file exclusion.
+Both real Worker dry-runs validate packaging separately. Hosted staging remains manual;
+production follows successful main-push CI. See [production setup](production-setup.md) for the
+single-build pipeline, D1 optimization/replication, and manual retries.
