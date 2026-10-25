@@ -9,20 +9,21 @@ const receiptSchema = z.object({
 });
 
 async function fingerprints(directory: string) {
+  const root = resolve(directory);
   const files: Record<string, string> = {};
-  const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+  const entries = await readdir(root, { recursive: true, withFileTypes: true });
   for (const entry of entries.sort((a, b) =>
     resolve(a.parentPath, a.name).localeCompare(resolve(b.parentPath, b.name)),
   )) {
     if (entry.isSymbolicLink())
       throw new Error("Production artifacts cannot contain symbolic links");
     if (!entry.isFile()) continue;
-    const name = resolve(entry.parentPath, entry.name).slice(directory.length + 1);
+    const name = resolve(entry.parentPath, entry.name).slice(root.length + 1);
     if (name === "artifact.json") continue;
     if (name.split("/").some((part) => /^\.dev\.vars|^\.env(?:\.|$)/.test(part)))
       throw new Error("Private settings cannot be part of a production artifact");
     files[name] = createHash("sha256")
-      .update(await readFile(resolve(directory, name)))
+      .update(await readFile(resolve(root, name)))
       .digest("hex");
   }
   return files;

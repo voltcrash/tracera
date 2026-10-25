@@ -101,3 +101,8 @@ test("rejects symlinks that could escape the fingerprinted tree", async () => {
   await symlink(join(directory, "server/wrangler.json"), join(directory, "client/link.json"));
   await expect(writeArtifact(directory, buildId)).rejects.toThrow("symbolic links");
 });
+
+test("artifact paths accept directory URLs with a trailing slash", async () => {
+  await writeArtifact(`${directory}/`, buildId);
+  expect(await validateArtifact(`${directory}/`, config)).toBe(buildId);
+});
