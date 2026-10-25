@@ -76,7 +76,17 @@ test("evidence returns a snapshot and a validated excerpt to the owner only", as
   const evidence = (who: typeof ada | null, query = "", snapshotId = snapshot.id) =>
     evidenceResponse(harness.env, as(who, path(query)), report.runId, snapshotId);
 
-  const full = await evidence(ada);
+  const prepare = vi.fn((sql: string) => harness.env.DB.prepare(sql));
+  const full = await evidenceResponse(
+    { ...harness.env, DB: { prepare } as unknown as D1Database },
+    as(ada, path()),
+    report.runId,
+    snapshot.id,
+  );
+  expect(prepare.mock.calls.filter(([sql]) => sql.includes("core_snapshots"))).toHaveLength(0);
+  expect(prepare.mock.calls.filter(([sql]) => sql.includes("core_report_versions"))).toHaveLength(
+    1,
+  );
   expect(full.status).toBe(200);
   expect(await full.json()).toMatchObject({
     schemaVersion: 2,

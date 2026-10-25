@@ -94,9 +94,7 @@ export async function evidenceResponse(
   const runs = analysisStorage(env).runs;
   const scope = accessScope(user);
   const report = await runs.getLatestReport({ scope, runId });
-  if (!report || !report.snapshots.some(({ id }) => id === snapshotId))
-    return json({ error: "Evidence not found." }, 404);
-  const snapshot = await runs.getSnapshot({ scope, snapshotId });
+  const snapshot = report?.snapshots.find(({ id }) => id === snapshotId);
   if (!snapshot) return json({ error: "Evidence not found." }, 404);
   const search = new URL(request.url).searchParams;
   const start = search.get("start");
