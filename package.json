@@ -9,6 +9,7 @@
     "db:reset": "vp run web#db:reset",
     "cf-typegen": "vp run web#cf-typegen",
     "build": "vp run web#build",
+    "build:production": "vp run web#build:production",
     "preview": "vp run web#preview",
     "deploy:staging": "vp run web#deploy:staging",
     "check:production": "vp run web#check:production",
