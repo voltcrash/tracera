@@ -135,6 +135,24 @@ test("large snapshots, reports and claim projections preserve the complete repor
   });
   await repository.finalize({ scope: largeScope, ...attempt, reportHash: ctx.inputHash, report });
   expect(await repository.getLatestReport({ scope: largeScope, runId: ctx.runId })).toEqual(report);
+  const summaries = await createD1AnalysisRepository({ database: runtime.db }).listRunSummaries({
+    scope: largeScope,
+    limit: 30,
+  });
+  expect(summaries).toEqual([
+    {
+      runId: ctx.runId,
+      status: report.status,
+      createdAt: "2026-10-12T00:00:00.000Z",
+      headline: report.claims[0]!.text,
+      score: report.scorecard?.factualScore ?? null,
+    },
+  ]);
+  await runtime.db
+    .prepare("UPDATE core_report_versions SET summary_headline=NULL WHERE run_id=?")
+    .bind(ctx.runId)
+    .run();
+  expect(await repository.listRunSummaries({ scope: largeScope, limit: 30 })).toEqual(summaries);
   const claim = await runtime.db
     .prepare("SELECT claim FROM core_report_claims WHERE run_id=?")
     .bind(ctx.runId)
@@ -434,6 +452,28 @@ test("run history and completed-report reuse stay inside the ownership scope", a
     bucket: runtime.bucket,
   }).listRuns({ scope, limit: 100 });
   expect(prepare).toHaveBeenCalledTimes(1);
+  prepare.mockClear();
+  const summaries = await createD1AnalysisRepository({
+    database: { prepare } as unknown as typeof runtime.db,
+  }).listRunSummaries({ scope, limit: 100 });
+  expect(prepare).toHaveBeenCalledTimes(1);
+  expect(summaries).toEqual(
+    history.map(({ report, ...run }) => ({
+      ...run,
+      headline:
+        report?.claims.find(
+          ({ duplicateOfClaimId, coverageDisposition }) =>
+            duplicateOfClaimId === null && coverageDisposition !== "deferred",
+        )?.text ??
+        report?.claims.find(({ duplicateOfClaimId }) => duplicateOfClaimId === null)?.text ??
+        "Focused analysis",
+      score: report?.scorecard?.factualScore ?? null,
+    })),
+  );
+  expect(
+    await repository.listRunSummaries({ scope: { ...scope, ownerUserId: "other" }, limit: 100 }),
+  ).toEqual([]);
+  await expect(repository.listRunSummaries({ scope, limit: 0 })).rejects.toThrow(RangeError);
   expect(history.some((run) => run.runId === "finalize-run" && run.report !== null)).toBe(true);
   expect(await repository.listRuns({ scope: { ...scope, tenantId: "other" }, limit: 100 })).toEqual(
     [],

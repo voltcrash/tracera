@@ -170,6 +170,49 @@ export class D1AnalysisRepository {
     );
   }
 
+  async listRunSummaries(input: { scope: AnalysisAccessScope; limit: number }) {
+    if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100)
+      throw new RangeError("Run history limit must be between 1 and 100.");
+    const rows = await this.database
+      .prepare(
+        `SELECT runs.run_id,runs.status,runs.created_at,reports.summary_headline,reports.factual_score,
+          CASE WHEN reports.summary_headline IS NULL THEN reports.report END AS report,
+          CASE WHEN reports.summary_headline IS NULL THEN reports.report_blob_uri END AS report_blob_uri
+        FROM core_runs AS runs LEFT JOIN core_report_versions AS reports
+        ON reports.run_id=runs.run_id AND reports.tenant_id=runs.tenant_id
+          AND reports.owner_user_id=runs.owner_user_id AND reports.visibility=runs.visibility
+          AND reports.version=(SELECT MAX(version) FROM core_report_versions WHERE run_id=runs.run_id)
+        WHERE runs.tenant_id=? AND runs.owner_user_id=? AND runs.visibility=?
+        ORDER BY runs.created_at DESC,runs.run_id DESC LIMIT ?`,
+      )
+      .bind(...scopeValues(input.scope), input.limit)
+      .all<
+        Pick<RunRow, "run_id" | "status" | "created_at"> & {
+          summary_headline: string | null;
+          factual_score: number | null;
+          report: string | null;
+          report_blob_uri: string | null;
+        }
+      >();
+    return Promise.all(
+      rows.results.map(async (row) => {
+        const legacyReport =
+          row.summary_headline === null && (row.report !== null || row.report_blob_uri !== null)
+            ? runReportSchema.parse(
+                await this.payloads.read({ inline: row.report, blobUri: row.report_blob_uri }),
+              )
+            : null;
+        return {
+          runId: row.run_id,
+          status: row.status,
+          createdAt: new Date(row.created_at).toISOString(),
+          headline: row.summary_headline ?? reportHeadline(legacyReport),
+          score: row.factual_score,
+        };
+      }),
+    );
+  }
+
   async findLatestCompletedReport(input: {
     scope: AnalysisAccessScope;
     inputHash: string;
@@ -239,8 +282,8 @@ export class D1AnalysisRepository {
     const identity = [input.runId, ...scopeValues(input.scope), input.fencingToken];
     const statements = [
       this.database
-        .prepare(`INSERT INTO core_report_versions(run_id,version,tenant_id,owner_user_id,visibility,report_hash,schema_version,contract_version,engine_version,diagnostic_labels,published_labels,factual_score,score_null_reasons,evidence_set_hash,report,report_blob_uri,created_at)
-      SELECT run_id,1,tenant_id,owner_user_id,visibility,?,?,?,?,?,?,?,?,?,?,?,? FROM core_runs WHERE ${active} ON CONFLICT(run_id,version) DO NOTHING RETURNING run_id`)
+        .prepare(`INSERT INTO core_report_versions(run_id,version,tenant_id,owner_user_id,visibility,report_hash,schema_version,contract_version,engine_version,diagnostic_labels,published_labels,factual_score,summary_headline,score_null_reasons,evidence_set_hash,report,report_blob_uri,created_at)
+      SELECT run_id,1,tenant_id,owner_user_id,visibility,?,?,?,?,?,?,?,?,?,?,?,?,? FROM core_runs WHERE ${active} ON CONFLICT(run_id,version) DO NOTHING RETURNING run_id`)
         .bind(
           input.reportHash,
           report.schemaVersion,
@@ -259,6 +302,7 @@ export class D1AnalysisRepository {
             })),
           ),
           report.scorecard?.factualScore ?? null,
+          reportHeadline(report),
           JSON.stringify(report.scorecard?.nullReasons ?? []),
           report.evidenceSetHash,
           payload.inline,
@@ -817,4 +861,15 @@ export class D1AnalysisRepository {
 
 export function createD1AnalysisRepository(options: D1RepositoryOptions): D1AnalysisRepository {
   return new D1AnalysisRepository(options);
+}
+
+function reportHeadline(report: RunReport | null) {
+  return (
+    report?.claims.find(
+      ({ duplicateOfClaimId, coverageDisposition }) =>
+        duplicateOfClaimId === null && coverageDisposition !== "deferred",
+    )?.text ??
+    report?.claims.find(({ duplicateOfClaimId }) => duplicateOfClaimId === null)?.text ??
+    "Focused analysis"
+  );
 }

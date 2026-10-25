@@ -22,6 +22,13 @@
       "when": 1791861892391,
       "tag": "0002_right_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792952666870,
+      "tag": "0003_organic_sway",
+      "breakpoints": true
     }
   ]
 }
