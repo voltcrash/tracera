@@ -4,15 +4,25 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
+import { buildVersionFile, resolveBuildId } from "./scripts/build-id";
 
-export default defineConfig({
-  plugins: [
-    // build:production selects wrangler.production.json through CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH.
-    cloudflare({ viteEnvironment: { name: "ssr" } }),
-    tanstackStart({ router: { quoteStyle: "double", semicolons: true } }),
-    react(),
-    tailwindcss(),
-  ],
-  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  server: { port: 3000 },
+export default defineConfig(({ command }) => {
+  const buildId = resolveBuildId(command === "serve");
+  if (command === "build") process.env.TRACERA_BUILD_ID = buildId;
+  return {
+    plugins: [
+      // build:production selects wrangler.production.json through CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH.
+      cloudflare({
+        viteEnvironment: { name: "ssr" },
+        config: (config) => ({ vars: { ...config.vars, VERSION: buildId } }),
+      }),
+      buildVersionFile(buildId),
+      tanstackStart({ router: { quoteStyle: "double", semicolons: true } }),
+      react(),
+      tailwindcss(),
+    ],
+    resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+    define: { "import.meta.env.TRACERA_BUILD_ID": JSON.stringify(buildId) },
+    server: { port: 3000 },
+  };
 });
