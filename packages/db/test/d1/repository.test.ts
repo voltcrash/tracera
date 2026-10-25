@@ -457,6 +457,11 @@ test("run history and completed-report reuse stay inside the ownership scope", a
     database: { prepare } as unknown as typeof runtime.db,
   }).listRunSummaries({ scope, limit: 100 });
   expect(prepare).toHaveBeenCalledTimes(1);
+  const plan = await runtime.db
+    .prepare(`EXPLAIN QUERY PLAN ${prepare.mock.calls[0]![0]}`)
+    .bind(scope.tenantId, scope.ownerUserId, scope.visibility, 100)
+    .all<{ detail: string }>();
+  expect(plan.results.some(({ detail }) => detail.includes("TEMP B-TREE"))).toBe(false);
   expect(summaries).toEqual(
     history.map(({ report, ...run }) => ({
       ...run,

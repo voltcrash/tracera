@@ -79,6 +79,7 @@ export const analysisRuns = sqliteTable(
       table.ownerUserId,
       table.visibility,
       table.createdAt,
+      table.runId,
     ),
     check(
       "core_runs_visibility_check",
