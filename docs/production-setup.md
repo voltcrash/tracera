@@ -1,8 +1,7 @@
 # Production setup
 
 Production uses one Worker at `https://tracera.voltcrash.com` and the explicit
-`apps/web/wrangler.production.json` config. The repository is prepared for this runtime;
-cutover has not happened. Production workers.dev and preview URLs are disabled.
+`apps/web/wrangler.production.json` config. Production workers.dev and preview URLs are disabled.
 
 | Resource               | Production                                                   |
 | ---------------------- | ------------------------------------------------------------ |
@@ -11,85 +10,91 @@ cutover has not happened. Production workers.dev and preview URLs are disabled.
 | R2                     | `tracera-production-blobs`                                   |
 | Workflow               | `tracera-production-analysis`                                |
 
-The Cloudflare custom domain replaces the existing hosting DNS record only during the approved
-Phase 4.2 cutover. Production begins with an empty D1: accounts and history reset, with no
-legacy import or write freeze. Initial sign-in uses GitHub; Google completion comes last.
-
 ## Private settings
 
-Create ignored `apps/web/.dev.vars.production` from the production example and preserve the
-independent auth secret generated in Stage 0. Use mode `0600` and complete production GitHub
-credentials. Credentials must differ from staging, and placeholders fail checks. Preserve the
-deployed auth secret on subsequent releases. Omit `DEV_AUTH_BYPASS`.
+Create ignored `apps/web/.dev.vars.production` from the production example, using mode `0600`.
+Preserve the deployed auth secret and complete production GitHub and Google OAuth credentials.
+Credentials must differ from staging, and placeholders fail validation. Omit `DEV_AUTH_BYPASS`
+and `VERSION`; the build assigns its own identity.
 
-AI is optional under D18. Without any AI provider setting, production serves sign-in, history,
-and settings while analysis reports that it is unavailable, and `check:production` says so.
-To enable analysis, add the provider, generation and embedding models, keys, and every run and
-spend bound together; a partial configuration fails the check.
+Production callbacks use `/api/auth/callback/github` and `/api/auth/callback/google` on the
+production origin. Non-secret operational settings can use reviewed Wrangler vars.
 
-For BYOK-only analysis, configure an independent `PROVIDER_KEYS_ENCRYPTION_KEY`, all run
-bounds, and the three cost estimates. Platform credentials and the platform daily spend
-budget may remain absent. Production checks validate every retained encryption version and
-reject key material shared with staging. See [bring your own key](bring-your-own-key.md).
-
-The production GitHub OAuth app was created fresh for Cloudflare on 2026-10-12, with homepage
-`https://tracera.voltcrash.com` and callback
-`https://tracera.voltcrash.com/api/auth/callback/github`. Since Phase 4.4 production also requires
-the Google pair, registered as a Web client with origin `https://tracera.voltcrash.com` and
-callback `https://tracera.voltcrash.com/api/auth/callback/google`.
-Non-secret operational settings belong in reviewed Wrangler vars when practical.
+AI remains optional under D18. Without provider settings, production serves sign-in, history,
+and settings while analysis reports that it is unavailable. Enabling platform analysis needs
+its provider, generation and embedding models, keys, and every run/spend bound together.
+For BYOK-only analysis, configure an independent `PROVIDER_KEYS_ENCRYPTION_KEY`, all run bounds,
+and the three cost estimates. Platform credentials and the platform daily spend budget may
+remain absent. See [bring your own key](bring-your-own-key.md).
 
 ## Local preflight
 
-With the complete private file available:
+With complete private settings available:
 
 ```sh
 vp install
 vp check
 vp test --run
+vp run build:production
 vp run check:production
 vp run deploy:production-dry-run
 ```
 
-`check:production` builds against the production config and checks the resulting Worker,
-isolated resources, secrets, live analysis, and budgets. Dry-run packages and validates without
-uploading. Do not reuse a staging build for production.
+`build:production` validates inputs, performs one fresh compiler invocation against the production
+config, and seals the output with an integrity receipt. The receipt excludes local preview secrets.
+`check:production` verifies existing output, isolated resources, secrets, live-analysis controls,
+file fingerprints and matching Worker/client build IDs. It does not build. The dry-run checks
+and packages that same artifact without uploading or making remote database changes.
 
-## Daily production release
+A normal staging build replaces `dist`, so rebuild production before production validation.
+An artifact with changed, missing or additional files fails validation. Keep secrets out of
+build artifacts and preserve the existing private file when repeating setup.
 
-The [production release workflow](../.github/workflows/production-release.yml) runs daily at
-`00:17 UTC` and supports manual dispatch from `main`. Configure the GitHub `production` environment and these secrets only
-through an approved owner action:
+## Production deployments
 
-| Secret                  | Value                                                                                           |
-| ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`  | Token scoped to the selected production account and required Worker/D1/custom-domain operations |
-| `PRODUCTION_WORKER_ENV` | Full contents of the private `.dev.vars.production` file                                        |
+The [production workflow](../.github/workflows/production-release.yml) automatically runs after
+[CI](../.github/workflows/ci.yml) succeeds for a push to `main`. It checks out that CI run's exact
+SHA, even if `main` has advanced. It independently requires the latest main-push CI result for
+that SHA to be successful before preparing credentials. PR, fork, failed and cancelled runs
+cannot deploy. GitHub permissions are Contents and Actions read only.
 
-The workflow plans first. Without commits since the last successful production release it
-skips install, build, migration, deployment, and publication. Otherwise it uses the current UTC
-execution date as `YY.MM.DD`, checks its `v`-prefixed tag for collisions, writes the private file
-with mode `0600`, validates/builds/dry-runs, applies production D1 migrations, and deploys with
-the version var. It publishes the exact deployed commit only after success and always removes
-the private file. It never resets or bootstraps D1. A second changed snapshot on the same UTC
-date cannot reuse that date's tag. Keep the deployed date tag immutable and dispatch on the
-next UTC date; an urgent exception requires an explicit release-policy change in a reviewed PR.
+Configure these secrets in the GitHub `production` environment:
 
-The first approved cutover release is started with:
+| Secret                  | Value                                                                 |
+| ----------------------- | --------------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | Selected account's Worker/custom-domain operations and D1 edit access |
+| `PRODUCTION_WORKER_ENV` | Complete contents of the private `.dev.vars.production` file          |
+
+The workflow validates CI, writes private settings, installs dependencies, builds once,
+dry-runs, applies production migrations and `PRAGMA optimize`, then deploys. Before upload,
+the deployment command enables D1 read replication and verifies the persisted setting.
+Cloudflare API errors or an identity mismatch stop deployment. Private settings are always
+removed, and concurrent production deployments remain serialized.
+
+Worker metadata and `/version.json` share the internal ID `SHA-run ID-run attempt`. Each retry
+gets its own ID. Local builds receive a unique local ID. There are no dated website releases,
+GitHub release records, release tags, changelogs or same-day allocation limits.
+
+Manual retries from `main`, including unchanged commits, use:
 
 ```sh
 gh workflow run production-release.yml --repo voltcrash/tracera --ref main
 ```
 
-This is a hosted deployment command, not a validation command. Do not dispatch it before
-Stage 4 sign-off and the approved DNS change. The first successful release establishes the
-baseline for subsequent daily runs.
+This performs a hosted deployment and requires successful main-push CI for the selected snapshot.
+It does not bypass the gate or permit deployment from a feature branch.
 
-## Cutover and recovery
+## Database behavior and recovery
 
-The rollout runbook records the reset announcement, Vercel auto-deploy disablement, integration
-branch merge, DNS removal, release dispatch, GitHub smoke test, and 24–48-hour observation.
-Before decommission, rollback can remove the Worker custom domain and restore the prior DNS
-record. Writes made on Cloudflare do not move back into the old database. Keep the rollback
-window short and explicit. Decommission, key rotation, a D1 restore drill, and final Google
-OAuth each retain their own approvals and signed results.
+Migrations precede Worker upload. Replica activation is idempotent and targets the configured
+D1 UUID and name. The token needs D1 edit access. Dry-run commands never invoke migration,
+optimization or replica activation. Local migrations run only local optimization.
+
+Enabling replicas makes them available; Tracera's existing runtime queries still use the primary
+path. Using replicas for reads requires a separate Sessions API integration with consistency
+rules for auth and analysis controls. See [Cloudflare's replication documentation](https://developers.cloudflare.com/d1/best-practices/read-replication/).
+
+Deploy a reviewed revert through `main` and successful CI when rolling back code. Check
+compatibility with already-applied migrations first: Worker deployment does not undo a database
+migration. D1 restore, auth-key rotation and OAuth changes remain separate operational actions.
+Historical cutover and restore evidence is in the [rollout runbook](cloudflare-rollout.md).

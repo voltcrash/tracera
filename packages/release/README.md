@@ -1,37 +1,30 @@
-# Production release helpers
+# Production deployment helpers
 
-Private workspace package supporting `.github/workflows/production-release.yml`. The date,
-changelog, and release-planning patterns are ported from oxytype; product code and footer
-release-history assets are omitted.
+Private workspace package supporting `.github/workflows/production-release.yml`.
+Run `vp run @repo/release#test:release` from the repository root.
 
-Run `vp run @repo/release#test:release` from the repository root. The package uses the shared
-Vite+ installation so package and root test runs share one runner instance.
+The **Production deployment** workflow runs after **CI** succeeds for a push to `main`.
+It deploys the exact CI snapshot, even if `main` has advanced. Failed, cancelled, fork and
+pull-request runs cannot deploy. Manual dispatch from `main` supports same-day retries and
+redeploying an unchanged commit. It creates no GitHub release, tag, changelog or package-version edit.
 
-`version.js` formats the execution date in UTC as `vYY.MM.DD`. `daily-changelog.js` groups
-Conventional Commit subjects into Features, Improvements, Fixes, and Other changes, escaping
-Markdown and linking commits/PRs. The planner reads the actual Git graph and excludes merge
-commits regardless of their subject.
+`production-validation.js` requires the latest main-push CI result for that exact SHA to be
+completed successfully before credentials are prepared. Missing, pending, failed and cancelled
+CI blocks deployment. GitHub token permissions are Contents and Actions read only; checkout
+does not persist credentials. Production deployments remain serialized.
 
-`prepareProductionRelease` checks that checkout HEAD matches the workflow SHA. It considers
-only completed production releases carrying the Tracera marker, refuses rewritten history or
-a newer dated release, skips unchanged snapshots, and rejects date tags pointing to another
-commit. A completed same-day release skips only when its tag matches HEAD; a matching tag
-without a completed release permits retrying publication through the deployment pipeline.
-The first scheduled release covers the preceding UTC day; the first manual release covers
-the execution day. Subsequent releases include changes since the last successful release,
-including old-authored branch commits merged later.
+`production-settings.js` writes mode `0600`, refuses to replace an existing private file, and
+requires both the Cloudflare token and complete Worker settings. Cleanup runs after success or
+failure. Tests execute the actual workflow scripts with mocked GitHub APIs and local command
+stubs, covering exact-SHA validation, same-day retries, unchanged commits, task failures and cleanup.
 
-`writeProductionWorkerEnv` requires the Cloudflare token and complete Worker settings input,
-writes mode `0600`, and refuses to replace an existing private file. The workflow always
-removes that file. It installs, validates/builds/dry-runs, migrates D1, deploys with the planned
-version, then calls `publishProductionRelease` for that exact SHA. Failure before publication
-prevents a release, and publication failure still cleans credentials. It never resets or
-bootstraps D1.
+One fresh production build creates the Worker and client with a `SHA-run-attempt` build ID.
+`apps/web/scripts/production-artifact.ts` seals their file hashes outside the public client tree.
+Checks and dry-runs verify that artifact rather than rebuild it. Production D1 migrations run
+`PRAGMA optimize`; the deployment command enables and verifies read replication before upload.
+Dry-runs do not migrate, optimize or change replica settings.
 
-Tests use temporary real Git repositories, mocked GitHub release APIs, and execution of the
-actual workflow scripts with a local Vite+ command stub. They verify no-change skips, ordering,
-private file permissions, injected failures, collision guards, and cleanup without hosted
-mutation or provider calls. Actual Worker bundles are validated separately by both CI dry runs.
-
-See [production setup](../../docs/production-setup.md) and the
-[rollout runbook](../../docs/cloudflare-rollout.md) for the owner-approved first deployment.
+The former date planner, version allocator, changelog generator and publication code have been
+removed. Historical rollout records are retained as records rather than deployment policy.
+See [production setup](../../docs/production-setup.md) for current commands and
+[remaining differences from Oxytype](../../docs/production-workflow-comparison.md).

@@ -539,6 +539,10 @@ Stage 4 rollout gates, including the final Google OAuth phase, open.
 
 **Phase 3.3 — CI and production release.**
 
+The original release policy in this completed migration stage is historical. Current production
+deployments follow successful main-push CI without website release tags or changelogs; see
+[production setup](production-setup.md).
+
 - `.github/workflows/ci.yml` replaces `local-development.yml`: install, Chromium, `vp check`,
   `vp test` under `with-network-denied.sh`, `build`, `wrangler deploy --dry-run` for both
   configs, and Playwright against `vp dev`. No Docker.

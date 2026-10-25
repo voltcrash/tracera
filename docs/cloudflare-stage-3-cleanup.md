@@ -68,6 +68,9 @@ external networking during unit/browser suites, builds, and dry-runs staging and
 The firewall allows loopback only and no longer needs Docker. Synthetic production settings
 are private, temporary, and cleaned even on failure; CI reads no hosted credentials.
 
+The historical release policy below has been replaced by CI-gated deployments without releases
+or date tags. See [current production setup](production-setup.md).
+
 The production workflow follows the oxytype pattern with current stable Actions versions.
 It runs daily at 00:17 UTC or manually on `main`, serializes releases in the `production`
 environment, skips deployment work without new commits, rejects date-tag collisions, writes

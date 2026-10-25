@@ -174,6 +174,7 @@ test.each([
 });
 
 test.each([
+  [{ VERSION: "old-release" }, "Remove VERSION"],
   [{ MODE: "dev" }, "MODE=production"],
   [{ ANALYSIS_MODE: "fixture" }, "ANALYSIS_MODE=live"],
   [{ DEV_AUTH_BYPASS: "false" }, "Remove DEV_AUTH_BYPASS"],

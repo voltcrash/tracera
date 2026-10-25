@@ -1,5 +1,9 @@
 # Cloudflare rollout runbook
 
+Current deployments follow successful main-push CI, with no website releases or date tags.
+The former release records and tags have been removed. Dated entries below preserve rollout
+history; use [production setup](production-setup.md) for current deployment and retry commands.
+
 This is reviewable preparation for Stage 4, not a record of completed hosted work. Follow the
 [migration plan](cloudflare-migration-plan.md) in phase order. The owner deferred the Phase 2.6
 live-provider test until repository implementation is finished. Deployments, secret uploads,
