@@ -23,9 +23,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: voidzero-dev/setup-vp@v1.21.2
+      - uses: voidzero-dev/setup-vp@v1.22.0
         with:
-          node-version: "24.21.0"
+          node-version-file: .node-version
           cache: true
           run-install: false
       - name: Install dependencies
@@ -62,6 +62,10 @@ jobs:
           };
           writeFileSync('apps/web/.dev.vars.production', Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''), { mode: 0o600, flag: 'wx' });
           NODE
+      - name: Build the production artifact
+        env:
+          TRACERA_BUILD_ID: ci-${{ github.sha }}
+        run: vp run build:production
       - name: Dry-run the production Worker deploy
         run: vp run deploy:production-dry-run
       - name: Remove synthetic production settings
