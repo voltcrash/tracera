@@ -7,6 +7,13 @@ export function assignSourceDependence(
   snapshots: DocumentSnapshot[],
 ): EvidenceAssessment[] {
   const snapshotById = new Map(snapshots.map((snapshot) => [snapshot.id, snapshot]));
+  const sourceHosts = new Map(snapshots.map((snapshot) => [snapshot.id, hostname(snapshot)]));
+  const citationNames = new Map(
+    [...sourceHosts].map(([id, host]) => [
+      id,
+      host?.split(".")[0]!.toLocaleLowerCase("en-US") ?? null,
+    ]),
+  );
   const byClaim = new Map<string, EvidenceAssessment[]>();
   for (const assessment of assessments) {
     const values = byClaim.get(assessment.claimId) ?? [];
@@ -15,12 +22,25 @@ export function assignSourceDependence(
   }
   const output: EvidenceAssessment[] = [];
   for (const claimAssessments of byClaim.values()) {
-    const roots = new Map<string, EvidenceAssessment>();
+    const rootsByHash = new Map<string, { assessment: EvidenceAssessment; order: number }>();
+    const rootsByPassage = new Map<string, { assessment: EvidenceAssessment; order: number }>();
+    const registerRoot = (hash: string, passage: string, assessment: EvidenceAssessment) => {
+      const root = { assessment, order: rootsByHash.size };
+      rootsByHash.set(hash, root);
+      rootsByPassage.set(passage, root);
+    };
+    const byPublisher = new Map<string, EvidenceAssessment[]>();
+    for (const assessment of claimAssessments) {
+      const publisher = sourceHosts.get(assessment.snapshotId);
+      if (!publisher) continue;
+      const values = byPublisher.get(publisher) ?? [];
+      values.push(assessment);
+      byPublisher.set(publisher, values);
+    }
     const snapshotRoots = new Map<string, EvidenceAssessment>();
     for (const assessment of claimAssessments) {
       const snapshot = snapshotById.get(assessment.snapshotId)!;
       const passageKey = normalizePassage(assessment.excerpt.quote);
-      const duplicateKey = `${snapshot.contentHash}\u0000${passageKey}`;
       const sameSnapshot = snapshotRoots.get(snapshot.id);
       if (sameSnapshot) {
         output.push(
@@ -35,7 +55,15 @@ export function assignSourceDependence(
         );
         continue;
       }
-      const copiedRoot = findCopiedRoot(roots, snapshot.contentHash, passageKey);
+      const byHash = rootsByHash.get(snapshot.contentHash);
+      const byPassage = rootsByPassage.get(passageKey);
+      const copiedRoot = (
+        byHash && byPassage
+          ? byHash.order < byPassage.order
+            ? byHash
+            : byPassage
+          : (byHash ?? byPassage)
+      )?.assessment;
       if (copiedRoot) {
         const copied = update(assessment, {
           dependence: "syndicated_copy",
@@ -47,7 +75,7 @@ export function assignSourceDependence(
         continue;
       }
 
-      const cited = findCitedSource(assessment, claimAssessments, snapshotById);
+      const cited = findCitedSource(assessment, claimAssessments, citationNames, passageKey);
       if (cited) {
         const citation = update(assessment, {
           dependence: "cites_source",
@@ -55,20 +83,20 @@ export function assignSourceDependence(
           dependenceLocators: [locator(assessment)],
         });
         output.push(citation);
-        roots.set(duplicateKey, cited);
+        registerRoot(snapshot.contentHash, passageKey, cited);
         snapshotRoots.set(snapshot.id, citation);
         continue;
       }
 
-      const publisher = hostname(snapshot);
+      const publisher = sourceHosts.get(snapshot.id);
       if (
         publisher &&
-        claimAssessments.some(
-          (candidate) =>
-            candidate.id !== assessment.id &&
-            candidate.snapshotId !== assessment.snapshotId &&
-            hostname(snapshotById.get(candidate.snapshotId)!) === publisher,
-        )
+        byPublisher
+          .get(publisher)!
+          .some(
+            (candidate) =>
+              candidate.id !== assessment.id && candidate.snapshotId !== assessment.snapshotId,
+          )
       ) {
         const related = update(assessment, {
           dependence: "same_publisher",
@@ -76,7 +104,7 @@ export function assignSourceDependence(
           dependenceLocators: [locator(assessment)],
         });
         output.push(related);
-        roots.set(duplicateKey, related);
+        registerRoot(snapshot.contentHash, passageKey, related);
         snapshotRoots.set(snapshot.id, related);
         continue;
       }
@@ -89,41 +117,25 @@ export function assignSourceDependence(
         dependenceLocators: [],
       });
       output.push(root);
-      roots.set(duplicateKey, root);
+      registerRoot(snapshot.contentHash, passageKey, root);
       snapshotRoots.set(snapshot.id, root);
     }
   }
   return output;
 }
 
-function findCopiedRoot(
-  roots: Map<string, EvidenceAssessment>,
-  contentHash: string,
-  passageKey: string,
-) {
-  for (const [key, assessment] of roots) {
-    if (key.startsWith(`${contentHash}\u0000`) || key.endsWith(`\u0000${passageKey}`)) {
-      return assessment;
-    }
-  }
-  return undefined;
-}
-
 function findCitedSource(
   assessment: EvidenceAssessment,
   all: EvidenceAssessment[],
-  snapshots: Map<string, DocumentSnapshot>,
+  citationNames: Map<string, string | null>,
+  text: string,
 ) {
-  const text = normalizePassage(assessment.excerpt.quote);
   return all.find((candidate) => {
     if (candidate.id === assessment.id || candidate.snapshotId === assessment.snapshotId) {
       return false;
     }
-    const source = snapshots.get(candidate.snapshotId)!;
-    const url = source.canonicalUrl ?? source.finalUrl ?? source.originalUrl;
-    if (!url) return false;
-    const host = new URL(url).hostname.replace(/^www\./u, "").split(".")[0]!;
-    return host.length > 2 && text.includes(host.toLocaleLowerCase("en-US"));
+    const name = citationNames.get(candidate.snapshotId);
+    return name !== null && name !== undefined && name.length > 2 && text.includes(name);
   });
 }
 

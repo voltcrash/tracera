@@ -279,3 +279,33 @@ test("unknown admitted IDs fail closed and cancellation produces no data", async
   assert.equal(result.status, "failed");
   assert.equal(result.data, null);
 });
+
+test("copy indexes prefer the earliest root when hash and passage match different sources", async () => {
+  const firstQuote = "Northbridge recorded 42 incidents in 1998.";
+  const { result } = await run(firstQuote, ({ claim, snapshotId }) =>
+    assessmentResponse(claim, snapshotId, firstQuote),
+  );
+  const base = result.data!.assessments[0]!;
+  const secondQuote = "Northbridge reported 42 incidents during 1998.";
+  const snapshots = [
+    evidenceSnapshot("first", firstQuote),
+    evidenceSnapshot("second", secondQuote),
+    evidenceSnapshot("copy", firstQuote),
+  ];
+  snapshots[2]!.contentHash = snapshots[1]!.contentHash;
+  const assessments = snapshots.map((snapshot, index) => ({
+    ...structuredClone(base),
+    id: `assessment-${index}`,
+    snapshotId: snapshot.id,
+    excerpt: {
+      ...base.excerpt,
+      quote: snapshot.normalizedText,
+      span: { start: 0, end: snapshot.normalizedText.length },
+    },
+  }));
+  const grouped = assignSourceDependence(assessments, snapshots);
+  assert.equal(grouped[2]!.dependence, "syndicated_copy");
+  assert.equal(grouped[2]!.dependencyGroupId, grouped[0]!.dependencyGroupId);
+  assert.notEqual(grouped[2]!.dependencyGroupId, grouped[1]!.dependencyGroupId);
+  assert.equal(grouped[2]!.dependenceLocators[0]!.snapshotId, "first");
+});
