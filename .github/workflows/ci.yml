@@ -73,3 +73,9 @@ jobs:
         run: rm -f apps/web/.dev.vars.production
       - name: Run Worker browser suites without external networking
         run: scripts/ci/with-network-denied.sh vp run test:browser
+      - name: Build the fixture Worker for browser suites
+        run: vp run build
+      - name: Run built Worker browser suites without external networking
+        env:
+          PLAYWRIGHT_PREVIEW: "true"
+        run: scripts/ci/with-network-denied.sh vp run test:browser

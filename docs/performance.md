@@ -76,3 +76,61 @@ parallel-read bounds and ordering, copy-root precedence, and opt-in display stre
 The standard browser suite covers text, link, and image Workflows and workspace navigation.
 Fixture evidence, provenance, and release evaluations remain offline checks; they do not
 provide empirical release approval or replace real-provider evaluation.
+
+## Redact browser runtime
+
+The web app uses Redact 0.2.0 for server rendering and browser hydration through its Vite
+plugin. Components keep their React imports, and React and React DOM remain installed.
+The default feature set preserves portals, hydration, context, Suspense, lazy components,
+forwarded refs, and error boundaries used by Start and Base UI. Server dependencies are
+bundled so their React imports resolve to the same runtime. Redact renders synchronously;
+it does not provide React's time slicing or interruptible rendering.
+
+The following builds use Node.js 24.22.1, Vite+ 1.1.0, React 19.3.0, and identical app code.
+The native React baseline at `f2a97ee` was also rebuilt with Cloudflare Vite plugin 1.65.0,
+Wrangler 4.153.0, and Redact installed but its plugin disabled. That control produced
+identical browser sizes to the original dependencies. Enabling Redact produced these results:
+
+| Browser assets                 | React, gzip | Redact, gzip | Reduction |
+| ------------------------------ | ----------- | ------------ | --------- |
+| All emitted JavaScript         | 210.934 kB  | 163.062 kB   | 22.7%     |
+| All emitted JavaScript and CSS | 226.762 kB  | 178.890 kB   | 21.1%     |
+| Landing route JavaScript       | 146.898 kB  | 99.690 kB    | 32.1%     |
+| Home route JavaScript          | 193.887 kB  | 146.454 kB   | 24.5%     |
+| Settings route JavaScript      | 196.599 kB  | 149.014 kB   | 24.2%     |
+| Report route JavaScript        | 194.941 kB  | 147.426 kB   | 24.4%     |
+| All emitted CSS                | 15.828 kB   | 15.828 kB    | 0.0%      |
+
+kB means 1,000 bytes. Sizes sum independently gzipped files using Node zlib's default
+compression level 6. All emitted JavaScript includes lazy routes; it is not one page's
+download. Route measurements deduplicate the JavaScript preload lists for the route and
+its parents in Start's generated manifest. Route totals overlap and must not be added
+together. Fonts, images, source maps, HTML, and API responses are excluded.
+Uncompressed JavaScript fell from 627,911 to 455,974 bytes (27.4%). These are build-output
+measurements, not load-time, hydration-speed, responsiveness, or AI-latency measurements.
+
+To measure a native React control, keep the same installed dependencies and disable only
+`redact()` in the web Vite config; then restore it for the Redact build. Use the same build
+ID for both runs:
+
+```sh
+TRACERA_BUILD_ID=redact-comparison vp run build
+node apps/web/scripts/measure-browser-bundle.mjs
+```
+
+The measurement script also accepts a saved `dist` directory as its first argument.
+The original React app and the Redact app both passed the existing 20 Chromium browser
+tests. Redact also passed all 20 tests against the built Worker using local fixture
+providers, D1, R2, and Workflows. These tests cover authentication sessions, navigation,
+theme switching, account menus, provider forms, analysis progress/cancellation, and
+text/link/image submissions. Desktop and mobile screenshots were inspected. Live OAuth,
+paid AI providers, and browser engines other than Chromium were not exercised.
+
+CI runs the same browser suite against development and built Worker servers. Locally,
+prepare the fixture settings before building, then select the built server:
+
+```sh
+vp exec --filter web -- node scripts/prepare-browser-tests.mjs
+vp run build
+PLAYWRIGHT_PREVIEW=true vp run test:browser
+```

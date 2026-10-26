@@ -21,7 +21,7 @@ Tracera also preserves report artifacts, related context, and immutable timeline
 ## Stack
 
 - **Toolchain:** Vite+ (`vp`), pnpm, TypeScript, Node.js 24 LTS
-- **Website and server:** React, TanStack Start, one Cloudflare Worker
+- **Website and server:** React components with the Redact runtime, TanStack Start, one Cloudflare Worker
 - **Data:** D1 through Drizzle, with large payloads and raw uploads in private R2
 - **Execution:** Cloudflare Workflows for analysis, Cron for maintenance
 - **Authentication:** Better Auth with D1 sessions and same-origin OAuth callbacks
