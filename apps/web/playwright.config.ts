@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 const baseURL = "http://127.0.0.1:3000";
+const server = process.env.PLAYWRIGHT_PREVIEW === "true" ? "preview" : "dev";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -18,8 +19,7 @@ export default defineConfig({
   },
   webServer: {
     env: { CLOUDFLARE_CF_FETCH_ENABLED: "false", WRANGLER_SEND_METRICS: "false" },
-    command:
-      "node scripts/prepare-browser-tests.mjs && vp run db:migrate && vp dev --host 127.0.0.1 --port 3000 --strictPort",
+    command: `node scripts/prepare-browser-tests.mjs && vp run db:migrate && vp ${server} --host 127.0.0.1 --port 3000 --strictPort`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,
