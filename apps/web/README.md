@@ -2,8 +2,8 @@
 
 The whole of Tracera: a TanStack Start app that runs on one Cloudflare Worker,
 with D1, R2 and Workflows bound in `wrangler.jsonc` (staging, used locally) and
-`wrangler.production.json` (production). See the
-[migration plan](../../docs/cloudflare-migration-plan.md) for the target design.
+`wrangler.production.json` (production). See
+[Cloudflare operations](../../docs/cloudflare-operations.md) for configuration and recovery.
 
 From the repository root:
 
