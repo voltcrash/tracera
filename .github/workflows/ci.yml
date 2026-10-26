@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, migrate/cloudflare]
+    branches: [main]
 
 permissions:
   contents: read

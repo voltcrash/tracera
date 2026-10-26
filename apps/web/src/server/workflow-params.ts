@@ -1,6 +1,6 @@
 /**
  * Workflow params persist for the retention period, so they carry identifiers only:
- * never API keys, raw input or uploads (D14).
+ * never API keys, raw input or uploads.
  */
 export type AnalysisWorkflowParams = {
   runId: string;

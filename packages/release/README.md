@@ -24,7 +24,4 @@ Checks and dry-runs verify that artifact rather than rebuild it. Production D1 m
 `PRAGMA optimize`; the deployment command enables and verifies read replication before upload.
 Dry-runs do not migrate, optimize or change replica settings.
 
-The former date planner, version allocator, changelog generator and publication code have been
-removed. Historical rollout records are retained as records rather than deployment policy.
-See [production setup](../../docs/production-setup.md) for current commands and
-[remaining differences from Oxytype](../../docs/production-workflow-comparison.md).
+See [production setup](../../docs/production-setup.md) for configuration and deployment commands.
