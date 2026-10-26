@@ -86,7 +86,7 @@ function livePolicy(
   };
 }
 
-/** Fixture analysis runs the scripted ports offline and only in local development (D9). */
+/** Fixture analysis runs the scripted ports offline and only in local development. */
 export function analysisPolicy(
   env: Pick<ServerEnv, "MODE" | "ANALYSIS_MODE"> & RuntimeEnvironment,
   userId: string,
