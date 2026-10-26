@@ -75,10 +75,7 @@ function resourceIds(config: z.infer<typeof resources>) {
   ];
 }
 
-/**
- * Port of oxytype's production-inputs checks. Messages name settings only, never
- * their values, because CI prints them.
- */
+/** Messages name settings only, never their values, because CI prints them. */
 export function validateProductionInputs(inputs: {
   config: unknown;
   stagingConfig: unknown;
@@ -131,7 +128,7 @@ export function validateProductionInputs(inputs: {
   if (authSecret.length < 32 || authSecret === LOCAL_AUTH_SECRET)
     throw new Error("Use a new production BETTER_AUTH_SECRET with at least 32 characters.");
 
-  // D18: without any provider settings, production runs with analysis unavailable.
+  // Without any provider settings, production runs with analysis unavailable.
   const platform = PROVIDER_SETTINGS.some((name) => configured(settings[name]));
   if (platform) {
     try {
