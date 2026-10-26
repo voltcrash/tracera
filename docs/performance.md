@@ -48,8 +48,7 @@ write their summary in the same guarded publication batch.
 
 Migration `0004_good_multiple_man.sql` rebuilds the existing history index with its final
 sort column. Migration tests verify inline reports, opinion-only reports, empty reports, R2
-fallback, and preservation of stored report bytes and hashes. No remote database migration
-or deployment is part of the performance PR.
+fallback, and preservation of stored report bytes and hashes.
 
 ## Reproduce
 
