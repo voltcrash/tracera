@@ -1,7 +1,7 @@
 # Bring your own AI key
 
-Section 7 of the migration plan is implemented in source. Hosted activation requires the
-new D1 migration, an environment-specific encryption secret, and explicit analysis bounds.
+Personal AI keys require the D1 schema, an environment-specific encryption secret, and
+explicit analysis bounds.
 The existing deployment workflow applies pending D1 migrations before publishing a Worker.
 
 ## Provider settings
