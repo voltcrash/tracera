@@ -20,7 +20,7 @@ and `VERSION`; the build assigns its own identity.
 Production callbacks use `/api/auth/callback/github` and `/api/auth/callback/google` on the
 production origin. Non-secret operational settings can use reviewed Wrangler vars.
 
-AI remains optional under D18. Without provider settings, production serves sign-in, history,
+AI configuration is optional. Without provider settings, production serves sign-in, history,
 and settings while analysis reports that it is unavailable. Enabling platform analysis needs
 its provider, generation and embedding models, keys, and every run/spend bound together.
 For BYOK-only analysis, configure an independent `PROVIDER_KEYS_ENCRYPTION_KEY`, all run bounds,
@@ -97,4 +97,4 @@ rules for auth and analysis controls. See [Cloudflare's replication documentatio
 Deploy a reviewed revert through `main` and successful CI when rolling back code. Check
 compatibility with already-applied migrations first: Worker deployment does not undo a database
 migration. D1 restore, auth-key rotation and OAuth changes remain separate operational actions.
-Historical cutover and restore evidence is in the [rollout runbook](cloudflare-rollout.md).
+See [Cloudflare operations](cloudflare-operations.md#d1-capacity-and-time-travel) for D1 recovery.
