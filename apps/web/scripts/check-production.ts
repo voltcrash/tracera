@@ -15,7 +15,7 @@ async function main() {
     settings.config,
   );
   console.log(`Production configuration, secrets and artifact checked: ${buildId}`);
-  if (!analysis) console.log("No AI provider is configured; analysis stays unavailable (D18).");
+  if (!analysis) console.log("No AI provider is configured; analysis stays unavailable.");
 }
 
 main().catch((error: unknown) => {
