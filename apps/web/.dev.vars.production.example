@@ -8,7 +8,7 @@ GITHUB_CLIENT_SECRET=replace-with-production-oauth-client-secret
 # Callback: https://tracera.voltcrash.com/api/auth/callback/google
 GOOGLE_CLIENT_ID=replace-with-production-google-client-id
 GOOGLE_CLIENT_SECRET=replace-with-production-google-client-secret
-# AI is optional (D18): leave every AI_ and ANALYSIS_MAX_ setting out to run with analysis
+# AI is optional: leave every AI_ and ANALYSIS_MAX_ setting out to run with analysis
 # unavailable, or configure the provider and every bound below together.
 # AI_PROVIDER=replace-with-gemini-openai-anthropic-openrouter-or-openai-compatible
 # AI_MODEL=replace-with-generation-model
