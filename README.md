@@ -28,10 +28,9 @@ Tracera also preserves report artifacts, related context, and immutable timeline
 - **AI:** Provider-neutral generation and embedding adapters for Gemini, OpenAI, OpenRouter,
   Anthropic, and OpenAI-compatible APIs
 
-Tracera runs on Cloudflare at https://tracera.voltcrash.com, deployed after successful `main` CI. See the
-[migration plan](docs/cloudflare-migration-plan.md). Hosted sign-in offers
-Google and GitHub. No AI provider is configured yet (D18), so hosted
-analysis reports that it is unavailable.
+Tracera runs on Cloudflare at https://tracera.voltcrash.com, deployed after successful `main` CI.
+Hosted sign-in offers Google and GitHub. Analysis requires configured platform providers or
+an active personal AI key; otherwise it reports that it is unavailable.
 
 ## Quick start
 
@@ -65,10 +64,8 @@ vp run test:browser
 ```
 
 See [Cloudflare operations](docs/cloudflare-operations.md) for bindings, provider overrides,
-explicit live budgets, migrations, and recovery. [Staging setup](docs/staging-setup.md),
-[production setup](docs/production-setup.md), and the [rollout runbook](docs/cloudflare-rollout.md)
-cover the hosted gates. The Phase 2.6 real-provider test is deferred by the owner; fixture
-results do not close it.
+explicit live budgets, migrations, and recovery. [Staging setup](docs/staging-setup.md) and
+[production setup](docs/production-setup.md) cover hosted configuration and deployment.
 
 See [bring your own key](docs/bring-your-own-key.md) for personal provider settings, encryption
 setup and rotation, and hosted activation. Personal keys support every existing AI adapter;
@@ -83,7 +80,7 @@ for D1. Workflows resume from checkpoints after retries; scheduled maintenance c
 expired control/auth rows and reconciles errored instances.
 
 The analysis engine searches external sources and fetched evidence. Persisted claim vectors,
-corpus retrieval, and stored embeddings are outside this migration's runtime.
+corpus retrieval, and stored embeddings are outside the current runtime.
 
 ```mermaid
 flowchart TB
