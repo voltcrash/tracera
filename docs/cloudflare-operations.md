@@ -47,8 +47,8 @@ vp run evaluate:analysis-retrieval:replay
 The unit suites use real Miniflare D1/R2 and native Workflow tests. Playwright starts a local
 Worker on a fixed port, uses real sessions and fixture analysis, and cleans its reserved
 synthetic rows. It preserves an existing `.dev.vars` and rejects a file that does not enable
-the expected local fixture/bypass modes. Fixture success verifies code paths; the live-provider
-and hosted rollout sign-offs are tracked separately in the migration plan.
+the expected local fixture/bypass modes. Fixture success verifies code paths; hosted OAuth,
+provider access, and live analysis quality require validation on the hosted environment.
 
 ## Configurations and bindings
 
@@ -62,7 +62,7 @@ and hosted rollout sign-offs are tracked separately in the migration plan.
 | Workflow / `ANALYSIS_WORKFLOW` | `tracera-staging-analysis`                      | `tracera-production-analysis`       |
 
 Both use account `eb2679ce4f23ae7db4e6c4e3fcf8c3c1`. Production disables workers.dev and
-preview URLs. The actual resource UUIDs live in the configs and the Stage 0 inventory.
+preview URLs. The actual resource UUIDs live in the configs.
 Local development emulates the bindings and does not query those hosted databases.
 
 Private files are `.dev.vars` for local development, `.dev.vars.staging` for hosted staging
@@ -71,14 +71,14 @@ and should have mode `0600`. Keep secret values out of public vars, screenshots,
 Runtime code reads `cloudflare:workers` bindings through the validated server environment;
 build scripts and evaluator CLIs use their own explicit inputs.
 
-Hosted credentials use distinct auth secrets and OAuth apps. Preserve the Stage 0 generated
-secrets in `/Users/lakshmi/.t3/private/tracera/stage-0/` when preparing the hosted files.
+Hosted credentials use distinct auth secrets and OAuth apps. Preserve existing auth secrets
+when preparing the hosted files.
 A partial GitHub or Google pair is rejected. Production requires both pairs; staging and local
 development offer whichever complete pairs are configured.
 
 ## AI provider overrides
 
-Hosted Workers may run with no AI provider at all (D18). Analysis then answers
+Hosted Workers may run with no AI provider at all. Analysis then answers
 `analysis_unavailable` with a plain message, and sign-in, history, and settings keep working.
 Enabling analysis later needs the settings below plus every run and spend bound, uploaded as
 secrets or reviewed vars, followed by a deploy.
@@ -102,7 +102,7 @@ the focused runtime's reproducibility checks.
 
 Anthropic cannot be the embedding provider. Without a separate embedding provider, its key
 and base URL overrides must be absent. The embedding adapter contract remains 1024 dimensions;
-this migration does not store claim vectors or use a persisted embedding corpus.
+the runtime does not store claim vectors or use a persisted embedding corpus.
 `GOOGLE_FACT_CHECK_API_KEY` and `NEWS_API_KEY` are optional evidence-source credentials.
 The resolver prefers the user's active encrypted key and uses platform credentials when none
 is active. See [bring your own key](bring-your-own-key.md) for setup, supported providers,
@@ -170,9 +170,9 @@ The auth generator writes `tmp/auth-schema.sqlite.ts` for comparison with the re
 schema. It does not overwrite it. The D1 suite applies the real migration files to fresh
 SQLite, tests batch rollback, and covers ownership and fencing.
 
-Hosted migrations and deploys are separate from local commands and require the owner's
-approval during migration. The default staging deploy script migrates staging, builds,
-and uploads the Worker; production commands explicitly select its config and private file.
+Hosted migrations and deploys are separate from local commands. The default staging deploy
+script migrates staging, builds, and uploads the Worker; production commands explicitly select
+its config and private file.
 Production checks validate isolated bindings, the built config, auth/provider credentials,
 live mode, and explicit budgets. Use the staging and production setup guides before them.
 
@@ -219,8 +219,8 @@ vp exec --filter web -- wrangler d1 time-travel restore tracera-production --con
 Stop writes and Workflow execution through an approved maintenance procedure before restoring.
 Use a code version compatible with the restored schema, and verify R2 objects referenced by
 restored rows; D1 Time Travel does not restore R2. Recheck auth, run history, ownership,
-controls, and a bounded analysis before reopening writes. The Stage 4 restore drill records
-actual bookmarks, timings, recovery results, and approval; this document is preparation only.
+controls, and a bounded analysis before reopening writes. Record the bookmarks, timings,
+and recovery results for each restore.
 
 ## CI and deployment validation
 
