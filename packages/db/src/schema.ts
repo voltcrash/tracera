@@ -489,6 +489,7 @@ export const analysisLeases = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     ipHash: text("ip_hash").notNull(),
+    runId: text("run_id").references(() => analysisRuns.runId),
     endpoint: text("endpoint").notNull(),
     idempotencyKey: text("idempotency_key"),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
@@ -511,7 +512,7 @@ export const analysisIdempotencyKeys = sqliteTable(
     idempotencyKey: text("idempotency_key").notNull(),
     requestHash: text("request_hash").notNull(),
     requestStatus: text("request_status", {
-      enum: ["in_progress", "completed", "failed"],
+      enum: ["in_progress", "accepted", "completed", "failed"],
     }).notNull(),
     responseBody: text("response_body", { mode: "json" }),
     responseBlobUri: text("response_blob_uri"),
