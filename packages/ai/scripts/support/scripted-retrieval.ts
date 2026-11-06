@@ -1,3 +1,4 @@
+import { createStageResult } from "@repo/contracts/analysis";
 import { createHash } from "node:crypto";
 import {
   runContextExample,
@@ -278,7 +279,7 @@ function stage<Data>(
   issues: StageResult<Data>["issues"],
   externalRequests: number,
 ): StageResult<Data> {
-  return {
+  return createStageResult({
     status,
     data,
     issues,
@@ -291,5 +292,5 @@ function stage<Data>(
       outputTokens: null,
       costUsd: 0,
     },
-  };
+  });
 }

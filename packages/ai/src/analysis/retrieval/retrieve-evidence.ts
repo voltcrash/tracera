@@ -1,3 +1,4 @@
+import { createStageResult } from "@repo/contracts/analysis";
 import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import {
   documentSnapshotSchema,
@@ -585,7 +586,7 @@ async function retrieve(
     finalIssues: AnalysisIssue[],
   ): StageResult<RetrieveEvidenceData> {
     const completedAt = environment.ports.clock.now();
-    return {
+    return createStageResult({
       status,
       data,
       issues: finalIssues,
@@ -598,7 +599,7 @@ async function retrieve(
         outputTokens: null,
         costUsd: budget?.totalCost() ?? 0,
       },
-    };
+    });
   }
 }
 

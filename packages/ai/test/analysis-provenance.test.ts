@@ -1,3 +1,4 @@
+import { writeStageCheckpoint } from "../src/analysis/checkpoints.js";
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
 import {
@@ -215,6 +216,8 @@ test("citation cycles are retained without recursive overrun", async () => {
     environment,
   );
   assert.deepEqual(result.data!.graphs[0]!.cycles, [["cycle_a", "cycle_b", "cycle_a"]]);
+  assert.ok(result.issues.some(({ code }) => code === "missing_evidence"));
+  assert.doesNotThrow(() => writeStageCheckpoint("trace_origins", { result, extra: null }));
   assert.ok(result.data!.graphs[0]!.hopsUsed <= 3);
 });
 
