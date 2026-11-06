@@ -127,6 +127,11 @@ for (const [index, boundary] of stagesInOrder.entries()) {
     }
     if (index >= 6) expect(report.decisions[0]!.publishedLabel).toBe("supported");
     if (index >= 7) expect(report.scorecard).not.toBeNull();
+    if (index === 1) {
+      const view = projectReport(report);
+      expect(view.focusedSelection).toBeNull();
+      expect(view.claims[0]!.decisionStatus).toBe("not_available");
+    }
     if (index >= 2) {
       const view = projectReport(report);
       expect(view.focusedSelection).toMatchObject({

@@ -82,8 +82,15 @@ for (const [name, text] of [
       page.getByRole("heading", { name: "Top claims selected for checking" }),
     ).toBeVisible();
     await expect(page.getByText("Insufficient evidence", { exact: true })).toBeVisible();
-    if (name === "three selected claims")
+    if (name === "three selected claims") {
       await expect(page.getByText("unverified", { exact: true })).toHaveCount(3);
+      await expect(
+        page.getByText(/Selected 3 claims of 4 inventoried claims for checking/),
+      ).toBeVisible();
+      await expect(
+        page.getByText(/Decisions are available for 3 of the selected claims/),
+      ).toBeVisible();
+    }
   });
 }
 
@@ -117,9 +124,7 @@ test("saved D1 evidence renders, downloads its exact excerpt, and survives reloa
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(`/run/${runId}`);
-  await expect(
-    page.getByRole("heading", { name: "Top claims selected for checking" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Claims in this report" })).toBeVisible();
   const source = page.getByRole("link", { name: "source link" }).first();
   await expect(source).toHaveAttribute("href", "https://records.example.org/turin-plant");
   const excerpt = page.locator('a[href*="/evidence/"]').first();
