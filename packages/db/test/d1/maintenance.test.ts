@@ -116,12 +116,14 @@ test("concurrent cleanup charges expired reservations once and preserves future 
   expect(counts.reduce((total, item) => total + item.reservationsSettled, 0)).toBe(1);
   const spend = await runtime.db
     .prepare(
-      "SELECT reserved_micros,actual_micros,open_until FROM ai_provider_spend WHERE provider_key='expired-provider'",
+      "SELECT reserved_micros,actual_micros,estimated_settled_micros,measured_settled_micros,open_until FROM ai_provider_spend WHERE provider_key='expired-provider'",
     )
     .first();
   expect(spend).toMatchObject({
     reserved_micros: 0,
     actual_micros: 1_000_000,
+    estimated_settled_micros: 1_000_000,
+    measured_settled_micros: 0,
     open_until: Date.parse("2026-10-13T00:00:00Z"),
   });
   expect(await runtime.db.prepare("SELECT id FROM ai_spend_reservations").first("id")).toBe(
