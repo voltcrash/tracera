@@ -1,3 +1,4 @@
+import { createStageResult } from "@repo/contracts/analysis";
 import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import type {
   AnalysisIssue,
@@ -214,9 +215,7 @@ async function assess(
       null,
       null,
     );
-    if (status === "complete" || status === "partial")
-      return { status, data: data!, issues, metrics: metrics() };
-    return { status, data: null, issues, metrics: metrics() };
+    return createStageResult({ status, data, issues, metrics: metrics() });
   }
 }
 

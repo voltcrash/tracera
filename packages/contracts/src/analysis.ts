@@ -144,32 +144,22 @@ export const stageMetricsSchema = z.strictObject({
  * `partial` carry data; `unavailable` and `failed` never do.
  */
 export function stageResultSchema<Data extends z.ZodType>(data: Data) {
+  const common = { issues: z.array(issueSchema), metrics: stageMetricsSchema };
   return z
-    .strictObject({
-      status: stageStatusSchema,
-      data: data.nullable(),
-      issues: z.array(issueSchema),
-      metrics: stageMetricsSchema,
-    })
-    .superRefine((raw, context) => {
-      const value = raw as unknown as {
-        status: z.infer<typeof stageStatusSchema>;
-        data: unknown;
-        issues: unknown[];
-      };
-      const carriesData = value.status === "complete" || value.status === "partial";
-      if (carriesData && value.data === null) {
+    .discriminatedUnion("status", [
+      z.strictObject({ status: z.enum(["complete", "partial"]), data, ...common }),
+      z.strictObject({ status: z.enum(["unavailable", "failed"]), data: z.null(), ...common }),
+    ])
+    .superRefine((value, context) => {
+      if (
+        (value.status === "complete" || value.status === "partial") &&
+        "data" in value &&
+        value.data === null
+      ) {
         context.addIssue({
           code: "custom",
           path: ["data"],
           message: "A complete or partial stage must return data.",
-        });
-      }
-      if (!carriesData && value.data !== null) {
-        context.addIssue({
-          code: "custom",
-          path: ["data"],
-          message: "An unavailable or failed stage must not return data.",
         });
       }
       if (value.status !== "complete" && value.issues.length === 0) {
@@ -182,11 +172,30 @@ export function stageResultSchema<Data extends z.ZodType>(data: Data) {
     });
 }
 
-export interface StageResult<Data> {
+export type StageResult<Data> = {
+  issues: Array<z.infer<typeof issueSchema>>;
+  metrics: z.infer<typeof stageMetricsSchema>;
+} & (
+  | { status: "complete"; data: Data }
+  | { status: "partial"; data: Data }
+  | { status: "unavailable"; data: null }
+  | { status: "failed"; data: null }
+);
+/** Construct dynamically selected statuses without weakening the status/data invariant. */
+export function createStageResult<Data>(value: {
   status: z.infer<typeof stageStatusSchema>;
   data: Data | null;
   issues: Array<z.infer<typeof issueSchema>>;
   metrics: z.infer<typeof stageMetricsSchema>;
+}): StageResult<Data> {
+  if (value.status !== "complete" && value.issues.length === 0)
+    throw new Error("A non-complete stage must state at least one typed issue.");
+  if (value.status === "complete" || value.status === "partial") {
+    if (value.data === null) throw new Error("A complete or partial stage must return data.");
+    return { ...value, status: value.status, data: value.data };
+  }
+  if (value.data !== null) throw new Error("An unavailable or failed stage must not return data.");
+  return { ...value, status: value.status, data: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -1016,6 +1025,7 @@ export const calibrationSchema = z.discriminatedUnion("applicability", [
 
 export const focusedPublicationGateSchema = z.enum([
   "passed",
+  "not_evaluated",
   "insufficient_evidence",
   "invalid_citation",
   "failed_applicability",
@@ -1063,7 +1073,7 @@ export const focusedPublicationDecisionSchema = z
       ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION,
       LEGACY_PUBLICATION_DECISION_VERSION,
     ]),
-    status: z.enum(["published", "abstained"]),
+    status: z.enum(["not_evaluated", "published", "abstained"]),
     gate: focusedPublicationGateSchema,
     calibration: focusedPublicationCalibrationSchema,
   })
@@ -1072,7 +1082,11 @@ export const focusedPublicationDecisionSchema = z
       (policyVersion === ANALYSIS_FOCUSED_PUBLICATION_POLICY_VERSION) ===
       (decisionVersion === ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION),
     { path: ["decisionVersion"], message: "Decision versions must belong to the same release." },
-  );
+  )
+  .refine(({ status, gate }) => (status === "not_evaluated") === (gate === "not_evaluated"), {
+    path: ["gate"],
+    message: "An unevaluated decision must carry an unevaluated publication gate.",
+  });
 
 export const challengeSchema = z.strictObject({
   status: z.enum(["not_required", "resolved", "unresolved", "failed"]),
@@ -1148,11 +1162,11 @@ export const decisionSchema = z
           });
         }
       }
-      if (value.focusedPublication.status === "abstained" && isDecisive) {
+      if (value.focusedPublication.status !== "published" && isDecisive) {
         context.addIssue({
           code: "custom",
           path: ["publishedLabel"],
-          message: "An abstained focused decision cannot publish a decisive label.",
+          message: "An unevaluated or abstained focused decision cannot publish a decisive label.",
         });
       }
     }

@@ -1,3 +1,4 @@
+import { createStageResult } from "@repo/contracts/analysis";
 import { signalStopReason } from "../interruption";
 import { createHash } from "node:crypto";
 import {
@@ -201,7 +202,7 @@ function result<Data>(
   durationMs: number,
   costUsd: number | null,
 ): StageResult<Data> {
-  return {
+  return createStageResult({
     status,
     data,
     issues,
@@ -214,5 +215,5 @@ function result<Data>(
       outputTokens: null,
       costUsd,
     },
-  };
+  });
 }

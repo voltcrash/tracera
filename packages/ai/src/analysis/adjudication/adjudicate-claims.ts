@@ -1,3 +1,4 @@
+import { createStageResult } from "@repo/contracts/analysis";
 import { hashValue } from "../hashing";
 import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import {
@@ -765,7 +766,7 @@ async function adjudicate(
     data: AdjudicateClaimsData | null,
   ): Promise<StageResult<AdjudicateClaimsData>> {
     await audit("stage_finished", `Verdict adjudication finished with status ${status}.`);
-    return {
+    return createStageResult({
       status,
       data,
       issues,
@@ -778,7 +779,7 @@ async function adjudicate(
         outputTokens,
         costUsd: stageCostUsd,
       },
-    };
+    });
   }
 }
 

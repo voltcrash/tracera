@@ -1,3 +1,4 @@
+import { createStageResult } from "@repo/contracts/analysis";
 import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import {
   ANALYSIS_FOCUSED_NON_CALIBRATION_REASON,
@@ -223,12 +224,12 @@ export function createFocusedPublication(): FocusedPublication {
       data: FocusedPublicationData | null,
       issues: AnalysisIssue[],
     ): StageResult<FocusedPublicationData> {
-      return {
+      return createStageResult({
         status,
         data,
         issues,
         metrics: metrics(startedAt, clock.now(), startedMs, clock.monotonicMs()),
-      };
+      });
     }
   };
 }

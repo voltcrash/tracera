@@ -1,3 +1,4 @@
+import { createStageResult } from "@repo/contracts/analysis";
 import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import {
   provenanceGraphSchema,
@@ -104,6 +105,20 @@ async function trace(
         ),
       );
       continue;
+    }
+    if (parsed.data.coverageStatus !== "complete") {
+      const unresolved = [
+        ...(parsed.data.chronologyConflicts.length > 0 ? ["chronology conflicts"] : []),
+        ...(parsed.data.cycles.length > 0 ? ["citation cycles"] : []),
+        ...(parsed.data.inaccessibleOriginals.length > 0 ? ["inaccessible originals"] : []),
+      ];
+      issues.push(
+        issue(
+          "missing_evidence",
+          `Provenance coverage is incomplete: ${unresolved.join(", ") || "bounded search coverage"}.`,
+          claim.id,
+        ),
+      );
     }
     graphs.push(parsed.data);
   }
@@ -484,7 +499,7 @@ async function trace(
     status: StageResult<TraceOriginsData>["status"],
     data: TraceOriginsData | null,
   ): StageResult<TraceOriginsData> {
-    return {
+    return createStageResult({
       status,
       data,
       issues,
@@ -497,7 +512,7 @@ async function trace(
         outputTokens: null,
         costUsd: stageCostUsd,
       },
-    } as StageResult<TraceOriginsData>;
+    });
   }
 
   function audit(
