@@ -284,6 +284,12 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         );
         let targetedRetrieval: StageResult<RetrieveEvidenceData> | null = null;
         let snapshots = state.snapshots;
+        if (assessment.data) {
+          assessment = {
+            ...assessment,
+            data: accumulateEvidence(analyzedClaims(), snapshots, assessment.data.assessments),
+          };
+        }
         const assessedSnapshotIds = new Set(state.admittedSnapshotIds);
         const allowedRounds = Math.max(
           0,

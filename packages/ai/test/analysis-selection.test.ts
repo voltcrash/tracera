@@ -565,7 +565,11 @@ test("the orchestration pipeline sends only selected claims to evidence-bearing 
   const selected = report.focusedSelection!.selectedClaimIds;
 
   for (const stage of ["retrieve", "assess", "trace", "adjudicate", "publish", "score"]) {
-    assert.deepEqual(observed.get(stage), [selected], `${stage} received a non-focused claim set`);
+    assert.deepEqual(
+      observed.get(stage),
+      stage === "retrieve" ? [selected, selected] : [selected],
+      `${stage} received a non-focused claim set`,
+    );
   }
   assert.equal(report.claims.length, claims.length);
   assert.equal(report.assessments.length, 0);
