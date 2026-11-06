@@ -41,6 +41,7 @@ import {
   type DraftResolution,
 } from "./policy";
 import type { AdjudicationOptions, TargetedEvidence } from "./types";
+import { GenerationUsageError } from "../generation-usage";
 
 export const PENDING_CALIBRATION: Calibration = {
   applicability: "unavailable",
@@ -535,11 +536,16 @@ async function adjudicate(
     );
     try {
       const response = await environment.ports.generation.generate(request);
+      totalRequests += Math.max(1, response.attempts) - 1;
       addUsage(response.usage);
       return { value: request.schema.parse(response.value) };
     } catch (error) {
       ensureActive();
-      inputTokens = outputTokens = stageCostUsd = totalCostUsd = null;
+      inputTokens = outputTokens = null;
+      if (error instanceof GenerationUsageError) {
+        totalRequests += error.attempts - 1;
+        addUsage(error.usage);
+      } else stageCostUsd = totalCostUsd = null;
       warn(
         "provider_failure",
         `${request.schemaName} failed; the claim was omitted rather than guessed: ${error instanceof Error ? error.message : "unknown error"}`,

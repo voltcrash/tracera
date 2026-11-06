@@ -59,7 +59,7 @@ export class OpenAiCompatibleProvider extends StructuredOutputProvider {
         input: text,
         ...(this.embeddingDimensions ? { dimensions: this.embeddingDimensions } : {}),
       },
-      options?.signal,
+      options,
     );
     const embedding = response.data?.[0]?.embedding;
 
@@ -83,7 +83,7 @@ export class OpenAiCompatibleProvider extends StructuredOutputProvider {
           json_schema: { name: "structured_response", strict: true, schema },
         },
       },
-      options?.signal,
+      options,
     );
     const content = response.choices?.[0]?.message?.content;
     const text = Array.isArray(content) ? content.map((part) => part.text ?? "").join("") : content;
@@ -120,7 +120,7 @@ export class OpenAiCompatibleProvider extends StructuredOutputProvider {
           json_schema: { name: "structured_response", strict: true, schema },
         },
       },
-      options?.signal,
+      options,
     );
     const content = response.choices?.[0]?.message?.content;
     const text = Array.isArray(content) ? content.map((part) => part.text ?? "").join("") : content;
@@ -131,17 +131,22 @@ export class OpenAiCompatibleProvider extends StructuredOutputProvider {
   private request<TResponse>(
     path: string,
     body: unknown,
-    signal?: AbortSignal,
+    options?: AiRequestOptions,
   ): Promise<TResponse> {
-    return requestProviderJson<TResponse>(this.providerName, `${this.baseUrl}/${path}`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${this.apiKey}`,
-        "content-type": "application/json",
-        ...this.extraHeaders,
+    return requestProviderJson<TResponse>(
+      this.providerName,
+      `${this.baseUrl}/${path}`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${this.apiKey}`,
+          "content-type": "application/json",
+          ...this.extraHeaders,
+        },
+        body: JSON.stringify(body),
+        signal: options?.signal,
       },
-      body: JSON.stringify(body),
-      signal,
-    });
+      options?.onRequest,
+    );
   }
 }

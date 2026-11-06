@@ -10,6 +10,7 @@ import {
 } from "@repo/contracts/analysis";
 import type { AnalysisAccessScope } from "./access-scope.js";
 import { D1PayloadStore, hashJson } from "./payloads.js";
+import { microsToUsd, usdToMicros } from "./clock.js";
 
 export class AnalysisStorageConflictError extends Error {}
 export class AnalysisStorageAccessError extends Error {}
@@ -54,6 +55,9 @@ interface RunRow {
   updated_at: number;
   finalized_at: number | null;
   last_error: string | null;
+  started_at: number | null;
+  usage_external_requests: number;
+  usage_cost_micros: number;
 }
 const scopeValues = (scope: AnalysisAccessScope) => [
   scope.tenantId,
@@ -788,11 +792,12 @@ export class D1AnalysisRepository {
     const now = this.now();
     const [changed] = await this.database.batch<{ attempt: number; version: number }>([
       this.database
-        .prepare(`UPDATE core_runs SET status='running',stage=?,attempt=attempt+1,fencing_token=?,version=version+1,updated_at=?
+        .prepare(`UPDATE core_runs SET status='running',stage=?,attempt=attempt+1,fencing_token=?,version=version+1,updated_at=?,started_at=COALESCE(started_at,?)
         WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND version=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0 RETURNING attempt,version`)
         .bind(
           input.stage,
           token,
+          now,
           now,
           input.runId,
           ...scopeValues(input.scope),
@@ -835,6 +840,39 @@ export class D1AnalysisRepository {
           version: row.version,
         }
       : null;
+  }
+
+  async getRunUsage(input: { scope: AnalysisAccessScope; runId: string }) {
+    const row = await this.run(input.scope, input.runId);
+    return row
+      ? {
+          externalRequests: row.usage_external_requests,
+          estimatedCostUsd: microsToUsd(row.usage_cost_micros),
+          startedAt: row.started_at === null ? null : new Date(row.started_at).toISOString(),
+        }
+      : null;
+  }
+
+  async reserveRunUsage(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+    fencingToken: string;
+    estimatedCostUsd: number;
+  }): Promise<boolean> {
+    usdToMicros(input.estimatedCostUsd);
+    const cost = Math.ceil(input.estimatedCostUsd * 1_000_000);
+    const result = await this.database
+      .prepare(`UPDATE core_runs
+      SET usage_external_requests=usage_external_requests+1,usage_cost_micros=usage_cost_micros+?
+      WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=?
+      AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0
+      AND started_at+json_extract(budget,'$.maxElapsedMs')>?
+      AND usage_external_requests<json_extract(budget,'$.maxExternalRequests')
+      AND (json_extract(budget,'$.maxCostUsd') IS NULL OR usage_cost_micros+?<=ROUND(json_extract(budget,'$.maxCostUsd')*1000000))
+      RETURNING run_id`)
+      .bind(cost, input.runId, ...scopeValues(input.scope), input.fencingToken, this.now(), cost)
+      .all();
+    return result.results.length === 1;
   }
 
   /** Only call after the Workflow has stopped; this also fences any late writes. */

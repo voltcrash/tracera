@@ -78,6 +78,8 @@ export interface RunAnalysisStageFactories {
 }
 
 export interface RunAnalysisOptions {
+  /** Elapsed wall time from earlier attempts; retries share one run deadline. */
+  elapsedMs?: number;
   /** Lease identity. Checkpoints are read and written only when both are supplied. */
   attempt?: number;
   fencingToken?: string;
@@ -143,7 +145,8 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
   return async (input, environment) => {
     const { clock } = environment.ports;
     const startedMs = clock.monotonicMs();
-    const deadlineMonotonicMs = startedMs + environment.context.budget.maxElapsedMs;
+    const deadlineMonotonicMs =
+      startedMs + Math.max(0, environment.context.budget.maxElapsedMs - (options.elapsedMs ?? 0));
     const state = emptyState();
     const identity = runIdentity(environment);
     const usage = (pending: StageMetrics[] = []): StageUsage => {

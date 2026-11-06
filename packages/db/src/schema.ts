@@ -66,6 +66,9 @@ export const analysisRuns = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     finalizedAt: integer("finalized_at", { mode: "timestamp_ms" }),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }),
+    usageExternalRequests: integer("usage_external_requests").notNull().default(0),
+    usageCostMicros: integer("usage_cost_micros").notNull().default(0),
   },
   (table) => [
     uniqueIndex("core_runs_scope_idx").on(

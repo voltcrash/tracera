@@ -28,6 +28,7 @@ export function createWorkflowAnalysisPorts(input: {
   clock: ClockPort;
   blobStore: RawBlobStore;
   resolvedProvider?: ResolvedAnalysisProvider;
+  reserveUsage: (estimatedCostUsd: number) => Promise<void>;
 }) {
   const { env, context, clock, blobStore } = input;
   if (context.executionMode === "fixture") {
@@ -54,7 +55,7 @@ export function createWorkflowAnalysisPorts(input: {
     if (rejected) throw new ProviderKeyRejectedError();
   };
   const underlying = createAiProvider(resolved.config);
-  const provider =
+  const controlledProvider =
     resolved.source === "platform"
       ? spendLimitedAiProvider(underlying, resolved.config, controls, spend)
       : new InstrumentedAiProvider(underlying, {
@@ -71,12 +72,24 @@ export function createWorkflowAnalysisPorts(input: {
             }
           },
         });
+  const provider = new InstrumentedAiProvider(controlledProvider, {
+    onCall: async (_call, operation) => operation(),
+    onRequest: (call) =>
+      input.reserveUsage(
+        call.kind === "embed"
+          ? controls.embeddingCostUsd
+          : call.kind === "generate_image"
+            ? controls.imageCostUsd
+            : controls.generationCostUsd,
+      ),
+  });
   const documents = createDocumentAcquisitionPort({
     now: () => clock.now(),
     monotonicMs: () => clock.monotonicMs(),
     rawBlobStore: blobStore,
     ocr: createProviderOcrPort({ provider, modelId: context.versions.model }),
     ocrCostUsd: controls.imageCostUsd,
+    safeFetchOptions: { beforeRequest: () => input.reserveUsage(0) },
   });
   return {
     assertProviderAccepted,
@@ -93,7 +106,7 @@ export function createWorkflowAnalysisPorts(input: {
       modelId: context.versions.embedding.model,
       estimatedCostUsd: controls.embeddingCostUsd,
     }),
-    search: createLiveSearchPorts(env, clock),
+    search: createLiveSearchPorts(env, clock, () => input.reserveUsage(0)),
     documents: {
       ...documents,
       async acquire(request: Parameters<typeof documents.acquire>[0]) {

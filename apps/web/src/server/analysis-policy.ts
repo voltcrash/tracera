@@ -140,7 +140,7 @@ function readLiveBudget(environment: RuntimeEnvironment) {
   if (values.maxElapsedMs! > 300_000) {
     return {
       ok: false as const,
-      message: "ANALYSIS_MAX_ELAPSED_MS cannot exceed the 300-second analysis attempt bound.",
+      message: "ANALYSIS_MAX_ELAPSED_MS cannot exceed the 300-second run bound.",
     };
   }
   return { ok: true as const, value: values as RunBudget };

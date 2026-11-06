@@ -54,7 +54,7 @@ export class AnthropicProvider extends StructuredOutputProvider {
         ],
         tool_choice: { type: "tool", name: "submit_structured_output" },
       },
-      options?.signal,
+      options,
     );
     const input = response.content?.find((block) => block.type === "tool_use")?.input;
 
@@ -89,7 +89,7 @@ export class AnthropicProvider extends StructuredOutputProvider {
         ],
         tool_choice: { type: "tool", name: "submit_structured_output" },
       },
-      options?.signal,
+      options,
     );
     const input = response.content?.find((block) => block.type === "tool_use")?.input;
     if (input === undefined) throw new Error("Anthropic returned no structured image analysis.");
@@ -99,18 +99,23 @@ export class AnthropicProvider extends StructuredOutputProvider {
   private request<TResponse>(
     path: string,
     body: unknown,
-    signal?: AbortSignal,
+    options?: AiRequestOptions,
   ): Promise<TResponse> {
-    return requestProviderJson<TResponse>(this.providerName, `${this.baseUrl}/${path}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": this.apiKey,
-        "anthropic-version": "2023-06-01",
+    return requestProviderJson<TResponse>(
+      this.providerName,
+      `${this.baseUrl}/${path}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": this.apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify(body),
+        signal: options?.signal,
       },
-      body: JSON.stringify(body),
-      signal,
-    });
+      options?.onRequest,
+    );
   }
 }
 

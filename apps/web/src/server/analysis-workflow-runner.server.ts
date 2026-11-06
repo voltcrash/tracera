@@ -67,10 +67,13 @@ export async function runAnalysisWorkflow(
           expectedVersion: progress.version,
         });
         const controller = new AbortController();
-        const signal = AbortSignal.any([
-          controller.signal,
-          AbortSignal.timeout(context.budget.maxElapsedMs),
-        ]);
+        const initialUsage = await storage.runs.getRunUsage(identity);
+        const elapsedMs = initialUsage?.startedAt
+          ? Math.max(0, Date.now() - Date.parse(initialUsage.startedAt))
+          : 0;
+        const remainingMs = context.budget.maxElapsedMs - elapsedMs;
+        if (remainingMs <= 0) throw new NonRetryableError("The analysis run deadline has elapsed.");
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(remainingMs)]);
         const checkCancellation = async () => {
           if ((await storage.runs.getRunProgress(identity))?.cancellationRequested) {
             controller.abort(new Error("The analysis was canceled by its owner."));
@@ -84,6 +87,17 @@ export async function runAnalysisWorkflow(
             context,
             clock,
             blobStore,
+            reserveUsage: async (estimatedCostUsd) => {
+              if (
+                !(await storage.runs.reserveRunUsage({
+                  ...identity,
+                  fencingToken: attempt.fencingToken,
+                  estimatedCostUsd,
+                }))
+              ) {
+                throw new Error("The analysis run allowance is exhausted or no longer active.");
+              }
+            },
             ...(context.executionMode === "live"
               ? { resolvedProvider: await resolveWorkflowProvider(env, context) }
               : {}),
@@ -91,6 +105,7 @@ export async function runAnalysisWorkflow(
           const runs = createRunStore({ repository: storage.runs, context });
           const result = await createRunAnalysis({
             ...attempt,
+            elapsedMs,
             retrieval: { searchPorts: ports.search },
           })((await storage.runs.getRunInput(identity)) as RunAnalysisInput, {
             context,
@@ -123,6 +138,13 @@ export async function runAnalysisWorkflow(
           if (result.status === "failed" || !result.report)
             throw new Error("The engine did not complete a report.");
           const report = runReportSchema.parse(result.report);
+          if (context.executionMode === "live") {
+            const usage = await storage.runs.getRunUsage(identity);
+            if (!usage) throw new Error("The analysis usage record is unavailable.");
+            report.cost.externalRequests = usage.externalRequests;
+            report.cost.costUsd = report.cost.costUsd === null ? null : usage.estimatedCostUsd;
+            report.cost.latencyMs += elapsedMs;
+          }
           const pointer = await blobStore.put({
             snapshotId: params.runId,
             bytes: new TextEncoder().encode(JSON.stringify(report)),

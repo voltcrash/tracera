@@ -5,6 +5,8 @@ export type JsonSchema = Record<string, unknown>;
 export interface AiRequestOptions {
   /** Cancels in-flight provider work when the caller no longer needs the result. */
   signal?: AbortSignal;
+  /** Runs before each physical provider request, including repair attempts. */
+  onRequest?: () => void | Promise<void>;
 }
 
 export interface GenerateOptions extends AiRequestOptions {
@@ -54,6 +56,7 @@ export interface AiProviderCall {
 
 export interface AiProviderHooks {
   onCall<T>(call: AiProviderCall, operation: () => Promise<T>): Promise<T>;
+  onRequest?(call: AiProviderCall): void | Promise<void>;
 }
 
 /** Adds request-level policy around any provider, including composite providers. */
@@ -68,8 +71,12 @@ export class InstrumentedAiProvider implements AiProvider {
     schema: TSchema,
     options?: GenerateOptions,
   ): Promise<z.output<TSchema>> {
-    return this.hooks.onCall({ kind: "generate", inputLength: prompt.length }, () =>
-      this.provider.generate(prompt, schema, options),
+    const call = { kind: "generate" as const, inputLength: prompt.length };
+    return this.hooks.onCall(call, () =>
+      this.provider.generate(prompt, schema, {
+        ...options,
+        onRequest: this.requestHook(call, options),
+      }),
     );
   }
 
@@ -79,16 +86,31 @@ export class InstrumentedAiProvider implements AiProvider {
     schema: TSchema,
     options?: GenerateOptions,
   ): Promise<z.output<TSchema>> {
-    return this.hooks.onCall(
-      { kind: "generate_image", inputLength: prompt.length + image.data.length },
-      () => this.provider.generateFromImage(prompt, image, schema, options),
+    const call = {
+      kind: "generate_image" as const,
+      inputLength: prompt.length + image.data.length,
+    };
+    return this.hooks.onCall(call, () =>
+      this.provider.generateFromImage(prompt, image, schema, {
+        ...options,
+        onRequest: this.requestHook(call, options),
+      }),
     );
   }
 
   embed(text: string, options?: AiRequestOptions): Promise<number[]> {
-    return this.hooks.onCall({ kind: "embed", inputLength: text.length }, () =>
-      this.provider.embed(text, options),
+    const call = { kind: "embed" as const, inputLength: text.length };
+    return this.hooks.onCall(call, () =>
+      this.provider.embed(text, { ...options, onRequest: this.requestHook(call, options) }),
     );
+  }
+
+  private requestHook(call: AiProviderCall, options?: AiRequestOptions) {
+    if (!this.hooks.onRequest) return options?.onRequest;
+    return async () => {
+      await this.hooks.onRequest?.(call);
+      await options?.onRequest?.();
+    };
   }
 }
 
