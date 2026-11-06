@@ -205,7 +205,7 @@ export async function runAdjudicationScenario(id: AdjudicationScenario) {
         assert.deepEqual(decision.reasonCodes, ["unresolved_material_conflict"]);
         assert.equal(targeted.recorded.length, 1);
         assert.equal(fixture.draftCalls, 1);
-        assert.equal(fixture.challengeCalls, 2);
+        assert.equal(fixture.challengeCalls, 1);
       }
       return {};
     }

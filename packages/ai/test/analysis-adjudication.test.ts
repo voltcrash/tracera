@@ -216,3 +216,62 @@ for (const failed of [false, true]) {
     assert.equal(result.data!.decisions[1]!.challenge.targetedRoundsUsed, 0);
   });
 }
+
+test("targeted evidence produces a fresh draft that can cite newly acquired assessments", async () => {
+  const { snapshots, assessments } = contradictionEvidence();
+  const fresh = adjudicationSnapshot(
+    "original_forms",
+    "An independent archive contains seventeen original Northbridge incident forms dated within calendar year 1998.",
+  );
+  const freshAssessment = adjudicationAssessment(fresh, { relation: "contradicts" });
+  const targeted = scriptedTargetedReassessment({
+    snapshots: [fresh],
+    assessments: [freshAssessment],
+  });
+  const { result, fixture } = await adjudicate(
+    assessments,
+    snapshots,
+    {
+      draft: (_ids, call) =>
+        draft("contradicted", {
+          contradictingAssessmentIds: [call === 1 ? assessments[0]!.id : freshAssessment.id],
+        }),
+      challenge: (ids) =>
+        ids.includes(freshAssessment.id)
+          ? challenge("contradicted", [freshAssessment.id])
+          : challenge("unverified", []),
+    },
+    { targetedReassessment: targeted.reassessment },
+  );
+  assert.equal(fixture.draftCalls, 2);
+  assert.deepEqual(result.data!.decisions[0]!.contradictingAssessmentIds, [freshAssessment.id]);
+  assert.equal(result.data!.decisions[0]!.challenge.status, "resolved");
+});
+
+test("targeted retrieval leaves room for assessment, a fresh draft, and challenge", async () => {
+  const { snapshots, assessments } = contradictionEvidence();
+  const targeted = scriptedTargetedReassessment();
+  let reservations = 0;
+  const { result, fixture } = await adjudicate(
+    assessments,
+    snapshots,
+    {
+      context: {
+        budget: { ...runContextExample.budget, maxExternalRequests: 5, maxCostUsd: null },
+      },
+      draft: () => draft("contradicted", { contradictingAssessmentIds: [assessments[0]!.id] }),
+      challenge: () => challenge("unverified", []),
+    },
+    {
+      targetedReassessment: targeted.reassessment,
+      reserveTargetedRound: async () => {
+        reservations++;
+        return 1;
+      },
+    },
+  );
+  assert.equal(reservations, 0);
+  assert.equal(targeted.recorded.length, 0);
+  assert.equal(fixture.requests.length, 2);
+  assert.equal(result.data!.decisions[0]!.challenge.status, "unresolved");
+});

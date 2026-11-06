@@ -1,3 +1,4 @@
+import { hashValue } from "../hashing";
 import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import {
   decisionSchema,
@@ -209,7 +210,7 @@ async function adjudicate(
       claim,
     );
     if (draftResponse === null) return null;
-    const draft = draftResponse.value;
+    let draft = draftResponse.value;
     const resolution = resolveDraft(draft, claim, partition.usable);
     if (resolution.kind === "invalid") return integrityFailure(claim, [resolution.reason]);
     if (!isDecisive(resolution.label))
@@ -232,7 +233,8 @@ async function adjudicate(
     if (challenge.ok && (disagreed || conflicted)) {
       const added = await targetedRound(claim, claimAssessments, snapshots);
       rounds = added.attempted ? 1 : 0;
-      if (added.attempted && added.assessments !== null) {
+      if (added.attempted && added.assessments && added.assessments.length > 0) {
+        const previousEvidence = evidenceFingerprint(partition.usable);
         const accumulated = accumulateEvidence(
           [claim],
           [...snapshots.values()],
@@ -242,12 +244,21 @@ async function adjudicate(
         partition = partitionEvidence(claim, accumulated.assessments, snapshots);
         if (partition.integrityFailures.length > 0)
           return integrityFailure(claim, partition.integrityFailures);
-        const reresolved = resolveDraft(draft, claim, partition.usable);
-        if (reresolved.kind === "invalid") return integrityFailure(claim, [reresolved.reason]);
-        current = reresolved;
-        if (!reserve(1)) return exhausted(claim);
-        challenge = await runChallenge(claim, partition.usable);
-        if (challenge === null) return null;
+        if (evidenceFingerprint(partition.usable) !== previousEvidence) {
+          if (!reserve(2)) return exhausted(claim);
+          const refreshed = await generate(
+            buildDraftRequest(buildChallengeInput(claim, partition.usable), environment.signal),
+            claim,
+          );
+          if (refreshed === null) return null;
+          draft = refreshed.value;
+          const reresolved = resolveDraft(draft, claim, partition.usable);
+          if (reresolved.kind === "invalid") return integrityFailure(claim, [reresolved.reason]);
+          current = reresolved;
+          if (!reserve(1)) return exhausted(claim);
+          challenge = await runChallenge(claim, partition.usable);
+          if (challenge === null) return null;
+        }
       }
     }
 
@@ -390,8 +401,8 @@ async function adjudicate(
       );
       return { attempted: false };
     }
-    // A retrieval request, an assessment request and the post-round challenge.
-    if (!reserve(3)) {
+    // Retrieval, assessment, a refreshed draft, and an independent challenge.
+    if (!reserve(4)) {
       warn(
         "budget_exhausted",
         "The shared request cap left no room for a targeted round.",
@@ -437,7 +448,7 @@ async function adjudicate(
             ...environment.context.budget,
             maxExternalRequests: Math.max(
               totalRequests,
-              environment.context.budget.maxExternalRequests - 2,
+              environment.context.budget.maxExternalRequests - 3,
             ),
           },
         },
@@ -477,7 +488,7 @@ async function adjudicate(
     if (admitted.length > 0) {
       const maxGenerationRequests = Math.max(
         0,
-        environment.context.budget.maxExternalRequests - totalRequests - 1,
+        environment.context.budget.maxExternalRequests - totalRequests - 2,
       );
       const assess =
         targeted.createAssess?.({ maxGenerationRequests }) ??
@@ -787,4 +798,8 @@ function issue(
   snapshotId: string | null = null,
 ): AnalysisIssue {
   return { code, severity: "warning", message, claimId, snapshotId, url: null };
+}
+
+function evidenceFingerprint(assessments: EvidenceAssessment[]) {
+  return hashValue([...assessments].sort((left, right) => left.id.localeCompare(right.id)));
 }
