@@ -146,6 +146,17 @@ test("stage constructors and schemas reject impossible status/data pairs", () =>
     assert.throws(() => createStageResult(invalid));
   }
   assert.throws(() => createStageResult({ status: "partial", data: {}, issues: [], metrics }));
+  for (const dataSchema of [z.unknown(), z.string().nullable()]) {
+    assert.equal(
+      stageResultSchema(dataSchema).safeParse({
+        status: "complete",
+        data: null,
+        issues: [],
+        metrics,
+      }).success,
+      false,
+    );
+  }
 });
 
 test("an unevaluated publication gate cannot release a diagnostic verdict", () => {

@@ -151,6 +151,17 @@ export function stageResultSchema<Data extends z.ZodType>(data: Data) {
       z.strictObject({ status: z.enum(["unavailable", "failed"]), data: z.null(), ...common }),
     ])
     .superRefine((value, context) => {
+      if (
+        (value.status === "complete" || value.status === "partial") &&
+        "data" in value &&
+        value.data === null
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["data"],
+          message: "A complete or partial stage must return data.",
+        });
+      }
       if (value.status !== "complete" && value.issues.length === 0) {
         context.addIssue({
           code: "custom",
