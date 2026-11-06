@@ -1,10 +1,10 @@
+import { readStageCheckpoint, writeStageCheckpoint, type StageCheckpoints } from "./checkpoints";
 import { isRunInterrupted, runStopReason, stopIssue } from "./interruption";
 import {
   ANALYSIS_CONTRACT_VERSION,
   ANALYSIS_SCHEMA_VERSION,
   issueSchema,
   runReportSchema,
-  stageResultSchema,
   type AnalysisIssue,
   type Decision,
   type DocumentSnapshot,
@@ -22,7 +22,6 @@ import {
   type StageResult,
   type StageStatus,
 } from "@repo/contracts/analysis";
-import { z } from "zod";
 import { createAdjudicateClaims, type TargetedEvidence } from "./adjudication/index";
 import { createExtractClaims } from "./claims/index";
 import { accumulateEvidence, createAssessEvidence } from "./evidence/index";
@@ -36,10 +35,8 @@ import { coverageForSelectedClaims, selectTopClaims } from "./selection/index";
 import type {
   AdjudicateClaims,
   AssessEvidence,
-  AssessEvidenceData,
   ExtractClaims,
   FocusedPublication,
-  FocusedPublicationData,
   NormalizeInput,
   RetrieveEvidence,
   RetrieveEvidenceData,
@@ -108,25 +105,9 @@ interface RunState {
   targetedRounds: number;
 }
 
-interface CheckpointEnvelope<Value, Extra> {
-  version: 2;
-  result: StageResult<Value>;
-  extra: Extra;
-}
-
 interface Checkpointing {
   attempt: number;
   fencingToken: string;
-}
-
-interface AssessmentExtra {
-  targetedRetrieval: StageResult<RetrieveEvidenceData> | null;
-  rounds: number;
-}
-
-interface ProvenanceExtra {
-  snapshots: DocumentSnapshot[];
-  reassessment: StageResult<AssessEvidenceData>;
 }
 
 const STATUS_RANK: Record<StageStatus, number> = {
@@ -166,10 +147,10 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     };
     const stop = (status: RunStatus) =>
       finishResult(status, input, environment, state, startedMs, null);
-    const checkpointed = <Value, Extra>(
-      stage: StageName,
+    const checkpointed = <Stage extends StageName>(
+      stage: Stage,
       dependencyHash: string,
-      execute: () => Promise<{ result: StageResult<Value>; extra: Extra }>,
+      execute: () => Promise<StageCheckpoints[Stage]>,
     ) => executeStage(stage, dependencyHash, execute, environment, checkpointing);
     const interrupted = (stage: StageName): RunAnalysisResult | null => {
       const reason = runStopReason(environment);
@@ -276,7 +257,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     const beforeAssess = interrupted("assess_evidence");
     if (beforeAssess) return beforeAssess;
     const assessPrior = usage();
-    const assessedExecution = await checkpointed<AssessEvidenceData, AssessmentExtra>(
+    const assessedExecution = await checkpointed(
       "assess_evidence",
       hashValue({
         upstream: retrieved.result,
@@ -378,10 +359,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     const beforeTrace = interrupted("trace_origins");
     if (beforeTrace) return beforeTrace;
     const tracePrior = usage();
-    const tracedExecution = await checkpointed<
-      { graphs: ProvenanceGraph[]; newSnapshotIds: string[] },
-      ProvenanceExtra | null
-    >(
+    const tracedExecution = await checkpointed(
       "trace_origins",
       hashValue({
         upstream: assessed.result,
@@ -465,7 +443,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     const adjudicated = checkStageBudget(
       "adjudicate_claims",
       usage(),
-      await checkpointed<{ decisions: Decision[] }, TargetedEvidence[]>(
+      await checkpointed(
         "adjudicate_claims",
         hashValue({
           upstream: traced.result,
@@ -521,7 +499,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     const decisionStage = checkStageBudget(
       "calibrate_decisions",
       usage(),
-      await checkpointed<FocusedPublicationData, null>(
+      await checkpointed(
         "calibrate_decisions",
         hashValue({
           upstream: adjudicated.result,
@@ -648,13 +626,13 @@ function defaultStageFactories(options: RunAnalysisOptions): RunAnalysisStageFac
   };
 }
 
-async function executeStage<Value, Extra>(
-  stage: StageName,
+async function executeStage<Stage extends StageName>(
+  stage: Stage,
   dependencyHash: string,
-  execute: () => Promise<{ result: StageResult<Value>; extra: Extra }>,
+  execute: () => Promise<StageCheckpoints[Stage]>,
   environment: RunEnvironment,
   checkpointing: Checkpointing | null,
-): Promise<{ result: StageResult<Value>; extra: Extra }> {
+): Promise<StageCheckpoints[Stage]> {
   environment.signal.throwIfAborted();
   if (checkpointing) {
     const saved = await environment.ports.runs.readCheckpoint({
@@ -663,14 +641,8 @@ async function executeStage<Value, Extra>(
       signal: environment.signal,
     });
     if (saved?.checkpointHash === dependencyHash) {
-      try {
-        const envelope = JSON.parse(saved.payloadJson) as CheckpointEnvelope<Value, Extra>;
-        if (envelope.version === 2 && isStageResult(envelope.result)) {
-          return { result: envelope.result, extra: envelope.extra };
-        }
-      } catch {
-        // A malformed checkpoint is stale data; execute the stage again.
-      }
+      const checkpoint = readStageCheckpoint(stage, saved.payloadJson);
+      if (checkpoint) return checkpoint;
     }
   }
   const executed = await execute();
@@ -681,11 +653,7 @@ async function executeStage<Value, Extra>(
       attempt: checkpointing.attempt,
       fencingToken: checkpointing.fencingToken,
       checkpointHash: dependencyHash,
-      payloadJson: JSON.stringify({
-        version: 2,
-        result: executed.result,
-        extra: executed.extra,
-      } satisfies CheckpointEnvelope<Value, Extra>),
+      payloadJson: writeStageCheckpoint(stage, executed),
       signal: environment.signal,
     });
   }
@@ -991,10 +959,6 @@ function uniqueIssues(issues: AnalysisIssue[]) {
 
 function issue(code: AnalysisIssue["code"], message: string): AnalysisIssue {
   return { code, severity: "warning", message, claimId: null, snapshotId: null, url: null };
-}
-
-function isStageResult(value: unknown): value is StageResult<unknown> {
-  return stageResultSchema(z.unknown()).safeParse(value).success;
 }
 
 function costSummary(outcomes: StageOutcome[], latencyMs: number) {

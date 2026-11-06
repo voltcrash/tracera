@@ -146,3 +146,44 @@ for (const reason of ["timeout", "owner"] as const) {
     );
   });
 }
+
+test("a malformed stage payload is recomputed instead of trusted as a checkpoint", async () => {
+  const { environment } = createScriptedEvidenceEnvironment(() => {
+    throw new Error("Unexpected request");
+  });
+  const example = analysisExamples.complete;
+  let saved: { checkpointHash: string; payloadJson: string } | null = null;
+  let normalizations = 0;
+  const reachedExtraction = new Error("Reached extraction");
+  environment.ports.runs.checkpoint = async (request) => {
+    saved = { checkpointHash: request.checkpointHash, payloadJson: request.payloadJson };
+  };
+  const run = createRunAnalysis({
+    attempt: 1,
+    fencingToken: "token",
+    stages: {
+      normalizeInput: () => async () => {
+        normalizations++;
+        return {
+          status: "complete",
+          data: { snapshots: example.snapshots, primarySnapshotId: example.primarySnapshotId! },
+          issues: [],
+          metrics: example.stageOutcomes[0]!.metrics,
+        };
+      },
+      extractClaims: () => async () => {
+        throw reachedExtraction;
+      },
+    },
+  });
+  const input = { input: { kind: "text" as const, text: "A claim." }, seed: 1 };
+  await assert.rejects(run(input, environment), (error) => error === reachedExtraction);
+  const corrupted = JSON.parse(saved!.payloadJson);
+  corrupted.result.data = { claims: [] };
+  environment.ports.runs.readCheckpoint = async ({ stage }) =>
+    stage === "normalize_input"
+      ? { checkpointHash: saved!.checkpointHash, payloadJson: JSON.stringify(corrupted) }
+      : null;
+  await assert.rejects(run(input, environment), (error) => error === reachedExtraction);
+  assert.equal(normalizations, 2);
+});
