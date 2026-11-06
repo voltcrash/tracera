@@ -1014,6 +1014,7 @@ export const calibrationSchema = z.discriminatedUnion("applicability", [
 
 export const focusedPublicationGateSchema = z.enum([
   "passed",
+  "not_evaluated",
   "insufficient_evidence",
   "invalid_citation",
   "failed_applicability",
@@ -1061,7 +1062,7 @@ export const focusedPublicationDecisionSchema = z
       ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION,
       LEGACY_PUBLICATION_DECISION_VERSION,
     ]),
-    status: z.enum(["published", "abstained"]),
+    status: z.enum(["not_evaluated", "published", "abstained"]),
     gate: focusedPublicationGateSchema,
     calibration: focusedPublicationCalibrationSchema,
   })
@@ -1070,7 +1071,11 @@ export const focusedPublicationDecisionSchema = z
       (policyVersion === ANALYSIS_FOCUSED_PUBLICATION_POLICY_VERSION) ===
       (decisionVersion === ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION),
     { path: ["decisionVersion"], message: "Decision versions must belong to the same release." },
-  );
+  )
+  .refine(({ status, gate }) => (status === "not_evaluated") === (gate === "not_evaluated"), {
+    path: ["gate"],
+    message: "An unevaluated decision must carry an unevaluated publication gate.",
+  });
 
 export const challengeSchema = z.strictObject({
   status: z.enum(["not_required", "resolved", "unresolved", "failed"]),
@@ -1146,11 +1151,11 @@ export const decisionSchema = z
           });
         }
       }
-      if (value.focusedPublication.status === "abstained" && isDecisive) {
+      if (value.focusedPublication.status !== "published" && isDecisive) {
         context.addIssue({
           code: "custom",
           path: ["publishedLabel"],
-          message: "An abstained focused decision cannot publish a decisive label.",
+          message: "An unevaluated or abstained focused decision cannot publish a decisive label.",
         });
       }
     }

@@ -3,6 +3,7 @@ import {
   analysisExamples,
   createStageResult,
   stageResultSchema,
+  decisionSchema,
   focusedPublicationDecisionSchema,
   focusedPublicationPolicySchema,
   focusedSelectionSchema,
@@ -11,6 +12,7 @@ import {
 } from "@repo/contracts/analysis";
 import { test } from "vite-plus/test";
 import { z } from "zod";
+import { FOCUSED_PUBLICATION_POLICY } from "../src/analysis/publication/index.js";
 
 function mutate(change: (report: RunReport) => void) {
   const report = structuredClone(analysisExamples.complete);
@@ -144,4 +146,41 @@ test("stage constructors and schemas reject impossible status/data pairs", () =>
     assert.throws(() => createStageResult(invalid));
   }
   assert.throws(() => createStageResult({ status: "partial", data: {}, issues: [], metrics }));
+});
+
+test("an unevaluated publication gate cannot release a diagnostic verdict", () => {
+  const decision = {
+    ...analysisExamples.complete.decisions[0]!,
+    publishedLabel: "unverified" as const,
+    calibration: {
+      applicability: "unavailable" as const,
+      calibratedCorrectness: null,
+      calibratorVersion: null,
+      reason: "Publication has not run.",
+    },
+    focusedPublication: {
+      policyVersion: FOCUSED_PUBLICATION_POLICY.policyVersion,
+      decisionVersion: FOCUSED_PUBLICATION_POLICY.decisionVersion,
+      status: "not_evaluated" as const,
+      gate: "not_evaluated" as const,
+      calibration: FOCUSED_PUBLICATION_POLICY.calibration,
+    },
+  };
+  assert.equal(decisionSchema.safeParse(decision).success, true);
+  assert.equal(
+    decisionSchema.safeParse({ ...decision, publishedLabel: "supported" }).success,
+    false,
+  );
+  assert.equal(
+    focusedPublicationDecisionSchema.safeParse({ ...decision.focusedPublication, gate: "passed" })
+      .success,
+    false,
+  );
+  assert.equal(
+    focusedPublicationDecisionSchema.safeParse({
+      ...decision.focusedPublication,
+      status: "published",
+    }).success,
+    false,
+  );
 });
