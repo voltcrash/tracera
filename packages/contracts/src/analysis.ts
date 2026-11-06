@@ -161,13 +161,15 @@ export function stageResultSchema<Data extends z.ZodType>(data: Data) {
     });
 }
 
-export interface StageResult<Data> {
-  status: z.infer<typeof stageStatusSchema>;
-  data: Data | null;
+export type StageResult<Data> = {
   issues: Array<z.infer<typeof issueSchema>>;
   metrics: z.infer<typeof stageMetricsSchema>;
-}
-
+} & (
+  | { status: "complete"; data: Data }
+  | { status: "partial"; data: Data }
+  | { status: "unavailable"; data: null }
+  | { status: "failed"; data: null }
+);
 /** Construct dynamically selected statuses without weakening the status/data invariant. */
 export function createStageResult<Data>(value: {
   status: z.infer<typeof stageStatusSchema>;

@@ -1,3 +1,4 @@
+import { createStageResult } from "@repo/contracts/analysis";
 import { readStageCheckpoint, writeStageCheckpoint, type StageCheckpoints } from "./checkpoints";
 import { isRunInterrupted, runStopReason, stopIssue } from "./interruption";
 import {
@@ -783,12 +784,12 @@ function mergeResults<Value>(
   const metrics = sumMetrics(first.metrics, second.metrics);
   if (!first.data) return { ...first, issues, metrics };
   if (!second.data) return { status: "partial", data: first.data, issues, metrics };
-  return {
+  return createStageResult({
     status: worse(first.status, second.status),
     data: combine(first.data, second.data),
     issues,
     metrics,
-  };
+  });
 }
 
 function absorbOutcome<Value>(
@@ -799,7 +800,12 @@ function absorbOutcome<Value>(
   const metrics = sumMetrics(result.metrics, follow.metrics);
   if (!follow.data)
     return { status: follow.status, data: null, issues, metrics } as StageResult<Value>;
-  return { ...result, status: worse(result.status, follow.status), issues, metrics };
+  return createStageResult({
+    ...result,
+    status: worse(result.status, follow.status),
+    issues,
+    metrics,
+  });
 }
 
 function combineRetrieval(a: RetrieveEvidenceData, b: RetrieveEvidenceData) {
@@ -933,11 +939,11 @@ function enforceRunBudget<Value>(
     violations.push(issue("timeout", `The elapsed run cap was reached after ${stage}.`));
   }
   if (violations.length === 0) return result;
-  return {
+  return createStageResult({
     ...result,
     status: result.status === "complete" && result.data !== null ? "partial" : result.status,
     issues: uniqueIssues([...result.issues, ...violations]),
-  };
+  });
 }
 
 function statusAfterBudget(result: StageResult<unknown>): RunStatus {
