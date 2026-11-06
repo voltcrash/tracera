@@ -1,3 +1,4 @@
+import { isRunInterrupted, runStopReason, stopIssue } from "./interruption";
 import {
   ANALYSIS_CONTRACT_VERSION,
   ANALYSIS_SCHEMA_VERSION,
@@ -171,9 +172,16 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       execute: () => Promise<{ result: StageResult<Value>; extra: Extra }>,
     ) => executeStage(stage, dependencyHash, execute, environment, checkpointing);
     const interrupted = (stage: StageName): RunAnalysisResult | null => {
-      if (canceled(environment)) {
-        state.issues.push(issue("cancellation_requested", `The run was canceled before ${stage}.`));
-        return stop("canceled");
+      const reason = runStopReason(environment);
+      if (reason) {
+        state.issues.push(stopIssue(environment, `The run was canceled before ${stage}.`));
+        return stop(
+          reason === "cancellation_requested"
+            ? "canceled"
+            : state.outcomes.length === 0
+              ? "failed"
+              : "partial",
+        );
       }
       if (clock.monotonicMs() >= deadlineMonotonicMs) {
         state.issues.push(issue("timeout", `The elapsed run cap was reached before ${stage}.`));
@@ -299,7 +307,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
           environment.context.budget.maxTargetedRetrievalRounds - 1,
         );
         let rounds = 0;
-        while (assessment.data && rounds < allowedRounds && !canceled(environment)) {
+        while (assessment.data && rounds < allowedRounds && !isRunInterrupted(environment)) {
           const insufficient = assessment.data.sufficiency.filter(({ sufficient }) => !sufficient);
           if (insufficient.length === 0) break;
           const pending: StageMetrics[] = [
@@ -582,7 +590,8 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     setOutcome(state, "score_report", scored.result);
     if (scored.exceeded) return stop(statusAfterBudget(scored.result));
     if (!scored.result.data) return stop(stageRunStatus(scored.result));
-    if (canceled(environment)) return stop("canceled");
+    const afterScore = interrupted("score_report");
+    if (afterScore) return afterScore;
     return finishResult(
       overallStatus(state.outcomes),
       input,
@@ -665,7 +674,7 @@ async function executeStage<Value, Extra>(
     }
   }
   const executed = await execute();
-  if (checkpointing && executed.result.status !== "failed" && !canceled(environment)) {
+  if (checkpointing && executed.result.status !== "failed" && !isRunInterrupted(environment)) {
     await environment.ports.runs.checkpoint({
       runId: environment.context.runId,
       stage,
@@ -848,8 +857,10 @@ function zeroMetrics(at: string): StageMetrics {
 
 function interruptedOutcome(environment: RunEnvironment, state: RunState): StageOutcome {
   const reason =
-    state.issues.find(({ code }) => code === "cancellation_requested" || code === "timeout") ??
-    issue("cancellation_requested", "The run was canceled before its first stage.");
+    state.issues.find(
+      ({ code }) =>
+        code === "cancellation_requested" || code === "timeout" || code === "budget_exhausted",
+    ) ?? issue("cancellation_requested", "The run was canceled before its first stage.");
   return {
     stage: "normalize_input",
     status: "failed",
@@ -984,10 +995,6 @@ function issue(code: AnalysisIssue["code"], message: string): AnalysisIssue {
 
 function isStageResult(value: unknown): value is StageResult<unknown> {
   return stageResultSchema(z.unknown()).safeParse(value).success;
-}
-
-function canceled(environment: RunEnvironment) {
-  return environment.signal.aborted || environment.context.cancellation.requested;
 }
 
 function costSummary(outcomes: StageOutcome[], latencyMs: number) {

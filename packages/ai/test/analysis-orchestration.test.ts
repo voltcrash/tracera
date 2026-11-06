@@ -125,3 +125,24 @@ describe("stored analysis artifacts", () => {
     );
   });
 });
+
+for (const reason of ["timeout", "owner"] as const) {
+  test(`an already aborted ${reason} signal has an explicit terminal meaning`, async () => {
+    const { environment } = createScriptedEvidenceEnvironment(() => {
+      throw new Error("Unexpected provider request");
+    });
+    environment.signal = AbortSignal.abort(
+      new DOMException("Stopped", reason === "timeout" ? "TimeoutError" : "AbortError"),
+    );
+    const result = await createRunAnalysis()(
+      { input: { kind: "text", text: "A claim." }, seed: 1 },
+      environment,
+    );
+    assert.equal(result.status, reason === "timeout" ? "failed" : "canceled");
+    assert.ok(
+      result.issues.some(
+        ({ code }) => code === (reason === "timeout" ? "timeout" : "cancellation_requested"),
+      ),
+    );
+  });
+}
