@@ -248,6 +248,40 @@ test("targeted evidence produces a fresh draft that can cite newly acquired asse
   assert.equal(result.data!.decisions[0]!.challenge.status, "resolved");
 });
 
+test("adjudication and publication both keep weak applicable opposition unresolved", async () => {
+  const { snapshots, assessments } = contradictionEvidence();
+  const weak = adjudicationSnapshot(
+    "secondary_support",
+    "A single secondary report repeats the claim of 42 Northbridge incidents in 1998.",
+  );
+  const opposing = adjudicationAssessment(weak, {
+    relation: "supports",
+    directness: "secondary",
+    dependence: "unknown",
+  });
+  const targeted = scriptedTargetedReassessment();
+  const { result } = await adjudicate(
+    [...assessments, opposing],
+    [...snapshots, weak],
+    {
+      draft: () => draft("contradicted", { contradictingAssessmentIds: [assessments[0]!.id] }),
+      challenge: () => challenge("contradicted", [assessments[0]!.id]),
+    },
+    { targetedReassessment: targeted.reassessment },
+  );
+  const decision = result.data!.decisions[0]!;
+  const { publishFocusedDecisions } = await import("../src/analysis/publication/index.js");
+  const published = publishFocusedDecisions({
+    claims: [adjudicationClaim()],
+    snapshots: [...snapshots, weak],
+    assessments: [...assessments, opposing],
+    decisions: [decision],
+  }).decisions[0]!;
+  assert.equal(decision.challenge.status, "unresolved");
+  assert.equal(published.challenge.status, "unresolved");
+  assert.equal(published.publishedLabel, "unverified");
+});
+
 test("targeted retrieval leaves room for assessment, a fresh draft, and challenge", async () => {
   const { snapshots, assessments } = contradictionEvidence();
   const targeted = scriptedTargetedReassessment();

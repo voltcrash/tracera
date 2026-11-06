@@ -300,7 +300,7 @@ async function adjudicate(
       );
 
     const opposing = opposingEvidence(current.label, partition.usable);
-    if (agreed && (opposing.length === 0 || (rounds === 1 && !hasSufficientOrigins(opposing)))) {
+    if (agreed && opposing.length === 0) {
       return decision(
         claim,
         current,
@@ -312,9 +312,7 @@ async function adjudicate(
           agreed: true,
           targetedRoundsUsed: rounds,
           notes:
-            opposing.length === 0
-              ? "The independent reassessment agreed without seeing the draft label."
-              : "After one targeted round the opposing evidence still lacked independent origins, and the label-blind reassessment agreed.",
+            "The independent reassessment agreed without seeing the draft label, and no applicable opposing evidence remained.",
         },
         draft.selfConfidence,
         draft.justification,
