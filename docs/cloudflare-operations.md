@@ -127,7 +127,7 @@ be reviewed in Wrangler vars; the private-file examples also support them.
 | `ANALYSIS_MAX_FETCHED_CANDIDATES_PER_CLAIM` | Fetched candidates per selected claim           |
 | `ANALYSIS_MAX_PROVENANCE_HOPS`              | Provenance traversal depth                      |
 | `ANALYSIS_MAX_TARGETED_RETRIEVAL_ROUNDS`    | Targeted retrieval rounds; zero is allowed      |
-| `ANALYSIS_MAX_ELAPSED_MS`                   | Attempt duration, positive and at most 300000   |
+| `ANALYSIS_MAX_ELAPSED_MS`                   | Run duration from first attempt, at most 300000 |
 | `ANALYSIS_MAX_CONCURRENT_EXTERNAL_CALLS`    | Concurrent external requests                    |
 | `ANALYSIS_MAX_COST_USD`                     | Estimated per-run spend bound                   |
 | `AI_DAILY_SPEND_LIMIT_USD`                  | Estimated daily platform-provider spend circuit |
@@ -139,6 +139,17 @@ All other count bounds must be positive integers; money values must be finite an
 The spend circuit uses configured estimates because adapters do not all return billable
 usage. Failed calls are settled too. Compare the estimates with the provider usage dashboard;
 they are not a guarantee of the provider's final invoice.
+
+Live runs reserve each physical provider or public HTTP request against D1 before sending it.
+Structured-output repairs and redirects consume requests too. Counts, conservative AI cost
+estimates, and the first-attempt deadline survive Workflow retries, including calls made
+before a checkpoint could be saved. A failed or interrupted request retains its reservation;
+reusing a checkpoint does not charge its requests again. Each Workflow attempt also has its
+own timeout, bounded by the remaining run duration.
+
+The usage migration conservatively exhausts the allowance of already-started, unfinished
+runs because their earlier uncheckpointed requests cannot be reconstructed. They cannot
+receive a fresh budget after deployment; queued runs retain their full allowance.
 
 D1 admission coordinates fixed-window rate limits, concurrency leases, daily quota,
 idempotency, and forced-reanalysis cooldown across Worker instances. Defaults are 30 requests
