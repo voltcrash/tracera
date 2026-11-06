@@ -1,8 +1,14 @@
 import { createHash } from "node:crypto";
-import { runContextExample, type DocumentSnapshot } from "@repo/contracts/analysis";
+import {
+  analysisExamples,
+  runContextExample,
+  type DocumentSnapshot,
+} from "@repo/contracts/analysis";
 import { createD1AnalysisRepository, StaleWorkerError } from "@repo/db";
 import { createTestRuntime, seedUser } from "@repo/db/test-runtime";
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
+import { createRunAnalysis } from "../src/analysis/run-analysis.js";
+import { createScriptedEvidenceEnvironment } from "../scripts/support/scripted-evidence.js";
 import { createRunStore, createSnapshotStore } from "../src/analysis/storage.js";
 
 const hash = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
@@ -123,5 +129,66 @@ test("the run adapter preserves D1 fencing when a Workflow attempt is superseded
   expect(await store.readCheckpoint(request)).toEqual({
     checkpointHash: context.inputHash,
     payloadJson: "{}",
+  });
+});
+
+test("recovery recomputes checkpoint JSON corrupted in D1", async () => {
+  const db = repository();
+  const runContext = { ...structuredClone(context), runId: crypto.randomUUID() };
+  const identity = { scope: runContext, runId: runContext.runId };
+  await db.createRun({ context: runContext });
+  const first = await db.beginAttempt({
+    ...identity,
+    stage: "normalize_input",
+    expectedVersion: 0,
+  });
+  const { environment } = createScriptedEvidenceEnvironment(() => {
+    throw new Error("Unexpected provider call");
+  });
+  environment.context = runContext;
+  environment.ports.runs = createRunStore({ repository: db, context: runContext });
+  let normalizations = 0;
+  const reachedExtraction = new Error("Reached extraction");
+  const stages = {
+    normalizeInput: () => async () => {
+      normalizations++;
+      return {
+        status: "complete" as const,
+        data: {
+          snapshots: analysisExamples.complete.snapshots,
+          primarySnapshotId: analysisExamples.complete.primarySnapshotId!,
+        },
+        issues: [],
+        metrics: analysisExamples.complete.stageOutcomes[0]!.metrics,
+      };
+    },
+    extractClaims: () => async () => {
+      throw reachedExtraction;
+    },
+  };
+  const input = { input: { kind: "text" as const, text: "A claim." }, seed: 1 };
+  await expect(createRunAnalysis({ ...first, stages })(input, environment)).rejects.toBe(
+    reachedExtraction,
+  );
+  await runtime.db
+    .prepare(
+      "UPDATE core_stage_checkpoints SET payload_json='not json',payload_blob_uri=NULL WHERE run_id=? AND stage='normalize_input'",
+    )
+    .bind(runContext.runId)
+    .run();
+  const progress = await db.getRunProgress(identity);
+  const retry = await db.beginAttempt({
+    ...identity,
+    stage: "normalize_input",
+    expectedVersion: progress!.version,
+  });
+  await expect(createRunAnalysis({ ...retry, stages })(input, environment)).rejects.toBe(
+    reachedExtraction,
+  );
+  expect(normalizations).toBe(2);
+  const saved = await db.readCheckpoint({ ...identity, stage: "normalize_input" });
+  expect(JSON.parse(saved!.payloadJson)).toMatchObject({
+    version: 2,
+    result: { data: { primarySnapshotId: analysisExamples.complete.primarySnapshotId } },
   });
 });

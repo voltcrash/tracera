@@ -10,7 +10,7 @@ import {
   type StageName,
 } from "@repo/contracts/analysis";
 import type { AnalysisAccessScope } from "./access-scope.js";
-import { D1PayloadStore, hashJson } from "./payloads.js";
+import { D1PayloadStore, D1PayloadJsonError, hashJson } from "./payloads.js";
 import { microsToUsd, usdToMicros } from "./clock.js";
 import type { AnalysisAdmissionIdentity } from "./control-types.js";
 
@@ -808,14 +808,18 @@ export class D1AnalysisRepository {
         payload_json: string | null;
         payload_blob_uri: string | null;
       }>();
-    return row
-      ? {
-          checkpointHash: row.checkpoint_hash,
-          payloadJson: JSON.stringify(
-            await this.payloads.read({ inline: row.payload_json, blobUri: row.payload_blob_uri }),
-          ),
-        }
-      : null;
+    if (!row) return null;
+    try {
+      return {
+        checkpointHash: row.checkpoint_hash,
+        payloadJson: JSON.stringify(
+          await this.payloads.read({ inline: row.payload_json, blobUri: row.payload_blob_uri }),
+        ),
+      };
+    } catch (error) {
+      if (error instanceof D1PayloadJsonError) return null;
+      throw error;
+    }
   }
 
   async getRunContext(input: {
