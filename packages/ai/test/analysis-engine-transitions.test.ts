@@ -146,7 +146,8 @@ for (const reason of ["cost", "unknown_cost", "deadline", "owner_and_budget"] as
   });
 }
 
-test("failed mandatory reassessment retains acquired provenance without entering adjudication", async () => {
+const failureStops = ["none", "unknown_cost", "cost", "deadline", "owner"] as const;
+test.each(failureStops)("reassessment failure during %s", async (reason) => {
   const fixture = pipeline("score_report");
   const fresh = evidenceSnapshot(
     "new_origin",
@@ -166,6 +167,8 @@ test("failed mandatory reassessment retains acquired provenance without entering
   fixture.factories.assessEvidence = (usage) => async (input, environment) => {
     assessments++;
     if (assessments === 1) return assess(usage)(input, environment);
+    if (reason === "deadline") environment.ports.clock.monotonicMs = () => 100;
+    if (reason === "owner") environment.signal = AbortSignal.abort();
     return {
       status: "failed",
       data: null,
@@ -179,11 +182,15 @@ test("failed mandatory reassessment retains acquired provenance without entering
           url: null,
         },
       ],
-      metrics: { ...example.stageOutcomes[0]!.metrics, externalRequests: 1, costUsd: 0 },
+      metrics: {
+        ...example.stageOutcomes[0]!.metrics,
+        externalRequests: 1,
+        costUsd: reason === "unknown_cost" || reason === "owner" ? null : reason === "cost" ? 2 : 0,
+      },
     };
   };
   const result = await fixture.run();
-  expect(result.status).toBe("failed");
+  expect(result.status).toBe(reason === "owner" ? "canceled" : "failed");
   expect(result.report!.provenance).toEqual([graph]);
   expect(result.report!.snapshots.map(({ id }) => id)).toContain(fresh.id);
   expect(result.report!.assessments.map(({ id }) => id)).toEqual(

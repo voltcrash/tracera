@@ -440,9 +440,10 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     retainStage(state, "trace_origins", traced.result, (data) => {
       state.provenance = data.graphs;
     });
-    if (traced.kind === "stop") return stop(traced.status);
+    if (traced.kind === "stop" && traced.status === "canceled") return stop(traced.status);
     if (traced.extra && !traced.extra.reassessment.data)
       return stop(stageRunStatus(traced.extra.reassessment));
+    if (traced.kind === "stop") return stop(traced.status);
 
     const beforeAdjudicate = interrupted("adjudicate_claims");
     if (beforeAdjudicate) return beforeAdjudicate;
