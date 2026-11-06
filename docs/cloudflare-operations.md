@@ -210,8 +210,15 @@ vp exec --filter web -- wrangler tail --config wrangler.jsonc
 Cron runs every five minutes. It purges expired unheld idempotency records and released or
 expired unbound leases,
 old rate windows, expired sessions and verifications, and stale spend reservations. It also
-marks runs failed when their Workflow instance errored. Cancellation sets the D1 flag and
-terminates the instance after its grace period. Retries resume from a checkpoint with a new
+marks runs failed when their Workflow instance errored. Owner/operator cancellation follows
+`requested → canceled`: the first request fixes its timestamp and reason, and retries return
+acceptance without changing the run version or extending the five-second grace period.
+Queued runs cancel immediately; active runs acknowledge at the next checkpoint or are
+terminated after that original grace period. A failure write atomically settles as canceled
+if cancellation committed first. A failure or publication that already committed stays terminal.
+Deadline and budget stops have separate engine issue codes and do not imply owner cancellation.
+An untyped abort signal retains ordinary cancellation semantics; `TimeoutError` signals denote
+a deadline. Cancellation cleanup retains admission until the Workflow is confirmed stopped. Retries resume from a checkpoint with a new
 fencing token; stale attempts cannot persist or finalize. Diagnose an error before considering
 an approved instance operation; preserve run ownership, fencing, and idempotency identities.
 
