@@ -204,11 +204,11 @@ function focusedClaims(
   if (selectedIds.size !== selection.selectedClaimIds.length) {
     throw new Error("Focused selection contains duplicate selected claim IDs.");
   }
-  const analyzedIds = selection.claims
-    .filter(({ status }) => status === "analyzed")
+  const selectedEntryIds = selection.claims
+    .filter(({ status }) => status === "selected" || status === "analyzed")
     .map(({ claimId }) => claimId);
-  if (!sameIds(analyzedIds, selection.selectedClaimIds)) {
-    throw new Error("Focused selection analyzed entries do not match selected claim IDs.");
+  if (!sameIds(selectedEntryIds, selection.selectedClaimIds)) {
+    throw new Error("Focused selection entries do not match selected claim IDs.");
   }
   const canonicalFactualIds = new Set(canonicalFactual.map(({ id }) => id));
   const claims = selection.selectedClaimIds.map((id) => {

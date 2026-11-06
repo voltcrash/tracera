@@ -443,7 +443,12 @@ export const inputCoverageSchema = z
 // Focused selection
 // ---------------------------------------------------------------------------
 
-export const focusedSelectionStatusSchema = z.enum(["analyzed", "deferred", "excluded"]);
+export const focusedSelectionStatusSchema = z.enum([
+  "selected",
+  "analyzed",
+  "deferred",
+  "excluded",
+]);
 
 export const focusedSelectionPositionSchema = z.enum([
   "headline",
@@ -465,6 +470,7 @@ export const focusedSelectionReasonCodeSchema = z.enum([
   "selected_material_checkable",
   "deferred_by_selection_limit",
   "deferred_by_extraction_limit",
+  "deferred_before_selection",
   "ambiguous_context",
   "unanswerable",
   "not_checkable",
@@ -505,7 +511,9 @@ export const focusedSelectionInventorySchema = z.strictObject({
   duplicateClaims: nonNegativeIntSchema,
   canonicalFactualClaims: nonNegativeIntSchema,
   eligibleClaims: nonNegativeIntSchema,
-  analyzedClaims: nonNegativeIntSchema,
+  selectedClaims: nonNegativeIntSchema.optional(),
+  /** Historical alias for selectedClaims; it never measured completed analysis. */
+  analyzedClaims: nonNegativeIntSchema.optional(),
   deferredClaims: nonNegativeIntSchema,
   excludedClaims: nonNegativeIntSchema,
 });
@@ -557,7 +565,9 @@ export const focusedSelectionSchema = z
       entries.set(entry.claimId, entry);
     }
 
-    const selected = value.claims.filter(({ status }) => status === "analyzed");
+    const selected = value.claims.filter(
+      ({ status }) => status === "selected" || status === "analyzed",
+    );
     const deferred = value.claims.filter(({ status }) => status === "deferred");
     const excluded = value.claims.filter(({ status }) => status === "excluded");
     const canonical = value.claims.filter(({ canonical: isCanonical }) => isCanonical);
@@ -579,7 +589,7 @@ export const focusedSelectionSchema = z
       context.addIssue({
         code: "custom",
         path: ["selectedClaimIds"],
-        message: "Selected claim IDs must match the analyzed selection entries.",
+        message: "Selected claim IDs must match selected claim entries.",
       });
     }
     if (
@@ -613,11 +623,18 @@ export const focusedSelectionSchema = z
         message: "Focused inventory total must match its selection entries.",
       });
     }
-    if (value.inventory.analyzedClaims !== selected.length) {
+    if (
+      (value.inventory.selectedClaims === undefined &&
+        value.inventory.analyzedClaims === undefined) ||
+      (value.inventory.selectedClaims !== undefined &&
+        value.inventory.selectedClaims !== selected.length) ||
+      (value.inventory.analyzedClaims !== undefined &&
+        value.inventory.analyzedClaims !== selected.length)
+    ) {
       context.addIssue({
         code: "custom",
-        path: ["inventory", "analyzedClaims"],
-        message: "Focused analyzed count must match its selection entries.",
+        path: ["inventory", "selectedClaims"],
+        message: "Focused selected count and any legacy alias must match selected entries.",
       });
     }
     if (value.inventory.deferredClaims !== deferred.length) {
@@ -642,7 +659,7 @@ export const focusedSelectionSchema = z
       });
     }
     for (const [index, entry] of value.claims.entries()) {
-      if (entry.status !== "analyzed" && entry.rank !== null) {
+      if (entry.status !== "selected" && entry.status !== "analyzed" && entry.rank !== null) {
         context.addIssue({
           code: "custom",
           path: ["claims", index, "rank"],
@@ -650,7 +667,7 @@ export const focusedSelectionSchema = z
         });
       }
       if (
-        entry.status === "analyzed" &&
+        (entry.status === "selected" || entry.status === "analyzed") &&
         (!entry.canonical ||
           entry.originalCoverageDisposition !== "factual_claim" ||
           entry.coverageDisposition !== "factual_claim" ||
@@ -660,7 +677,7 @@ export const focusedSelectionSchema = z
         context.addIssue({
           code: "custom",
           path: ["claims", index, "status"],
-          message: "Only canonical material checkable factual claims may be analyzed.",
+          message: "Only canonical material checkable factual claims may be selected.",
         });
       }
     }
@@ -674,7 +691,7 @@ export const focusedSelectionSchema = z
           context.addIssue({
             code: "custom",
             path: ["claims", value.claims.indexOf(entry), "rank"],
-            message: "Focused analyzed claims must have contiguous ranks.",
+            message: "Focused selected claims must have contiguous ranks.",
           });
         }
       });
@@ -1711,7 +1728,7 @@ function validateRunReportIntegrity(
         );
       }
       if (
-        entry.status === "analyzed" &&
+        (entry.status === "selected" || entry.status === "analyzed") &&
         (claim.duplicateOfClaimId !== null ||
           claim.coverageDisposition !== "factual_claim" ||
           claim.checkability !== "checkable" ||
@@ -1720,7 +1737,7 @@ function validateRunReportIntegrity(
         addIssue(
           context,
           ["focusedSelection", "claims", index, "status"],
-          "Only canonical, material, checkable factual claims may be analyzed in focused output.",
+          "Only canonical, material, checkable factual claims may be selected in focused output.",
         );
       }
     }
@@ -1809,7 +1826,7 @@ function validateRunReportIntegrity(
     if (
       report.scorecard !== null &&
       report.focusedSelection !== undefined &&
-      report.scorecard.selectedClaimCount !== report.focusedSelection.inventory.analyzedClaims
+      report.scorecard.selectedClaimCount !== report.focusedSelection.selectedClaimIds.length
     ) {
       addIssue(
         context,

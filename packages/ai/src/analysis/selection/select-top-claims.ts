@@ -132,7 +132,7 @@ export function selectTopClaims(input: FocusedSelectionInput): FocusedSelectionR
     const rank = rankById.get(claim.id) ?? null;
     const status: FocusedSelectionClaim["status"] =
       rank !== null
-        ? "analyzed"
+        ? "selected"
         : entry.canonical && entry.originalCoverageDisposition === "factual_claim"
           ? "deferred"
           : entry.originalCoverageDisposition === "deferred"
@@ -183,7 +183,7 @@ export function selectTopClaims(input: FocusedSelectionInput): FocusedSelectionR
     duplicateClaims: working.length - canonicalClaims.length,
     canonicalFactualClaims: canonicalFactualClaims.length,
     eligibleClaims: eligible.length,
-    analyzedClaims: selected.length,
+    selectedClaims: selected.length,
     deferredClaims: deferredClaimIds.length,
     excludedClaims: excludedClaimIds.length,
   };
@@ -418,9 +418,9 @@ function reasonFor(
   status: FocusedSelectionClaim["status"],
   eligibleButNotSelected: boolean,
 ): FocusedSelectionClaim["reasonCode"] {
-  if (status === "analyzed") return "selected_material_checkable";
+  if (status === "selected") return "selected_material_checkable";
   if (!entry.canonical) return "duplicate_claim";
-  if (entry.originalCoverageDisposition === "deferred") return "deferred_by_extraction_limit";
+  if (entry.originalCoverageDisposition === "deferred") return "deferred_before_selection";
   if (entry.originalCoverageDisposition !== "factual_claim") {
     if (entry.originalCoverageDisposition === "opinion") return "opinion";
     if (entry.originalCoverageDisposition === "background") return "background";
@@ -441,7 +441,7 @@ function reasonText(
   rank: number | null,
   reasonCode: FocusedSelectionClaim["reasonCode"],
 ) {
-  if (status === "analyzed") {
+  if (status === "selected") {
     const position =
       entry.position === "body" || entry.position === "unknown"
         ? ""
@@ -456,7 +456,9 @@ function reasonText(
     case "deferred_by_selection_limit":
       return "The canonical factual claim is valid but falls outside the focused top-three selection limit.";
     case "deferred_by_extraction_limit":
-      return "The claim was retained in the inventory but was already deferred by extraction limits.";
+      return "The historical selection marked this claim as deferred by extraction limits.";
+    case "deferred_before_selection":
+      return "The claim was inventoried but was already marked for deferred analysis before focused selection.";
     case "duplicate_claim":
       return "This claim is a duplicate of a canonical proposition and cannot occupy another focused slot.";
     case "ambiguous_context":

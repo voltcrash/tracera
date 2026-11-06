@@ -5,6 +5,7 @@ import {
   type StageName,
   type StageResult,
 } from "@repo/contracts/analysis";
+import { projectReport } from "../src/analysis/report-view.js";
 import { createRunAnalysis, type RunAnalysisStageFactories } from "../src/analysis/run-analysis.js";
 import { createFocusedPublication } from "../src/analysis/publication/index.js";
 import { scoreReport } from "../src/analysis/scoring/index.js";
@@ -126,6 +127,14 @@ for (const [index, boundary] of stagesInOrder.entries()) {
     }
     if (index >= 6) expect(report.decisions[0]!.publishedLabel).toBe("supported");
     if (index >= 7) expect(report.scorecard).not.toBeNull();
+    if (index >= 2) {
+      const view = projectReport(report);
+      expect(view.focusedSelection).toMatchObject({
+        selectedClaims: 1,
+        decisionsAvailable: index >= 5 ? 1 : 0,
+      });
+      expect(view.claims[0]!.decisionStatus).toBe(index >= 5 ? "available" : "not_available");
+    }
     expect(result.cost.externalRequests).toBe(2);
     expect(result.issues.some(({ code }) => code === "budget_exhausted")).toBe(true);
     expect(report.replayManifest.snapshotIds).toEqual(report.snapshots.map(({ id }) => id).sort());
