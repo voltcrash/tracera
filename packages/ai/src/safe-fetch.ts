@@ -64,6 +64,7 @@ type ParsedAddress =
 export type HostAddressResolver = (hostname: string) => Promise<readonly string[]>;
 
 export interface SafeFetchOptions {
+  beforeRequest?: () => void | Promise<void>;
   maxRedirects?: number;
   resolveHostAddresses?: HostAddressResolver;
   /** Used by deterministic tests without changing the production transport. */
@@ -92,6 +93,8 @@ export async function safeFetch(
   await resolvePublicTarget(currentUrl, options.resolveHostAddresses, skipHostnameResolution);
 
   for (let redirectCount = 0; ; redirectCount += 1) {
+    currentInit.signal?.throwIfAborted();
+    await options.beforeRequest?.();
     currentInit.signal?.throwIfAborted();
     const response = await (fetchImplementation ?? nativeFetch)(currentUrl, {
       ...currentInit,

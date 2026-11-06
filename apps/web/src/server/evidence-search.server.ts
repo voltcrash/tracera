@@ -8,7 +8,11 @@ import {
 } from "@repo/ai/analysis/retrieval";
 import { optional, type RuntimeEnvironment } from "./analysis-policy";
 
-export function createLiveSearchPorts(environment: RuntimeEnvironment, clock: ClockPort) {
+export function createLiveSearchPorts(
+  environment: RuntimeEnvironment,
+  clock: ClockPort,
+  beforeRequest?: () => Promise<void>,
+) {
   const clients: ExistingDiscoveryClients = {
     googleNews: rssClient((request) => {
       const url = new URL("https://news.google.com/rss/search");
@@ -16,7 +20,7 @@ export function createLiveSearchPorts(environment: RuntimeEnvironment, clock: Cl
       url.searchParams.set("hl", "en-US");
       url.searchParams.set("gl", "US");
       url.searchParams.set("ceid", "US:en");
-      return readRssResults(url, request.signal);
+      return readRssResults(url, request.signal, beforeRequest);
     }),
     gdelt: jsonClient(async (request) => {
       const url = new URL("https://api.gdeltproject.org/api/v2/doc/doc");
@@ -24,7 +28,7 @@ export function createLiveSearchPorts(environment: RuntimeEnvironment, clock: Cl
       url.searchParams.set("mode", "artlist");
       url.searchParams.set("format", "json");
       url.searchParams.set("maxrecords", String(Math.min(request.limit, 10)));
-      const response = await discoveryFetch(url, request.signal);
+      const response = await discoveryFetch(url, request.signal, undefined, beforeRequest);
       const payload = (await response.json()) as {
         articles?: Array<{ title?: string; url?: string; domain?: string; seendate?: string }>;
       };
@@ -43,9 +47,9 @@ export function createLiveSearchPorts(environment: RuntimeEnvironment, clock: Cl
     }, 0),
   };
   const factCheckKey = optional(environment, "GOOGLE_FACT_CHECK_API_KEY");
-  if (factCheckKey) clients.googleFactCheck = googleFactCheckClient(factCheckKey);
+  if (factCheckKey) clients.googleFactCheck = googleFactCheckClient(factCheckKey, beforeRequest);
   const newsApiKey = optional(environment, "NEWS_API_KEY");
-  if (newsApiKey) clients.newsApi = newsApiClient(newsApiKey);
+  if (newsApiKey) clients.newsApi = newsApiClient(newsApiKey, beforeRequest);
   return createExistingDiscoveryAdapters(clients, clock);
 }
 
@@ -77,8 +81,17 @@ function jsonClient(
   };
 }
 
-async function readRssResults(url: URL, signal: AbortSignal): Promise<CandidateDiscoveryResult[]> {
-  const response = await discoveryFetch(url, signal, { "user-agent": "Tracera/2.0" });
+async function readRssResults(
+  url: URL,
+  signal: AbortSignal,
+  beforeRequest?: () => Promise<void>,
+): Promise<CandidateDiscoveryResult[]> {
+  const response = await discoveryFetch(
+    url,
+    signal,
+    { "user-agent": "Tracera/2.0" },
+    beforeRequest,
+  );
   const xml = await response.text();
   return (xml.match(/<item\b[\s\S]*?<\/item>/gi) ?? []).flatMap((item) => {
     const title = xmlValue(item, "title");
@@ -95,13 +108,16 @@ async function readRssResults(url: URL, signal: AbortSignal): Promise<CandidateD
   });
 }
 
-function googleFactCheckClient(apiKey: string): CandidateDiscoveryClient {
+function googleFactCheckClient(
+  apiKey: string,
+  beforeRequest?: () => Promise<void>,
+): CandidateDiscoveryClient {
   return jsonClient(async (request) => {
     const url = new URL("https://factchecktools.googleapis.com/v1alpha1/claims:search");
     url.searchParams.set("query", request.query.slice(0, 700));
     url.searchParams.set("pageSize", String(Math.min(request.limit, 10)));
     url.searchParams.set("key", apiKey);
-    const response = await discoveryFetch(url, request.signal);
+    const response = await discoveryFetch(url, request.signal, undefined, beforeRequest);
     const payload = (await response.json()) as {
       claims?: Array<{
         text?: string;
@@ -125,13 +141,21 @@ function googleFactCheckClient(apiKey: string): CandidateDiscoveryClient {
   });
 }
 
-function newsApiClient(apiKey: string): CandidateDiscoveryClient {
+function newsApiClient(
+  apiKey: string,
+  beforeRequest?: () => Promise<void>,
+): CandidateDiscoveryClient {
   return jsonClient(async (request) => {
     const url = new URL("https://newsapi.org/v2/everything");
     url.searchParams.set("q", request.query.slice(0, 700));
     url.searchParams.set("pageSize", String(Math.min(request.limit, 10)));
     url.searchParams.set("sortBy", "relevancy");
-    const response = await discoveryFetch(url, request.signal, { "X-Api-Key": apiKey });
+    const response = await discoveryFetch(
+      url,
+      request.signal,
+      { "X-Api-Key": apiKey },
+      beforeRequest,
+    );
     const payload = (await response.json()) as {
       articles?: Array<{
         title?: string;
@@ -159,11 +183,16 @@ async function discoveryFetch(
   url: URL,
   signal: AbortSignal,
   extraHeaders?: Record<string, string>,
+  beforeRequest?: () => Promise<void>,
 ) {
-  const response = await safeFetch(url, {
-    signal,
-    headers: { accept: "application/rss+xml, application/json, text/xml", ...extraHeaders },
-  });
+  const response = await safeFetch(
+    url,
+    {
+      signal,
+      headers: { accept: "application/rss+xml, application/json, text/xml", ...extraHeaders },
+    },
+    { beforeRequest },
+  );
   if (!response.ok) throw new Error(`Discovery provider returned HTTP ${response.status}.`);
   return response;
 }
