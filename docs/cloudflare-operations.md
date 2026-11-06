@@ -174,6 +174,22 @@ still returns `idempotency_in_progress`. Expired claims cannot persist a run, an
 ownership cannot start attempts or reserve external requests. Settlement cannot release a
 bound run before it is terminal.
 
+Checkpoint envelopes retain v2 compatibility but are validated against the requested stage’s
+result and retry metadata before reuse. Invalid JSON, wrong stage data, or malformed extras
+are cache misses: recomputation still uses the existing run budget and deadline. Newly written
+checkpoints use the same stage schemas. A partial or unavailable stage is a recorded outcome,
+not a claim that the stage succeeded.
+
+Progress exposes `recordedStages`, `lastCheckpointedStage`, and `nextStage` (the first stage
+without a checkpoint). The legacy `completedStages` alias and persisted `stage` hint remain
+for existing clients; the UI and Workflow resume hint use the explicit projection. An entry in
+`core_stage_attempts` tracks a fenced run attempt, not a separate attempt for every checkpoint.
+Lifecycle triggers in migration `0008_run_state_guards.sql` require terminal timestamps,
+paired attempt outcomes/timestamps, and valid run attempt/fence states. Terminal lifecycle state
+and settled attempt outcome/timestamps cannot be reopened or rewritten. The migration fills
+missing terminal timestamps from their last recorded update and leaves active runs active.
+Preserve these custom triggers if a future migration rebuilds either table.
+
 ## Migrations and deployment preparation
 
 `packages/db/src/schema.ts` and its auth schema describe D1. Drizzle generates SQL and
