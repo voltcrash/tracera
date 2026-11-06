@@ -243,9 +243,9 @@ async function adjudicate(
         );
         partition = partitionEvidence(claim, accumulated.assessments, snapshots);
         if (partition.integrityFailures.length > 0)
-          return integrityFailure(claim, partition.integrityFailures);
+          return integrityFailure(claim, partition.integrityFailures, rounds);
         if (evidenceFingerprint(partition.usable) !== previousEvidence) {
-          if (!reserve(2)) return exhausted(claim);
+          if (!reserve(2)) return exhausted(claim, rounds);
           const refreshed = await generate(
             buildDraftRequest(buildChallengeInput(claim, partition.usable), environment.signal),
             claim,
@@ -253,9 +253,10 @@ async function adjudicate(
           if (refreshed === null) return null;
           draft = refreshed.value;
           const reresolved = resolveDraft(draft, claim, partition.usable);
-          if (reresolved.kind === "invalid") return integrityFailure(claim, [reresolved.reason]);
+          if (reresolved.kind === "invalid")
+            return integrityFailure(claim, [reresolved.reason], rounds);
           current = reresolved;
-          if (!reserve(1)) return exhausted(claim);
+          if (!reserve(1)) return exhausted(claim, rounds);
           challenge = await runChallenge(claim, partition.usable);
           if (challenge === null) return null;
         }
@@ -630,7 +631,7 @@ async function adjudicate(
     };
   }
 
-  async function integrityFailure(claim: Claim, reasons: string[]): Promise<Decision> {
+  async function integrityFailure(claim: Claim, reasons: string[], rounds = 0): Promise<Decision> {
     for (const reason of reasons)
       warn(
         "citation_validation_failed",
@@ -649,20 +650,30 @@ async function adjudicate(
         "Citation checks failed, so no verdict can be released.",
       ),
       citationIntegrity: "invalid",
+      challenge: stoppedChallenge(
+        rounds,
+        "Citation checks prevented completing the refreshed challenge.",
+      ),
     };
   }
 
-  function exhausted(claim: Claim) {
+  function exhausted(claim: Claim, rounds = 0) {
     warn(
       "budget_exhausted",
       "The shared request cap was exhausted before adjudication and challenge.",
       claim.id,
     );
-    return abstain(
-      claim,
-      ["budget_exhausted_before_resolution"],
-      "The run budget was exhausted before the claim could be adjudicated and challenged.",
-    );
+    return {
+      ...abstain(
+        claim,
+        ["budget_exhausted_before_resolution"],
+        "The run budget was exhausted before the claim could be adjudicated and challenged.",
+      ),
+      challenge: stoppedChallenge(
+        rounds,
+        "The request budget prevented completing the refreshed challenge.",
+      ),
+    };
   }
 
   async function loadSnapshots(claims: Claim[], assessments: EvidenceAssessment[]) {
@@ -779,6 +790,18 @@ function notRequired(): Challenge {
     targetedRoundsUsed: 0,
     notes: "No decisive verdict was proposed.",
   };
+}
+
+function stoppedChallenge(targetedRoundsUsed: number, notes: string): Challenge {
+  return targetedRoundsUsed === 0
+    ? notRequired()
+    : {
+        status: "failed",
+        independentLabel: null,
+        agreed: null,
+        targetedRoundsUsed,
+        notes,
+      };
 }
 
 function unique<Value>(values: Value[]) {
