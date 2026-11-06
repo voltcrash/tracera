@@ -1,4 +1,4 @@
-import { stageNameSchema, type RunStatus } from "@repo/contracts/analysis";
+import { type RunStatus } from "@repo/contracts/analysis";
 import type { AnalysisAccessScope, AnalysisAdmission } from "@repo/db";
 import {
   createD1AdmissionRepository,
@@ -223,10 +223,7 @@ export async function readRunState(env: ServerEnv, user: SessionUser, runId: str
     terminal && progress.status !== "canceled"
       ? await runs.getLatestReport({ scope, runId })
       : null;
-  const completed = new Set(progress.completedStages);
-  const currentStage = terminal
-    ? null
-    : (stageNameSchema.options.find((stage) => !completed.has(stage)) ?? null);
+  const currentStage = terminal ? null : progress.nextStage;
   return {
     progress: { ...progress, currentStage },
     report,

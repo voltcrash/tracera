@@ -63,7 +63,7 @@ export async function runAnalysisWorkflow(
         }
         const attempt = await storage.runs.beginAttempt({
           ...identity,
-          stage: progress.stage,
+          stage: progress.nextStage ?? "score_report",
           expectedVersion: progress.version,
         });
         const controller = new AbortController();
