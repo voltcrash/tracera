@@ -38,8 +38,10 @@ export interface TargetedReassessment {
 export interface AdjudicationOptions {
   priorExternalRequests?: number;
   priorCostUsd?: number | null;
-  /** Targeted retrieval rounds already consumed by retrieval before adjudication. */
+  /** Run-wide targeted rounds already consumed before this stage. */
   priorTargetedRounds?: number;
+  /** Atomically grant a run-wide ordinal before retrieval; failed rounds still consume it. */
+  reserveTargetedRound?: () => Promise<number | null>;
   targetedReassessment?: TargetedReassessment;
 }
 

@@ -15,6 +15,7 @@ import {
   challenge,
   createAdjudicationEnvironment,
   draft,
+  scriptedTargetedReassessment,
 } from "../scripts/support/scripted-adjudication.js";
 
 for (const scenario of ADJUDICATION_SCENARIOS) {
@@ -161,3 +162,57 @@ test("cancellation fails adjudication without partial decisions", async () => {
   assert.equal(adjudicated.data, null);
   assert.ok(fixture.audits.some(({ kind }) => kind === "cancellation"));
 });
+
+for (const failed of [false, true]) {
+  test(`targeted rounds are shared across claims, including failed=${failed} retrieval`, async () => {
+    const { snapshots, assessments } = contradictionEvidence();
+    const claims = [adjudicationClaim({ id: "claim_one" }), adjudicationClaim({ id: "claim_two" })];
+    const evidence = claims.flatMap((claim) =>
+      assessments.map((item) => ({ ...item, id: `${item.id}_${claim.id}`, claimId: claim.id })),
+    );
+    const claimId = (ids: string[]) =>
+      ids.some((id) => id.endsWith("claim_one")) ? "claim_one" : "claim_two";
+    const fixture = createAdjudicationEnvironment({
+      snapshots,
+      context: {
+        budget: { ...runContextExample.budget, maxTargetedRetrievalRounds: 1, maxCostUsd: null },
+      },
+      draft: (ids) => ({
+        ...draft("contradicted", { contradictingAssessmentIds: ids }),
+        claimId: claimId(ids),
+      }),
+      challenge: (ids) => ({ ...challenge("unverified", []), claimId: claimId(ids) }),
+    });
+    let retrievals = 0;
+    const targeted = scriptedTargetedReassessment();
+    const retrieve = targeted.reassessment.createRetrieve!;
+    targeted.reassessment.createRetrieve = (usage) => async (input, environment) => {
+      retrievals++;
+      const result = await retrieve(usage)(input, environment);
+      return failed
+        ? {
+            ...result,
+            status: "unavailable",
+            data: null,
+            issues: [
+              {
+                code: "provider_outage",
+                severity: "warning",
+                message: "Fixture unavailable",
+                claimId: null,
+                snapshotId: null,
+                url: null,
+              },
+            ],
+          }
+        : result;
+    };
+    const result = await createAdjudicateClaims({ targetedReassessment: targeted.reassessment })(
+      { claims, assessments: evidence, graphs: [] },
+      fixture.environment,
+    );
+    assert.equal(retrievals, 1);
+    assert.equal(result.data!.decisions[0]!.challenge.targetedRoundsUsed, 1);
+    assert.equal(result.data!.decisions[1]!.challenge.targetedRoundsUsed, 0);
+  });
+}

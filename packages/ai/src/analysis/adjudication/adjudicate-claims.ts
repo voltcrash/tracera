@@ -59,6 +59,10 @@ export function createAdjudicateClaims(options: AdjudicationOptions = {}): Adjud
 
 class Canceled extends Error {}
 
+type TargetedRoundOutcome =
+  | { attempted: false }
+  | { attempted: true; assessments: EvidenceAssessment[] | null };
+
 type ChallengeOutcome = { ok: true; label: ClaimLabel } | { ok: false; reason: string };
 
 async function adjudicate(
@@ -79,6 +83,7 @@ async function adjudicate(
   let outputTokens: number | null = 0;
   let stageCostUsd: number | null = 0;
   let omitted = 0;
+  let totalTargetedRounds = options.priorTargetedRounds ?? 0;
 
   await audit("stage_started", "Verdict adjudication started.");
   try {
@@ -226,13 +231,13 @@ async function adjudicate(
     const disagreed = !challenge.ok || challenge.label !== resolution.label;
     if (challenge.ok && (disagreed || conflicted)) {
       const added = await targetedRound(claim, claimAssessments, snapshots);
-      if (added !== null) {
-        rounds = 1;
+      rounds = added.attempted ? 1 : 0;
+      if (added.attempted && added.assessments !== null) {
         const accumulated = accumulateEvidence(
           [claim],
           [...snapshots.values()],
           claimAssessments,
-          added,
+          added.assessments,
         );
         partition = partitionEvidence(claim, accumulated.assessments, snapshots);
         if (partition.integrityFailures.length > 0)
@@ -367,24 +372,23 @@ async function adjudicate(
     claim: Claim,
     claimAssessments: EvidenceAssessment[],
     snapshots: Map<string, DocumentSnapshot>,
-  ): Promise<EvidenceAssessment[] | null> {
+  ): Promise<TargetedRoundOutcome> {
     const targeted = options.targetedReassessment;
-    const priorRounds = options.priorTargetedRounds ?? 0;
     if (targeted === undefined) {
       warn(
         "capability_unavailable",
         "No targeted retrieval capability was configured for challenge reassessment.",
         claim.id,
       );
-      return null;
+      return { attempted: false };
     }
-    if (priorRounds >= environment.context.budget.maxTargetedRetrievalRounds) {
+    if (totalTargetedRounds >= environment.context.budget.maxTargetedRetrievalRounds) {
       warn(
         "budget_exhausted",
         "The run had no targeted retrieval round left for challenge reassessment.",
         claim.id,
       );
-      return null;
+      return { attempted: false };
     }
     // A retrieval request, an assessment request and the post-round challenge.
     if (!reserve(3)) {
@@ -393,9 +397,21 @@ async function adjudicate(
         "The shared request cap left no room for a targeted round.",
         claim.id,
       );
-      return null;
+      return { attempted: false };
     }
-    const round = priorRounds + 1;
+    const round = options.reserveTargetedRound
+      ? await options.reserveTargetedRound()
+      : totalTargetedRounds + 1;
+    if (round === null) {
+      warn(
+        "budget_exhausted",
+        "The shared targeted-round allowance was exhausted or the attempt was no longer active.",
+        claim.id,
+      );
+      return { attempted: false };
+    }
+    totalTargetedRounds = round;
+    ensureActive();
     const retrieve =
       targeted.createRetrieve?.({
         priorExternalRequests: totalRequests,
@@ -435,7 +451,7 @@ async function adjudicate(
       claim.id,
     );
     ensureActive();
-    if (retrieval.data === null) return null;
+    if (retrieval.data === null) return { attempted: true, assessments: null };
 
     const known = new Set(claimAssessments.map(({ snapshotId }) => snapshotId));
     const accepted: DocumentSnapshot[] = [];
@@ -498,9 +514,9 @@ async function adjudicate(
         `Targeted evidence could not be recorded, so it was not used: ${error instanceof Error ? error.message : "unknown error"}`,
         claim.id,
       );
-      return null;
+      return { attempted: true, assessments: null };
     }
-    return assessments;
+    return { attempted: true, assessments };
   }
 
   function targetedFeedback(claim: Claim, assessments: EvidenceAssessment[]): SufficiencyFeedback {
