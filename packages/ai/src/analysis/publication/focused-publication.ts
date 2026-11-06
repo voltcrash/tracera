@@ -25,6 +25,7 @@ import {
   integrityError,
   isAdjudicable,
   partitionEvidence,
+  opposingEvidence,
   scopeAbstention,
   withRelation,
 } from "../adjudication/policy";
@@ -400,7 +401,7 @@ function evaluateDecision(
       "valid",
     );
 
-  const opposing = originalLabel === "contradicted" ? supports : contradicts;
+  const opposing = opposingEvidence(originalLabel, partition.usable);
   if (opposing.length > 0)
     return abstain(
       "unresolved_conflict",

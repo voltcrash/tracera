@@ -13,8 +13,12 @@ import {
 } from "../scripts/support/scripted-evidence.js";
 import { createAssessEvidence } from "../src/analysis/evidence/index.js";
 
-for (const scenario of ["later batch", "initial copies"] as const) {
-  test(`the pipeline reclassifies ${scenario} before checking sufficiency`, async () => {
+for (const [scenario, denied] of [
+  ["later batch", false],
+  ["initial copies", false],
+  ["initial copies", true],
+] as const) {
+  test(`the pipeline reclassifies ${scenario} before checking sufficiency (round denied=${denied})`, async () => {
     const example = analysisExamples.complete;
     const primary = example.snapshots[0]!;
     const claim = example.claims[0]!;
@@ -52,7 +56,12 @@ for (const scenario of ["later batch", "initial copies"] as const) {
     let observed: EvidenceAssessment[] = [];
     const retrievalRounds: number[] = [];
     const reachedProvenance = new Error("Observed accumulated evidence");
+    let reservations = 0;
     const run = createRunAnalysis({
+      reserveTargetedRound: async () => {
+        reservations++;
+        return denied ? null : 1;
+      },
       stages: {
         normalizeInput: () => async () =>
           result({ snapshots: [primary], primarySnapshotId: primary.id }),
@@ -89,11 +98,12 @@ for (const scenario of ["later batch", "initial copies"] as const) {
       run({ input: { kind: "text", text: primary.normalizedText }, seed: 1 }, environment),
       (error) => error === reachedProvenance,
     );
-    assert.deepEqual(retrievalRounds, [0, 1]);
-    assert.equal(observed.length, snapshots.length);
+    assert.equal(reservations, 1);
+    assert.deepEqual(retrievalRounds, denied ? [0] : [0, 1]);
+    assert.equal(observed.length, denied ? 2 : snapshots.length);
     if (scenario === "later batch") {
       assert.ok(observed.every(({ dependence }) => dependence === "same_publisher"));
-    } else {
+    } else if (!denied) {
       assert.equal(
         observed.find(({ snapshotId }) => snapshotId === "fresh_record")?.dependence,
         "independent",

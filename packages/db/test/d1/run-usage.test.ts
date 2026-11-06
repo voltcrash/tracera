@@ -13,7 +13,7 @@ afterAll(async () => {
 });
 const scope = { tenantId: "tenant", ownerUserId: "owner", visibility: "private" as const };
 
-async function setup() {
+async function setup(maxTargetedRetrievalRounds = 2) {
   let now = Date.parse("2026-11-07T00:00:00Z");
   const repository = createD1AnalysisRepository({ database: runtime.db, now: () => now });
   const context = {
@@ -23,6 +23,7 @@ async function setup() {
     budget: {
       ...runContextExample.budget,
       maxExternalRequests: 3,
+      maxTargetedRetrievalRounds,
       maxCostUsd: 0.04,
       maxElapsedMs: 10000,
     },
@@ -58,6 +59,7 @@ test("concurrent physical requests cannot exceed either persisted run allowance"
   expect(await reserve(0)).toBe(false);
   expect(await repository.getRunUsage(identity)).toEqual({
     externalRequests: 3,
+    targetedRounds: 0,
     estimatedCostUsd: 0.04,
     startedAt: "2026-11-07T00:00:00.000Z",
   });
@@ -165,6 +167,7 @@ test("the usage migration does not grant a new allowance to previously running w
     );
     expect(await repository.getRunUsage({ scope, runId: "queued" })).toEqual({
       externalRequests: 0,
+      targetedRounds: 0,
       estimatedCostUsd: 0,
       startedAt: null,
     });
@@ -179,6 +182,128 @@ test("the usage migration does not grant a new allowance to previously running w
         estimatedCostUsd: 0,
       }),
     ).toBe(false);
+  } finally {
+    await isolated.dispose();
+  }
+});
+
+test("concurrent targeted rounds consume one shared allowance across attempts", async () => {
+  const { repository, identity, attempt } = await setup();
+  const reservations = await Promise.all(
+    Array.from({ length: 6 }, () =>
+      repository.reserveTargetedRound({ ...identity, fencingToken: attempt.fencingToken }),
+    ),
+  );
+  expect(
+    reservations.filter((round) => round !== null).sort((left, right) => left - right),
+  ).toEqual([1, 2]);
+  const progress = await repository.getRunProgress(identity);
+  const retry = await repository.beginAttempt({
+    ...identity,
+    stage: "normalize_input",
+    expectedVersion: progress!.version,
+  });
+  expect(
+    await repository.reserveTargetedRound({ ...identity, fencingToken: retry.fencingToken }),
+  ).toBeNull();
+  expect(await repository.getRunUsage(identity)).toMatchObject({
+    targetedRounds: 2,
+    externalRequests: 0,
+  });
+});
+
+test("a targeted reservation rejects stale ownership, cancellation, deadline and terminal runs", async () => {
+  const { repository, identity, attempt, advance } = await setup();
+  expect(
+    await repository.reserveTargetedRound({
+      ...identity,
+      scope: { ...scope, ownerUserId: "other" },
+      fencingToken: attempt.fencingToken,
+    }),
+  ).toBeNull();
+  const retry = await repository.beginAttempt({
+    ...identity,
+    stage: "normalize_input",
+    expectedVersion: attempt.version,
+  });
+  expect(
+    await repository.reserveTargetedRound({ ...identity, fencingToken: attempt.fencingToken }),
+  ).toBeNull();
+  expect(
+    await repository.reserveTargetedRound({ ...identity, fencingToken: retry.fencingToken }),
+  ).toBe(1);
+  advance(10000);
+  expect(
+    await repository.reserveTargetedRound({ ...identity, fencingToken: retry.fencingToken }),
+  ).toBeNull();
+  const canceled = await setup();
+  await canceled.repository.requestCancellation({ ...canceled.identity, reason: "user_request" });
+  expect(
+    await canceled.repository.reserveTargetedRound({
+      ...canceled.identity,
+      fencingToken: canceled.attempt.fencingToken,
+    }),
+  ).toBeNull();
+  const terminal = await setup();
+  await terminal.repository.failRun({
+    ...terminal.identity,
+    fencingToken: terminal.attempt.fencingToken,
+    error: "Stopped",
+  });
+  expect(
+    await terminal.repository.reserveTargetedRound({
+      ...terminal.identity,
+      fencingToken: terminal.attempt.fencingToken,
+    }),
+  ).toBeNull();
+  const disabled = await setup(0);
+  expect(
+    await disabled.repository.reserveTargetedRound({
+      ...disabled.identity,
+      fencingToken: disabled.attempt.fencingToken,
+    }),
+  ).toBeNull();
+});
+
+test("the targeted-round migration exhausts unknown prior usage without charging queued runs", async () => {
+  const isolated = await createTestRuntime();
+  try {
+    const repository = createD1AnalysisRepository({ database: isolated.db });
+    for (const runId of ["queued", "running"]) {
+      await repository.createRun({
+        context: { ...structuredClone(runContextExample), ...scope, runId },
+      });
+    }
+    const attempt = await repository.beginAttempt({
+      scope,
+      runId: "running",
+      stage: "normalize_input",
+      expectedVersion: 0,
+    });
+    await isolated.db.prepare("ALTER TABLE core_runs DROP COLUMN usage_targeted_rounds").run();
+    const migration = await readFile(
+      new URL("../../migrations/0010_targeted_round_budget.sql", import.meta.url),
+      "utf8",
+    );
+    await isolated.db.batch(
+      migration
+        .split("--> statement-breakpoint")
+        .filter((sql) => sql.trim())
+        .map((sql) => isolated.db.prepare(sql)),
+    );
+    expect(await repository.getRunUsage({ scope, runId: "queued" })).toMatchObject({
+      targetedRounds: 0,
+    });
+    expect(await repository.getRunUsage({ scope, runId: "running" })).toMatchObject({
+      targetedRounds: runContextExample.budget.maxTargetedRetrievalRounds,
+    });
+    expect(
+      await repository.reserveTargetedRound({
+        scope,
+        runId: "running",
+        fencingToken: attempt.fencingToken,
+      }),
+    ).toBeNull();
   } finally {
     await isolated.dispose();
   }

@@ -94,6 +94,12 @@ test("Workflow analyzes, finalizes and releases admission without persisting rep
   const state = await readRunState(harness.env, user, params.runId);
   expect(state?.progress.completedStages).toHaveLength(8);
   expect(
+    await analysisStorage(harness.env).runs.getRunUsage({
+      scope: accessScope(user),
+      runId: params.runId,
+    }),
+  ).toMatchObject({ targetedRounds: 1 });
+  expect(
     state?.report?.decisions.every(({ publishedLabel }) => publishedLabel === "unverified"),
   ).toBe(true);
   expect(state?.report?.scorecard?.factualScore).toBeNull();

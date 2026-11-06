@@ -70,6 +70,7 @@ export const analysisRuns = sqliteTable(
     startedAt: integer("started_at", { mode: "timestamp_ms" }),
     usageExternalRequests: integer("usage_external_requests").notNull().default(0),
     usageCostMicros: integer("usage_cost_micros").notNull().default(0),
+    usageTargetedRounds: integer("usage_targeted_rounds").notNull().default(0),
     launchStatus: text("launch_status", { enum: ["not_required", "pending", "created", "unknown"] })
       .notNull()
       .default("not_required"),

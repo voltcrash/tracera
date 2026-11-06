@@ -15,6 +15,7 @@ import {
   challenge,
   createAdjudicationEnvironment,
   draft,
+  scriptedTargetedReassessment,
 } from "../scripts/support/scripted-adjudication.js";
 
 for (const scenario of ADJUDICATION_SCENARIOS) {
@@ -160,4 +161,182 @@ test("cancellation fails adjudication without partial decisions", async () => {
   assert.equal(adjudicated.status, "failed");
   assert.equal(adjudicated.data, null);
   assert.ok(fixture.audits.some(({ kind }) => kind === "cancellation"));
+});
+
+for (const failed of [false, true]) {
+  test(`targeted rounds are shared across claims, including failed=${failed} retrieval`, async () => {
+    const { snapshots, assessments } = contradictionEvidence();
+    const claims = [adjudicationClaim({ id: "claim_one" }), adjudicationClaim({ id: "claim_two" })];
+    const evidence = claims.flatMap((claim) =>
+      assessments.map((item) => ({ ...item, id: `${item.id}_${claim.id}`, claimId: claim.id })),
+    );
+    const claimId = (ids: string[]) =>
+      ids.some((id) => id.endsWith("claim_one")) ? "claim_one" : "claim_two";
+    const fixture = createAdjudicationEnvironment({
+      snapshots,
+      context: {
+        budget: { ...runContextExample.budget, maxTargetedRetrievalRounds: 1, maxCostUsd: null },
+      },
+      draft: (ids) => ({
+        ...draft("contradicted", { contradictingAssessmentIds: ids }),
+        claimId: claimId(ids),
+      }),
+      challenge: (ids) => ({ ...challenge("unverified", []), claimId: claimId(ids) }),
+    });
+    let retrievals = 0;
+    const targeted = scriptedTargetedReassessment();
+    const retrieve = targeted.reassessment.createRetrieve!;
+    targeted.reassessment.createRetrieve = (usage) => async (input, environment) => {
+      retrievals++;
+      const result = await retrieve(usage)(input, environment);
+      return failed
+        ? {
+            ...result,
+            status: "unavailable",
+            data: null,
+            issues: [
+              {
+                code: "provider_outage",
+                severity: "warning",
+                message: "Fixture unavailable",
+                claimId: null,
+                snapshotId: null,
+                url: null,
+              },
+            ],
+          }
+        : result;
+    };
+    const result = await createAdjudicateClaims({ targetedReassessment: targeted.reassessment })(
+      { claims, assessments: evidence, graphs: [] },
+      fixture.environment,
+    );
+    assert.equal(retrievals, 1);
+    assert.equal(result.data!.decisions[0]!.challenge.targetedRoundsUsed, 1);
+    assert.equal(result.data!.decisions[1]!.challenge.targetedRoundsUsed, 0);
+  });
+}
+
+test("targeted evidence produces a fresh draft that can cite newly acquired assessments", async () => {
+  const { snapshots, assessments } = contradictionEvidence();
+  const fresh = adjudicationSnapshot(
+    "original_forms",
+    "An independent archive contains seventeen original Northbridge incident forms dated within calendar year 1998.",
+  );
+  const freshAssessment = adjudicationAssessment(fresh, { relation: "contradicts" });
+  const targeted = scriptedTargetedReassessment({
+    snapshots: [fresh],
+    assessments: [freshAssessment],
+  });
+  const { result, fixture } = await adjudicate(
+    assessments,
+    snapshots,
+    {
+      draft: (_ids, call) =>
+        draft("contradicted", {
+          contradictingAssessmentIds: [call === 1 ? assessments[0]!.id : freshAssessment.id],
+        }),
+      challenge: (ids) =>
+        ids.includes(freshAssessment.id)
+          ? challenge("contradicted", [freshAssessment.id])
+          : challenge("unverified", []),
+    },
+    { targetedReassessment: targeted.reassessment },
+  );
+  assert.equal(fixture.draftCalls, 2);
+  assert.deepEqual(result.data!.decisions[0]!.contradictingAssessmentIds, [freshAssessment.id]);
+  assert.equal(result.data!.decisions[0]!.challenge.status, "resolved");
+});
+
+test("adjudication and publication both keep weak applicable opposition unresolved", async () => {
+  const { snapshots, assessments } = contradictionEvidence();
+  const weak = adjudicationSnapshot(
+    "secondary_support",
+    "A single secondary report repeats the claim of 42 Northbridge incidents in 1998.",
+  );
+  const opposing = adjudicationAssessment(weak, {
+    relation: "supports",
+    directness: "secondary",
+    dependence: "unknown",
+  });
+  const targeted = scriptedTargetedReassessment();
+  const { result } = await adjudicate(
+    [...assessments, opposing],
+    [...snapshots, weak],
+    {
+      draft: () => draft("contradicted", { contradictingAssessmentIds: [assessments[0]!.id] }),
+      challenge: () => challenge("contradicted", [assessments[0]!.id]),
+    },
+    { targetedReassessment: targeted.reassessment },
+  );
+  const decision = result.data!.decisions[0]!;
+  const { publishFocusedDecisions } = await import("../src/analysis/publication/index.js");
+  const published = publishFocusedDecisions({
+    claims: [adjudicationClaim()],
+    snapshots: [...snapshots, weak],
+    assessments: [...assessments, opposing],
+    decisions: [decision],
+  }).decisions[0]!;
+  assert.equal(decision.challenge.status, "unresolved");
+  assert.equal(published.challenge.status, "unresolved");
+  assert.equal(published.publishedLabel, "unverified");
+});
+
+test("targeted retrieval leaves room for assessment, a fresh draft, and challenge", async () => {
+  const { snapshots, assessments } = contradictionEvidence();
+  const targeted = scriptedTargetedReassessment();
+  let reservations = 0;
+  const { result, fixture } = await adjudicate(
+    assessments,
+    snapshots,
+    {
+      context: {
+        budget: { ...runContextExample.budget, maxExternalRequests: 5, maxCostUsd: null },
+      },
+      draft: () => draft("contradicted", { contradictingAssessmentIds: [assessments[0]!.id] }),
+      challenge: () => challenge("unverified", []),
+    },
+    {
+      targetedReassessment: targeted.reassessment,
+      reserveTargetedRound: async () => {
+        reservations++;
+        return 1;
+      },
+    },
+  );
+  assert.equal(reservations, 0);
+  assert.equal(targeted.recorded.length, 0);
+  assert.equal(fixture.requests.length, 2);
+  assert.equal(result.data!.decisions[0]!.challenge.status, "unresolved");
+});
+
+test("a refreshed draft that exhausts requests retains the consumed targeted round", async () => {
+  const { snapshots, assessments } = contradictionEvidence();
+  const fresh = adjudicationSnapshot(
+    "archive_record",
+    "Independent archival records list seventeen Northbridge incidents during 1998.",
+  );
+  const added = adjudicationAssessment(fresh, { relation: "contradicts" });
+  const targeted = scriptedTargetedReassessment({ snapshots: [fresh], assessments: [added] });
+  const fixture = createAdjudicationEnvironment({
+    snapshots,
+    context: { budget: { ...runContextExample.budget, maxExternalRequests: 7, maxCostUsd: null } },
+    draft: (ids) => draft("contradicted", { contradictingAssessmentIds: ids }),
+    challenge: () => challenge("unverified", []),
+  });
+  const generate = fixture.environment.ports.generation.generate.bind(
+    fixture.environment.ports.generation,
+  );
+  fixture.environment.ports.generation.generate = async (request) => {
+    const response = await generate(request);
+    return { ...response, attempts: fixture.draftCalls === 2 ? 3 : 1 };
+  };
+  const result = await createAdjudicateClaims({ targetedReassessment: targeted.reassessment })(
+    { claims: [adjudicationClaim()], assessments, graphs: [] },
+    fixture.environment,
+  );
+  assert.equal(result.metrics.externalRequests, 7);
+  assert.equal(result.data!.decisions[0]!.challenge.status, "failed");
+  assert.equal(result.data!.decisions[0]!.challenge.targetedRoundsUsed, 1);
+  assert.equal(result.data!.decisions[0]!.publishedLabel, "unverified");
 });

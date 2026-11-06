@@ -61,6 +61,7 @@ interface RunRow {
   started_at: number | null;
   usage_external_requests: number;
   usage_cost_micros: number;
+  usage_targeted_rounds: number;
   launch_status: "not_required" | "pending" | "created" | "unknown";
   launch_attempted_at: number | null;
   launch_admission: string | null;
@@ -923,6 +924,7 @@ export class D1AnalysisRepository {
     return row
       ? {
           externalRequests: row.usage_external_requests,
+          targetedRounds: row.usage_targeted_rounds,
           estimatedCostUsd: microsToUsd(row.usage_cost_micros),
           startedAt: row.started_at === null ? null : new Date(row.started_at).toISOString(),
         }
@@ -962,6 +964,23 @@ export class D1AnalysisRepository {
       .bind(cost, input.runId, ...scopeValues(input.scope), input.fencingToken, this.now(), cost)
       .all();
     return result.results.length === 1;
+  }
+
+  async reserveTargetedRound(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+    fencingToken: string;
+  }): Promise<number | null> {
+    const row = await this.database
+      .prepare(`UPDATE core_runs SET usage_targeted_rounds=usage_targeted_rounds+1
+      WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=?
+      AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0 AND ${heldRunAdmission}
+      AND started_at+json_extract(budget,'$.maxElapsedMs')>?
+      AND usage_targeted_rounds<json_extract(budget,'$.maxTargetedRetrievalRounds')
+      RETURNING usage_targeted_rounds`)
+      .bind(input.runId, ...scopeValues(input.scope), input.fencingToken, this.now())
+      .first<{ usage_targeted_rounds: number }>();
+    return row?.usage_targeted_rounds ?? null;
   }
 
   /** Only call after the Workflow has stopped; this also fences any late writes. */

@@ -1,3 +1,4 @@
+import { hashValue } from "../hashing";
 import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import {
   decisionSchema,
@@ -59,6 +60,10 @@ export function createAdjudicateClaims(options: AdjudicationOptions = {}): Adjud
 
 class Canceled extends Error {}
 
+type TargetedRoundOutcome =
+  | { attempted: false }
+  | { attempted: true; assessments: EvidenceAssessment[] | null };
+
 type ChallengeOutcome = { ok: true; label: ClaimLabel } | { ok: false; reason: string };
 
 async function adjudicate(
@@ -79,6 +84,7 @@ async function adjudicate(
   let outputTokens: number | null = 0;
   let stageCostUsd: number | null = 0;
   let omitted = 0;
+  let totalTargetedRounds = options.priorTargetedRounds ?? 0;
 
   await audit("stage_started", "Verdict adjudication started.");
   try {
@@ -204,7 +210,7 @@ async function adjudicate(
       claim,
     );
     if (draftResponse === null) return null;
-    const draft = draftResponse.value;
+    let draft = draftResponse.value;
     const resolution = resolveDraft(draft, claim, partition.usable);
     if (resolution.kind === "invalid") return integrityFailure(claim, [resolution.reason]);
     if (!isDecisive(resolution.label))
@@ -226,23 +232,34 @@ async function adjudicate(
     const disagreed = !challenge.ok || challenge.label !== resolution.label;
     if (challenge.ok && (disagreed || conflicted)) {
       const added = await targetedRound(claim, claimAssessments, snapshots);
-      if (added !== null) {
-        rounds = 1;
+      rounds = added.attempted ? 1 : 0;
+      if (added.attempted && added.assessments && added.assessments.length > 0) {
+        const previousEvidence = evidenceFingerprint(partition.usable);
         const accumulated = accumulateEvidence(
           [claim],
           [...snapshots.values()],
           claimAssessments,
-          added,
+          added.assessments,
         );
         partition = partitionEvidence(claim, accumulated.assessments, snapshots);
         if (partition.integrityFailures.length > 0)
-          return integrityFailure(claim, partition.integrityFailures);
-        const reresolved = resolveDraft(draft, claim, partition.usable);
-        if (reresolved.kind === "invalid") return integrityFailure(claim, [reresolved.reason]);
-        current = reresolved;
-        if (!reserve(1)) return exhausted(claim);
-        challenge = await runChallenge(claim, partition.usable);
-        if (challenge === null) return null;
+          return integrityFailure(claim, partition.integrityFailures, rounds);
+        if (evidenceFingerprint(partition.usable) !== previousEvidence) {
+          if (!reserve(2)) return exhausted(claim, rounds);
+          const refreshed = await generate(
+            buildDraftRequest(buildChallengeInput(claim, partition.usable), environment.signal),
+            claim,
+          );
+          if (refreshed === null) return null;
+          draft = refreshed.value;
+          const reresolved = resolveDraft(draft, claim, partition.usable);
+          if (reresolved.kind === "invalid")
+            return integrityFailure(claim, [reresolved.reason], rounds);
+          current = reresolved;
+          if (!reserve(1)) return exhausted(claim, rounds);
+          challenge = await runChallenge(claim, partition.usable);
+          if (challenge === null) return null;
+        }
       }
     }
 
@@ -284,7 +301,7 @@ async function adjudicate(
       );
 
     const opposing = opposingEvidence(current.label, partition.usable);
-    if (agreed && (opposing.length === 0 || (rounds === 1 && !hasSufficientOrigins(opposing)))) {
+    if (agreed && opposing.length === 0) {
       return decision(
         claim,
         current,
@@ -296,9 +313,7 @@ async function adjudicate(
           agreed: true,
           targetedRoundsUsed: rounds,
           notes:
-            opposing.length === 0
-              ? "The independent reassessment agreed without seeing the draft label."
-              : "After one targeted round the opposing evidence still lacked independent origins, and the label-blind reassessment agreed.",
+            "The independent reassessment agreed without seeing the draft label, and no applicable opposing evidence remained.",
         },
         draft.selfConfidence,
         draft.justification,
@@ -367,35 +382,46 @@ async function adjudicate(
     claim: Claim,
     claimAssessments: EvidenceAssessment[],
     snapshots: Map<string, DocumentSnapshot>,
-  ): Promise<EvidenceAssessment[] | null> {
+  ): Promise<TargetedRoundOutcome> {
     const targeted = options.targetedReassessment;
-    const priorRounds = options.priorTargetedRounds ?? 0;
     if (targeted === undefined) {
       warn(
         "capability_unavailable",
         "No targeted retrieval capability was configured for challenge reassessment.",
         claim.id,
       );
-      return null;
+      return { attempted: false };
     }
-    if (priorRounds >= environment.context.budget.maxTargetedRetrievalRounds) {
+    if (totalTargetedRounds >= environment.context.budget.maxTargetedRetrievalRounds) {
       warn(
         "budget_exhausted",
         "The run had no targeted retrieval round left for challenge reassessment.",
         claim.id,
       );
-      return null;
+      return { attempted: false };
     }
-    // A retrieval request, an assessment request and the post-round challenge.
-    if (!reserve(3)) {
+    // Retrieval, assessment, a refreshed draft, and an independent challenge.
+    if (!reserve(4)) {
       warn(
         "budget_exhausted",
         "The shared request cap left no room for a targeted round.",
         claim.id,
       );
-      return null;
+      return { attempted: false };
     }
-    const round = priorRounds + 1;
+    const round = options.reserveTargetedRound
+      ? await options.reserveTargetedRound()
+      : totalTargetedRounds + 1;
+    if (round === null) {
+      warn(
+        "budget_exhausted",
+        "The shared targeted-round allowance was exhausted or the attempt was no longer active.",
+        claim.id,
+      );
+      return { attempted: false };
+    }
+    totalTargetedRounds = round;
+    ensureActive();
     const retrieve =
       targeted.createRetrieve?.({
         priorExternalRequests: totalRequests,
@@ -421,7 +447,7 @@ async function adjudicate(
             ...environment.context.budget,
             maxExternalRequests: Math.max(
               totalRequests,
-              environment.context.budget.maxExternalRequests - 2,
+              environment.context.budget.maxExternalRequests - 3,
             ),
           },
         },
@@ -435,7 +461,7 @@ async function adjudicate(
       claim.id,
     );
     ensureActive();
-    if (retrieval.data === null) return null;
+    if (retrieval.data === null) return { attempted: true, assessments: null };
 
     const known = new Set(claimAssessments.map(({ snapshotId }) => snapshotId));
     const accepted: DocumentSnapshot[] = [];
@@ -461,7 +487,7 @@ async function adjudicate(
     if (admitted.length > 0) {
       const maxGenerationRequests = Math.max(
         0,
-        environment.context.budget.maxExternalRequests - totalRequests - 1,
+        environment.context.budget.maxExternalRequests - totalRequests - 2,
       );
       const assess =
         targeted.createAssess?.({ maxGenerationRequests }) ??
@@ -498,9 +524,9 @@ async function adjudicate(
         `Targeted evidence could not be recorded, so it was not used: ${error instanceof Error ? error.message : "unknown error"}`,
         claim.id,
       );
-      return null;
+      return { attempted: true, assessments: null };
     }
-    return assessments;
+    return { attempted: true, assessments };
   }
 
   function targetedFeedback(claim: Claim, assessments: EvidenceAssessment[]): SufficiencyFeedback {
@@ -605,7 +631,7 @@ async function adjudicate(
     };
   }
 
-  async function integrityFailure(claim: Claim, reasons: string[]): Promise<Decision> {
+  async function integrityFailure(claim: Claim, reasons: string[], rounds = 0): Promise<Decision> {
     for (const reason of reasons)
       warn(
         "citation_validation_failed",
@@ -624,20 +650,30 @@ async function adjudicate(
         "Citation checks failed, so no verdict can be released.",
       ),
       citationIntegrity: "invalid",
+      challenge: stoppedChallenge(
+        rounds,
+        "Citation checks prevented completing the refreshed challenge.",
+      ),
     };
   }
 
-  function exhausted(claim: Claim) {
+  function exhausted(claim: Claim, rounds = 0) {
     warn(
       "budget_exhausted",
       "The shared request cap was exhausted before adjudication and challenge.",
       claim.id,
     );
-    return abstain(
-      claim,
-      ["budget_exhausted_before_resolution"],
-      "The run budget was exhausted before the claim could be adjudicated and challenged.",
-    );
+    return {
+      ...abstain(
+        claim,
+        ["budget_exhausted_before_resolution"],
+        "The run budget was exhausted before the claim could be adjudicated and challenged.",
+      ),
+      challenge: stoppedChallenge(
+        rounds,
+        "The request budget prevented completing the refreshed challenge.",
+      ),
+    };
   }
 
   async function loadSnapshots(claims: Claim[], assessments: EvidenceAssessment[]) {
@@ -756,6 +792,18 @@ function notRequired(): Challenge {
   };
 }
 
+function stoppedChallenge(targetedRoundsUsed: number, notes: string): Challenge {
+  return targetedRoundsUsed === 0
+    ? notRequired()
+    : {
+        status: "failed",
+        independentLabel: null,
+        agreed: null,
+        targetedRoundsUsed,
+        notes,
+      };
+}
+
 function unique<Value>(values: Value[]) {
   return [...new Set(values)];
 }
@@ -771,4 +819,8 @@ function issue(
   snapshotId: string | null = null,
 ): AnalysisIssue {
   return { code, severity: "warning", message, claimId, snapshotId, url: null };
+}
+
+function evidenceFingerprint(assessments: EvidenceAssessment[]) {
+  return hashValue([...assessments].sort((left, right) => left.id.localeCompare(right.id)));
 }

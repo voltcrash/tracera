@@ -71,6 +71,13 @@
       "when": 1793999519765,
       "tag": "0009_spend_settlement_basis",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1794002310693,
+      "tag": "0010_targeted_round_budget",
+      "breakpoints": true
     }
   ]
 }

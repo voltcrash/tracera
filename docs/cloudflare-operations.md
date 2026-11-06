@@ -168,6 +168,30 @@ The usage migration conservatively exhausts the allowance of already-started, un
 runs because their earlier uncheckpointed requests cannot be reconstructed. They cannot
 receive a fresh budget after deployment; queued runs retain their full allowance.
 
+Targeted retrieval has a separate run-wide D1 counter shared by assessment follow-ups and
+all claims in adjudication. Each grant returns the next round number before retrieval starts;
+failed or empty retrievals consume the grant too. Fencing, owner scope, cancellation, held
+admission, and the first-attempt deadline gate grants. Retrying an attempt cannot reset this
+counter. Migration `0010_targeted_round_budget.sql` exhausts the targeted allowance of
+already-started, unfinished runs because their prior uncheckpointed rounds are unknown;
+queued runs start at zero.
+
+Adjudication follows these transitions:
+
+| Current step     | Event                                                 | Next step                                                                                 |
+| ---------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Validated draft  | A decisive verdict has admissible evidence            | Independent, label-blind challenge                                                        |
+| Challenge        | Disagreement or applicable opposing evidence          | One targeted attempt, if the shared round and request allowances permit it                |
+| Targeted attempt | Usable evidence changes                               | Fresh draft and independent challenge against the accumulated evidence                    |
+| Targeted attempt | Retrieval fails, is empty, or adds no usable evidence | Retain the prior draft and challenge without rerolling model votes                        |
+| Final gate       | Agreement with no applicable opposition               | Resolved challenge                                                                        |
+| Final gate       | Disagreement or applicable opposition remains         | Unresolved challenge; independently sourced support and contradiction can produce `mixed` |
+
+Targeted retrieval leaves room in the request cap for assessment, a fresh draft, and a new
+challenge. Both adjudication and focused publication use the same opposing-evidence rule;
+weak applicable opposition still prevents resolving the challenge. New assessments and
+snapshots must be recorded before they can support a refreshed verdict.
+
 D1 admission coordinates fixed-window rate limits, concurrency leases, daily quota,
 idempotency, and forced-reanalysis cooldown across Worker instances. Defaults are 30 requests
 per user and 60 per IP per hour, two concurrent runs per user and four per IP, 100 admissions
