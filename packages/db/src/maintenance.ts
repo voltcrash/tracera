@@ -24,9 +24,14 @@ export function createD1MaintenanceRepository(options: D1RepositoryOptions) {
             "UPDATE ai_spend_reservations SET actual_micros=estimated_micros,settled_at=? WHERE settled_at IS NULL AND expires_at<=?",
           )
           .bind(now, now),
-        database.prepare("DELETE FROM analysis_idempotency_keys WHERE expires_at<=?").bind(now),
         database
-          .prepare("DELETE FROM analysis_leases WHERE released_at IS NOT NULL OR expires_at<=?")
+          .prepare(`DELETE FROM analysis_idempotency_keys WHERE expires_at<=?
+          AND NOT EXISTS(SELECT 1 FROM analysis_leases WHERE id=analysis_idempotency_keys.lease_id AND released_at IS NULL AND (expires_at>? OR run_id IS NOT NULL))`)
+          .bind(now, now),
+        database
+          .prepare(
+            "DELETE FROM analysis_leases WHERE released_at IS NOT NULL OR (expires_at<=? AND run_id IS NULL)",
+          )
           .bind(now),
         database
           .prepare("DELETE FROM analysis_rate_limits WHERE window_started_at<=?")
