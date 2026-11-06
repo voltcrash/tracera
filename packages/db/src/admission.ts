@@ -20,13 +20,17 @@ interface AdmissionInput {
 }
 interface IdempotencyRow {
   request_hash: string;
-  request_status: string;
+  request_status: "in_progress" | "accepted" | "completed" | "failed";
   lease_id: string | null;
   response_body: string | null;
   response_blob_uri: string | null;
   response_hash: string | null;
   response_status: number | null;
   expires_at: number;
+  lease_held: number;
+  lease_expires_at: number | null;
+  run_id: string | null;
+  run_versions: string | null;
 }
 interface RateRow {
   scope_type: "user" | "ip";
@@ -51,6 +55,73 @@ export class D1AdmissionRepository {
     this.payloads = new D1PayloadStore(options.bucket);
   }
 
+  private readonly replayQuery = `SELECT idem.*,lease.run_id,run.versions AS run_versions,
+    lease.expires_at AS lease_expires_at,
+    CASE WHEN lease.released_at IS NULL AND (lease.expires_at>? OR lease.run_id IS NOT NULL) THEN 1 ELSE 0 END AS lease_held
+    FROM analysis_idempotency_keys AS idem
+    LEFT JOIN analysis_leases AS lease ON lease.id=idem.lease_id AND lease.user_id=idem.user_id
+      AND lease.endpoint=idem.endpoint AND lease.idempotency_key=idem.idempotency_key
+    LEFT JOIN core_runs AS run ON run.run_id=lease.run_id AND run.owner_user_id=idem.user_id
+    WHERE idem.user_id=? AND idem.endpoint=? AND idem.idempotency_key=?`;
+
+  async readAnalysisAdmission(input: {
+    userId: string;
+    endpoint: string;
+    idempotencyKey: string;
+    requestHash: string;
+  }): Promise<Exclude<AnalysisAdmission, { kind: "admitted" }> | undefined> {
+    const now = this.now();
+    const row = await this.database
+      .prepare(this.replayQuery)
+      .bind(now, input.userId, input.endpoint, input.idempotencyKey)
+      .first<IdempotencyRow>();
+    return this.replay(row, input.requestHash, now);
+  }
+
+  private async replay(
+    row: IdempotencyRow | null,
+    requestHash: string,
+    now: number,
+  ): Promise<Exclude<AnalysisAdmission, { kind: "admitted" }> | undefined> {
+    if (!row || (row.expires_at <= now && !row.lease_held)) return undefined;
+    if (row.request_hash !== requestHash)
+      return {
+        kind: "rejected",
+        reason: "idempotency_conflict",
+        retryAt: new Date(now).toISOString(),
+      };
+    if (row.request_status === "completed" || row.request_status === "failed")
+      return {
+        kind: "replay",
+        responseBody: await this.payloads.read({
+          inline: row.response_body,
+          blobUri: row.response_blob_uri,
+          hash: row.response_hash ?? undefined,
+        }),
+        responseStatus: row.response_status!,
+      };
+    if (row.lease_held && row.run_id && row.run_versions)
+      return {
+        kind: "replay",
+        responseStatus: 202,
+        responseBody: {
+          schemaVersion: 2,
+          engineVersion: (JSON.parse(row.run_versions) as { engine: string }).engine,
+          runId: row.run_id,
+          status: "queued",
+          eventsUrl: `/api/runs/${row.run_id}/events`,
+          reportUrl: `/run/${row.run_id}`,
+        },
+      };
+    if (row.lease_held)
+      return {
+        kind: "rejected",
+        reason: "idempotency_in_progress",
+        retryAt: new Date(Math.max(now + 1000, row.lease_expires_at ?? now)).toISOString(),
+      };
+    return undefined;
+  }
+
   async finishAnalysisAdmission(input: {
     userId: string;
     endpoint: string;
@@ -73,8 +144,8 @@ export class D1AdmissionRepository {
     await this.database.batch([
       this.database
         .prepare(`UPDATE analysis_idempotency_keys SET request_status=?,response_body=?,response_blob_uri=?,response_hash=?,response_status=?,lease_id=NULL,expires_at=?,updated_at=?
-        WHERE user_id=? AND endpoint=? AND idempotency_key=? AND lease_id=? AND request_status='in_progress'
-        AND EXISTS(SELECT 1 FROM analysis_leases WHERE id=? AND user_id=? AND endpoint=? AND idempotency_key=? AND released_at IS NULL)`)
+        WHERE user_id=? AND endpoint=? AND idempotency_key=? AND lease_id=? AND request_status IN ('in_progress','accepted')
+        AND EXISTS(SELECT 1 FROM analysis_leases WHERE id=? AND user_id=? AND endpoint=? AND idempotency_key=? AND released_at IS NULL AND (run_id IS NULL OR EXISTS(SELECT 1 FROM core_runs WHERE core_runs.run_id=analysis_leases.run_id AND finalized_at IS NOT NULL)))`)
         .bind(
           input.responseStatus < 400 ? "completed" : "failed",
           payload.inline,
@@ -94,7 +165,7 @@ export class D1AdmissionRepository {
         ),
       this.database
         .prepare(
-          "UPDATE analysis_leases SET released_at=? WHERE id=? AND user_id=? AND endpoint=? AND idempotency_key=? AND released_at IS NULL",
+          "UPDATE analysis_leases SET released_at=? WHERE id=? AND user_id=? AND endpoint=? AND idempotency_key=? AND released_at IS NULL AND (run_id IS NULL OR EXISTS(SELECT 1 FROM core_runs WHERE core_runs.run_id=analysis_leases.run_id AND finalized_at IS NOT NULL))",
         )
         .bind(now, input.leaseId, input.userId, input.endpoint, input.idempotencyKey),
     ]);
@@ -117,7 +188,7 @@ export class D1AdmissionRepository {
       this.database
         .prepare(`INSERT INTO analysis_idempotency_keys(user_id,endpoint,idempotency_key,request_hash,request_status,lease_id,expires_at,created_at,updated_at)
         VALUES(?,?,?,?,'in_progress',?,?,?,?) ON CONFLICT(user_id,endpoint,idempotency_key) DO UPDATE SET request_hash=excluded.request_hash,request_status='in_progress',lease_id=excluded.lease_id,response_body=NULL,response_blob_uri=NULL,response_hash=NULL,response_status=NULL,expires_at=excluded.expires_at,updated_at=excluded.updated_at
-        WHERE analysis_idempotency_keys.expires_at<=? OR (analysis_idempotency_keys.request_status='in_progress' AND analysis_idempotency_keys.request_hash=excluded.request_hash AND NOT EXISTS(SELECT 1 FROM analysis_leases WHERE id=analysis_idempotency_keys.lease_id AND released_at IS NULL AND expires_at>?))`)
+        WHERE NOT EXISTS(SELECT 1 FROM analysis_leases WHERE id=analysis_idempotency_keys.lease_id AND released_at IS NULL AND (expires_at>? OR run_id IS NOT NULL)) AND (analysis_idempotency_keys.expires_at<=? OR (analysis_idempotency_keys.request_status='in_progress' AND analysis_idempotency_keys.request_hash=excluded.request_hash))`)
         .bind(
           ...key,
           input.requestHash,
@@ -134,8 +205,8 @@ export class D1AdmissionRepository {
         AND COALESCE((SELECT request_count FROM analysis_rate_limits WHERE scope_type='ip' AND scope_key=? AND window_started_at+?>?),0)<?
         AND COALESCE((SELECT request_count FROM analysis_rate_limits WHERE scope_type='user' AND scope_key=? AND window_started_at+?>?),0)<?
         AND (?=1 OR COALESCE((SELECT request_count FROM analysis_daily_quotas WHERE user_id=? AND period_start=?),0)<?)
-        AND (SELECT count(*) FROM analysis_leases WHERE user_id=? AND released_at IS NULL AND expires_at>?)<?
-        AND (SELECT count(*) FROM analysis_leases WHERE ip_hash=? AND released_at IS NULL AND expires_at>?)<?
+        AND (SELECT count(*) FROM analysis_leases WHERE user_id=? AND released_at IS NULL AND (expires_at>? OR run_id IS NOT NULL))<?
+        AND (SELECT count(*) FROM analysis_leases WHERE ip_hash=? AND released_at IS NULL AND (expires_at>? OR run_id IS NOT NULL))<?
         AND (?=0 OR COALESCE((SELECT cooldown_until FROM analysis_force_cooldowns WHERE user_id=? AND input_hash=?),0)<=?) RETURNING id`)
         .bind(
           id,
@@ -203,13 +274,7 @@ export class D1AdmissionRepository {
           id,
         ),
     );
-    statements.push(
-      this.database
-        .prepare(
-          "SELECT * FROM analysis_idempotency_keys WHERE user_id=? AND endpoint=? AND idempotency_key=?",
-        )
-        .bind(...key),
-    );
+    statements.push(this.database.prepare(this.replayQuery).bind(now, ...key));
     statements.push(
       this.database
         .prepare(
@@ -220,7 +285,7 @@ export class D1AdmissionRepository {
     statements.push(
       this.database
         .prepare(
-          "SELECT id,user_id,ip_hash,expires_at FROM analysis_leases WHERE released_at IS NULL AND expires_at>? AND (user_id=? OR ip_hash=?) ORDER BY expires_at",
+          "SELECT id,user_id,ip_hash,expires_at FROM analysis_leases WHERE released_at IS NULL AND (expires_at>? OR run_id IS NOT NULL) AND (user_id=? OR ip_hash=?) ORDER BY expires_at",
         )
         .bind(now, input.userId, input.ipHash),
     );
@@ -280,22 +345,8 @@ export class D1AdmissionRepository {
       reason,
       retryAt: new Date(at).toISOString(),
     });
-    if (idem.request_hash !== input.requestHash && idem.expires_at > now)
-      return reject("idempotency_conflict");
-    if (idem.request_status !== "in_progress" && idem.expires_at > now)
-      return {
-        kind: "replay",
-        responseBody: await this.payloads.read({
-          inline: idem.response_body,
-          blobUri: idem.response_blob_uri,
-          hash: idem.response_hash ?? undefined,
-        }),
-        responseStatus: idem.response_status!,
-      };
-    if (idem.lease_id !== id) {
-      const lease = leases.find((lease) => lease.id === idem.lease_id);
-      if (lease) return reject("idempotency_in_progress", lease.expires_at);
-    }
+    const replay = await this.replay(idem, input.requestHash, now);
+    if (replay) return replay;
     if (rate("ip").count >= limits.ipRateLimit) return reject("ip_rate_limit", rate("ip").reset);
     if (rate("user").count >= limits.userRateLimit)
       return reject("user_rate_limit", rate("user").reset);

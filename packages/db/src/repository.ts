@@ -68,6 +68,10 @@ const scopeValues = (scope: AnalysisAccessScope) => [
   scope.ownerUserId,
   scope.visibility,
 ];
+const heldRunAdmission = `(launch_status='not_required' OR EXISTS(SELECT 1 FROM analysis_leases AS lease
+  WHERE lease.id=json_extract(core_runs.launch_admission,'$.leaseId') AND lease.run_id=core_runs.run_id
+    AND lease.user_id=core_runs.owner_user_id AND lease.endpoint=json_extract(core_runs.launch_admission,'$.endpoint')
+    AND lease.idempotency_key=json_extract(core_runs.launch_admission,'$.idempotencyKey') AND lease.released_at IS NULL))`;
 const owns = (row: RunRow, scope: AnalysisAccessScope) =>
   row.tenant_id === scope.tenantId &&
   row.owner_user_id === scope.ownerUserId &&
@@ -98,10 +102,16 @@ export class D1AnalysisRepository {
     );
     const contextHash = hashJson(context);
     const now = this.now();
-    const [inserted, existing] = await this.database.batch<RunRow>([
+    const [inserted, , , existing] = await this.database.batch<RunRow>([
       this.database
         .prepare(`INSERT INTO core_runs(run_id,tenant_id,owner_user_id,visibility,input_hash,context_hash,as_of_time,execution_mode,versions,budget,cancellation,audit_sink_id,provider_source,provider,input_json,input_blob_uri,input_payload_hash,created_at,updated_at,launch_status,launch_admission)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(run_id) DO NOTHING RETURNING *`)
+        SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ?=0 OR EXISTS(
+          SELECT 1 FROM analysis_leases AS lease JOIN analysis_idempotency_keys AS idem ON idem.lease_id=lease.id
+          AND idem.user_id=lease.user_id AND idem.endpoint=lease.endpoint AND idem.idempotency_key=lease.idempotency_key
+          WHERE lease.id=? AND lease.user_id=? AND lease.endpoint=? AND lease.idempotency_key=?
+          AND lease.released_at IS NULL AND (lease.expires_at>? OR lease.run_id=?)
+          AND (lease.run_id IS NULL OR lease.run_id=?) AND idem.request_status IN ('in_progress','accepted'))
+        ON CONFLICT(run_id) DO NOTHING RETURNING *`)
         .bind(
           context.runId,
           context.tenantId,
@@ -124,6 +134,42 @@ export class D1AnalysisRepository {
           now,
           input.launchAdmission ? "pending" : "not_required",
           input.launchAdmission ? JSON.stringify(input.launchAdmission) : null,
+          input.launchAdmission ? 1 : 0,
+          input.launchAdmission?.leaseId ?? null,
+          context.ownerUserId,
+          input.launchAdmission?.endpoint ?? null,
+          input.launchAdmission?.idempotencyKey ?? null,
+          now,
+          context.runId,
+          context.runId,
+        ),
+      this.database
+        .prepare(`UPDATE analysis_leases SET run_id=? WHERE id=? AND user_id=?
+        AND endpoint=? AND idempotency_key=? AND released_at IS NULL AND (run_id IS NULL OR run_id=?)
+        AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND owner_user_id=? AND launch_admission=?)`)
+        .bind(
+          context.runId,
+          input.launchAdmission?.leaseId ?? null,
+          context.ownerUserId,
+          input.launchAdmission?.endpoint ?? null,
+          input.launchAdmission?.idempotencyKey ?? null,
+          context.runId,
+          context.runId,
+          context.ownerUserId,
+          input.launchAdmission ? JSON.stringify(input.launchAdmission) : null,
+        ),
+      this.database
+        .prepare(`UPDATE analysis_idempotency_keys SET request_status='accepted',updated_at=?
+          WHERE user_id=? AND endpoint=? AND idempotency_key=? AND lease_id=? AND request_status='in_progress'
+          AND EXISTS(SELECT 1 FROM analysis_leases WHERE id=? AND run_id=? AND released_at IS NULL)`)
+        .bind(
+          now,
+          context.ownerUserId,
+          input.launchAdmission?.endpoint ?? null,
+          input.launchAdmission?.idempotencyKey ?? null,
+          input.launchAdmission?.leaseId ?? null,
+          input.launchAdmission?.leaseId ?? null,
+          context.runId,
         ),
       this.database.prepare("SELECT * FROM core_runs WHERE run_id=?").bind(context.runId),
     ]);
@@ -806,7 +852,7 @@ export class D1AnalysisRepository {
     const [changed] = await this.database.batch<{ attempt: number; version: number }>([
       this.database
         .prepare(`UPDATE core_runs SET status='running',stage=?,attempt=attempt+1,fencing_token=?,version=version+1,updated_at=?,started_at=COALESCE(started_at,?),launch_status=CASE WHEN launch_status='not_required' THEN launch_status ELSE 'created' END
-        WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND version=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0 RETURNING attempt,version`)
+        WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND version=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0 AND ${heldRunAdmission} RETURNING attempt,version`)
         .bind(
           input.stage,
           token,
@@ -891,7 +937,7 @@ export class D1AnalysisRepository {
       .prepare(`UPDATE core_runs
       SET usage_external_requests=usage_external_requests+1,usage_cost_micros=usage_cost_micros+?
       WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=?
-      AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0
+      AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0 AND ${heldRunAdmission}
       AND started_at+json_extract(budget,'$.maxElapsedMs')>?
       AND usage_external_requests<json_extract(budget,'$.maxExternalRequests')
       AND (json_extract(budget,'$.maxCostUsd') IS NULL OR usage_cost_micros+?<=ROUND(json_extract(budget,'$.maxCostUsd')*1000000))

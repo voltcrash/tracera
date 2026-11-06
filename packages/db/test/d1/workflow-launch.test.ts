@@ -1,28 +1,53 @@
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 import { runContextExample } from "@repo/contracts/analysis";
 import { createD1AnalysisRepository } from "../../src/repository.js";
-import { createTestRuntime } from "./runtime.js";
+import { createTestRuntime, seedUser } from "./runtime.js";
+import { createD1AdmissionRepository } from "../../src/admission.js";
 import { readFile } from "node:fs/promises";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;
 beforeAll(async () => {
   runtime = await createTestRuntime();
+  await seedUser(runtime.db, "owner");
 });
 afterAll(async () => {
   await runtime?.dispose();
 });
 const scope = { tenantId: "launch", ownerUserId: "owner", visibility: "private" as const };
 
+async function admit(runId: string) {
+  const result = await createD1AdmissionRepository({ database: runtime.db }).beginAnalysisAdmission(
+    {
+      userId: "owner",
+      ipHash: "launch",
+      endpoint: "startAnalysis",
+      idempotencyKey: runId,
+      requestHash: runId,
+      forceInputHash: runId,
+      forceReanalysis: false,
+      limits: {
+        userRateLimit: 20,
+        ipRateLimit: 20,
+        rateWindowSeconds: 60,
+        userConcurrencyLimit: 20,
+        ipConcurrencyLimit: 20,
+        dailyQuota: 20,
+        forceReanalysisCooldownSeconds: 60,
+        leaseSeconds: 60,
+        idempotencyTtlSeconds: 600,
+      },
+    },
+  );
+  if (result.kind !== "admitted") throw new Error("Expected admission");
+  return { endpoint: "startAnalysis", idempotencyKey: runId, leaseId: result.leaseId };
+}
+
 test("launch intent is durable, scoped, and never regresses after confirmation", async () => {
   const runs = createD1AnalysisRepository({ database: runtime.db });
   const context = { ...structuredClone(runContextExample), ...scope, runId: crypto.randomUUID() };
   await runs.createRun({
     context,
-    launchAdmission: {
-      endpoint: "startAnalysis",
-      idempotencyKey: context.runId,
-      leaseId: context.runId,
-    },
+    launchAdmission: await admit(context.runId),
   });
   const identity = { scope, runId: context.runId };
   const status = () =>
@@ -56,11 +81,7 @@ test("an executing Workflow confirms launch even if its create response was lost
   const context = { ...structuredClone(runContextExample), ...scope, runId: crypto.randomUUID() };
   await runs.createRun({
     context,
-    launchAdmission: {
-      endpoint: "startAnalysis",
-      idempotencyKey: context.runId,
-      leaseId: context.runId,
-    },
+    launchAdmission: await admit(context.runId),
   });
   await runs.beginAttempt({
     scope,

@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
+import { runContextExample } from "@repo/contracts/analysis";
+import { createD1AnalysisRepository } from "../../src/repository.js";
+import { createD1MaintenanceRepository } from "../../src/maintenance.js";
+import { readFile } from "node:fs/promises";
 import { createD1AdmissionRepository } from "../../src/admission.js";
 import { createTestRuntime, seedUser } from "./runtime.js";
 
@@ -329,3 +333,218 @@ test("failure in admission completion rolls back both reply and lease release", 
   await finish("finish-rollback", admission.leaseId);
   expect((await repo().beginAnalysisAdmission(request("finish-rollback"))).kind).toBe("replay");
 });
+
+const runs = () =>
+  createD1AnalysisRepository({ database: runtime.db, bucket: runtime.bucket, now: () => now });
+const context = (runId: string) => ({
+  ...structuredClone(runContextExample),
+  runId,
+  tenantId: "user:user-1",
+  ownerUserId: "user-1",
+  visibility: "private" as const,
+});
+const scope = { tenantId: "user:user-1", ownerUserId: "user-1", visibility: "private" as const };
+async function accepted(key: string) {
+  const admission = await repo().beginAnalysisAdmission(request(key));
+  if (admission.kind !== "admitted") throw new Error("Expected admission");
+  const ctx = context(crypto.randomUUID());
+  const launchAdmission = { endpoint: "/analyze", idempotencyKey: key, leaseId: admission.leaseId };
+  await runs().createRun({ context: ctx, launchAdmission });
+  expect(
+    await runtime.db
+      .prepare("SELECT request_status FROM analysis_idempotency_keys WHERE lease_id=?")
+      .bind(admission.leaseId)
+      .first("request_status"),
+  ).toBe("accepted");
+  return { admission, context: ctx, launchAdmission, identity: { scope, runId: ctx.runId } };
+}
+
+test("key expiry never replaces or purges a still-held unbound claim", async () => {
+  const input = { ...request("short-key"), limits: { ...limits, idempotencyTtlSeconds: 1 } };
+  const admission = await repo().beginAnalysisAdmission(input);
+  if (admission.kind !== "admitted") throw new Error("Expected admission");
+  now += 2_000;
+  expect(await repo().beginAnalysisAdmission(input)).toMatchObject({
+    kind: "rejected",
+    reason: "idempotency_in_progress",
+  });
+  expect(await repo().beginAnalysisAdmission({ ...input, requestHash: "changed" })).toMatchObject({
+    kind: "rejected",
+    reason: "idempotency_conflict",
+  });
+  await createD1MaintenanceRepository({ database: runtime.db, now: () => now }).purgeExpired({
+    rateWindowSeconds: 60,
+  });
+  expect(
+    await runtime.db.prepare("SELECT lease_id FROM analysis_idempotency_keys").first("lease_id"),
+  ).toBe(admission.leaseId);
+});
+
+test("accepted runs retain request identity and both capacity slots after lease and key expiry", async () => {
+  const { context: ctx, identity, admission } = await accepted("long-run");
+  now += 601_000;
+  const maintenance = createD1MaintenanceRepository({ database: runtime.db, now: () => now });
+  expect(await maintenance.purgeExpired({ rateWindowSeconds: 60 })).toMatchObject({
+    leasesPurged: 0,
+    idempotencyKeysPurged: 0,
+  });
+  const duplicate = await repo().beginAnalysisAdmission({
+    ...request("long-run"),
+    ipHash: "different-ip",
+  });
+  expect(duplicate).toMatchObject({
+    kind: "replay",
+    responseStatus: 202,
+    responseBody: { runId: ctx.runId },
+  });
+  expect(
+    await repo().beginAnalysisAdmission({ ...request("long-run"), requestHash: "changed" }),
+  ).toMatchObject({ kind: "rejected", reason: "idempotency_conflict" });
+  expect(await repo().beginAnalysisAdmission(request("blocked-user"))).toMatchObject({
+    kind: "rejected",
+    reason: "user_concurrency_limit",
+  });
+  await seedUser(runtime.db, "user-2");
+  expect(
+    await repo().beginAnalysisAdmission({
+      ...request("blocked-ip"),
+      userId: "user-2",
+      limits: { ...limits, ipConcurrencyLimit: 1 },
+    }),
+  ).toMatchObject({ kind: "rejected", reason: "ip_concurrency_limit" });
+  expect(
+    await runtime.db
+      .prepare("SELECT request_count FROM analysis_daily_quotas WHERE user_id='user-1'")
+      .first("request_count"),
+  ).toBe(1);
+  const attempt = await runs().beginAttempt({
+    ...identity,
+    stage: "normalize_input",
+    expectedVersion: 0,
+  });
+  expect(
+    await runs().reserveRunUsage({
+      ...identity,
+      fencingToken: attempt.fencingToken,
+      estimatedCostUsd: 0.01,
+    }),
+  ).toBe(true);
+  await finish("long-run", admission.leaseId);
+  expect(
+    await runtime.db
+      .prepare("SELECT released_at FROM analysis_leases WHERE id=?")
+      .bind(admission.leaseId)
+      .first("released_at"),
+  ).toBeNull();
+  await runs().failRun({ ...identity, fencingToken: attempt.fencingToken, error: "Stopped" });
+  await finish("long-run", admission.leaseId, { runId: ctx.runId, status: "failed" }, 503);
+  expect(await repo().beginAnalysisAdmission(request("long-run"))).toMatchObject({
+    kind: "replay",
+    responseStatus: 503,
+    responseBody: { runId: ctx.runId, status: "failed" },
+  });
+  expect((await repo().beginAnalysisAdmission(request("capacity-after-settlement"))).kind).toBe(
+    "admitted",
+  );
+});
+
+test("a reclaimed pre-launch worker cannot persist a second run", async () => {
+  const admission = await repo().beginAnalysisAdmission(request("reclaim-before-run"));
+  if (admission.kind !== "admitted") throw new Error("Expected admission");
+  now += 61_000;
+  expect((await repo().beginAnalysisAdmission(request("reclaim-before-run"))).kind).toBe(
+    "admitted",
+  );
+  const ctx = context("stale-run");
+  await expect(
+    runs().createRun({
+      context: ctx,
+      launchAdmission: {
+        endpoint: "/analyze",
+        idempotencyKey: "reclaim-before-run",
+        leaseId: admission.leaseId,
+      },
+    }),
+  ).rejects.toThrow();
+  expect(await runs().getRunContext({ scope, runId: ctx.runId })).toBeNull();
+});
+
+test("run persistence and lease binding roll back together", async () => {
+  const admission = await repo().beginAnalysisAdmission(request("binding-rollback"));
+  if (admission.kind !== "admitted") throw new Error("Expected admission");
+  await runtime.db.exec(
+    "CREATE TRIGGER reject_binding BEFORE UPDATE OF run_id ON analysis_leases BEGIN SELECT RAISE(ABORT, 'binding failure'); END",
+  );
+  await expect(
+    runs().createRun({
+      context: context("unbound-run"),
+      launchAdmission: {
+        endpoint: "/analyze",
+        idempotencyKey: "binding-rollback",
+        leaseId: admission.leaseId,
+      },
+    }),
+  ).rejects.toThrow();
+  expect(await runs().getRunContext({ scope, runId: "unbound-run" })).toBeNull();
+});
+
+test("released ownership blocks attempts and physical request reservations", async () => {
+  const { identity, admission } = await accepted("revoked");
+  const attempt = await runs().beginAttempt({
+    ...identity,
+    stage: "normalize_input",
+    expectedVersion: 0,
+  });
+  await runtime.db
+    .prepare("UPDATE analysis_leases SET released_at=? WHERE id=?")
+    .bind(now, admission.leaseId)
+    .run();
+  expect(
+    await runs().reserveRunUsage({
+      ...identity,
+      fencingToken: attempt.fencingToken,
+      estimatedCostUsd: 0.01,
+    }),
+  ).toBe(false);
+  await expect(
+    runs().beginAttempt({
+      ...identity,
+      stage: "normalize_input",
+      expectedVersion: attempt.version,
+    }),
+  ).rejects.toThrow();
+});
+
+test.each(["inline", "metadata"])(
+  "the migration binds existing %s run admissions before expiry cleanup",
+  async (storage) => {
+    const { context: ctx, admission, launchAdmission } = await accepted("migration-bound");
+    if (storage === "inline")
+      await runtime.db
+        .prepare(
+          "UPDATE core_runs SET launch_admission=NULL,launch_status='not_required',input_json=? WHERE run_id=?",
+        )
+        .bind(JSON.stringify({ admission: launchAdmission }), ctx.runId)
+        .run();
+    await runtime.db
+      .prepare("UPDATE analysis_idempotency_keys SET request_status='in_progress'")
+      .run();
+    await runtime.db.prepare("ALTER TABLE analysis_leases DROP COLUMN run_id").run();
+    const migration = await readFile(
+      new URL("../../migrations/0007_admission_run_ownership.sql", import.meta.url),
+      "utf8",
+    );
+    await runtime.db.batch(
+      migration
+        .split("--> statement-breakpoint")
+        .filter((sql) => sql.trim())
+        .map((sql) => runtime.db.prepare(sql)),
+    );
+    expect(
+      await runtime.db
+        .prepare("SELECT run_id FROM analysis_leases WHERE id=?")
+        .bind(admission.leaseId)
+        .first("run_id"),
+    ).toBe(ctx.runId);
+  },
+);

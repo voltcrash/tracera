@@ -49,7 +49,8 @@ export function cleanBrowserUsers() {
     "core_runs",
   ];
   executeLocalSql(
-    tables.map((table) => `DELETE FROM ${table} WHERE owner_user_id IN (${owners});`).join("\n") +
+    `DELETE FROM analysis_leases WHERE user_id IN (${owners});\n` +
+      tables.map((table) => `DELETE FROM ${table} WHERE owner_user_id IN (${owners});`).join("\n") +
       `\nDELETE FROM users WHERE id IN (${owners});`,
   );
 }

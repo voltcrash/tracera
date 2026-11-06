@@ -155,14 +155,24 @@ D1 admission coordinates fixed-window rate limits, concurrency leases, daily quo
 idempotency, and forced-reanalysis cooldown across Worker instances. Defaults are 30 requests
 per user and 60 per IP per hour, two concurrent runs per user and four per IP, 100 admissions
 per user per UTC day, one-hour forced-reanalysis cooldown, and one-day idempotency retention.
-Leases are extended to cover the bounded Workflow retry window when an override is too short.
+Admission transitions from `in_progress` (an unbound claim) to `accepted` (a lease bound
+to a persisted run), then to `completed` or `failed` with a settled response. The claim expires if persistence never happens. Run persistence and lease
+binding are atomic; after binding, the lease holds both capacity and request identity until
+terminal settlement, even if either TTL elapses. A running Workflow whose status cannot be
+inspected retains capacity until reconciliation can confirm it stopped. Lease timer overrides
+are extended to cover the bounded Workflow retry window.
 
 Overrides: `ANALYSIS_USER_RATE_LIMIT`, `ANALYSIS_IP_RATE_LIMIT`,
 `ANALYSIS_RATE_WINDOW_SECONDS`, `ANALYSIS_USER_CONCURRENCY_LIMIT`,
 `ANALYSIS_IP_CONCURRENCY_LIMIT`, `ANALYSIS_DAILY_QUOTA`,
 `ANALYSIS_FORCE_REANALYSIS_COOLDOWN_SECONDS`, `ANALYSIS_LEASE_SECONDS`, and
 `ANALYSIS_IDEMPOTENCY_TTL_SECONDS`. Reusing an idempotency key for a different request fails;
-reusing the same completed request replays the stored response.
+reusing an accepted request replays its original 202 response with the same run ID, while
+settled requests replay their stored terminal response. Replays precede runtime/provider
+availability checks and do not charge admission counters. Before persistence, an active claim
+still returns `idempotency_in_progress`. Expired claims cannot persist a run, and released
+ownership cannot start attempts or reserve external requests. Settlement cannot release a
+bound run before it is terminal.
 
 ## Migrations and deployment preparation
 
@@ -197,7 +207,8 @@ vp exec --filter web -- wrangler workflows instances describe tracera-staging-an
 vp exec --filter web -- wrangler tail --config wrangler.jsonc
 ```
 
-Cron runs every five minutes. It purges expired idempotency records, released/expired leases,
+Cron runs every five minutes. It purges expired unheld idempotency records and released or
+expired unbound leases,
 old rate windows, expired sessions and verifications, and stale spend reservations. It also
 marks runs failed when their Workflow instance errored. Cancellation sets the D1 flag and
 terminates the instance after its grace period. Retries resume from a checkpoint with a new
@@ -209,8 +220,8 @@ Workflow create request; recovery does not need to load the raw submission from 
 A failed create response is treated as uncertain: an existing instance confirms launch;
 otherwise the accepted run remains queued for reconciliation. After a 30-second grace
 period, Cron retries with the original Workflow/run ID while its admission remains held.
-Recovery is bounded to ten minutes from submission and never restarts canceled or expired
-admissions. An unrecoverable launch becomes a replayable failure and releases admission.
+Recovery is bounded to ten minutes from submission and never restarts canceled or released
+admissions. A bound launch retains admission across its initial lease timer. An unrecoverable launch becomes a replayable failure and releases admission.
 An instance that remains queued past that window also fails its run instead of waiting forever.
 Completed Workflows with unfinished database runs are reconciled to failure as well.
 

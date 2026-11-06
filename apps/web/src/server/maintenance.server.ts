@@ -185,9 +185,16 @@ async function recoverQueuedLaunch(
   const admission = await runAdmission(storage, row);
   if (!admission) return fail();
   const lease = await env.DB.prepare(
-    "SELECT id FROM analysis_leases WHERE id=? AND user_id=? AND endpoint=? AND idempotency_key=? AND released_at IS NULL AND expires_at>?",
+    "SELECT id FROM analysis_leases WHERE id=? AND user_id=? AND endpoint=? AND idempotency_key=? AND released_at IS NULL AND (expires_at>? OR run_id=?)",
   )
-    .bind(admission.leaseId, row.owner_user_id, admission.endpoint, admission.idempotencyKey, now)
+    .bind(
+      admission.leaseId,
+      row.owner_user_id,
+      admission.endpoint,
+      admission.idempotencyKey,
+      now,
+      row.run_id,
+    )
     .first();
   if (!lease) return fail();
   const status = await launchAnalysisWorkflow(env, {
