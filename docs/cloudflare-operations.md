@@ -221,6 +221,21 @@ are cache misses: recomputation still uses the existing run budget and deadline.
 checkpoints use the same stage schemas. A partial or unavailable stage is a recorded outcome,
 not a claim that the stage succeeded.
 
+Engine boundaries return an explicit `continue` or `stop` transition. `complete` and `partial`
+results carry data; `failed` and `unavailable` results carry none. Dynamically selected
+statuses use a checked constructor, and every non-complete result requires a typed issue.
+Each boundary retains its produced artifacts and metrics before applying its stop decision.
+Owner cancellation takes precedence over simultaneous request, cost, or elapsed limits.
+A failed mandatory provenance reassessment retains the acquired graph and snapshots, but
+stops before adjudication can use unassessed evidence.
+
+Decision state distinguishes diagnostics from evaluated publication. If the run stops before
+publication, its diagnostic decisions remain in the report with an explicit `not_evaluated`
+publication status and gate, an unverified released label, and no statistical calibration.
+This cannot authorize a decisive released label. A completed scorecard survives a subsequent
+budget/deadline stop; owner cancellation always suppresses it. Valid historical reports and
+v2 checkpoints remain readable.
+
 Progress exposes `recordedStages`, `lastCheckpointedStage`, and `nextStage` (the first stage
 without a checkpoint). The legacy `completedStages` alias and persisted `stage` hint remain
 for existing clients; the UI and Workflow resume hint use the explicit projection. An entry in
