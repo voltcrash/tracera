@@ -1,6 +1,7 @@
 import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
 import {
   documentSnapshotSchema,
+  stageNameSchema,
   runReportSchema,
   runContextSchema,
   type DocumentSnapshot,
@@ -9,7 +10,7 @@ import {
   type StageName,
 } from "@repo/contracts/analysis";
 import type { AnalysisAccessScope } from "./access-scope.js";
-import { D1PayloadStore, hashJson } from "./payloads.js";
+import { D1PayloadStore, D1PayloadJsonError, hashJson } from "./payloads.js";
 import { microsToUsd, usdToMicros } from "./clock.js";
 import type { AnalysisAdmissionIdentity } from "./control-types.js";
 
@@ -24,6 +25,7 @@ export interface D1RepositoryOptions {
 }
 export interface D1RunAttempt {
   runId: string;
+  /** Persisted stage hint; progress.nextStage identifies the next unrecorded stage. */
   stage: StageName;
   attempt: number;
   fencingToken: string;
@@ -546,29 +548,29 @@ export class D1AnalysisRepository {
     fencingToken: string;
   }): Promise<void> {
     const now = this.now();
-    const [changed] = await this.database.batch([
+    const [, changed] = await this.database.batch([
       this.database
-        .prepare(
-          `UPDATE core_runs SET status='canceled',finalized_at=?,updated_at=?,version=version+1 WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND attempt=? AND fencing_token=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=1 RETURNING run_id`,
-        )
+        .prepare(`UPDATE core_stage_attempts SET finished_at=?,outcome='canceled'
+          WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=?
+          AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND attempt=? AND fencing_token=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=1)`)
+        .bind(
+          now,
+          input.runId,
+          ...scopeValues(input.scope),
+          input.fencingToken,
+          input.runId,
+          input.attempt,
+          input.fencingToken,
+        ),
+      this.database
+        .prepare(`UPDATE core_runs SET status='canceled',finalized_at=?,updated_at=?,version=version+1
+          WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND attempt=? AND fencing_token=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=1 RETURNING run_id`)
         .bind(
           now,
           now,
           input.runId,
           ...scopeValues(input.scope),
           input.attempt,
-          input.fencingToken,
-        ),
-      this.database
-        .prepare(
-          `UPDATE core_stage_attempts SET finished_at=?,outcome='canceled' WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=? AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND status='canceled' AND fencing_token=?)`,
-        )
-        .bind(
-          now,
-          input.runId,
-          ...scopeValues(input.scope),
-          input.fencingToken,
-          input.runId,
           input.fencingToken,
         ),
     ]);
@@ -627,6 +629,7 @@ export class D1AnalysisRepository {
         .bind(input.runId, ...scopeValues(input.scope)),
     ]);
     const row = runs!.results[0];
+    const recordedStages = checkpoints!.results.map(({ stage }) => stage);
     return row
       ? {
           runId: row.run_id,
@@ -635,7 +638,12 @@ export class D1AnalysisRepository {
           attempt: row.attempt,
           version: row.version,
           cancellationRequested: JSON.parse(row.cancellation).requested === true,
-          completedStages: checkpoints!.results.map((row) => row.stage),
+          recordedStages,
+          lastCheckpointedStage: recordedStages.at(-1) ?? null,
+          nextStage:
+            stageNameSchema.options.find((stage) => !recordedStages.includes(stage)) ?? null,
+          // Compatibility alias: recorded checkpoints may be partial or unavailable.
+          completedStages: recordedStages,
           updatedAt: new Date(row.updated_at).toISOString(),
           ...(row.last_error === "provider_key_rejected"
             ? { errorCode: "provider_key_rejected" as const }
@@ -800,14 +808,18 @@ export class D1AnalysisRepository {
         payload_json: string | null;
         payload_blob_uri: string | null;
       }>();
-    return row
-      ? {
-          checkpointHash: row.checkpoint_hash,
-          payloadJson: JSON.stringify(
-            await this.payloads.read({ inline: row.payload_json, blobUri: row.payload_blob_uri }),
-          ),
-        }
-      : null;
+    if (!row) return null;
+    try {
+      return {
+        checkpointHash: row.checkpoint_hash,
+        payloadJson: JSON.stringify(
+          await this.payloads.read({ inline: row.payload_json, blobUri: row.payload_blob_uri }),
+        ),
+      };
+    } catch (error) {
+      if (error instanceof D1PayloadJsonError) return null;
+      throw error;
+    }
   }
 
   async getRunContext(input: {

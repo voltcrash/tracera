@@ -81,7 +81,7 @@ export function RunDetail({ id, initial }: { id: string; initial: RunViewState }
           </p>
           <h1 className="mt-2 text-2xl font-bold">{headline(progress)}</h1>
           <p className="mt-3 text-sm text-white/60">
-            Attempt {progress.attempt} · {progress.completedStages.length} of 8 stages recorded
+            Attempt {progress.attempt} · {progress.recordedStages.length} of 8 stages recorded
           </p>
           {!progress.cancellationRequested && !terminal ? (
             <Button

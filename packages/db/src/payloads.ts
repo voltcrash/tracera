@@ -25,6 +25,7 @@ export const sha256 = (value: string | Uint8Array) =>
 export const hashJson = (value: unknown) => sha256(canonicalJson(value));
 
 export class D1PayloadError extends Error {}
+export class D1PayloadJsonError extends D1PayloadError {}
 
 export class D1PayloadStore {
   constructor(private readonly bucket?: Pick<R2Bucket, "get" | "put">) {}
@@ -104,7 +105,7 @@ export class D1PayloadStore {
     try {
       value = JSON.parse(text);
     } catch {
-      throw new D1PayloadError("Stored payload is not valid JSON.");
+      throw new D1PayloadJsonError("Stored payload is not valid JSON.");
     }
     if (pointer.hash && hashJson(value) !== pointer.hash)
       throw new D1PayloadError("Stored payload hash mismatch.");
