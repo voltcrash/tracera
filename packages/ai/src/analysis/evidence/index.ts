@@ -1,4 +1,5 @@
 export { assessEvidence, createAssessEvidence } from "./assess-evidence";
+export { accumulateEvidence } from "./accumulation";
 export { buildChallengeInput } from "./challenge";
 export { assignSourceDependence } from "./dependence";
 export {

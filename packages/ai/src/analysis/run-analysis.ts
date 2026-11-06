@@ -24,7 +24,7 @@ import {
 import { z } from "zod";
 import { createAdjudicateClaims, type TargetedEvidence } from "./adjudication/index";
 import { createExtractClaims } from "./claims/index";
-import { createAssessEvidence } from "./evidence/index";
+import { accumulateEvidence, createAssessEvidence } from "./evidence/index";
 import { canonicalJson, evidenceSetHash, hashValue, snapshotIdentity } from "./hashing";
 import { normalizeInput } from "./ingestion/index";
 import { createFocusedPublication, FOCUSED_PUBLICATION_POLICY } from "./publication/index";
@@ -284,6 +284,12 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         );
         let targetedRetrieval: StageResult<RetrieveEvidenceData> | null = null;
         let snapshots = state.snapshots;
+        if (assessment.data) {
+          assessment = {
+            ...assessment,
+            data: accumulateEvidence(analyzedClaims(), snapshots, assessment.data.assessments),
+          };
+        }
         const assessedSnapshotIds = new Set(state.admittedSnapshotIds);
         const allowedRounds = Math.max(
           0,
@@ -318,7 +324,9 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
             { claims: analyzedClaims(), snapshots, admittedSnapshotIds: fresh },
             environment,
           );
-          assessment = mergeResults(assessment, reassessed, combineAssessment);
+          assessment = mergeResults(assessment, reassessed, (a, b) =>
+            accumulateEvidence(analyzedClaims(), snapshots, a.assessments, b.assessments),
+          );
         }
         return { result: assessment, extra: { targetedRetrieval, rounds } };
       },
@@ -349,7 +357,11 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     setOutcome(state, "assess_evidence", assessed.result);
     if (assessed.exceeded) return stop(statusAfterBudget(assessed.result));
     if (!assessed.result.data) return stop(stageRunStatus(assessed.result));
-    state.assessments = uniqueById(assessed.result.data.assessments);
+    state.assessments = accumulateEvidence(
+      analyzedClaims(),
+      state.snapshots,
+      assessed.result.data.assessments,
+    ).assessments;
     state.evidenceSetHash = evidenceSetHash(state.snapshots, state.assessments);
 
     const beforeTrace = interrupted("trace_origins");
@@ -425,7 +437,12 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       setOutcome(state, "trace_origins", absorbOutcome(traced.result, reassessment));
       if (!reassessment.data) return stop(stageRunStatus(reassessment));
       state.snapshots = uniqueById([...state.snapshots, ...traced.extra.snapshots]);
-      state.assessments = uniqueById([...state.assessments, ...reassessment.data.assessments]);
+      state.assessments = accumulateEvidence(
+        analyzedClaims(),
+        state.snapshots,
+        state.assessments,
+        reassessment.data.assessments,
+      ).assessments;
       state.evidenceSetHash = evidenceSetHash(state.snapshots, state.assessments);
     } else {
       setOutcome(state, "trace_origins", traced.result);
@@ -471,7 +488,12 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     for (const evidence of adjudicated.extra) {
       state.candidates = uniqueById([...state.candidates, ...evidence.candidates]);
       state.snapshots = uniqueById([...state.snapshots, ...evidence.snapshots]);
-      state.assessments = uniqueById([...state.assessments, ...evidence.assessments]);
+      state.assessments = accumulateEvidence(
+        analyzedClaims(),
+        state.snapshots,
+        state.assessments,
+        evidence.assessments,
+      ).assessments;
       state.admittedSnapshotIds = [
         ...new Set([...state.admittedSnapshotIds, ...evidence.admittedSnapshotIds]),
       ];
@@ -790,15 +812,6 @@ function combineRetrieval(a: RetrieveEvidenceData, b: RetrieveEvidenceData) {
       costUsd: sumNullable([a.budgetUsed.costUsd, b.budgetUsed.costUsd]),
     },
     stoppingReason: b.stoppingReason,
-  };
-}
-
-function combineAssessment(a: AssessEvidenceData, b: AssessEvidenceData) {
-  return {
-    assessments: uniqueById([...a.assessments, ...b.assessments]),
-    sufficiency: [
-      ...new Map([...a.sufficiency, ...b.sufficiency].map((item) => [item.claimId, item])).values(),
-    ],
   };
 }
 
