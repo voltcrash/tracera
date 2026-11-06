@@ -9,7 +9,7 @@
   "preview_urls": false,
   "routes": [{ "pattern": "tracera.voltcrash.com", "custom_domain": true }],
   "observability": { "enabled": true },
-  "triggers": { "crons": ["17 * * * *"] },
+  "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
     "MODE": "production",
     "ANALYSIS_MODE": "live",

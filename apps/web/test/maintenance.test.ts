@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { D1AnalysisRepository } from "@repo/db";
 import type { WorkflowStep } from "cloudflare:workers";
 import { runAnalysisWorkflow } from "../src/server/analysis-workflow-runner.server";
 import type { AnalysisWorkflowParams } from "../src/server/workflow-params";
@@ -12,6 +13,10 @@ import {
 } from "../src/server/analysis-api.server";
 import { analysisPolicy, analysisRunContext } from "../src/server/analysis-policy";
 import { CANCELLATION_GRACE_MS } from "../src/server/analysis-cancellation.server";
+import {
+  LAUNCH_RETRY_GRACE_MS,
+  LAUNCH_RECOVERY_WINDOW_MS,
+} from "../src/server/analysis-launch.server";
 import type { SessionUser } from "../src/server/session";
 import { createWorkerTestEnv, ORIGIN, signIn } from "./support/worker-env";
 
@@ -49,6 +54,149 @@ function binding(status: string) {
     terminate,
   };
 }
+
+function recoverableBinding() {
+  const create = vi.fn(harness.workflow.create.bind(harness.workflow));
+  const env = {
+    ...harness.env,
+    ANALYSIS_WORKFLOW: {
+      create,
+      get: async (id: string) => {
+        if (!harness.created.some((instance) => instance.id === id))
+          throw new Error("Instance missing.");
+        return { status: async () => ({ status: "queued" }) };
+      },
+    } as unknown as Workflow,
+  };
+  return { env, create };
+}
+
+test("maintenance recovers a missing instance using its original admitted run and completes it", async () => {
+  const runId = await start();
+  const params = harness.created[0]!.params as AnalysisWorkflowParams;
+  harness.created.length = 0;
+  await harness.env.DB.prepare(
+    "UPDATE core_runs SET launch_status='pending',launch_attempted_at=NULL WHERE run_id=?",
+  )
+    .bind(runId)
+    .run();
+  const workflow = recoverableBinding();
+  const rawInput = vi
+    .spyOn(D1AnalysisRepository.prototype, "getRunInput")
+    .mockRejectedValue(new Error("Input storage is temporarily unavailable."));
+  const counts = await scheduledMaintenance(workflow.env, Date.now() + LAUNCH_RETRY_GRACE_MS + 1);
+  expect(rawInput).not.toHaveBeenCalled();
+  rawInput.mockRestore();
+  expect(counts).toMatchObject({ launchesRecovered: 1, failedRuns: 0 });
+  expect(workflow.create).toHaveBeenCalledExactlyOnceWith({ id: runId, params });
+  expect(
+    await harness.env.DB.prepare("SELECT launch_status FROM core_runs WHERE run_id=?")
+      .bind(runId)
+      .first("launch_status"),
+  ).toBe("created");
+  const step = {
+    async do(_name: string, _options: unknown, callback: () => Promise<unknown>) {
+      return callback();
+    },
+  } as unknown as Pick<WorkflowStep, "do">;
+  await runAnalysisWorkflow(harness.env, params, step);
+  expect((await readRunState(harness.env, user, runId))?.report).not.toBeNull();
+});
+
+test("a lost create response confirms the existing instance without creating another run", async () => {
+  const workflow = recoverableBinding();
+  workflow.create.mockImplementation(async (options) => {
+    await harness.workflow.create(options);
+    throw new Error("Create response lost.");
+  });
+  const result = await startAnalysisRun({
+    env: workflow.env,
+    user,
+    request: new Request(ORIGIN),
+    body: { text: "A claim." },
+    idempotencyKey: "lost-create",
+  });
+  expect(result.status).toBe(202);
+  expect(
+    (await scheduledMaintenance(workflow.env, Date.now() + LAUNCH_RETRY_GRACE_MS + 1))
+      .launchesRecovered,
+  ).toBe(0);
+  expect(workflow.create).toHaveBeenCalledTimes(1);
+  expect(harness.created).toHaveLength(1);
+  expect(
+    (await readRunState(harness.env, user, result.body.runId as string))?.progress.status,
+  ).toBe("queued");
+});
+
+test("an unrecoverable launch expires with a replayable failure instead of staying queued", async () => {
+  const workflow = {
+    ...harness.env,
+    ANALYSIS_WORKFLOW: {
+      create: async () => {
+        throw new Error("Unavailable.");
+      },
+      get: async () => {
+        throw new Error("Unavailable.");
+      },
+    } as unknown as Workflow,
+  };
+  const result = await startAnalysisRun({
+    env: workflow,
+    user,
+    request: new Request(ORIGIN),
+    body: { text: "A claim." },
+    idempotencyKey: "launch-outage",
+  });
+  expect(result.status).toBe(202);
+  expect(
+    (await scheduledMaintenance(workflow, Date.now() + LAUNCH_RETRY_GRACE_MS + 1)).failedRuns,
+  ).toBe(0);
+  const counts = await scheduledMaintenance(workflow, Date.now() + LAUNCH_RECOVERY_WINDOW_MS + 1);
+  expect(counts).toMatchObject({ failedRuns: 1, admissionsReleased: 1 });
+  expect(
+    (await readRunState(harness.env, user, result.body.runId as string))?.progress.status,
+  ).toBe("failed");
+  expect(
+    await harness.env.DB.prepare(
+      "SELECT response_status FROM analysis_idempotency_keys WHERE idempotency_key='launch-outage'",
+    ).first("response_status"),
+  ).toBe(503);
+});
+
+test("a completed Workflow with an unfinished run is reconciled to failure", async () => {
+  const runId = await start();
+  const counts = await scheduledMaintenance(binding("complete").env);
+  expect(counts).toMatchObject({ failedRuns: 1, admissionsReleased: 1 });
+  expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("failed");
+});
+
+test("an instance stuck in the Workflow queue cannot leave its run queued indefinitely", async () => {
+  const runId = await start();
+  const counts = await scheduledMaintenance(
+    binding("queued").env,
+    Date.now() + LAUNCH_RECOVERY_WINDOW_MS + 1,
+  );
+  expect(counts).toMatchObject({ failedRuns: 1, admissionsReleased: 1 });
+  expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("failed");
+});
+
+test("launch recovery cannot restart expired admissions or canceled runs", async () => {
+  const runId = await start();
+  const canceledId = await start();
+  await cancelAnalysisRun(harness.env, user, canceledId);
+  harness.created.length = 0;
+  await harness.env.DB.prepare(
+    "UPDATE analysis_leases SET expires_at=0 WHERE id=(SELECT json_extract(input_json,'$.admission.leaseId') FROM core_runs WHERE run_id=?)",
+  )
+    .bind(runId)
+    .run();
+  const workflow = recoverableBinding();
+  const counts = await scheduledMaintenance(workflow.env, Date.now() + LAUNCH_RETRY_GRACE_MS + 1);
+  expect(counts).toMatchObject({ failedRuns: 1, admissionsReleased: 2, launchesRecovered: 0 });
+  expect(workflow.create).not.toHaveBeenCalled();
+  expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("failed");
+  expect((await readRunState(harness.env, user, canceledId))?.progress.status).toBe("canceled");
+});
 
 test("errored Workflows fail their scoped run and release admission with a replayable failure", async () => {
   const runId = await start();
