@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   documentSnapshotSchema,
+  createStageResult,
   type AnalysisIssue,
   type DocumentSnapshot,
   type StageMetrics,
@@ -166,7 +167,6 @@ export function createDocumentAcquisitionPort(
             read.truncated
               ? [issue("truncation", "The response exceeded an acquisition limit.", request.url)]
               : [],
-            read.truncated ? "partial" : "complete",
             metrics(options.now, startedAt, startedMs, monotonicMs, 1),
           );
         }
@@ -193,7 +193,6 @@ export function createDocumentAcquisitionPort(
         return snapshotResult(
           snapshot,
           [issue("content_unavailable", safeMessage(error), request.url)],
-          "partial",
           metrics(options.now, startedAt, startedMs, monotonicMs, 1),
         );
       }
@@ -232,7 +231,6 @@ export function createDocumentAcquisitionPort(
         return snapshotResult(
           snapshot,
           [issue("ambiguous_input", "Provided text contains no readable content.", null)],
-          "partial",
           metrics(options.now, startedAt, startedMs, monotonicMs, 0),
         );
       }
@@ -254,9 +252,8 @@ export function createDocumentAcquisitionPort(
       return snapshotResult(
         snapshot,
         truncated
-          ? [issue("truncation", "The provided text exceeded the character limit.", null)]
+          ? [issue("truncation", "The provided text exceeded an acquisition limit.", null)]
           : [],
-        truncated ? "partial" : "complete",
         metrics(options.now, startedAt, startedMs, monotonicMs, 0),
       );
     },
@@ -294,7 +291,6 @@ export function createDocumentAcquisitionPort(
         return snapshotResult(
           snapshot,
           [issue("content_unavailable", safeMessage(error), url)],
-          "partial",
           metrics(options.now, startedAt, startedMs, monotonicMs, url ? 1 : 0),
         );
       }
@@ -381,7 +377,6 @@ async function acquireHtml(input: {
               input.originalUrl,
             ),
           ],
-          "partial",
           metrics(
             input.options.now,
             input.startedAt,
@@ -475,7 +470,6 @@ async function acquireHtml(input: {
     truncated
       ? [issue("truncation", "The article exceeded an acquisition limit.", input.originalUrl)]
       : [],
-    truncated ? "partial" : "complete",
     metrics(
       input.options.now,
       input.startedAt,
@@ -745,7 +739,6 @@ async function acquireImageBytes(
   return snapshotResult(
     snapshot,
     issues,
-    issues.length || extractionStatus !== "complete" ? "partial" : "complete",
     metrics(
       options.now,
       startedAt,
@@ -841,7 +834,11 @@ async function textSnapshot(input: {
     mimeType: input.mimeType,
     language: null,
     role: input.role,
-    extractionStatus: input.rawTruncated || retained.truncated ? "partial" : "complete",
+    extractionStatus: !retained.text.trim()
+      ? "content_unavailable"
+      : input.rawTruncated || retained.truncated
+        ? "partial"
+        : "complete",
     extractionMethod: input.method,
     byteLimit: input.byteLimit,
     characterLimit: input.characterLimit,
@@ -901,7 +898,6 @@ async function unavailableFromBytes(input: {
         ? [issue("truncation", "The unavailable response also exceeded the byte limit.", input.url)]
         : []),
     ],
-    "partial",
     metrics(
       input.options.now,
       input.startedAt,
@@ -958,7 +954,6 @@ async function unusableImageResult(
   return snapshotResult(
     snapshot,
     [failure],
-    "partial",
     metrics(options.now, startedAt, startedMs, monotonicMs, externalRequests),
   );
 }
@@ -1219,10 +1214,38 @@ function issue(code: AnalysisIssue["code"], message: string, url: string | null)
 function snapshotResult(
   snapshot: DocumentSnapshot,
   issues: AnalysisIssue[],
-  status: "complete" | "partial",
   stageMetrics: StageMetrics,
 ): StageResult<{ snapshot: DocumentSnapshot }> {
-  return { status, data: { snapshot }, issues, metrics: stageMetrics };
+  const finalIssues = [...issues];
+  if (snapshot.limits.truncated && !finalIssues.some(({ code }) => code === "truncation")) {
+    finalIssues.push(
+      issue(
+        "truncation",
+        "The acquired content exceeded a byte or character limit.",
+        snapshot.originalUrl,
+      ),
+    );
+  }
+  if (!snapshot.normalizedText.trim() && finalIssues.length === 0) {
+    finalIssues.push(
+      issue(
+        "content_unavailable",
+        "No readable content was extracted from the acquired source.",
+        snapshot.originalUrl,
+      ),
+    );
+  }
+  const status =
+    snapshot.extractionStatus === "complete" &&
+    !finalIssues.some(({ severity }) => severity !== "info")
+      ? "complete"
+      : "partial";
+  return createStageResult({
+    status,
+    data: { snapshot },
+    issues: finalIssues,
+    metrics: stageMetrics,
+  });
 }
 
 function metrics(

@@ -296,3 +296,56 @@ function fixturePort(
     safeFetchOptions: { fetchImplementation, resolveHostAddresses: publicResolver },
   });
 }
+
+for (const limit of ["characters", "bytes", "exact"] as const) {
+  test(`HTTP plain text reports its retained ${limit} boundary`, async () => {
+    const text = "a😀b";
+    const port = createDocumentAcquisitionPort({
+      now: () => NOW,
+      characterLimit: limit === "characters" ? 2 : text.length,
+      textByteLimit: limit === "bytes" ? 2 : 100,
+      safeFetchOptions: {
+        resolveHostAddresses: publicResolver,
+        fetchImplementation: async () =>
+          new Response(text, { headers: { "content-type": "text/plain; charset=utf-8" } }),
+      },
+    });
+    const result = await port.acquire({
+      url: "https://source.example/record",
+      role: "submitted_input",
+      maxBytes: 100,
+      signal: new AbortController().signal,
+    });
+    const snapshot = result.data!.snapshot;
+    assert.equal(result.status, limit === "exact" ? "complete" : "partial");
+    assert.equal(snapshot.extractionStatus, result.status);
+    assert.equal(snapshot.limits.truncated, limit !== "exact");
+    assert.equal(
+      result.issues.some(({ code }) => code === "truncation"),
+      limit !== "exact",
+    );
+    assert.equal(snapshot.normalizedText, limit === "exact" ? text : "a");
+    assert.equal(
+      snapshot.contentHash,
+      `sha256:${createHash("sha256").update(snapshot.normalizedText).digest("hex")}`,
+    );
+    assert.equal(snapshot.locators.at(-1)?.span.end, snapshot.normalizedText.length);
+  });
+}
+
+for (const text of ["", "  \r\n"]) {
+  test(`an empty HTTP text response is unavailable, including whitespace=${text.length > 0}`, async () => {
+    const result = await fixturePort(
+      async () => new Response(text, { headers: { "content-type": "text/plain" } }),
+    ).acquire({
+      url: "https://source.example/empty",
+      role: "submitted_input",
+      maxBytes: 100,
+      signal: new AbortController().signal,
+    });
+    assert.equal(result.status, "partial");
+    assert.equal(result.data!.snapshot.extractionStatus, "content_unavailable");
+    assert.equal(result.data!.snapshot.normalizedText.trim(), "");
+    assert.ok(result.issues.some(({ code }) => code === "content_unavailable"));
+  });
+}
