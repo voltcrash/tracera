@@ -1,4 +1,3 @@
-import { createStageResult } from "@repo/contracts/analysis";
 import { readStageCheckpoint, writeStageCheckpoint, type StageCheckpoints } from "./checkpoints";
 import { isRunInterrupted, runStopReason, stopIssue } from "./interruption";
 import {
@@ -21,7 +20,6 @@ import {
   type StageName,
   type StageOutcome,
   type StageResult,
-  type StageStatus,
 } from "@repo/contracts/analysis";
 import { createAdjudicateClaims, type TargetedEvidence } from "./adjudication/index";
 import { createExtractClaims } from "./claims/index";
@@ -89,36 +87,31 @@ export interface RunAnalysisOptions {
   archive?: ArchiveLookupPort;
 }
 
-interface RunState {
+interface RunArtifacts {
   snapshots: DocumentSnapshot[];
   primarySnapshotId: string | null;
   claims: RunReport["claims"];
   selectedClaimIds: string[];
   focusedSelection: FocusedSelection | null;
-  focusedPublicationPolicy: FocusedPublicationPolicy | null;
   candidates: EvidenceCandidate[];
   admittedSnapshotIds: string[];
   assessments: EvidenceAssessment[];
   provenance: ProvenanceGraph[];
-  decisions: Decision[];
+  decisions:
+    | { phase: "diagnostic"; values: Decision[] }
+    | { phase: "evaluated"; values: Decision[]; policy: FocusedPublicationPolicy };
   inputCoverage: InputCoverage[];
   outcomes: StageOutcome[];
   issues: AnalysisIssue[];
   evidenceSetHash: string | null;
   targetedRounds: number;
+  scorecard: RunReport["scorecard"];
 }
 
 interface Checkpointing {
   attempt: number;
   fencingToken: string;
 }
-
-const STATUS_RANK: Record<StageStatus, number> = {
-  complete: 0,
-  partial: 1,
-  unavailable: 2,
-  failed: 3,
-};
 
 export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis {
   const checkpointing = checkpointIdentity(options);
@@ -148,8 +141,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         priorTargetedRounds: state.targetedRounds,
       };
     };
-    const stop = (status: RunStatus) =>
-      finishResult(status, input, environment, state, startedMs, null);
+    const stop = (status: RunStatus) => finishResult(status, input, environment, state, startedMs);
     const checkpointed = <Stage extends StageName>(
       stage: Stage,
       dependencyHash: string,
@@ -176,7 +168,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
 
     const beforeNormalize = interrupted("normalize_input");
     if (beforeNormalize) return beforeNormalize;
-    const normalized = checkStageBudget(
+    const normalized = transitionStage(
       "normalize_input",
       usage(),
       await checkpointed("normalize_input", hashValue({ input, identity }), async () => ({
@@ -185,16 +177,16 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       })),
       environment,
     );
-    setOutcome(state, "normalize_input", normalized.result);
-    if (normalized.exceeded) return stop(statusAfterBudget(normalized.result));
-    if (!normalized.result.data) return stop(stageRunStatus(normalized.result));
-    state.snapshots = uniqueById(normalized.result.data.snapshots);
-    state.primarySnapshotId = normalized.result.data.primarySnapshotId;
+    retainStage(state, "normalize_input", normalized.result, (data) => {
+      state.snapshots = uniqueById(data.snapshots);
+      state.primarySnapshotId = data.primarySnapshotId;
+    });
+    if (normalized.kind === "stop") return stop(normalized.status);
     const primarySnapshotId = normalized.result.data.primarySnapshotId;
 
     const beforeExtract = interrupted("extract_claims");
     if (beforeExtract) return beforeExtract;
-    const extracted = checkStageBudget(
+    const extracted = transitionStage(
       "extract_claims",
       usage(),
       await checkpointed(
@@ -210,11 +202,11 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       ),
       environment,
     );
-    setOutcome(state, "extract_claims", extracted.result);
-    if (extracted.exceeded) return stop(statusAfterBudget(extracted.result));
-    if (!extracted.result.data) return stop(stageRunStatus(extracted.result));
-    state.claims = extracted.result.data.claims;
-    state.inputCoverage = extracted.result.data.coverage;
+    retainStage(state, "extract_claims", extracted.result, (data) => {
+      state.claims = data.claims;
+      state.inputCoverage = data.coverage;
+    });
+    if (extracted.kind === "stop") return stop(extracted.status);
     const focused = selectTopClaims({
       claims: state.claims,
       snapshots: state.snapshots,
@@ -225,14 +217,13 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     state.claims = focused.claims;
     state.selectedClaimIds = focused.selection.selectedClaimIds;
     state.focusedSelection = focused.selection;
-    state.focusedPublicationPolicy = FOCUSED_PUBLICATION_POLICY;
     state.issues.push(...focused.issues);
     const analyzedClaims = () =>
       state.claims.filter((claim) => state.selectedClaimIds.includes(claim.id));
 
     const beforeRetrieve = interrupted("retrieve_evidence");
     if (beforeRetrieve) return beforeRetrieve;
-    const retrieved = checkStageBudget(
+    const retrieved = transitionStage(
       "retrieve_evidence",
       usage(),
       await checkpointed(
@@ -252,10 +243,10 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       ),
       environment,
     );
-    setOutcome(state, "retrieve_evidence", retrieved.result);
-    if (retrieved.exceeded) return stop(statusAfterBudget(retrieved.result));
-    if (!retrieved.result.data) return stop(stageRunStatus(retrieved.result));
-    absorbRetrieval(state, retrieved.result.data);
+    retainStage(state, "retrieve_evidence", retrieved.result, (data) =>
+      absorbRetrieval(state, data),
+    );
+    if (retrieved.kind === "stop") return stop(retrieved.status);
 
     const beforeAssess = interrupted("assess_evidence");
     if (beforeAssess) return beforeAssess;
@@ -348,7 +339,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
           assessedExecution.extra.targetedRetrieval.metrics,
         )
       : assessedExecution.result.metrics;
-    const assessed = checkStageBudget(
+    const assessed = transitionStage(
       "assess_evidence",
       assessPrior,
       assessedExecution,
@@ -365,15 +356,15 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         absorbRetrieval(state, assessed.extra.targetedRetrieval.data);
     }
     state.targetedRounds = assessed.extra.rounds;
-    setOutcome(state, "assess_evidence", assessed.result);
-    if (assessed.exceeded) return stop(statusAfterBudget(assessed.result));
-    if (!assessed.result.data) return stop(stageRunStatus(assessed.result));
-    state.assessments = accumulateEvidence(
-      analyzedClaims(),
-      state.snapshots,
-      assessed.result.data.assessments,
-    ).assessments;
-    state.evidenceSetHash = evidenceSetHash(state.snapshots, state.assessments);
+    retainStage(state, "assess_evidence", assessed.result, (data) => {
+      state.assessments = accumulateEvidence(
+        analyzedClaims(),
+        state.snapshots,
+        data.assessments,
+      ).assessments;
+      state.evidenceSetHash = evidenceSetHash(state.snapshots, state.assessments);
+    });
+    if (assessed.kind === "stop") return stop(assessed.status);
 
     const beforeTrace = interrupted("trace_origins");
     if (beforeTrace) return beforeTrace;
@@ -425,41 +416,37 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         return { result, extra: { snapshots: loaded, reassessment } };
       },
     );
-    const traceMetrics = tracedExecution.extra
-      ? sumMetrics(tracedExecution.result.metrics, tracedExecution.extra.reassessment.metrics)
-      : tracedExecution.result.metrics;
-    const traced = checkStageBudget(
+    const traceResult = tracedExecution.extra
+      ? absorbOutcome(tracedExecution.result, tracedExecution.extra.reassessment)
+      : tracedExecution.result;
+    const traced = transitionStage(
       "trace_origins",
       tracePrior,
-      tracedExecution,
+      { ...tracedExecution, result: traceResult },
       environment,
-      traceMetrics,
     );
-    if (!traced.result.data) {
-      setOutcome(state, "trace_origins", traced.result);
-      return stop(stageRunStatus(traced.result));
-    }
-    state.provenance = traced.result.data.graphs;
     if (traced.extra) {
-      const { reassessment } = traced.extra;
-      setOutcome(state, "trace_origins", absorbOutcome(traced.result, reassessment));
-      if (!reassessment.data) return stop(stageRunStatus(reassessment));
       state.snapshots = uniqueById([...state.snapshots, ...traced.extra.snapshots]);
-      state.assessments = accumulateEvidence(
-        analyzedClaims(),
-        state.snapshots,
-        state.assessments,
-        reassessment.data.assessments,
-      ).assessments;
+      if (traced.extra.reassessment.data) {
+        state.assessments = accumulateEvidence(
+          analyzedClaims(),
+          state.snapshots,
+          state.assessments,
+          traced.extra.reassessment.data.assessments,
+        ).assessments;
+      }
       state.evidenceSetHash = evidenceSetHash(state.snapshots, state.assessments);
-    } else {
-      setOutcome(state, "trace_origins", traced.result);
     }
-    if (traced.exceeded) return stop(statusAfterBudget(traced.result));
+    retainStage(state, "trace_origins", traced.result, (data) => {
+      state.provenance = data.graphs;
+    });
+    if (traced.kind === "stop") return stop(traced.status);
+    if (traced.extra && !traced.extra.reassessment.data)
+      return stop(stageRunStatus(traced.extra.reassessment));
 
     const beforeAdjudicate = interrupted("adjudicate_claims");
     if (beforeAdjudicate) return beforeAdjudicate;
-    const adjudicated = checkStageBudget(
+    const adjudicated = transitionStage(
       "adjudicate_claims",
       usage(),
       await checkpointed(
@@ -509,14 +496,14 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     }
     if (adjudicated.extra.length > 0)
       state.evidenceSetHash = evidenceSetHash(state.snapshots, state.assessments);
-    setOutcome(state, "adjudicate_claims", adjudicated.result);
-    if (adjudicated.exceeded) return stop(statusAfterBudget(adjudicated.result));
-    if (!adjudicated.result.data) return stop(stageRunStatus(adjudicated.result));
-    state.decisions = adjudicated.result.data.decisions;
+    retainStage(state, "adjudicate_claims", adjudicated.result, (data) => {
+      state.decisions = { phase: "diagnostic", values: data.decisions };
+    });
+    if (adjudicated.kind === "stop") return stop(adjudicated.status);
 
     const beforePublication = interrupted("calibrate_decisions");
     if (beforePublication) return beforePublication;
-    const decisionStage = checkStageBudget(
+    const decisionStage = transitionStage(
       "calibrate_decisions",
       usage(),
       await checkpointed(
@@ -532,7 +519,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
             {
               claims: analyzedClaims(),
               snapshots: state.snapshots,
-              decisions: state.decisions,
+              decisions: state.decisions.values,
               assessments: state.assessments,
             },
             environment,
@@ -545,15 +532,14 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       ),
       environment,
     );
-    setOutcome(state, "calibrate_decisions", decisionStage.result);
-    if (decisionStage.exceeded) return stop(statusAfterBudget(decisionStage.result));
-    if (!decisionStage.result.data) return stop(stageRunStatus(decisionStage.result));
-    state.decisions = decisionStage.result.data.decisions;
-    state.focusedPublicationPolicy = decisionStage.result.data.policy;
+    retainStage(state, "calibrate_decisions", decisionStage.result, (data) => {
+      state.decisions = { phase: "evaluated", values: data.decisions, policy: data.policy };
+    });
+    if (decisionStage.kind === "stop") return stop(decisionStage.status);
 
     const beforeScore = interrupted("score_report");
     if (beforeScore) return beforeScore;
-    const scored = checkStageBudget(
+    const scored = transitionStage(
       "score_report",
       usage(),
       await checkpointed(
@@ -567,11 +553,11 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         async () => ({
           result: factories.scoreReport(usage())({
             claims: analyzedClaims(),
-            decisions: state.decisions,
+            decisions: state.decisions.values,
             assessments: state.assessments,
             graphs: state.provenance,
             snapshots: state.snapshots,
-            focusedSelection: state.focusedSelection!,
+            focusedSelection: focused.selection,
             coverage: coverageForSelectedClaims(
               state.inputCoverage,
               new Set(state.selectedClaimIds),
@@ -585,19 +571,13 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       ),
       environment,
     );
-    setOutcome(state, "score_report", scored.result);
-    if (scored.exceeded) return stop(statusAfterBudget(scored.result));
-    if (!scored.result.data) return stop(stageRunStatus(scored.result));
+    retainStage(state, "score_report", scored.result, (data) => {
+      state.scorecard = data.scorecard;
+    });
+    if (scored.kind === "stop") return stop(scored.status);
     const afterScore = interrupted("score_report");
     if (afterScore) return afterScore;
-    return finishResult(
-      overallStatus(state.outcomes),
-      input,
-      environment,
-      state,
-      startedMs,
-      scored.result.data.scorecard,
-    );
+    return finishResult(overallStatus(state.outcomes), input, environment, state, startedMs);
   };
 }
 
@@ -685,9 +665,8 @@ function finishResult(
   status: RunStatus,
   input: RunAnalysisInput,
   environment: RunEnvironment,
-  state: RunState,
+  state: RunArtifacts,
   startedMs: number,
-  scorecard: RunReport["scorecard"],
 ): RunAnalysisResult {
   const replayManifest = {
     runId: environment.context.runId,
@@ -701,6 +680,33 @@ function finishResult(
     budget: environment.context.budget,
   };
   const cost = costSummary(state.outcomes, environment.ports.clock.monotonicMs() - startedMs);
+  const publicationPolicy =
+    state.focusedSelection === null
+      ? null
+      : state.decisions.phase === "evaluated"
+        ? state.decisions.policy
+        : FOCUSED_PUBLICATION_POLICY;
+  const decisions =
+    state.decisions.phase === "evaluated"
+      ? state.decisions.values
+      : state.decisions.values.map((decision) => ({
+          ...decision,
+          publishedLabel: "unverified" as const,
+          calibration: {
+            applicability: "unavailable" as const,
+            calibratedCorrectness: null,
+            calibratorVersion: null,
+            reason:
+              "The run stopped before focused publication evaluated this diagnostic decision.",
+          },
+          focusedPublication: {
+            policyVersion: FOCUSED_PUBLICATION_POLICY.policyVersion,
+            decisionVersion: FOCUSED_PUBLICATION_POLICY.decisionVersion,
+            status: "not_evaluated" as const,
+            gate: "not_evaluated" as const,
+            calibration: FOCUSED_PUBLICATION_POLICY.calibration,
+          },
+        }));
   const report = runReportSchema.parse({
     schemaVersion: ANALYSIS_SCHEMA_VERSION,
     contractVersion: ANALYSIS_CONTRACT_VERSION,
@@ -718,43 +724,41 @@ function finishResult(
     candidates: state.candidates,
     assessments: state.assessments,
     provenance: state.provenance,
-    decisions: state.decisions,
-    scorecard: status === "canceled" ? null : scorecard,
+    decisions,
+    scorecard: status === "canceled" ? null : state.scorecard,
     inputCoverage: state.inputCoverage,
     unresolvedReasons: uniqueIssues(state.issues),
     evidenceSetHash: state.evidenceSetHash,
     replayManifest,
     cost,
     ...(state.focusedSelection === null ? {} : { focusedSelection: state.focusedSelection }),
-    ...(state.focusedPublicationPolicy === null
-      ? {}
-      : { focusedPublicationPolicy: state.focusedPublicationPolicy }),
+    ...(publicationPolicy === null ? {} : { focusedPublicationPolicy: publicationPolicy }),
   });
   return { status, report, issues: report.unresolvedReasons, replayManifest, cost };
 }
 
-function emptyState(): RunState {
+function emptyState(): RunArtifacts {
   return {
     snapshots: [],
     primarySnapshotId: null,
     claims: [],
     selectedClaimIds: [],
     focusedSelection: null,
-    focusedPublicationPolicy: null,
     candidates: [],
     admittedSnapshotIds: [],
     assessments: [],
     provenance: [],
-    decisions: [],
+    decisions: { phase: "diagnostic", values: [] },
     inputCoverage: [],
     outcomes: [],
     issues: [],
     evidenceSetHash: null,
     targetedRounds: 0,
+    scorecard: null,
   };
 }
 
-function absorbRetrieval(state: RunState, data: RetrieveEvidenceData) {
+function absorbRetrieval(state: RunArtifacts, data: RetrieveEvidenceData) {
   state.candidates = uniqueById([...state.candidates, ...data.candidates]);
   state.snapshots = uniqueById([...state.snapshots, ...data.snapshots]);
   state.admittedSnapshotIds = [
@@ -762,7 +766,17 @@ function absorbRetrieval(state: RunState, data: RetrieveEvidenceData) {
   ];
 }
 
-function setOutcome(state: RunState, stage: StageName, result: StageResult<unknown>) {
+function retainStage<Data>(
+  state: RunArtifacts,
+  stage: StageName,
+  result: StageResult<Data>,
+  retain: (data: Data) => void,
+) {
+  if (result.data !== null) retain(result.data);
+  setOutcome(state, stage, result);
+}
+
+function setOutcome(state: RunArtifacts, stage: StageName, result: StageResult<unknown>) {
   const next = outcome(stage, result);
   const index = state.outcomes.findIndex((item) => item.stage === stage);
   if (index >= 0) state.outcomes[index] = next;
@@ -782,14 +796,16 @@ function mergeResults<Value>(
 ): StageResult<Value> {
   const issues = uniqueIssues([...first.issues, ...second.issues]);
   const metrics = sumMetrics(first.metrics, second.metrics);
-  if (!first.data) return { ...first, issues, metrics };
-  if (!second.data) return { status: "partial", data: first.data, issues, metrics };
-  return createStageResult({
-    status: worse(first.status, second.status),
+  if (first.status === "failed" || first.status === "unavailable")
+    return { ...first, issues, metrics };
+  if (second.status === "failed" || second.status === "unavailable")
+    return { status: "partial", data: first.data, issues, metrics };
+  return {
+    status: first.status === "partial" || second.status === "partial" ? "partial" : "complete",
     data: combine(first.data, second.data),
     issues,
     metrics,
-  });
+  };
 }
 
 function absorbOutcome<Value>(
@@ -798,14 +814,14 @@ function absorbOutcome<Value>(
 ): StageResult<Value> {
   const issues = uniqueIssues([...result.issues, ...follow.issues]);
   const metrics = sumMetrics(result.metrics, follow.metrics);
-  if (!follow.data)
-    return { status: follow.status, data: null, issues, metrics } as StageResult<Value>;
-  return createStageResult({
-    ...result,
-    status: worse(result.status, follow.status),
+  if (result.status === "failed" || result.status === "unavailable")
+    return { ...result, issues, metrics };
+  return {
+    status: follow.status === "complete" && result.status === "complete" ? "complete" : "partial",
+    data: result.data,
     issues,
     metrics,
-  });
+  };
 }
 
 function combineRetrieval(a: RetrieveEvidenceData, b: RetrieveEvidenceData) {
@@ -819,10 +835,6 @@ function combineRetrieval(a: RetrieveEvidenceData, b: RetrieveEvidenceData) {
     },
     stoppingReason: b.stoppingReason,
   };
-}
-
-function worse(a: StageStatus, b: StageStatus): StageStatus {
-  return STATUS_RANK[a] >= STATUS_RANK[b] ? a : b;
 }
 
 function sumMetrics(a: StageMetrics, b: StageMetrics): StageMetrics {
@@ -849,7 +861,7 @@ function zeroMetrics(at: string): StageMetrics {
   };
 }
 
-function interruptedOutcome(environment: RunEnvironment, state: RunState): StageOutcome {
+function interruptedOutcome(environment: RunEnvironment, state: RunArtifacts): StageOutcome {
   const reason =
     state.issues.find(
       ({ code }) =>
@@ -879,40 +891,21 @@ function stageRunStatus(result: StageResult<unknown>): RunStatus {
   return result.status;
 }
 
-function checkStageBudget<Value, Extra>(
+type StageTransition<Data, Extra> =
+  | {
+      kind: "continue";
+      result: Extract<StageResult<Data>, { status: "complete" | "partial" }>;
+      extra: Extra;
+    }
+  | { kind: "stop"; status: RunStatus; result: StageResult<Data>; extra: Extra };
+
+function transitionStage<Data, Extra>(
   stage: StageName,
   prior: StageUsage,
-  execution: { result: StageResult<Value>; extra: Extra },
+  execution: { result: StageResult<Data>; extra: Extra },
   environment: RunEnvironment,
   metrics = execution.result.metrics,
-) {
-  const exceeded = runBudgetExceeded(prior, metrics, environment);
-  return {
-    ...execution,
-    result: enforceRunBudget(execution.result, prior, metrics, environment, stage),
-    exceeded,
-  };
-}
-
-function runBudgetExceeded(prior: StageUsage, metrics: StageMetrics, environment: RunEnvironment) {
-  const externalRequests = prior.priorExternalRequests + metrics.externalRequests;
-  if (externalRequests > environment.context.budget.maxExternalRequests) return true;
-  const totalCost = sumNullable([prior.priorCostUsd, metrics.costUsd]);
-  if (
-    environment.context.budget.maxCostUsd !== null &&
-    (totalCost === null || totalCost > environment.context.budget.maxCostUsd)
-  )
-    return true;
-  return environment.ports.clock.monotonicMs() >= prior.deadlineMonotonicMs;
-}
-
-function enforceRunBudget<Value>(
-  result: StageResult<Value>,
-  prior: StageUsage,
-  metrics: StageMetrics,
-  environment: RunEnvironment,
-  stage: StageName,
-): StageResult<Value> {
+): StageTransition<Data, Extra> {
   const violations: AnalysisIssue[] = [];
   const externalRequests = prior.priorExternalRequests + metrics.externalRequests;
   if (externalRequests > environment.context.budget.maxExternalRequests) {
@@ -938,17 +931,38 @@ function enforceRunBudget<Value>(
   if (environment.ports.clock.monotonicMs() >= prior.deadlineMonotonicMs) {
     violations.push(issue("timeout", `The elapsed run cap was reached after ${stage}.`));
   }
-  if (violations.length === 0) return result;
-  return createStageResult({
-    ...result,
-    status: result.status === "complete" && result.data !== null ? "partial" : result.status,
-    issues: uniqueIssues([...result.issues, ...violations]),
-  });
-}
-
-function statusAfterBudget(result: StageResult<unknown>): RunStatus {
+  if (runStopReason(environment))
+    violations.push(stopIssue(environment, `The run was canceled after ${stage}.`));
+  const original = execution.result;
+  let result: StageResult<Data> =
+    violations.length === 0
+      ? original
+      : {
+          ...original,
+          issues: uniqueIssues([...original.issues, ...violations]),
+        };
+  if (violations.length > 0 && result.status === "complete")
+    result = { ...result, status: "partial" };
   const status = stageRunStatus(result);
-  return status === "canceled" ? status : result.data === null ? status : "partial";
+  if (
+    status === "canceled" ||
+    violations.length > 0 ||
+    result.status === "failed" ||
+    result.status === "unavailable"
+  ) {
+    return {
+      kind: "stop",
+      status:
+        status === "canceled"
+          ? status
+          : result.status === "failed" || result.status === "unavailable"
+            ? status
+            : "partial",
+      result,
+      extra: execution.extra,
+    };
+  }
+  return { kind: "continue", result, extra: execution.extra };
 }
 
 function overallStatus(outcomes: StageOutcome[]): RunStatus {
