@@ -1,3 +1,4 @@
+import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import {
   documentSnapshotSchema,
   evidenceCandidateSchema,
@@ -39,9 +40,14 @@ async function retrieve(
   let budget: ReturnType<typeof createBudget> | null = null;
   await audit("stage_started", "Evidence retrieval started.", null, null);
 
-  if (isCanceled(environment)) {
-    await audit("cancellation", "Evidence retrieval canceled before discovery.", null, null);
-    return finish("failed", null, [issue("cancellation_requested", "Retrieval was canceled.")]);
+  if (isRunInterrupted(environment)) {
+    await audit(
+      stopAuditKind(environment),
+      stopIssue(environment, "Evidence retrieval canceled before discovery.").message,
+      null,
+      null,
+    );
+    return finish("failed", null, [stopIssue(environment, "Retrieval was canceled.")]);
   }
 
   const maxRounds = environment.context.budget.maxTargetedRetrievalRounds;
@@ -101,7 +107,7 @@ async function retrieve(
   }
 
   for (const [claimIndex, claim] of claims.entries()) {
-    if (isCanceled(environment)) return canceledResult();
+    if (isRunInterrupted(environment)) return canceledResult();
     await retrieveCorpus(claim);
 
     const feedback = input.sufficiency.find((item) => item.claimId === claim.id) ?? null;
@@ -443,7 +449,7 @@ async function retrieve(
     }
   }
 
-  if (isCanceled(environment)) return canceledResult();
+  if (isRunInterrupted(environment)) return canceledResult();
   if (budget.costExceeded()) {
     issues.push(
       issue(
@@ -564,12 +570,13 @@ async function retrieve(
 
   async function canceledResult(): Promise<StageResult<RetrieveEvidenceData>> {
     await audit(
-      "cancellation",
-      "Evidence retrieval canceled; no partial snapshot was admitted.",
+      stopAuditKind(environment),
+      stopIssue(environment, "Evidence retrieval canceled; no partial snapshot was admitted.")
+        .message,
       null,
       null,
     );
-    return finish("failed", null, [issue("cancellation_requested", "Retrieval was canceled.")]);
+    return finish("failed", null, [stopIssue(environment, "Retrieval was canceled.")]);
   }
 
   function finish(
@@ -779,10 +786,6 @@ function createAudit(environment: RunEnvironment) {
       snapshotId,
       at: environment.ports.clock.now(),
     });
-}
-
-function isCanceled(environment: RunEnvironment) {
-  return environment.signal.aborted || environment.context.cancellation.requested;
 }
 
 function issue(

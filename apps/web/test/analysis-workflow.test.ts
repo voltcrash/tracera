@@ -220,3 +220,35 @@ test("the next checkpoint observes owner cancellation and the Workflow releases 
   expect((await readRunState(harness.env, user, params.runId))?.report).toBeNull();
   expect(await heldLeases()).toBe(0);
 });
+
+test("cancellation arriving at the failure write settles and replays as canceled", async () => {
+  const { params, idempotencyKey } = await start();
+  const storage = analysisStorage(harness.env);
+  const fail = storage.runs.failRun.bind(storage.runs);
+  storage.runs.failRun = async (input) => {
+    await storage.runs.requestCancellation({
+      scope: accessScope(user),
+      runId: params.runId,
+      reason: "user_request",
+    });
+    return fail(input);
+  };
+  const result = await runAnalysisWorkflow(harness.env, params, steps().step, {
+    storage,
+    createPorts: () => {
+      throw new Error("Provider failed");
+    },
+  });
+  expect(result.status).toBe("canceled");
+  expect(await heldLeases()).toBe(0);
+  expect((await readRunState(harness.env, user, params.runId))?.report).toBeNull();
+  const replay = await startAnalysisRun({
+    env: harness.env,
+    user,
+    request: new Request(ORIGIN),
+    body,
+    idempotencyKey,
+  });
+  expect(replay.status).toBe(200);
+  expect(replay.body.status).toBe("canceled");
+});

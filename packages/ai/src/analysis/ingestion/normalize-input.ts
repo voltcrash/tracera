@@ -1,4 +1,5 @@
-import type { AnalysisIssue, StageMetrics } from "@repo/contracts/analysis";
+import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
+import type { StageMetrics } from "@repo/contracts/analysis";
 import type { NormalizeInput } from "../types";
 import { supportsImageAcquisition } from "./types";
 
@@ -15,12 +16,12 @@ export const normalizeInput: NormalizeInput = async ({ input }, environment) => 
     snapshotId: null,
     at: startedAt,
   });
-  if (environment.signal.aborted || environment.context.cancellation.requested) {
-    const issue = cancellationIssue();
+  if (isRunInterrupted(environment)) {
+    const issue = stopIssue(environment, "Input acquisition was canceled.");
     await audit.record({
       runId: environment.context.runId,
       stage: "normalize_input",
-      kind: "cancellation",
+      kind: stopAuditKind(environment),
       message: issue.message,
       claimId: null,
       snapshotId: null,
@@ -76,7 +77,7 @@ export const normalizeInput: NormalizeInput = async ({ input }, environment) => 
               };
   } catch (error) {
     if (!environment.signal.aborted) throw error;
-    const issue = cancellationIssue();
+    const issue = stopIssue(environment, "Input acquisition was canceled.");
     await finishAudit(environment, "failed", null);
     return {
       status: "failed",
@@ -122,17 +123,6 @@ async function finishAudit(
     snapshotId,
     at: environment.ports.clock.now(),
   });
-}
-
-function cancellationIssue(): AnalysisIssue {
-  return {
-    code: "cancellation_requested",
-    severity: "warning",
-    message: "Input acquisition was canceled before it started.",
-    claimId: null,
-    snapshotId: null,
-    url: null,
-  };
 }
 
 function stageMetrics(

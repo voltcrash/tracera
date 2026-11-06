@@ -333,3 +333,26 @@ test("a bound launch keeps its admission across the pre-launch expiry timer", as
   expect(workflow.create).toHaveBeenCalledTimes(1);
   expect(harness.created[0]!.id).toBe(runId);
 });
+
+test("maintenance counts cancellation that arrives during terminal Workflow failure settlement", async () => {
+  const runId = await start();
+  await analysisStorage(harness.env).runs.beginAttempt({
+    scope: accessScope(user),
+    runId,
+    stage: "normalize_input",
+    expectedVersion: 0,
+  });
+  const repository = analysisStorage(harness.env).runs;
+  const fail = repository.failRun.bind(repository);
+  vi.spyOn(D1AnalysisRepository.prototype, "failRun").mockImplementationOnce(async (input) => {
+    await repository.requestCancellation({
+      scope: accessScope(user),
+      runId,
+      reason: "user_request",
+    });
+    return fail(input);
+  });
+  const counts = await scheduledMaintenance(binding("errored").env);
+  expect(counts).toMatchObject({ canceledRuns: 1, failedRuns: 0, admissionsReleased: 1 });
+  expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("canceled");
+});

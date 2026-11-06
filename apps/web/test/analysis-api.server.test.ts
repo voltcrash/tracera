@@ -264,7 +264,7 @@ test("finished runs return their report only to their owner", async () => {
   expect(await readRunState(harness.env, grace, report.runId)).toBeNull();
 });
 
-test("cancellation is owner scoped and refused once a run has finished", async () => {
+test("cancellation is owner scoped, replayable, and refused after report publication", async () => {
   const queued = await start({ text: "A claim to cancel." });
   const runId = queued.body.runId as string;
   expect((await cancelAnalysisRun(harness.env, grace, runId)).status).toBe(404);
@@ -273,7 +273,9 @@ test("cancellation is owner scoped and refused once a run has finished", async (
     body: { status: "cancellation_requested" },
   });
   expect((await readRunState(harness.env, ada, runId))?.progress.status).toBe("canceled");
-  expect((await cancelAnalysisRun(harness.env, ada, runId)).status).toBe(409);
+  expect((await cancelAnalysisRun(harness.env, ada, runId)).status).toBe(202);
+  const finished = await seedFinishedRun(harness.env, ada.id, crypto.randomUUID());
+  expect((await cancelAnalysisRun(harness.env, ada, finished.runId)).status).toBe(409);
 });
 
 test("accepted requests replay before changed runtime policy or provider availability is checked", async () => {

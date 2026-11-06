@@ -1,5 +1,6 @@
+import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import type { AnalysisIssue, DocumentSnapshot, StageMetrics } from "@repo/contracts/analysis";
-import type { AuditEvent, ExtractClaims, RunEnvironment } from "../types";
+import type { AuditEvent, ExtractClaims } from "../types";
 import { buildChunkRequest, chunkExtractionSchema, type ChunkExtraction } from "./generation";
 import { buildInventory, scopeKey, type AcceptedClaim, type SegmentOutcome } from "./inventory";
 import {
@@ -75,8 +76,8 @@ export function createExtractClaims(options: ClaimExtractionOptions = {}): Extra
       await audit("stage_finished", `Claim inventory finished with status ${status}.`);
     };
     const canceled = async () => {
-      const cancellation = issue("cancellation_requested", "Claim extraction was canceled.");
-      await audit("cancellation", cancellation.message);
+      const cancellation = stopIssue(environment, "Claim extraction was canceled.");
+      await audit(stopAuditKind(environment), cancellation.message);
       await finish("failed");
       return { status: "failed" as const, data: null, issues: [cancellation], metrics: metrics() };
     };
@@ -86,7 +87,7 @@ export function createExtractClaims(options: ClaimExtractionOptions = {}): Extra
     };
 
     await audit("stage_started", "Claim inventory started.");
-    if (isCanceled(environment)) return canceled();
+    if (isRunInterrupted(environment)) return canceled();
 
     const primary = snapshots.find((snapshot) => snapshot.id === primarySnapshotId);
     if (!primary) {
@@ -154,7 +155,7 @@ export function createExtractClaims(options: ClaimExtractionOptions = {}): Extra
     for (const document of documents) {
       const segmentsById = new Map(document.segments.map((segment) => [segment.id, segment]));
       for (const chunk of buildChunks(document, maxChunkCharacters, overlapCharacters)) {
-        if (isCanceled(environment)) return canceled();
+        if (isRunInterrupted(environment)) return canceled();
         const exhaustion = budgetExhaustion(
           usage,
           allowance,
@@ -188,7 +189,7 @@ export function createExtractClaims(options: ClaimExtractionOptions = {}): Extra
             throw new Error("The generation output did not match the chunk schema.");
           response = parsed.data;
         } catch (error) {
-          if (isCanceled(environment)) return canceled();
+          if (isRunInterrupted(environment)) return canceled();
           if (!counted) {
             usage.requests += error instanceof GenerationUsageError ? error.attempts : 1;
             usage.inputTokens = null;
@@ -406,10 +407,6 @@ function addUsage(
       : total.outputTokens + next.outputTokens;
   total.costUsd =
     total.costUsd === null || next.costUsd === null ? null : total.costUsd + next.costUsd;
-}
-
-function isCanceled(environment: RunEnvironment) {
-  return environment.signal.aborted || environment.context.cancellation.requested;
 }
 
 function issue(

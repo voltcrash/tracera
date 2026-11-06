@@ -1,3 +1,4 @@
+import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import type {
   AnalysisIssue,
   DocumentSnapshot,
@@ -57,7 +58,7 @@ async function assess(
       at: environment.ports.clock.now(),
     });
   await audit("stage_started", "Evidence assessment started.", null, null);
-  if (canceled(environment)) return canceledResult();
+  if (isRunInterrupted(environment)) return canceledResult();
 
   const snapshotsById = new Map(input.snapshots.map((snapshot) => [snapshot.id, snapshot]));
   const admitted = [...new Set(input.admittedSnapshotIds)];
@@ -89,7 +90,7 @@ async function assess(
   outer: for (const claim of claims) {
     for (const snapshot of snapshots) {
       for (const span of passageSpans(snapshot, options.maxPassagesPerSnapshot)) {
-        if (canceled(environment)) return canceledResult();
+        if (isRunInterrupted(environment)) return canceledResult();
         if (
           (maxRequests !== null && requests >= maxRequests) ||
           (options.deadlineMonotonicMs !== null &&
@@ -161,7 +162,7 @@ async function assess(
             );
           }
         } catch (error) {
-          if (canceled(environment)) return canceledResult();
+          if (isRunInterrupted(environment)) return canceledResult();
           failedPairs += 1;
           inputTokens = outputTokens = null;
           if (error instanceof GenerationUsageError) {
@@ -193,8 +194,13 @@ async function assess(
   return finish(status, data);
 
   async function canceledResult() {
-    issues.push(issue("cancellation_requested", "Evidence assessment was canceled."));
-    await audit("cancellation", "Evidence assessment canceled.", null, null);
+    issues.push(stopIssue(environment, "Evidence assessment was canceled."));
+    await audit(
+      stopAuditKind(environment),
+      stopIssue(environment, "Evidence assessment canceled.").message,
+      null,
+      null,
+    );
     return finish("failed", null);
   }
 
@@ -230,10 +236,6 @@ function passageSpans(snapshot: DocumentSnapshot, limit?: number) {
 
 function addUsage(total: number | null, value: number | null) {
   return total === null || value === null ? null : total + value;
-}
-
-function canceled(environment: RunEnvironment) {
-  return environment.signal.aborted || environment.context.cancellation.requested;
 }
 
 function issue(

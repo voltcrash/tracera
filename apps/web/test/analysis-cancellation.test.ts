@@ -55,9 +55,10 @@ test("after the grace period, termination cancels a running run and releases adm
   const runId = await start(true);
   await cancelAnalysisRun(harness.env, user, runId);
   const workflow = binding();
-  const sleep = vi.fn(async () => {});
+  const sleep = vi.fn(async (_milliseconds: number) => {});
   await terminateCanceledRun(workflow.env, user.id, runId, sleep);
-  expect(sleep).toHaveBeenCalledWith(CANCELLATION_GRACE_MS);
+  expect(sleep.mock.calls[0]![0]).toBeGreaterThan(0);
+  expect(sleep.mock.calls[0]![0]).toBeLessThanOrEqual(CANCELLATION_GRACE_MS);
   expect(workflow.terminate).toHaveBeenCalledTimes(1);
   expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("canceled");
   const params = harness.created.at(-1)!.params as { admission: { leaseId: string } };
@@ -105,4 +106,25 @@ test("another owner's cancellation cannot terminate an instance", async () => {
   await terminateCanceledRun(workflow.env, "another-owner", runId, async () => {});
   expect(workflow.get).not.toHaveBeenCalled();
   await terminateCanceledRun(workflow.env, user.id, runId, async () => {});
+});
+
+test("cleanup uses the first cancellation deadline after retries", async () => {
+  const runId = await start(true);
+  await cancelAnalysisRun(harness.env, user, runId);
+  const cancellation = (await analysisStorage(harness.env).runs.getRunContext({
+    scope: accessScope(user),
+    runId,
+  }))!.cancellation;
+  const clock = vi
+    .spyOn(Date, "now")
+    .mockReturnValue(Date.parse(cancellation.requestedAt!) + CANCELLATION_GRACE_MS + 1);
+  try {
+    expect((await cancelAnalysisRun(harness.env, user, runId)).status).toBe(202);
+    const sleep = vi.fn(async (_milliseconds: number) => {});
+    await terminateCanceledRun(binding().env, user.id, runId, sleep);
+    expect(sleep).toHaveBeenCalledWith(0);
+    expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("canceled");
+  } finally {
+    clock.mockRestore();
+  }
 });

@@ -518,7 +518,7 @@ export class D1AnalysisRepository {
   async requestCancellation(input: {
     scope: AnalysisAccessScope;
     runId: string;
-    reason: Exclude<RunContext["cancellation"]["reason"], null>;
+    reason: "user_request" | "operator_request";
   }): Promise<boolean> {
     const now = this.now();
     const cancellation = JSON.stringify({
@@ -526,12 +526,17 @@ export class D1AnalysisRepository {
       requestedAt: new Date(now).toISOString(),
       reason: input.reason,
     });
-    const result = await this.database
-      .prepare(`UPDATE core_runs SET cancellation=?,status=CASE WHEN status='queued' THEN 'canceled' ELSE status END,finalized_at=CASE WHEN status='queued' THEN ? ELSE finalized_at END,updated_at=?,version=version+1
-      WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND finalized_at IS NULL RETURNING run_id`)
-      .bind(cancellation, now, now, input.runId, ...scopeValues(input.scope))
-      .all();
-    return result.results.length === 1;
+    const [, current] = await this.database.batch<{ requested: number }>([
+      this.database
+        .prepare(`UPDATE core_runs SET cancellation=?,status=CASE WHEN status='queued' THEN 'canceled' ELSE status END,finalized_at=CASE WHEN status='queued' THEN ? ELSE finalized_at END,updated_at=?,version=version+1
+        WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0`)
+        .bind(cancellation, now, now, input.runId, ...scopeValues(input.scope)),
+      this.database
+        .prepare(`SELECT json_extract(cancellation,'$.requested') AS requested FROM core_runs
+        WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=?`)
+        .bind(input.runId, ...scopeValues(input.scope)),
+    ]);
+    return current!.results[0]?.requested === 1;
   }
 
   async acknowledgeCancellation(input: {
@@ -576,13 +581,24 @@ export class D1AnalysisRepository {
     runId: string;
     fencingToken: string | null;
     error: string;
-  }): Promise<void> {
+  }): Promise<"failed" | "canceled"> {
     const now = this.now();
-    const [changed] = await this.database.batch([
+    const [, changed] = await this.database.batch<{ status: "failed" | "canceled" }>([
       this.database
-        .prepare(
-          `UPDATE core_runs SET status='failed',last_error=?,finalized_at=?,updated_at=?,version=version+1 WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token IS ? AND finalized_at IS NULL RETURNING run_id`,
-        )
+        .prepare(`UPDATE core_stage_attempts SET finished_at=?,outcome=(SELECT CASE WHEN json_extract(cancellation,'$.requested')=1 THEN 'canceled' ELSE 'failed' END FROM core_runs WHERE run_id=core_stage_attempts.run_id)
+          WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=?
+          AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND fencing_token IS ? AND finalized_at IS NULL)`)
+        .bind(
+          now,
+          input.runId,
+          ...scopeValues(input.scope),
+          input.fencingToken,
+          input.runId,
+          input.fencingToken,
+        ),
+      this.database
+        .prepare(`UPDATE core_runs SET status=CASE WHEN json_extract(cancellation,'$.requested')=1 THEN 'canceled' ELSE 'failed' END,last_error=CASE WHEN json_extract(cancellation,'$.requested')=1 THEN NULL ELSE ? END,finalized_at=?,updated_at=?,version=version+1
+          WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token IS ? AND finalized_at IS NULL RETURNING status`)
         .bind(
           input.error.slice(0, 2000),
           now,
@@ -591,21 +607,10 @@ export class D1AnalysisRepository {
           ...scopeValues(input.scope),
           input.fencingToken,
         ),
-      this.database
-        .prepare(
-          `UPDATE core_stage_attempts SET finished_at=?,outcome='failed' WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=? AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND status='failed' AND fencing_token IS ?)`,
-        )
-        .bind(
-          now,
-          input.runId,
-          ...scopeValues(input.scope),
-          input.fencingToken,
-          input.runId,
-          input.fencingToken,
-        ),
     ]);
     if (!changed!.results.length)
       throw new StaleWorkerError("Failure rejected for finalized or superseded run.");
+    return changed!.results[0]!.status;
   }
 
   async getRunProgress(input: { scope: AnalysisAccessScope; runId: string }) {
