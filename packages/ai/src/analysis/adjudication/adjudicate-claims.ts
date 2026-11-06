@@ -1,3 +1,4 @@
+import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import {
   decisionSchema,
   type Calibration,
@@ -116,10 +117,11 @@ async function adjudicate(
     }
   } catch (error) {
     if (error instanceof Canceled || isCanceled()) {
-      issues.push(issue("cancellation_requested", "Verdict adjudication was canceled."));
+      issues.push(stopIssue(environment, "Verdict adjudication was canceled."));
       await audit(
-        "cancellation",
-        "Verdict adjudication canceled; no partial decisions were returned.",
+        stopAuditKind(environment),
+        stopIssue(environment, "Verdict adjudication canceled; no partial decisions were returned.")
+          .message,
       );
       return finish("failed", null);
     }
@@ -694,7 +696,7 @@ async function adjudicate(
   }
 
   function isCanceled() {
-    return environment.signal.aborted || environment.context.cancellation.requested;
+    return isRunInterrupted(environment);
   }
 
   function ensureActive() {

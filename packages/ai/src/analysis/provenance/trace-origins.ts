@@ -1,3 +1,4 @@
+import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import {
   provenanceGraphSchema,
   type Claim,
@@ -46,7 +47,7 @@ async function trace(
   let stageCostUsd: number | null = 0;
   await audit("stage_started", "Claim-level provenance tracing started.", null, null);
 
-  if (canceled(environment)) return canceledResult();
+  if (isRunInterrupted(environment)) return canceledResult();
   const snapshotMap = uniqueSnapshots(input.snapshots, issues);
   const claimIds = new Set<string>();
   const claims = input.claims.filter((claim) => {
@@ -91,7 +92,7 @@ async function trace(
   }
 
   for (const claim of claims) {
-    if (canceled(environment)) return canceledResult();
+    if (isRunInterrupted(environment)) return canceledResult();
     const graph = await traceClaim(claim);
     const parsed = provenanceGraphSchema.safeParse(graph);
     if (!parsed.success) {
@@ -157,7 +158,7 @@ async function trace(
     }
 
     while (queued.length > 0) {
-      if (canceled(environment)) break;
+      if (isRunInterrupted(environment)) break;
       const current = queued.shift()!;
       const source = snapshotMap.get(current.snapshotId);
       if (source === undefined || current.hop >= maxHops(environment)) continue;
@@ -166,7 +167,7 @@ async function trace(
       traversed.add(traversalKey);
 
       for (const reference of extractProvenanceReferences(source)) {
-        if (canceled(environment)) break;
+        if (isRunInterrupted(environment)) break;
         const target = findSnapshotByUrl(snapshotMap.values(), reference.url);
         if (target !== undefined) {
           if (
@@ -469,10 +470,10 @@ async function trace(
   }
 
   async function canceledResult(): Promise<StageResult<TraceOriginsData>> {
-    issues.push(issue("cancellation_requested", "Provenance tracing was canceled."));
+    issues.push(stopIssue(environment, "Provenance tracing was canceled."));
     await audit(
-      "cancellation",
-      "Provenance tracing canceled; no partial graph was returned.",
+      stopAuditKind(environment),
+      stopIssue(environment, "Provenance tracing canceled; no partial graph was returned.").message,
       null,
       null,
     );
@@ -505,7 +506,8 @@ async function trace(
       | "stage_finished"
       | "external_request"
       | "validation_rejected"
-      | "cancellation",
+      | "cancellation"
+      | "budget_consumed",
     message: string,
     claimId: string | null,
     snapshotId: string | null,
@@ -651,10 +653,6 @@ function log(
 
 function addCost(current: number | null, added: number | null) {
   return current === null || added === null ? null : current + added;
-}
-
-function canceled(environment: RunEnvironment) {
-  return environment.signal.aborted || environment.context.cancellation.requested;
 }
 
 function issue(

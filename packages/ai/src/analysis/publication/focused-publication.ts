@@ -1,3 +1,4 @@
+import { isRunInterrupted, stopIssue, stopAuditKind } from "../interruption";
 import {
   ANALYSIS_FOCUSED_NON_CALIBRATION_REASON,
   ANALYSIS_FOCUSED_PUBLICATION_DECISION_VERSION,
@@ -153,13 +154,12 @@ export function createFocusedPublication(): FocusedPublication {
     const startedAt = clock.now();
     const startedMs = clock.monotonicMs();
     await audit(environment, "stage_started", "Focused evidence publication started.", null);
-    if (canceled(environment)) {
-      const issue = publicationIssue(
-        "cancellation_requested",
+    if (isRunInterrupted(environment)) {
+      const issue = stopIssue(
+        environment,
         "Focused evidence publication was canceled before the local gate ran.",
-        null,
       );
-      await audit(environment, "cancellation", issue.message, null);
+      await audit(environment, stopAuditKind(environment), issue.message, null);
       return finish("failed", null, [issue]);
     }
 
@@ -180,13 +180,12 @@ export function createFocusedPublication(): FocusedPublication {
           );
         }
       }
-      if (canceled(environment)) {
-        const issue = publicationIssue(
-          "cancellation_requested",
+      if (isRunInterrupted(environment)) {
+        const issue = stopIssue(
+          environment,
           "Focused evidence publication was canceled before it returned its local decisions.",
-          null,
         );
-        await audit(environment, "cancellation", issue.message, null);
+        await audit(environment, stopAuditKind(environment), issue.message, null);
         return finish("failed", null, [issue]);
       }
       const status = published.issues.length === 0 ? "complete" : "partial";
@@ -651,10 +650,6 @@ async function audit(
     snapshotId: null,
     at: environment.ports.clock.now(),
   });
-}
-
-function canceled(environment: RunEnvironment) {
-  return environment.signal.aborted || environment.context.cancellation.requested;
 }
 
 function unique<Value>(values: Value[]) {

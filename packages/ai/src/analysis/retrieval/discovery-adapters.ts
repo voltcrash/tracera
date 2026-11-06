@@ -1,3 +1,4 @@
+import { signalStopReason } from "../interruption";
 import { createHash } from "node:crypto";
 import {
   evidenceCandidateSchema,
@@ -95,7 +96,7 @@ export function createCandidateSearchAdapter(options: {
           null,
           [
             {
-              code: request.signal.aborted ? "cancellation_requested" : "provider_outage",
+              code: signalStopReason(request.signal) ?? "provider_outage",
               severity: "error",
               message: error instanceof Error ? error.message : "Search provider failed.",
               claimId: request.claimId,
@@ -169,7 +170,7 @@ export function createPrimarySourceResolverAdapter(options: {
           null,
           [
             {
-              code: request.signal.aborted ? "cancellation_requested" : "provider_outage",
+              code: signalStopReason(request.signal) ?? "provider_outage",
               severity: "error",
               message: error instanceof Error ? error.message : "Primary-source resolver failed.",
               claimId: request.claim.id,
