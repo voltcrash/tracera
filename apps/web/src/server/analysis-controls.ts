@@ -9,6 +9,7 @@ import type {
   AnalysisAdmission,
   AnalysisAdmissionRejection,
   AnalysisControlLimits,
+  D1SpendAdmission,
 } from "@repo/db";
 
 const DEFAULTS = {
@@ -75,11 +76,8 @@ export interface ProviderSpendStore {
     estimatedUsd: number;
     dailyBudgetUsd: number;
     reservationId?: string;
-  }): Promise<
-    | { allowed: true; reservation: { id: string; estimatedUsd: number } }
-    | { allowed: false; retryAt: string }
-  >;
-  settleProviderSpend(input: { reservationId: string; actualUsd: number }): Promise<void>;
+  }): Promise<D1SpendAdmission>;
+  settleProviderSpend(input: { reservationId: string; measuredUsd?: number }): Promise<void>;
 }
 
 export class AnalysisControlError extends Error {
@@ -258,7 +256,9 @@ export function spendLimitedAiProvider(
         estimatedUsd: estimatedCost(call, config),
         dailyBudgetUsd: config.dailySpendUsd,
       });
-      if (!reservationResult.allowed) {
+      if (reservationResult.kind === "existing")
+        throw new AnalysisControlError("analysis_controls_unavailable");
+      if (reservationResult.kind === "rejected") {
         throw new AnalysisControlError("provider_spend_limit", reservationResult.retryAt);
       }
       try {
@@ -267,7 +267,6 @@ export function spendLimitedAiProvider(
         await store
           .settleProviderSpend({
             reservationId: reservationResult.reservation.id,
-            actualUsd: reservationResult.reservation.estimatedUsd,
           })
           .catch((error) => console.warn("Could not settle provider spend", error));
       }
@@ -330,7 +329,7 @@ function estimatedCost(call: AiProviderCall, config: AnalysisControlConfig) {
         ? config.imageCostUsd
         : config.generationCostUsd;
   const retrySafetyFactor = call.kind === "generate" || call.kind === "generate_image" ? 2 : 1;
-  return Number((base * retrySafetyFactor).toFixed(6));
+  return base * retrySafetyFactor;
 }
 
 function requestIp(request: Request) {

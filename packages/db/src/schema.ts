@@ -570,7 +570,9 @@ export const aiProviderSpend = sqliteTable(
     periodStart: text("period_start").notNull(),
     budgetMicros: integer("budget_micros").notNull(),
     reservedMicros: integer("reserved_micros").notNull().default(0),
-    actualMicros: integer("actual_micros").notNull().default(0),
+    settledMicros: integer("actual_micros").notNull().default(0),
+    estimatedSettledMicros: integer("estimated_settled_micros").notNull().default(0),
+    measuredSettledMicros: integer("measured_settled_micros").notNull().default(0),
     openUntil: integer("open_until", { mode: "timestamp_ms" }),
     updatedAt: updatedAt(),
   },
@@ -578,7 +580,7 @@ export const aiProviderSpend = sqliteTable(
     primaryKey({ columns: [table.providerKey, table.keySource, table.periodStart] }),
     check(
       "ai_provider_spend_amounts_check",
-      sql`${table.budgetMicros} >= 0 AND ${table.reservedMicros} >= 0 AND ${table.actualMicros} >= 0`,
+      sql`${table.budgetMicros} >= 0 AND ${table.reservedMicros} >= 0 AND ${table.settledMicros} >= 0`,
     ),
     check("ai_provider_spend_source_check", sql`${table.keySource} IN ('platform','user')`),
   ],
@@ -595,7 +597,10 @@ export const aiSpendReservations = sqliteTable(
     keySource: text("key_source", { enum: ["platform", "user"] }).notNull(),
     periodStart: text("period_start").notNull(),
     estimatedMicros: integer("estimated_micros").notNull(),
-    actualMicros: integer("actual_micros"),
+    chargedMicros: integer("actual_micros"),
+    settlementBasis: text("settlement_basis", {
+      enum: ["estimated", "measured", "legacy_unknown"],
+    }),
     settledAt: integer("settled_at", { mode: "timestamp_ms" }),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
     createdAt: createdAt(),
@@ -612,7 +617,7 @@ export const aiSpendReservations = sqliteTable(
     }).onDelete("restrict"),
     check(
       "ai_spend_reservations_amounts_check",
-      sql`${table.estimatedMicros} >= 0 AND (${table.actualMicros} IS NULL OR ${table.actualMicros} >= 0)`,
+      sql`${table.estimatedMicros} >= 0 AND (${table.chargedMicros} IS NULL OR ${table.chargedMicros} >= 0)`,
     ),
   ],
 );

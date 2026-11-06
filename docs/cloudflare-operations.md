@@ -137,8 +137,25 @@ be reviewed in Wrangler vars; the private-file examples also support them.
 
 All other count bounds must be positive integers; money values must be finite and positive.
 The spend circuit uses configured estimates because adapters do not all return billable
-usage. Failed calls are settled too. Compare the estimates with the provider usage dashboard;
-they are not a guarantee of the provider's final invoice.
+usage. Platform calls settle with `estimated` basis, including failed calls and interrupted
+reservations reconciled after one hour. A caller may supply `measuredUsd` only when a measured
+charge is known; invalid measurements fail without settling. The first settlement wins.
+Compare estimated charges with the provider dashboard; they are not a final invoice.
+
+Reservation admission returns `reserved`, `existing` (pending or settled), or `rejected`.
+Only a new `reserved` result authorizes provider work; reusing a retained reservation ID
+never authorizes another execution. Reservation records are retained until their expiry
+cleanup, so this is not an unlimited transport deduplication guarantee. A rejected estimate
+that does not fit remaining capacity does not latch the circuit: smaller calls may still
+fit, and a lower measured settlement can release reserved headroom. Settled charges reaching
+the cap latch the circuit until UTC reset, even if the configured budget is then raised.
+Existing circuit reset times are preserved during migration because their cause is unknown.
+Estimates/charges round up to integer micro-dollars and budget caps round down.
+
+The legacy SQL column `actual_micros` is the total settled charge, not necessarily measured
+billing. `estimated_settled_micros` and `measured_settled_micros` attribute new charges by
+basis; any remaining difference is historical unknown spend. Old settled reservation rows
+receive `legacy_unknown` basis without changing balances or inventing an invoice source.
 
 Live runs reserve each physical provider or public HTTP request against D1 before sending it.
 Structured-output repairs and redirects consume requests too. Counts, conservative AI cost

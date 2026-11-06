@@ -5,25 +5,26 @@ import { microsToUsd, usdToMicros, utcPeriod } from "./clock.js";
 type KeySource = "platform" | "user";
 interface ReservationRow {
   id: string;
+  reservation_token: string | null;
   provider_key: string;
   key_source: KeySource;
   period_start: string;
   estimated_micros: number;
   actual_micros: number | null;
+  settlement_basis: "estimated" | "measured" | "legacy_unknown" | null;
   settled_at: number | null;
 }
+interface SpendReservation {
+  id: string;
+  providerKey: string;
+  keySource: KeySource;
+  estimatedUsd: number;
+  resetAt: string;
+}
 export type D1SpendAdmission =
-  | {
-      allowed: true;
-      reservation: {
-        id: string;
-        providerKey: string;
-        keySource: KeySource;
-        estimatedUsd: number;
-        resetAt: string;
-      };
-    }
-  | { allowed: false; retryAt: string };
+  | { kind: "reserved"; reservation: SpendReservation }
+  | { kind: "existing"; reservation: SpendReservation; state: "pending" | "settled" }
+  | { kind: "rejected"; reason: "budget_exceeded" | "circuit_open"; retryAt: string };
 
 export class D1SpendRepository {
   private readonly database: D1RepositoryOptions["database"];
@@ -43,12 +44,14 @@ export class D1SpendRepository {
     const now = this.now();
     const period = utcPeriod(now);
     const source = input.keySource ?? "platform";
-    const estimate = usdToMicros(input.estimatedUsd);
-    const budget = usdToMicros(input.dailyBudgetUsd);
+    usdToMicros(input.estimatedUsd);
+    usdToMicros(input.dailyBudgetUsd);
+    const estimate = Math.ceil(input.estimatedUsd * 1_000_000);
+    const budget = Math.floor(input.dailyBudgetUsd * 1_000_000);
     const id = input.reservationId ?? crypto.randomUUID();
     const token = crypto.randomUUID();
     const identity = [input.providerKey, source, period.periodStart];
-    const results = await this.database.batch<ReservationRow>([
+    const results = await this.database.batch<ReservationRow & { open_until: number | null }>([
       this.database
         .prepare(`INSERT INTO ai_provider_spend(provider_key,key_source,period_start,budget_micros,reserved_micros,actual_micros,updated_at)
         SELECT ?,?,?,?,0,0,? WHERE NOT EXISTS(SELECT 1 FROM ai_spend_reservations WHERE id=?)
@@ -66,12 +69,23 @@ export class D1SpendRepository {
         .bind(estimate, now, ...identity, id, token),
       this.database
         .prepare(`UPDATE ai_provider_spend SET open_until=COALESCE(open_until,?),updated_at=? WHERE provider_key=? AND key_source=? AND period_start=?
-        AND NOT EXISTS(SELECT 1 FROM ai_spend_reservations WHERE id=?)`)
+        AND actual_micros>=budget_micros AND NOT EXISTS(SELECT 1 FROM ai_spend_reservations WHERE id=?)`)
         .bind(period.resetAt, now, ...identity, id),
       this.database.prepare("SELECT * FROM ai_spend_reservations WHERE id=?").bind(id),
+      this.database
+        .prepare(
+          "SELECT open_until FROM ai_provider_spend WHERE provider_key=? AND key_source=? AND period_start=?",
+        )
+        .bind(...identity),
     ]);
     const row = results[4]!.results[0];
-    if (!row) return { allowed: false, retryAt: new Date(period.resetAt).toISOString() };
+    if (!row)
+      return {
+        kind: "rejected",
+        reason:
+          (results[5]!.results[0]?.open_until ?? 0) > now ? "circuit_open" : "budget_exceeded",
+        retryAt: new Date(period.resetAt).toISOString(),
+      };
     if (
       row.provider_key !== input.providerKey ||
       row.key_source !== source ||
@@ -80,41 +94,46 @@ export class D1SpendRepository {
       throw new AnalysisStorageConflictError(
         "Spend reservation identity was reused with different immutable input.",
       );
-    return {
-      allowed: true,
-      reservation: {
-        id,
-        providerKey: row.provider_key,
-        keySource: row.key_source,
-        estimatedUsd: microsToUsd(row.estimated_micros),
-        resetAt: new Date(
-          utcPeriod(Date.parse(`${row.period_start}T00:00:00Z`)).resetAt,
-        ).toISOString(),
-      },
+    const reservation: SpendReservation = {
+      id,
+      providerKey: row.provider_key,
+      keySource: row.key_source,
+      estimatedUsd: microsToUsd(row.estimated_micros),
+      resetAt: new Date(
+        utcPeriod(Date.parse(`${row.period_start}T00:00:00Z`)).resetAt,
+      ).toISOString(),
     };
+    return row.reservation_token === token
+      ? { kind: "reserved", reservation }
+      : { kind: "existing", reservation, state: row.settled_at === null ? "pending" : "settled" };
   }
 
-  async settleProviderSpend(input: { reservationId: string; actualUsd: number }): Promise<void> {
+  async settleProviderSpend(input: { reservationId: string; measuredUsd?: number }): Promise<void> {
     const row = await this.database
       .prepare("SELECT * FROM ai_spend_reservations WHERE id=?")
       .bind(input.reservationId)
       .first<ReservationRow>();
     if (!row || row.settled_at !== null) return;
-    const actual =
-      Number.isFinite(input.actualUsd) && input.actualUsd >= 0
-        ? usdToMicros(input.actualUsd)
-        : row.estimated_micros;
+    if (input.measuredUsd !== undefined) usdToMicros(input.measuredUsd);
+    const basis = input.measuredUsd === undefined ? "estimated" : "measured";
+    const charged =
+      input.measuredUsd === undefined
+        ? row.estimated_micros
+        : Math.ceil(input.measuredUsd * 1_000_000);
     const now = this.now();
     const reset = utcPeriod(Date.parse(`${row.period_start}T00:00:00Z`)).resetAt;
     await this.database.batch([
       this.database
         .prepare(`UPDATE ai_provider_spend SET reserved_micros=MAX(0,reserved_micros-?),actual_micros=actual_micros+?,
+        estimated_settled_micros=estimated_settled_micros+?,measured_settled_micros=measured_settled_micros+?,
         open_until=CASE WHEN actual_micros+?>=budget_micros THEN COALESCE(open_until,?) ELSE open_until END,updated_at=?
         WHERE provider_key=? AND key_source=? AND period_start=? AND EXISTS(SELECT 1 FROM ai_spend_reservations WHERE id=? AND settled_at IS NULL)`)
         .bind(
           row.estimated_micros,
-          actual,
-          actual,
+          charged,
+          basis === "estimated" ? charged : 0,
+          basis === "measured" ? charged : 0,
+          charged,
           reset,
           now,
           row.provider_key,
@@ -124,9 +143,9 @@ export class D1SpendRepository {
         ),
       this.database
         .prepare(
-          "UPDATE ai_spend_reservations SET actual_micros=?,settled_at=? WHERE id=? AND settled_at IS NULL",
+          "UPDATE ai_spend_reservations SET actual_micros=?,settlement_basis=?,settled_at=? WHERE id=? AND settled_at IS NULL",
         )
-        .bind(actual, now, input.reservationId),
+        .bind(charged, basis, now, input.reservationId),
     ]);
   }
 }
