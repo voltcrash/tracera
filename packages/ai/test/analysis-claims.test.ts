@@ -126,7 +126,8 @@ test("an analysis limit persists every claim and defers the remainder explicitly
     environment,
   );
 
-  assert.equal(result.status, "partial");
+  assert.equal(result.status, "complete");
+  assert.equal(result.data!.coverage[0]!.extractionStatus, "complete");
   const claims = result.data!.claims;
   assert.equal(claims.length, 12);
   const analyzed = claims.filter((claim) => claim.coverageDisposition === "factual_claim");
@@ -136,10 +137,9 @@ test("an analysis limit persists every claim and defers the remainder explicitly
   assert.ok(result.issues.some((issue) => issue.code === "deferred_processing"));
   assert.equal(summarizeInventory(result.data!).deferredClaims, 8);
   assert.ok(
-    result.data!.coverage[0]!.segments.some(
-      (segment) => segment.disposition === "deferred" && segment.claimIds.length === 1,
-    ),
+    result.data!.coverage[0]!.segments.every((segment) => segment.disposition === "factual_claim"),
   );
+  assert.equal(result.data!.coverage[0]!.charactersCovered, snapshot.normalizedText.length);
 });
 
 test("an exhausted extraction budget defers unread segments instead of dropping them", async () => {

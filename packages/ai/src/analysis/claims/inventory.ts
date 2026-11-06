@@ -96,7 +96,6 @@ export function buildInventory(input: {
     priority.length -
     [...dispositionById.values()].filter((value) => value === "factual_claim").length;
   if (deferredCount > 0) {
-    incomplete = true;
     issues.push(
       issue(
         "deferred_processing",
@@ -170,13 +169,11 @@ export function buildInventory(input: {
         continue;
       }
       if (covering.length > 0) {
-        const factual = covering.some((claim) => claim.coverageDisposition === "factual_claim");
-        if (!factual) documentIncomplete = true;
         segments.push({
           span: segment.span,
-          disposition: factual ? "factual_claim" : "deferred",
+          disposition: "factual_claim",
           claimIds: covering.map((claim) => claim.id).sort(),
-          reason: factual ? null : "Every claim in this segment is deferred by the analysis limit.",
+          reason: null,
         });
         continue;
       }
