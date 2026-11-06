@@ -144,34 +144,13 @@ export const stageMetricsSchema = z.strictObject({
  * `partial` carry data; `unavailable` and `failed` never do.
  */
 export function stageResultSchema<Data extends z.ZodType>(data: Data) {
+  const common = { issues: z.array(issueSchema), metrics: stageMetricsSchema };
   return z
-    .strictObject({
-      status: stageStatusSchema,
-      data: data.nullable(),
-      issues: z.array(issueSchema),
-      metrics: stageMetricsSchema,
-    })
-    .superRefine((raw, context) => {
-      const value = raw as unknown as {
-        status: z.infer<typeof stageStatusSchema>;
-        data: unknown;
-        issues: unknown[];
-      };
-      const carriesData = value.status === "complete" || value.status === "partial";
-      if (carriesData && value.data === null) {
-        context.addIssue({
-          code: "custom",
-          path: ["data"],
-          message: "A complete or partial stage must return data.",
-        });
-      }
-      if (!carriesData && value.data !== null) {
-        context.addIssue({
-          code: "custom",
-          path: ["data"],
-          message: "An unavailable or failed stage must not return data.",
-        });
-      }
+    .discriminatedUnion("status", [
+      z.strictObject({ status: z.enum(["complete", "partial"]), data, ...common }),
+      z.strictObject({ status: z.enum(["unavailable", "failed"]), data: z.null(), ...common }),
+    ])
+    .superRefine((value, context) => {
       if (value.status !== "complete" && value.issues.length === 0) {
         context.addIssue({
           code: "custom",
@@ -187,6 +166,23 @@ export interface StageResult<Data> {
   data: Data | null;
   issues: Array<z.infer<typeof issueSchema>>;
   metrics: z.infer<typeof stageMetricsSchema>;
+}
+
+/** Construct dynamically selected statuses without weakening the status/data invariant. */
+export function createStageResult<Data>(value: {
+  status: z.infer<typeof stageStatusSchema>;
+  data: Data | null;
+  issues: Array<z.infer<typeof issueSchema>>;
+  metrics: z.infer<typeof stageMetricsSchema>;
+}): StageResult<Data> {
+  if (value.status !== "complete" && value.issues.length === 0)
+    throw new Error("A non-complete stage must state at least one typed issue.");
+  if (value.status === "complete" || value.status === "partial") {
+    if (value.data === null) throw new Error("A complete or partial stage must return data.");
+    return { ...value, status: value.status, data: value.data };
+  }
+  if (value.data !== null) throw new Error("An unavailable or failed stage must not return data.");
+  return { ...value, status: value.status, data: null };
 }
 
 // ---------------------------------------------------------------------------
