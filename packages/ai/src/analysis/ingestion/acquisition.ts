@@ -559,6 +559,7 @@ async function acquireImageBytes(
     uncertain: boolean;
   }> = [];
   let ocrAttempts = 0;
+  let ocrOutcome: "unavailable" | "failed" | "empty" | "recognized" = "unavailable";
   if (options.ocr) {
     try {
       externalRequests += 1;
@@ -580,8 +581,14 @@ async function acquireImageBytes(
           uncertain: region.transcriptionUncertain,
         });
       });
+      ocrOutcome = parts.length > 0 ? "recognized" : "empty";
+      if (ocrOutcome === "empty")
+        issues.push(
+          issue("content_unavailable", "OCR returned no readable text regions.", input.originalUrl),
+        );
     } catch (error) {
       if (input.signal.aborted) throw input.signal.reason ?? error;
+      ocrOutcome = "failed";
       if (error instanceof GenerationUsageError) {
         externalRequests += error.attempts - 1;
         ocrAttempts = error.attempts;
@@ -603,6 +610,7 @@ async function acquireImageBytes(
       ),
     );
   }
+  const hasOcrText = parts.some(({ kind }) => kind === "ocr_text");
   if (input.caption?.trim()) {
     parts.push({
       text: input.caption.trim(),
@@ -712,7 +720,7 @@ async function acquireImageBytes(
       ),
     );
   const extractionStatus =
-    !options.ocr || !retained.text ? "partial" : truncated ? "partial" : "complete";
+    ocrOutcome !== "recognized" || !retained.text || truncated ? "partial" : "complete";
   const snapshot = await buildSnapshot({
     normalizedText: retained.text,
     rawBytes: input.bytes,
@@ -724,7 +732,7 @@ async function acquireImageBytes(
     language: null,
     role: input.role,
     extractionStatus,
-    extractionMethod: options.ocr ? "ocr" : input.caption?.trim() ? "user_supplied" : "none",
+    extractionMethod: hasOcrText ? "ocr" : input.caption?.trim() ? "user_supplied" : "none",
     byteLimit: input.maxBytes,
     characterLimit,
     truncated,

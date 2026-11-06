@@ -349,3 +349,101 @@ for (const text of ["", "  \r\n"]) {
     assert.ok(result.issues.some(({ code }) => code === "content_unavailable"));
   });
 }
+
+for (const outcome of ["failed", "empty", "recognized"] as const) {
+  test(`OCR ${outcome} stays distinct from user-caption content`, async () => {
+    const port = createDocumentAcquisitionPort({
+      now: () => NOW,
+      ocr: {
+        provider: "fixture",
+        modelId: "fixture",
+        async recognize() {
+          if (outcome === "failed") throw new Error("OCR unavailable");
+          return {
+            regions:
+              outcome === "empty"
+                ? []
+                : [
+                    {
+                      text: "Visible original text.",
+                      boundingBox: { page: 0, frameId: null, x: 0, y: 0, width: 1, height: 1 },
+                      transcriptionUncertain: false,
+                    },
+                  ],
+          };
+        },
+      },
+      reverseImage: {
+        connector: "fixture",
+        async search() {
+          return { status: "performed", matchedUrls: [] };
+        },
+      },
+      contentCredentials: {
+        verifier: "fixture",
+        async inspect() {
+          return { status: "verified" };
+        },
+      },
+    });
+    const result = await port.acquireImage({
+      data: "data:image/png;base64,iVBORw0KGgo=",
+      mimeType: "image/png",
+      caption: "User context only.",
+      role: "submitted_input",
+      maxBytes: 100,
+      signal: new AbortController().signal,
+    });
+    const snapshot = result.data!.snapshot;
+    assert.equal(result.status, outcome === "recognized" ? "complete" : "partial");
+    assert.equal(snapshot.extractionStatus, result.status);
+    assert.equal(snapshot.extractionMethod, outcome === "recognized" ? "ocr" : "user_supplied");
+    assert.equal(
+      snapshot.locators.some(({ kind }) => kind === "ocr_text"),
+      outcome === "recognized",
+    );
+    assert.ok(snapshot.locators.some(({ kind }) => kind === "user_caption"));
+    if (outcome !== "recognized")
+      assert.ok(
+        result.issues.some(
+          ({ code }) => code === (outcome === "empty" ? "content_unavailable" : "provider_failure"),
+        ),
+      );
+  });
+}
+
+test("empty OCR with working image verifiers still records why extraction is partial", async () => {
+  const port = createDocumentAcquisitionPort({
+    now: () => NOW,
+    ocr: {
+      provider: "fixture",
+      modelId: "fixture",
+      async recognize() {
+        return { regions: [] };
+      },
+    },
+    reverseImage: {
+      connector: "fixture",
+      async search() {
+        return { status: "performed", matchedUrls: [] };
+      },
+    },
+    contentCredentials: {
+      verifier: "fixture",
+      async inspect() {
+        return { status: "verified" };
+      },
+    },
+  });
+  const result = await port.acquireImage({
+    data: "data:image/png;base64,iVBORw0KGgo=",
+    mimeType: "image/png",
+    caption: null,
+    role: "submitted_input",
+    maxBytes: 100,
+    signal: new AbortController().signal,
+  });
+  assert.equal(result.status, "partial");
+  assert.equal(result.data!.snapshot.extractionMethod, "none");
+  assert.ok(result.issues.some(({ code }) => code === "content_unavailable"));
+});
