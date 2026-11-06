@@ -7,10 +7,67 @@ import {
   evidenceSnapshot,
 } from "../scripts/support/scripted-evidence.js";
 import {
+  accumulateEvidence,
   assignSourceDependence,
   buildChallengeInput,
   createAssessEvidence,
 } from "../src/analysis/evidence/index.js";
+
+test("evidence accumulation recomputes publisher dependence across batches and arrival orders", async () => {
+  const claim = evidenceClaim();
+  const snapshots = [
+    evidenceSnapshot("desk_a", "Northbridge recorded 42 incidents in 1998.", {
+      url: "https://wire.example/a",
+    }),
+    evidenceSnapshot("desk_b", "The Northbridge ledger recorded 42 incidents during 1998.", {
+      url: "https://wire.example/b",
+    }),
+  ];
+  const { environment } = createScriptedEvidenceEnvironment(({ claim, snapshotId, passage }) =>
+    assessmentResponse(claim, snapshotId, passage),
+  );
+  const batches = [];
+  for (const snapshot of snapshots) {
+    const result = await createAssessEvidence()(
+      { claims: [claim], snapshots: [snapshot], admittedSnapshotIds: [snapshot.id] },
+      environment,
+    );
+    assert.equal(result.data?.sufficiency[0]?.sufficient, true);
+    batches.push(result.data!.assessments);
+  }
+  const combined = accumulateEvidence([claim], snapshots, ...batches);
+  assert.ok(combined.assessments.every(({ dependence }) => dependence === "same_publisher"));
+  assert.equal(combined.sufficiency[0]?.sufficient, false);
+  assert.deepEqual(accumulateEvidence([claim], snapshots, ...[...batches].reverse()), combined);
+  assert.deepEqual(accumulateEvidence([claim], snapshots, combined.assessments), combined);
+});
+
+test("later insufficient evidence does not replace sufficiency derived from earlier records", async () => {
+  const claim = evidenceClaim();
+  const quote = "Northbridge recorded 42 incidents in 1998.";
+  const first = await run(quote, ({ claim, snapshotId }) =>
+    assessmentResponse(claim, snapshotId, quote),
+  );
+  const snapshot = evidenceSnapshot("later_report", `${quote} A secondary report.`, {
+    url: "https://another.example/report",
+  });
+  const { environment } = createScriptedEvidenceEnvironment(({ claim, snapshotId, passage }) =>
+    assessmentResponse(claim, snapshotId, passage, { directness: "secondary" }),
+  );
+  const later = await createAssessEvidence()(
+    { claims: [claim], snapshots: [snapshot], admittedSnapshotIds: [snapshot.id] },
+    environment,
+  );
+  assert.equal(later.data?.sufficiency[0]?.sufficient, false);
+  const combined = accumulateEvidence(
+    [claim],
+    [first.snapshot, snapshot],
+    first.result.data!.assessments,
+    later.data!.assessments,
+  );
+  assert.equal(combined.assessments.length, 2);
+  assert.equal(combined.sufficiency[0]?.sufficient, true);
+});
 
 async function run(
   text: string,
