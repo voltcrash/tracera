@@ -484,3 +484,31 @@ for (const text of ["Reader text exceeding the configured limit.", null]) {
     );
   });
 }
+
+test("complete and bounded acquisitions have distinct immutable identities even when retained bytes match", async () => {
+  let text = "abc";
+  const port = createDocumentAcquisitionPort({
+    now: () => NOW,
+    characterLimit: 3,
+    textByteLimit: 3,
+    safeFetchOptions: {
+      resolveHostAddresses: publicResolver,
+      fetchImplementation: async () =>
+        new Response(text, { headers: { "content-type": "text/plain" } }),
+    },
+  });
+  const request = {
+    url: "https://source.example/same-prefix",
+    role: "submitted_input" as const,
+    maxBytes: 3,
+    signal: new AbortController().signal,
+  };
+  const complete = (await port.acquire(request)).data!.snapshot;
+  text = "abcX";
+  const bounded = (await port.acquire(request)).data!.snapshot;
+  assert.equal(complete.extractionStatus, "complete");
+  assert.equal(bounded.extractionStatus, "partial");
+  assert.equal(complete.contentHash, bounded.contentHash);
+  assert.equal(complete.rawContentHash, bounded.rawContentHash);
+  assert.notEqual(complete.id, bounded.id);
+});

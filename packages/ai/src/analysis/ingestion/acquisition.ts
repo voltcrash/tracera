@@ -1037,6 +1037,7 @@ async function buildSnapshot(input: {
     canonicalUrl: input.canonicalUrl,
     role: input.role,
     extractionMethod: input.extractionMethod,
+    extractionStatus: input.extractionStatus,
   });
   const blobLocator = input.options.rawBlobStore
     ? await input.options.rawBlobStore.put({
