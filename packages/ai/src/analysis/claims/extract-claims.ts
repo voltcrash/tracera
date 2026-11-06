@@ -9,6 +9,7 @@ import {
   type SegmentedDocument,
 } from "./segmentation";
 import { validateRawClaim, type ChunkScope, type ClaimDraft } from "./validation";
+import { GenerationUsageError } from "../generation-usage";
 
 export interface ClaimExtractionOptions {
   maxChunkCharacters?: number;
@@ -189,10 +190,11 @@ export function createExtractClaims(options: ClaimExtractionOptions = {}): Extra
         } catch (error) {
           if (isCanceled(environment)) return canceled();
           if (!counted) {
-            usage.requests += 1;
+            usage.requests += error instanceof GenerationUsageError ? error.attempts : 1;
             usage.inputTokens = null;
             usage.outputTokens = null;
-            usage.costUsd = null;
+            if (error instanceof GenerationUsageError) addUsage(usage, error.usage);
+            else usage.costUsd = null;
           }
           chunksFailed += 1;
           incomplete = true;

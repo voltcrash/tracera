@@ -14,7 +14,7 @@ export interface OcrPort {
     bytes: Uint8Array;
     mimeType: string;
     signal: AbortSignal;
-  }): Promise<{ regions: OcrRegion[] }>;
+  }): Promise<{ regions: OcrRegion[]; attempts?: number }>;
 }
 
 export interface ReverseImageRetrievalPort {

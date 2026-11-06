@@ -52,7 +52,7 @@ export class GeminiProvider extends StructuredOutputProvider {
             }
           : {}),
       },
-      options?.signal,
+      options,
     );
     const embedding = response.embedding?.values;
 
@@ -77,7 +77,7 @@ export class GeminiProvider extends StructuredOutputProvider {
           responseJsonSchema: schema,
         },
       },
-      options?.signal,
+      options,
     );
     const content = response.candidates?.[0]?.content?.parts
       ?.map((part) => part.text ?? "")
@@ -105,7 +105,7 @@ export class GeminiProvider extends StructuredOutputProvider {
           responseJsonSchema: schema,
         },
       },
-      options?.signal,
+      options,
     );
     const content = response.candidates?.[0]?.content?.parts
       ?.map((part) => part.text ?? "")
@@ -117,7 +117,7 @@ export class GeminiProvider extends StructuredOutputProvider {
   private request<TResponse>(
     path: string,
     body: unknown,
-    signal?: AbortSignal,
+    options?: AiRequestOptions,
   ): Promise<TResponse> {
     return requestProviderJson<TResponse>(
       this.providerName,
@@ -129,8 +129,9 @@ export class GeminiProvider extends StructuredOutputProvider {
           "x-goog-api-key": this.apiKey,
         },
         body: JSON.stringify(body),
-        signal,
+        signal: options?.signal,
       },
+      options?.onRequest,
     );
   }
 }

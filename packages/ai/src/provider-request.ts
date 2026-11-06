@@ -14,10 +14,22 @@ export async function requestProviderJson<T>(
   provider: string,
   url: string,
   init: RequestInit,
+  onRequest?: () => void | Promise<void>,
 ): Promise<T> {
   let response: Response;
   try {
     if (new URL(url).protocol !== "https:") throw new ProviderRequestError(provider);
+  } catch {
+    throw new ProviderRequestError(provider);
+  }
+  const checkCancellation = () => {
+    if (init.signal?.aborted)
+      throw new DOMException("The provider request was aborted.", "AbortError");
+  };
+  checkCancellation();
+  await onRequest?.();
+  checkCancellation();
+  try {
     response = await safeFetch(url, { ...init, redirect: "error" });
   } catch {
     if (init.signal?.aborted)

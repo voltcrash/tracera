@@ -9,6 +9,7 @@ import {
 import { safeFetch, type SafeFetchOptions } from "../../safe-fetch";
 import type { RawBlobStore } from "../storage";
 import { extractStructuredHtml } from "./html";
+import { GenerationUsageError } from "../generation-usage";
 import type {
   ContentCredentialsPort,
   ImageAcquisitionRequest,
@@ -563,14 +564,18 @@ async function acquireImageBytes(
     boundingBox: DocumentSnapshot["locators"][number]["boundingBox"];
     uncertain: boolean;
   }> = [];
+  let ocrAttempts = 0;
   if (options.ocr) {
     try {
       externalRequests += 1;
+      ocrAttempts = 1;
       const result = await options.ocr.recognize({
         bytes: input.bytes,
         mimeType: input.mimeType,
         signal: input.signal,
       });
+      ocrAttempts = Math.max(1, result.attempts ?? 1);
+      externalRequests += ocrAttempts - 1;
       result.regions.forEach((region, index) => {
         if (!region.text.trim()) return;
         parts.push({
@@ -583,6 +588,10 @@ async function acquireImageBytes(
       });
     } catch (error) {
       if (input.signal.aborted) throw input.signal.reason ?? error;
+      if (error instanceof GenerationUsageError) {
+        externalRequests += error.attempts - 1;
+        ocrAttempts = error.attempts;
+      }
       issues.push(
         issue(
           "provider_failure",
@@ -743,11 +752,13 @@ async function acquireImageBytes(
       startedMs,
       monotonicMs,
       externalRequests,
-      options.ocr && externalRequests === 1
-        ? (options.ocrCostUsd ?? null)
-        : externalRequests === 0
+      options.reverseImage || options.contentCredentials
+        ? null
+        : ocrAttempts === 0
           ? 0
-          : null,
+          : options.ocrCostUsd === undefined
+            ? null
+            : options.ocrCostUsd * ocrAttempts,
     ),
   );
 }

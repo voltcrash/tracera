@@ -10,6 +10,7 @@ import { buildAssessmentRequest } from "./generation";
 import { buildSufficiencyFeedback } from "./sufficiency";
 import type { EvidenceAssessmentOptions } from "./types";
 import { validateAssessment } from "./validation";
+import { GenerationUsageError } from "../generation-usage";
 
 export const assessEvidence: AssessEvidence = createAssessEvidence();
 
@@ -117,6 +118,7 @@ async function assess(
           const response = await environment.ports.generation.generate(
             buildAssessmentRequest(claim, snapshot, passage, environment.signal),
           );
+          requests += Math.max(1, response.attempts) - 1;
           inputTokens = addUsage(inputTokens, response.usage.inputTokens);
           outputTokens = addUsage(outputTokens, response.usage.outputTokens);
           costUsd = addUsage(costUsd, response.usage.costUsd);
@@ -161,7 +163,11 @@ async function assess(
         } catch (error) {
           if (canceled(environment)) return canceledResult();
           failedPairs += 1;
-          inputTokens = outputTokens = costUsd = null;
+          inputTokens = outputTokens = null;
+          if (error instanceof GenerationUsageError) {
+            requests += error.attempts - 1;
+            costUsd = addUsage(costUsd, error.usage.costUsd);
+          } else costUsd = null;
           issues.push(
             issue(
               "provider_failure",

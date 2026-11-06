@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AiProvider } from "../provider";
 import type { OcrPort } from "./ingestion/types";
 import type { ClockPort, EmbeddingPort, GenerationPort } from "./types";
+import { GenerationUsageError } from "./generation-usage";
 
 export function createAnalysisGenerationPort(input: {
   provider: AiProvider;
@@ -27,6 +28,9 @@ export function createAnalysisGenerationPort(input: {
       const onStructuredOutputAttempt = (attempt: { attempt: number }) => {
         attempts = Math.max(attempts, attempt.attempt);
       };
+      const onRequest = () => {
+        attempts += 1;
+      };
       const operation = () =>
         request.images.length > 0
           ? input.provider.generateFromImage(
@@ -36,24 +40,32 @@ export function createAnalysisGenerationPort(input: {
                 mimeType: request.images[0]!.mimeType,
               },
               request.schema,
-              { signal: request.signal, onStructuredOutputAttempt },
+              { signal: request.signal, onStructuredOutputAttempt, onRequest },
             )
           : input.provider.generate(prompt, request.schema, {
               signal: request.signal,
               onStructuredOutputAttempt,
+              onRequest,
             });
-      const value = await operation();
+      const usage = (count = Math.max(1, attempts)) => ({
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: scaledCost(
+          request.images.length > 0
+            ? input.estimatedImageCostUsd
+            : input.estimatedGenerationCostUsd,
+          count,
+        ),
+      });
+      let value;
+      try {
+        value = await operation();
+      } catch (error) {
+        throw new GenerationUsageError(error, attempts, usage(attempts));
+      }
       return {
         value,
-        usage: {
-          inputTokens: null,
-          outputTokens: null,
-          costUsd: estimatedCost(
-            request.images.length > 0
-              ? input.estimatedImageCostUsd
-              : input.estimatedGenerationCostUsd,
-          ),
-        },
+        usage: usage(),
         attempts: Math.max(1, attempts),
       };
     },
@@ -123,6 +135,7 @@ export function createProviderOcrPort(input: { provider: AiProvider; modelId: st
     provider: "configured-ai",
     modelId: input.modelId,
     async recognize(request) {
+      let attempts = 0;
       const image = {
         data: `data:${request.mimeType};base64,${Buffer.from(request.bytes).toString("base64")}`,
         mimeType: request.mimeType,
@@ -137,10 +150,26 @@ export function createProviderOcrPort(input: { provider: AiProvider; modelId: st
           ].join(" "),
           image,
           ocrResponseSchema,
-          { signal: request.signal },
+          {
+            signal: request.signal,
+            onRequest: () => {
+              attempts += 1;
+            },
+            onStructuredOutputAttempt: (event) => {
+              attempts = Math.max(attempts, event.attempt);
+            },
+          },
         );
-      const value = await operation();
-      return { regions: value.regions };
+      try {
+        const value = await operation();
+        return { regions: value.regions, attempts: Math.max(1, attempts) };
+      } catch (error) {
+        throw new GenerationUsageError(error, attempts, {
+          inputTokens: null,
+          outputTokens: null,
+          costUsd: null,
+        });
+      }
     },
   };
 }
