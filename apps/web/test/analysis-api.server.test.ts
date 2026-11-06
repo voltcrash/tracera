@@ -89,12 +89,13 @@ test("invalid input, missing keys and disabled analysis never admit a run", asyn
   expect(harness.created.length).toBe(before);
 });
 
-test("a repeated idempotency key during the run is reported as in progress", async () => {
+test("a repeated idempotency key replays the accepted run without starting another Workflow", async () => {
   const first = await start({ text: "A repeatable claim." }, "repeat-key");
   expect(first.status).toBe(202);
   const repeat = await start({ text: "A repeatable claim." }, "repeat-key");
-  expect(repeat.status).toBe(409);
-  expect(repeat.body.code).toBe("idempotency_in_progress");
+  expect(repeat.status).toBe(202);
+  expect(repeat.body).toEqual(first.body);
+  expect(repeat.headers?.["x-idempotency-replayed"]).toBe("true");
   await cancelAnalysisRun(harness.env, ada, first.body.runId as string);
 });
 
@@ -133,8 +134,8 @@ test("an uncertain Workflow creation preserves the accepted run for recovery", a
       body: { text: "A failing claim." },
       idempotencyKey: "failing-key",
     });
-    expect(replay.status).toBe(409);
-    expect(replay.body.code).toBe("idempotency_in_progress");
+    expect(replay.status).toBe(202);
+    expect(replay.body.runId).toBe(failed.body.runId);
   } finally {
     console.error = errors;
   }
@@ -273,4 +274,31 @@ test("cancellation is owner scoped and refused once a run has finished", async (
   });
   expect((await readRunState(harness.env, ada, runId))?.progress.status).toBe("canceled");
   expect((await cancelAnalysisRun(harness.env, ada, runId)).status).toBe(409);
+});
+
+test("accepted requests replay before changed runtime policy or provider availability is checked", async () => {
+  const key = "replay-disabled-runtime";
+  const body = { text: "A request with an accepted run." };
+  const before = harness.created.length;
+  const first = await start(body, key);
+  const replay = await startAnalysisRun({
+    env: { ...harness.env, MODE: "production", ANALYSIS_MODE: "live" },
+    user: ada,
+    request: request(),
+    body,
+    idempotencyKey: key,
+  });
+  expect(replay.status).toBe(202);
+  expect(replay.body).toEqual(first.body);
+  expect(replay.headers?.["x-idempotency-replayed"]).toBe("true");
+  expect(harness.created.length).toBe(before + 1);
+  const conflict = await startAnalysisRun({
+    env: { ...harness.env, MODE: "production" },
+    user: ada,
+    request: request(),
+    body: { text: "Changed input must still conflict." },
+    idempotencyKey: key,
+  });
+  expect(conflict.status).toBe(409);
+  expect(conflict.body.code).toBe("idempotency_conflict");
 });

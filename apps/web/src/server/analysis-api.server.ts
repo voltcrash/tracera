@@ -1,5 +1,5 @@
 import { stageNameSchema, type RunStatus } from "@repo/contracts/analysis";
-import type { AnalysisAccessScope } from "@repo/db";
+import type { AnalysisAccessScope, AnalysisAdmission } from "@repo/db";
 import {
   createD1AdmissionRepository,
   createD1AnalysisRepository,
@@ -13,6 +13,7 @@ import {
   analysisControlPayload,
   analysisControlStatus,
   analysisRateHeaders,
+  analysisRequestIdentity,
   validIdempotencyKey,
 } from "./analysis-controls";
 import { parseFirstPartyAnalysisInput, type FirstPartyAnalysisInput } from "./analysis-input";
@@ -58,6 +59,21 @@ export async function startAnalysisRun(input: {
   const { env, user, request } = input;
   const parsed = parseFirstPartyAnalysisInput(input.body);
   if (!parsed.success) return { status: 400, body: { error: parsed.error } };
+  const idempotency = validIdempotencyKey(input.idempotencyKey);
+  if (!idempotency.valid) return { status: 400, body: { error: idempotency.message } };
+  const storage = analysisStorage(env);
+  try {
+    const existing = await storage.admission.readAnalysisAdmission({
+      userId: user.id,
+      endpoint: START_ANALYSIS_ENDPOINT,
+      idempotencyKey: idempotency.value,
+      requestHash: analysisRequestIdentity(request, parsed.data, env.BETTER_AUTH_SECRET)
+        .requestHash,
+    });
+    if (existing) return admissionResponse(existing);
+  } catch {
+    return { status: 503, body: { error: "Analysis controls are unavailable." } };
+  }
   let selection: Awaited<ReturnType<typeof personalProviderSelection>>;
   try {
     if (env.ANALYSIS_MODE === "live") selection = await personalProviderSelection(env, user.id);
@@ -83,10 +99,6 @@ export async function startAnalysisRun(input: {
         error: "Analysis is not available right now.",
       },
     };
-  const idempotency = validIdempotencyKey(input.idempotencyKey);
-  if (!idempotency.valid) return { status: 400, body: { error: idempotency.message } };
-
-  const storage = analysisStorage(env);
   const config = analysisControlConfig(env);
   config.leaseSeconds = workflowAdmissionLeaseSeconds(
     config.leaseSeconds,
@@ -109,20 +121,7 @@ export async function startAnalysisRun(input: {
   } catch {
     return { status: 503, body: { error: "Analysis controls are unavailable." } };
   }
-  if (admission.kind === "rejected") {
-    const error = analysisAdmissionError(admission);
-    return {
-      status: analysisControlStatus(error.code),
-      body: analysisControlPayload(error),
-      headers: analysisControlHeaders(error),
-    };
-  }
-  if (admission.kind === "replay")
-    return {
-      status: admission.responseStatus,
-      body: admission.responseBody as Record<string, unknown>,
-      headers: { "x-idempotency-replayed": "true" },
-    };
+  if (admission.kind !== "admitted") return admissionResponse(admission);
 
   const context = analysisRunContext(user.id, analysisInput(parsed.data), runtime.policy);
   const params: AnalysisWorkflowParams = {
@@ -192,6 +191,21 @@ export async function startAnalysisRun(input: {
       reportUrl: `/run/${context.runId}`,
     },
     headers: analysisRateHeaders(admission),
+  };
+}
+
+function admissionResponse(admission: Exclude<AnalysisAdmission, { kind: "admitted" }>): ApiResult {
+  if (admission.kind === "replay")
+    return {
+      status: admission.responseStatus,
+      body: admission.responseBody as Record<string, unknown>,
+      headers: { "x-idempotency-replayed": "true" },
+    };
+  const error = analysisAdmissionError(admission);
+  return {
+    status: analysisControlStatus(error.code),
+    body: analysisControlPayload(error),
+    headers: analysisControlHeaders(error),
   };
 }
 
