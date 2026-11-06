@@ -329,7 +329,7 @@ function estimatedCost(call: AiProviderCall, config: AnalysisControlConfig) {
         ? config.imageCostUsd
         : config.generationCostUsd;
   const retrySafetyFactor = call.kind === "generate" || call.kind === "generate_image" ? 2 : 1;
-  return Number((base * retrySafetyFactor).toFixed(6));
+  return base * retrySafetyFactor;
 }
 
 function requestIp(request: Request) {

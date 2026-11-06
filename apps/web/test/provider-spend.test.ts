@@ -69,3 +69,29 @@ test("an unfunded generation cannot prevent a cheaper embedding from executing",
   expect(await provider.embed("fixture")).toEqual([1]);
   expect(embed).toHaveBeenCalledTimes(1);
 });
+
+test.each([
+  [0.0000011, 2],
+  [0.0000001, 1],
+])("the wrapper preserves a $%s estimate until D1 rounds up", async (estimate, micros) => {
+  const store = createD1SpendRepository({ database: runtime.db });
+  const embed = vi.fn(async () => [1]);
+  const provider = spendLimitedAiProvider(
+    underlying(embed),
+    config,
+    analysisControlConfig({ AI_ESTIMATED_EMBEDDING_COST_USD: String(estimate) }),
+    store,
+  );
+  expect(await provider.embed("fixture")).toEqual([1]);
+  expect(embed).toHaveBeenCalledTimes(1);
+  expect(
+    await runtime.db
+      .prepare("SELECT estimated_micros FROM ai_spend_reservations")
+      .first("estimated_micros"),
+  ).toBe(micros);
+  expect(
+    await runtime.db
+      .prepare("SELECT estimated_settled_micros FROM ai_provider_spend")
+      .first("estimated_settled_micros"),
+  ).toBe(micros);
+});
