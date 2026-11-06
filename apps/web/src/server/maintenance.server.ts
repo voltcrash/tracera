@@ -89,12 +89,12 @@ export async function scheduledMaintenance(env: ServerEnv, now = Date.now()) {
           !cancellation.requested &&
           now - row.created_at >= LAUNCH_RECOVERY_WINDOW_MS
         ) {
-          await storage.runs.failRun({
+          const settled = await storage.runs.failRun({
             ...identity,
             fencingToken: null,
             error: "The analysis Workflow did not begin before its launch window expired.",
           });
-          counts.failedRuns++;
+          counts[settled === "canceled" ? "canceledRuns" : "failedRuns"]++;
           continue;
         }
         if (
@@ -107,12 +107,12 @@ export async function scheduledMaintenance(env: ServerEnv, now = Date.now()) {
           if (await storage.runs.acknowledgeStoppedCancellation(identity)) counts.canceledRuns++;
         } else if (["complete", "errored", "terminated"].includes(state.status)) {
           const attempt = await storage.runs.getActiveAttempt(identity);
-          await storage.runs.failRun({
+          const settled = await storage.runs.failRun({
             ...identity,
             fencingToken: attempt?.fencingToken ?? null,
             error: "The analysis Workflow stopped before the run finished.",
           });
-          counts.failedRuns++;
+          counts[settled === "canceled" ? "canceledRuns" : "failedRuns"]++;
         }
       } catch (error) {
         if (!(error instanceof StaleWorkerError)) throw error;

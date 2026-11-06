@@ -188,12 +188,12 @@ export async function runAnalysisWorkflow(
           await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
           return { status: "canceled", reportUri: null, fencingToken: null };
         }
-        await storage.runs.failRun({
+        const status = await storage.runs.failRun({
           ...identity,
           fencingToken: attempt?.fencingToken ?? null,
           error: "The analysis Workflow exhausted its retries.",
         });
-        return { status: "failed", reportUri: null, fencingToken: null };
+        return { status, reportUri: null, fencingToken: null };
       },
     );
   }

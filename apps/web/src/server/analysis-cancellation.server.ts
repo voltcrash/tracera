@@ -12,9 +12,13 @@ export async function terminateCanceledRun(
   sleep: (milliseconds: number) => Promise<void> = (milliseconds) =>
     new Promise((resolve) => setTimeout(resolve, milliseconds)),
 ) {
-  await sleep(CANCELLATION_GRACE_MS);
   const storage = analysisStorage(env);
   const identity = { scope: accessScope({ id: ownerUserId }), runId };
+  const cancellation = (await storage.runs.getRunContext(identity))?.cancellation;
+  if (!cancellation?.requested) return;
+  await sleep(
+    Math.max(0, CANCELLATION_GRACE_MS - (Date.now() - Date.parse(cancellation.requestedAt!))),
+  );
   const progress = await storage.runs.getRunProgress(identity);
   if (!progress?.cancellationRequested) return;
   const instance = await env.ANALYSIS_WORKFLOW.get(runId);
