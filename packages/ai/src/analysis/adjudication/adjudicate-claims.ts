@@ -13,6 +13,7 @@ import {
   type SufficiencyFeedback,
 } from "@repo/contracts/analysis";
 import {
+  accumulateEvidence,
   buildChallengeInput,
   buildSufficiencyFeedback,
   createAssessEvidence,
@@ -224,7 +225,13 @@ async function adjudicate(
       const added = await targetedRound(claim, claimAssessments, snapshots);
       if (added !== null) {
         rounds = 1;
-        partition = partitionEvidence(claim, [...claimAssessments, ...added], snapshots);
+        const accumulated = accumulateEvidence(
+          [claim],
+          [...snapshots.values()],
+          claimAssessments,
+          added,
+        );
+        partition = partitionEvidence(claim, accumulated.assessments, snapshots);
         if (partition.integrityFailures.length > 0)
           return integrityFailure(claim, partition.integrityFailures);
         const reresolved = resolveDraft(draft, claim, partition.usable);
