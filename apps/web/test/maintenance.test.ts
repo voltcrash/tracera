@@ -180,19 +180,19 @@ test("an instance stuck in the Workflow queue cannot leave its run queued indefi
   expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("failed");
 });
 
-test("launch recovery cannot restart expired admissions or canceled runs", async () => {
+test("launch recovery cannot restart released admissions or canceled runs", async () => {
   const runId = await start();
   const canceledId = await start();
   await cancelAnalysisRun(harness.env, user, canceledId);
   harness.created.length = 0;
   await harness.env.DB.prepare(
-    "UPDATE analysis_leases SET expires_at=0 WHERE id=(SELECT json_extract(input_json,'$.admission.leaseId') FROM core_runs WHERE run_id=?)",
+    "UPDATE analysis_leases SET released_at=0 WHERE id=(SELECT json_extract(input_json,'$.admission.leaseId') FROM core_runs WHERE run_id=?)",
   )
     .bind(runId)
     .run();
   const workflow = recoverableBinding();
   const counts = await scheduledMaintenance(workflow.env, Date.now() + LAUNCH_RETRY_GRACE_MS + 1);
-  expect(counts).toMatchObject({ failedRuns: 1, admissionsReleased: 2, launchesRecovered: 0 });
+  expect(counts).toMatchObject({ failedRuns: 1, admissionsReleased: 1, launchesRecovered: 0 });
   expect(workflow.create).not.toHaveBeenCalled();
   expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("failed");
   expect((await readRunState(harness.env, user, canceledId))?.progress.status).toBe("canceled");
@@ -319,4 +319,17 @@ test("maintenance stops a paused instance after queued cancellation", async () =
   ).toBe(1);
   expect(workflow.terminate).toHaveBeenCalledTimes(1);
   expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("canceled");
+});
+
+test("a bound launch keeps its admission across the pre-launch expiry timer", async () => {
+  const runId = await start();
+  harness.created.length = 0;
+  await harness.env.DB.prepare("UPDATE analysis_leases SET expires_at=0 WHERE run_id=?")
+    .bind(runId)
+    .run();
+  const workflow = recoverableBinding();
+  const counts = await scheduledMaintenance(workflow.env, Date.now() + LAUNCH_RETRY_GRACE_MS + 1);
+  expect(counts).toMatchObject({ launchesRecovered: 1, leasesPurged: 0, admissionsReleased: 0 });
+  expect(workflow.create).toHaveBeenCalledTimes(1);
+  expect(harness.created[0]!.id).toBe(runId);
 });
