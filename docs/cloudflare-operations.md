@@ -236,6 +236,18 @@ This cannot authorize a decisive released label. A completed scorecard survives 
 budget/deadline stop; owner cancellation always suppresses it. Valid historical reports and
 v2 checkpoints remain readable.
 
+Acquisition completion derives from the retained snapshot and typed limitations. Both byte
+and character truncation produce a partial result, including a fully downloaded HTTP text
+response that exceeds the character cap. Empty or whitespace-only HTTP text is explicitly
+unavailable content. New snapshot identities include extraction status so complete and
+bounded captures of identical retained bytes remain distinct; stored historical IDs stay intact.
+
+OCR distinguishes unavailable, failed, empty, and recognized outcomes. A caption remains
+user-supplied context when OCR fails or returns no readable regions, and cannot make image
+extraction complete. Reader fallback records its limitations and truncation, and retains its
+attempt usage even when it returns no text. Missing reverse-image or content-credentials
+capabilities remain explicit limitations, rather than evidence of fabrication.
+
 Progress exposes `recordedStages`, `lastCheckpointedStage`, and `nextStage` (the first stage
 without a checkpoint). The legacy `completedStages` alias and persisted `stage` hint remain
 for existing clients; the UI and Workflow resume hint use the explicit projection. An entry in

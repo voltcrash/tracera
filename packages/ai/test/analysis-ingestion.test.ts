@@ -296,3 +296,219 @@ function fixturePort(
     safeFetchOptions: { fetchImplementation, resolveHostAddresses: publicResolver },
   });
 }
+
+for (const limit of ["characters", "bytes", "exact"] as const) {
+  test(`HTTP plain text reports its retained ${limit} boundary`, async () => {
+    const text = "a😀b";
+    const port = createDocumentAcquisitionPort({
+      now: () => NOW,
+      characterLimit: limit === "characters" ? 2 : text.length,
+      textByteLimit: limit === "bytes" ? 2 : 100,
+      safeFetchOptions: {
+        resolveHostAddresses: publicResolver,
+        fetchImplementation: async () =>
+          new Response(text, { headers: { "content-type": "text/plain; charset=utf-8" } }),
+      },
+    });
+    const result = await port.acquire({
+      url: "https://source.example/record",
+      role: "submitted_input",
+      maxBytes: 100,
+      signal: new AbortController().signal,
+    });
+    const snapshot = result.data!.snapshot;
+    assert.equal(result.status, limit === "exact" ? "complete" : "partial");
+    assert.equal(snapshot.extractionStatus, result.status);
+    assert.equal(snapshot.limits.truncated, limit !== "exact");
+    assert.equal(
+      result.issues.some(({ code }) => code === "truncation"),
+      limit !== "exact",
+    );
+    assert.equal(snapshot.normalizedText, limit === "exact" ? text : "a");
+    assert.equal(
+      snapshot.contentHash,
+      `sha256:${createHash("sha256").update(snapshot.normalizedText).digest("hex")}`,
+    );
+    assert.equal(snapshot.locators.at(-1)?.span.end, snapshot.normalizedText.length);
+  });
+}
+
+for (const text of ["", "  \r\n"]) {
+  test(`an empty HTTP text response is unavailable, including whitespace=${text.length > 0}`, async () => {
+    const result = await fixturePort(
+      async () => new Response(text, { headers: { "content-type": "text/plain" } }),
+    ).acquire({
+      url: "https://source.example/empty",
+      role: "submitted_input",
+      maxBytes: 100,
+      signal: new AbortController().signal,
+    });
+    assert.equal(result.status, "partial");
+    assert.equal(result.data!.snapshot.extractionStatus, "content_unavailable");
+    assert.equal(result.data!.snapshot.normalizedText.trim(), "");
+    assert.ok(result.issues.some(({ code }) => code === "content_unavailable"));
+  });
+}
+
+for (const outcome of ["failed", "empty", "recognized"] as const) {
+  test(`OCR ${outcome} stays distinct from user-caption content`, async () => {
+    const port = createDocumentAcquisitionPort({
+      now: () => NOW,
+      ocr: {
+        provider: "fixture",
+        modelId: "fixture",
+        async recognize() {
+          if (outcome === "failed") throw new Error("OCR unavailable");
+          return {
+            regions:
+              outcome === "empty"
+                ? []
+                : [
+                    {
+                      text: "Visible original text.",
+                      boundingBox: { page: 0, frameId: null, x: 0, y: 0, width: 1, height: 1 },
+                      transcriptionUncertain: false,
+                    },
+                  ],
+          };
+        },
+      },
+      reverseImage: {
+        connector: "fixture",
+        async search() {
+          return { status: "performed", matchedUrls: [] };
+        },
+      },
+      contentCredentials: {
+        verifier: "fixture",
+        async inspect() {
+          return { status: "verified" };
+        },
+      },
+    });
+    const result = await port.acquireImage({
+      data: "data:image/png;base64,iVBORw0KGgo=",
+      mimeType: "image/png",
+      caption: "User context only.",
+      role: "submitted_input",
+      maxBytes: 100,
+      signal: new AbortController().signal,
+    });
+    const snapshot = result.data!.snapshot;
+    assert.equal(result.status, outcome === "recognized" ? "complete" : "partial");
+    assert.equal(snapshot.extractionStatus, result.status);
+    assert.equal(snapshot.extractionMethod, outcome === "recognized" ? "ocr" : "user_supplied");
+    assert.equal(
+      snapshot.locators.some(({ kind }) => kind === "ocr_text"),
+      outcome === "recognized",
+    );
+    assert.ok(snapshot.locators.some(({ kind }) => kind === "user_caption"));
+    if (outcome !== "recognized")
+      assert.ok(
+        result.issues.some(
+          ({ code }) => code === (outcome === "empty" ? "content_unavailable" : "provider_failure"),
+        ),
+      );
+  });
+}
+
+test("empty OCR with working image verifiers still records why extraction is partial", async () => {
+  const port = createDocumentAcquisitionPort({
+    now: () => NOW,
+    ocr: {
+      provider: "fixture",
+      modelId: "fixture",
+      async recognize() {
+        return { regions: [] };
+      },
+    },
+    reverseImage: {
+      connector: "fixture",
+      async search() {
+        return { status: "performed", matchedUrls: [] };
+      },
+    },
+    contentCredentials: {
+      verifier: "fixture",
+      async inspect() {
+        return { status: "verified" };
+      },
+    },
+  });
+  const result = await port.acquireImage({
+    data: "data:image/png;base64,iVBORw0KGgo=",
+    mimeType: "image/png",
+    caption: null,
+    role: "submitted_input",
+    maxBytes: 100,
+    signal: new AbortController().signal,
+  });
+  assert.equal(result.status, "partial");
+  assert.equal(result.data!.snapshot.extractionMethod, "none");
+  assert.ok(result.issues.some(({ code }) => code === "content_unavailable"));
+});
+
+for (const text of ["Reader text exceeding the configured limit.", null]) {
+  test(`reader fallback retains its ${text === null ? "empty-attempt usage" : "truncation reason"}`, async () => {
+    const port = createDocumentAcquisitionPort({
+      now: () => NOW,
+      characterLimit: 8,
+      readerFallback: {
+        provider: "fixture",
+        version: "1",
+        limitations: ["fixture"],
+        async extract() {
+          return text === null ? null : { text };
+        },
+      },
+      safeFetchOptions: {
+        resolveHostAddresses: publicResolver,
+        fetchImplementation: async () =>
+          new Response("<html><body><div id='app'></div></body></html>", {
+            headers: { "content-type": "text/html" },
+          }),
+      },
+    });
+    const result = await port.acquire({
+      url: "https://source.example/reader",
+      role: "submitted_input",
+      maxBytes: 1000,
+      signal: new AbortController().signal,
+    });
+    assert.equal(result.status, "partial");
+    assert.equal(result.metrics.externalRequests, 2);
+    assert.ok(
+      result.issues.some(
+        ({ code }) => code === (text === null ? "content_unavailable" : "truncation"),
+      ),
+    );
+  });
+}
+
+test("complete and bounded acquisitions have distinct immutable identities even when retained bytes match", async () => {
+  let text = "abc";
+  const port = createDocumentAcquisitionPort({
+    now: () => NOW,
+    characterLimit: 3,
+    textByteLimit: 3,
+    safeFetchOptions: {
+      resolveHostAddresses: publicResolver,
+      fetchImplementation: async () =>
+        new Response(text, { headers: { "content-type": "text/plain" } }),
+    },
+  });
+  const request = {
+    url: "https://source.example/same-prefix",
+    role: "submitted_input" as const,
+    maxBytes: 3,
+    signal: new AbortController().signal,
+  };
+  const complete = (await port.acquire(request)).data!.snapshot;
+  text = "abcX";
+  const bounded = (await port.acquire(request)).data!.snapshot;
+  assert.equal(complete.extractionStatus, "complete");
+  assert.equal(bounded.extractionStatus, "partial");
+  assert.equal(complete.contentHash, bounded.contentHash);
+  assert.equal(complete.rawContentHash, bounded.rawContentHash);
+  assert.notEqual(complete.id, bounded.id);
+});
