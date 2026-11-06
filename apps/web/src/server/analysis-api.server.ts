@@ -22,6 +22,7 @@ import type { ServerEnv } from "./env";
 import { logServerError } from "./error-handling";
 import type { SessionUser } from "./session";
 import { workflowAdmissionLeaseSeconds, type AnalysisWorkflowParams } from "./workflow-params";
+import { launchAnalysisWorkflow } from "./analysis-launch.server";
 
 export const START_ANALYSIS_ENDPOINT = "startAnalysis";
 export const ANALYSIS_SEED = 20260910;
@@ -142,36 +143,44 @@ export async function startAnalysisRun(input: {
         admission: params.admission,
       },
       offloadInput: "image" in parsed.data,
+      launchAdmission: params.admission,
     });
-    await env.ANALYSIS_WORKFLOW.create({ id: context.runId, params });
   } catch (error) {
-    logServerError("Analysis could not start", error, request);
-    const failure = {
-      schemaVersion: 2,
-      runId: context.runId,
-      status: "failed",
-      code: "analysis_start_failed",
-      error: "The analysis could not be started. Please try again.",
-    };
-    await storage.runs
-      .failRun({
-        scope: accessScope(user),
+    logServerError("Analysis persistence needs reconciliation", error, request);
+    const persisted = await storage.runs
+      .getRunContext({ scope: accessScope(user), runId: context.runId })
+      .catch(() => undefined);
+    if (!persisted) {
+      const failure = {
+        schemaVersion: 2,
         runId: context.runId,
-        fencingToken: null,
-        error: "The analysis workflow could not be created.",
-      })
-      .catch(() => undefined);
-    await storage.admission
-      .finishAnalysisAdmission({
-        userId: user.id,
-        ...params.admission,
-        responseBody: failure,
-        responseStatus: 503,
-        idempotencyTtlSeconds: config.idempotencyTtlSeconds,
-      })
-      .catch(() => undefined);
-    return { status: 503, body: failure, headers: analysisRateHeaders(admission) };
+        status: persisted === null ? "failed" : "unavailable",
+        code: "analysis_start_failed",
+        error:
+          persisted === null
+            ? "The analysis could not be started. Please try again."
+            : "The analysis could not be confirmed. Please check your history.",
+      };
+      if (persisted === null) {
+        await storage.admission
+          .finishAnalysisAdmission({
+            userId: user.id,
+            ...params.admission,
+            responseBody: failure,
+            responseStatus: 503,
+            idempotencyTtlSeconds: config.idempotencyTtlSeconds,
+          })
+          .catch(() => undefined);
+      }
+      return { status: 503, body: failure, headers: analysisRateHeaders(admission) };
+    }
   }
+  const launchStatus = await launchAnalysisWorkflow(env, params);
+  await storage.runs
+    .recordWorkflowLaunch({ scope: accessScope(user), runId: context.runId, status: launchStatus })
+    .catch((error: unknown) =>
+      logServerError("Analysis launch reconciliation is pending", error, request),
+    );
   return {
     status: 202,
     body: {
