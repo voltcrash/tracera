@@ -248,6 +248,21 @@ extraction complete. Reader fallback records its limitations and truncation, and
 attempt usage even when it returns no text. Missing reverse-image or content-credentials
 capabilities remain explicit limitations, rather than evidence of fabrication.
 
+Claim inventory completeness is independent of the analysis allowance. An accepted claim
+outside that allowance remains explicitly deferred, while its inventoried segment has factual
+coverage; unread or unsupported segments still make extraction partial. A claim deferred
+before focused selection carries that reason without assuming extraction failed.
+
+New focused selection metadata uses `selected` entries and `inventory.selectedClaims`.
+Historical `analyzed` entries and `inventory.analyzedClaims` remain readable as selection
+aliases, and contradictory counters are rejected. Scoring keeps selected claim IDs as its
+denominator. Report views show selection count separately from `decisionsAvailable`, derived
+from actual diagnostic decision records; the view's legacy `analyzedClaims` alias follows that
+availability count. A selected claim without a decision is shown as `No decision`, rather
+than being described as already checked. Reports without focused-selection metadata use a
+generic claim inventory heading, including stops before selection and historical reports.
+Decision availability does not bypass publication.
+
 Progress exposes `recordedStages`, `lastCheckpointedStage`, and `nextStage` (the first stage
 without a checkpoint). The legacy `completedStages` alias and persisted `stage` hint remain
 for existing clients; the UI and Workflow resume hint use the explicit projection. An entry in

@@ -57,10 +57,11 @@ export function AnalysisReport({ view }: { view: AnalysisReportView }) {
         </div>
         {view.focusedSelection ? (
           <p className="mt-5 text-sm text-ink-soft">
-            Evidence analysis covers {view.focusedSelection.analyzedClaims} selected claim
-            {view.focusedSelection.analyzedClaims === 1 ? "" : "s"} of{" "}
-            {view.focusedSelection.inventoriedClaims} inventoried claims. Remaining claims stay
-            visible as deferred or excluded work.
+            Selected {view.focusedSelection.selectedClaims} claim
+            {view.focusedSelection.selectedClaims === 1 ? "" : "s"} of{" "}
+            {view.focusedSelection.inventoriedClaims} inventoried claims for checking. Decisions are
+            available for {view.focusedSelection.decisionsAvailable} of the selected claims.
+            Remaining claims stay visible as deferred or excluded work.
             {view.focusedSelection.shortfallReason
               ? ` ${view.focusedSelection.shortfallReason}`
               : ""}
@@ -105,10 +106,18 @@ export function AnalysisReport({ view }: { view: AnalysisReportView }) {
 
       <section className="trace-section" id="claims">
         <header className="trace-section-head">
-          <h2 className="trace-section-title">Top claims selected for checking</h2>
-          <p className="trace-section-count">{view.claims.length} of 3 max</p>
+          <h2 className="trace-section-title">
+            {view.focusedSelection ? "Top claims selected for checking" : "Claims in this report"}
+          </h2>
+          <p className="trace-section-count">
+            {view.claims.length}
+            {view.focusedSelection ? " of 3 max" : " total"}
+          </p>
           <p className="trace-section-lede">
-            Selected claims are the factual claims checked in this report. Extraction coverage{" "}
+            {view.focusedSelection
+              ? "These are the factual claims selected for evidence checks in this report."
+              : "Available decisions and inventoried claims are shown below."}{" "}
+            Extraction coverage{" "}
             {score.extractionCoverage === null
               ? "is unavailable"
               : `is ${format(score.extractionCoverage * 100)}%`}
@@ -120,7 +129,11 @@ export function AnalysisReport({ view }: { view: AnalysisReportView }) {
             <li key={claim.id} className="trace-claim">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>
-                  {claim.publishedLabel ? humanize(claim.publishedLabel) : "Unresolved"}
+                  {claim.decisionStatus === "not_available"
+                    ? "No decision"
+                    : claim.publishedLabel
+                      ? humanize(claim.publishedLabel)
+                      : "Unresolved"}
                 </Badge>
                 {claim.focusedPublication ? (
                   <Badge

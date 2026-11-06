@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   claimSchema,
+  focusedSelectionSchema,
   documentSnapshotSchema,
   inputCoverageSchema,
   runContextExample,
@@ -88,7 +89,13 @@ test("selects at most three claims while preserving the long-document inventory"
   ]);
   assert.equal(result.claims.length, 5);
   assert.equal(result.selection.inventory.totalClaims, 5);
-  assert.equal(result.selection.inventory.analyzedClaims, 3);
+  assert.equal(result.selection.inventory.selectedClaims, 3);
+  assert.equal(result.selection.inventory.analyzedClaims, undefined);
+  assert.ok(
+    result.selection.claims
+      .filter(({ rank }) => rank !== null)
+      .every(({ status }) => status === "selected"),
+  );
   assert.deepEqual(result.selection.deferredClaimIds, ["claim_inspected", "claim_exported"]);
   assert.ok(
     result.claims
@@ -492,7 +499,7 @@ test("partial extraction keeps deferred claims, coverage, and the selection shor
   assert.match(result.selection.shortfallReason!, /partial inventory/);
   assert.equal(
     result.selection.claims.find(({ claimId }) => claimId === "claim_partial_deferred")!.reasonCode,
-    "deferred_by_extraction_limit",
+    "deferred_before_selection",
   );
 });
 
@@ -594,6 +601,10 @@ test("the orchestration pipeline sends only selected claims to evidence-bearing 
   assert.equal(view.claims.length, selected.length);
   assert.equal(view.deferredClaims.length, 2);
   assert.equal(view.focusedSelection?.inventoriedClaims, claims.length);
+  assert.equal(view.focusedSelection?.selectedClaims, selected.length);
+  assert.equal(view.focusedSelection?.decisionsAvailable, 0);
+  assert.equal(view.focusedSelection?.analyzedClaims, 0);
+  assert.ok(view.claims.every(({ decisionStatus }) => decisionStatus === "not_available"));
 });
 
 function makeClaim(input: {
@@ -786,3 +797,33 @@ function makeCoverage(
     }),
   ];
 }
+
+test("selected metadata keeps historical analyzed aliases readable and rejects contradictory counters", () => {
+  const text = "The plant opened in 2024.";
+  const snapshot = makeSnapshot("selection_alias", text, paragraphLocators(text));
+  const claim = makeClaim({ id: "claim_alias", documentId: snapshot.id, text, start: 0 });
+  const { selection } = selectTopClaims({
+    claims: [claim],
+    snapshots: [snapshot],
+    coverage: makeCoverage(snapshot, [claim]),
+    inventoryStatus: "complete",
+  });
+  assert.equal(selection.claims[0]!.status, "selected");
+  assert.equal(selection.inventory.selectedClaims, 1);
+  assert.equal(selection.inventory.analyzedClaims, undefined);
+  const legacy = structuredClone(selection);
+  legacy.claims[0]!.status = "analyzed";
+  legacy.inventory.analyzedClaims = legacy.inventory.selectedClaims;
+  delete legacy.inventory.selectedClaims;
+  assert.equal(focusedSelectionSchema.safeParse(legacy).success, true);
+  assert.equal(
+    focusedSelectionSchema.safeParse({
+      ...selection,
+      inventory: { ...selection.inventory, analyzedClaims: 0 },
+    }).success,
+    false,
+  );
+  const missing = structuredClone(selection);
+  delete missing.inventory.selectedClaims;
+  assert.equal(focusedSelectionSchema.safeParse(missing).success, false);
+});

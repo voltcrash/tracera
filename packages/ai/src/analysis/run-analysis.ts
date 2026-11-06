@@ -218,7 +218,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     state.selectedClaimIds = focused.selection.selectedClaimIds;
     state.focusedSelection = focused.selection;
     state.issues.push(...focused.issues);
-    const analyzedClaims = () =>
+    const selectedClaims = () =>
       state.claims.filter((claim) => state.selectedClaimIds.includes(claim.id));
 
     const beforeRetrieve = interrupted("retrieve_evidence");
@@ -235,7 +235,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         }),
         async () => ({
           result: await factories.retrieveEvidence(usage())(
-            { claims: analyzedClaims(), snapshots: state.snapshots, round: 0, sufficiency: [] },
+            { claims: selectedClaims(), snapshots: state.snapshots, round: 0, sufficiency: [] },
             environment,
           ),
           extra: null,
@@ -262,7 +262,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       async () => {
         let assessment = await factories.assessEvidence(usage())(
           {
-            claims: analyzedClaims(),
+            claims: selectedClaims(),
             snapshots: state.snapshots,
             admittedSnapshotIds: state.admittedSnapshotIds,
           },
@@ -273,7 +273,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         if (assessment.data) {
           assessment = {
             ...assessment,
-            data: accumulateEvidence(analyzedClaims(), snapshots, assessment.data.assessments),
+            data: accumulateEvidence(selectedClaims(), snapshots, assessment.data.assessments),
           };
         }
         const assessedSnapshotIds = new Set(state.admittedSnapshotIds);
@@ -311,7 +311,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
           consumedRounds = round;
           const retrieval: StageResult<RetrieveEvidenceData> = await factories.retrieveEvidence(
             usage(pending),
-          )({ claims: analyzedClaims(), snapshots, round, sufficiency: insufficient }, environment);
+          )({ claims: selectedClaims(), snapshots, round, sufficiency: insufficient }, environment);
           targetedRetrieval = targetedRetrieval
             ? mergeResults(targetedRetrieval, retrieval, combineRetrieval)
             : retrieval;
@@ -323,11 +323,11 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
           if (fresh.length === 0) break;
           for (const id of fresh) assessedSnapshotIds.add(id);
           const reassessed = await factories.assessEvidence(usage([...pending, retrieval.metrics]))(
-            { claims: analyzedClaims(), snapshots, admittedSnapshotIds: fresh },
+            { claims: selectedClaims(), snapshots, admittedSnapshotIds: fresh },
             environment,
           );
           assessment = mergeResults(assessment, reassessed, (a, b) =>
-            accumulateEvidence(analyzedClaims(), snapshots, a.assessments, b.assessments),
+            accumulateEvidence(selectedClaims(), snapshots, a.assessments, b.assessments),
           );
         }
         return { result: assessment, extra: { targetedRetrieval, rounds: consumedRounds } };
@@ -358,7 +358,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     state.targetedRounds = assessed.extra.rounds;
     retainStage(state, "assess_evidence", assessed.result, (data) => {
       state.assessments = accumulateEvidence(
-        analyzedClaims(),
+        selectedClaims(),
         state.snapshots,
         data.assessments,
       ).assessments;
@@ -379,7 +379,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       }),
       async () => {
         const result = await factories.traceOrigins(usage())(
-          { claims: analyzedClaims(), snapshots: state.snapshots, assessments: state.assessments },
+          { claims: selectedClaims(), snapshots: state.snapshots, assessments: state.assessments },
           environment,
         );
         const newSnapshotIds = [...new Set(result.data?.newSnapshotIds ?? [])];
@@ -407,7 +407,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         }
         const reassessment = await factories.assessEvidence(usage([result.metrics]))(
           {
-            claims: analyzedClaims(),
+            claims: selectedClaims(),
             snapshots: uniqueById([...state.snapshots, ...loaded]),
             admittedSnapshotIds: newSnapshotIds,
           },
@@ -429,7 +429,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       state.snapshots = uniqueById([...state.snapshots, ...traced.extra.snapshots]);
       if (traced.extra.reassessment.data) {
         state.assessments = accumulateEvidence(
-          analyzedClaims(),
+          selectedClaims(),
           state.snapshots,
           state.assessments,
           traced.extra.reassessment.data.assessments,
@@ -470,7 +470,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
           };
           const result = await factories.adjudicateClaims({ ...usage(), record })(
             {
-              claims: analyzedClaims(),
+              claims: selectedClaims(),
               assessments: state.assessments,
               graphs: state.provenance,
             },
@@ -486,7 +486,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       state.candidates = uniqueById([...state.candidates, ...evidence.candidates]);
       state.snapshots = uniqueById([...state.snapshots, ...evidence.snapshots]);
       state.assessments = accumulateEvidence(
-        analyzedClaims(),
+        selectedClaims(),
         state.snapshots,
         state.assessments,
         evidence.assessments,
@@ -518,7 +518,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         async () => {
           const result = await factories.publishFocusedDecisions(usage())(
             {
-              claims: analyzedClaims(),
+              claims: selectedClaims(),
               snapshots: state.snapshots,
               decisions: state.decisions.values,
               assessments: state.assessments,
@@ -553,7 +553,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
         }),
         async () => ({
           result: factories.scoreReport(usage())({
-            claims: analyzedClaims(),
+            claims: selectedClaims(),
             decisions: state.decisions.values,
             assessments: state.assessments,
             graphs: state.provenance,

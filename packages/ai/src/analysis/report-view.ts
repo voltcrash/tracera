@@ -41,6 +41,7 @@ export interface AnalysisReportView {
     id: string;
     text: string;
     disposition: Claim["coverageDisposition"];
+    decisionStatus: "not_available" | "available";
     publishedLabel: ClaimLabel | null;
     diagnosticLabel: ClaimLabel | null;
     focusedPublication: Pick<FocusedPublicationDecision, "status" | "gate"> | null;
@@ -70,6 +71,9 @@ export interface AnalysisReportView {
   focusedSelection: {
     selectedClaimIds: string[];
     inventoriedClaims: number;
+    selectedClaims: number;
+    decisionsAvailable: number;
+    /** Legacy alias for decisionsAvailable. */
     analyzedClaims: number;
     deferredClaims: number;
     excludedClaims: number;
@@ -170,6 +174,8 @@ function projectAnalysisReport(report: RunReport, apiBase: string): AnalysisRepo
     ? new Set(report.focusedSelection.selectedClaimIds)
     : null;
 
+  const decisionsAvailable =
+    report.focusedSelection?.selectedClaimIds.filter((id) => decisions.has(id)).length ?? 0;
   return {
     schemaVersion: 2,
     runId: report.runId,
@@ -211,6 +217,7 @@ function projectAnalysisReport(report: RunReport, apiBase: string): AnalysisRepo
           id: claim.id,
           text: claim.text,
           disposition: claim.coverageDisposition,
+          decisionStatus: decision === null ? ("not_available" as const) : ("available" as const),
           publishedLabel: decision?.publishedLabel ?? null,
           diagnosticLabel: decision?.diagnosticLabel ?? null,
           focusedPublication: decision?.focusedPublication
@@ -271,7 +278,9 @@ function projectAnalysisReport(report: RunReport, apiBase: string): AnalysisRepo
       ? {
           selectedClaimIds: report.focusedSelection.selectedClaimIds,
           inventoriedClaims: report.focusedSelection.inventory.totalClaims,
-          analyzedClaims: report.focusedSelection.inventory.analyzedClaims,
+          selectedClaims: report.focusedSelection.selectedClaimIds.length,
+          decisionsAvailable,
+          analyzedClaims: decisionsAvailable,
           deferredClaims: report.focusedSelection.inventory.deferredClaims,
           excludedClaims: report.focusedSelection.inventory.excludedClaims,
           shortfallReason: report.focusedSelection.shortfallReason,
