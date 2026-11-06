@@ -1,4 +1,5 @@
 import type { StoredProjection } from "./payloads.js";
+import type { AnalysisAdmissionIdentity } from "./control-types.js";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -69,6 +70,11 @@ export const analysisRuns = sqliteTable(
     startedAt: integer("started_at", { mode: "timestamp_ms" }),
     usageExternalRequests: integer("usage_external_requests").notNull().default(0),
     usageCostMicros: integer("usage_cost_micros").notNull().default(0),
+    launchStatus: text("launch_status", { enum: ["not_required", "pending", "created", "unknown"] })
+      .notNull()
+      .default("not_required"),
+    launchAttemptedAt: integer("launch_attempted_at", { mode: "timestamp_ms" }),
+    launchAdmission: text("launch_admission", { mode: "json" }).$type<AnalysisAdmissionIdentity>(),
   },
   (table) => [
     uniqueIndex("core_runs_scope_idx").on(

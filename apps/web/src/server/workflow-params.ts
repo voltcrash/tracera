@@ -1,3 +1,5 @@
+import type { AnalysisAdmissionIdentity } from "@repo/db";
+
 /**
  * Workflow params persist for the retention period, so they carry identifiers only:
  * never API keys, raw input or uploads.
@@ -5,7 +7,7 @@
 export type AnalysisWorkflowParams = {
   runId: string;
   ownerUserId: string;
-  admission: { endpoint: string; idempotencyKey: string; leaseId: string };
+  admission: AnalysisAdmissionIdentity;
 };
 
 export const ANALYSIS_WORKFLOW_RETRIES = 2;

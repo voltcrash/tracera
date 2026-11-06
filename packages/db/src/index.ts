@@ -28,6 +28,7 @@ export {
 
 export type { AnalysisAccessScope, AnalysisVisibility } from "./access-scope.js";
 export type {
+  AnalysisAdmissionIdentity,
   AnalysisAdmissionRejection,
   AnalysisControlLimits,
   AnalysisRateLimitState,
