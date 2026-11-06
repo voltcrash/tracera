@@ -434,7 +434,7 @@ async function acquireHtml(input: {
       startedAt: input.startedAt,
       startedMs: input.startedMs,
       monotonicMs: input.monotonicMs,
-      externalRequests: input.externalRequests,
+      externalRequests,
     });
   }
 

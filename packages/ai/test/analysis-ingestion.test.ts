@@ -447,3 +447,40 @@ test("empty OCR with working image verifiers still records why extraction is par
   assert.equal(result.data!.snapshot.extractionMethod, "none");
   assert.ok(result.issues.some(({ code }) => code === "content_unavailable"));
 });
+
+for (const text of ["Reader text exceeding the configured limit.", null]) {
+  test(`reader fallback retains its ${text === null ? "empty-attempt usage" : "truncation reason"}`, async () => {
+    const port = createDocumentAcquisitionPort({
+      now: () => NOW,
+      characterLimit: 8,
+      readerFallback: {
+        provider: "fixture",
+        version: "1",
+        limitations: ["fixture"],
+        async extract() {
+          return text === null ? null : { text };
+        },
+      },
+      safeFetchOptions: {
+        resolveHostAddresses: publicResolver,
+        fetchImplementation: async () =>
+          new Response("<html><body><div id='app'></div></body></html>", {
+            headers: { "content-type": "text/html" },
+          }),
+      },
+    });
+    const result = await port.acquire({
+      url: "https://source.example/reader",
+      role: "submitted_input",
+      maxBytes: 1000,
+      signal: new AbortController().signal,
+    });
+    assert.equal(result.status, "partial");
+    assert.equal(result.metrics.externalRequests, 2);
+    assert.ok(
+      result.issues.some(
+        ({ code }) => code === (text === null ? "content_unavailable" : "truncation"),
+      ),
+    );
+  });
+}
