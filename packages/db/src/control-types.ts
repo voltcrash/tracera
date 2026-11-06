@@ -1,3 +1,9 @@
+export interface AnalysisAdmissionIdentity {
+  endpoint: string;
+  idempotencyKey: string;
+  leaseId: string;
+}
+
 export type AnalysisAdmissionRejection =
   | "user_rate_limit"
   | "ip_rate_limit"

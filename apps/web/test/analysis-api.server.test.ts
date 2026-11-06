@@ -1,5 +1,7 @@
-import { afterAll, beforeAll, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, expect, test, vi } from "vite-plus/test";
+import { D1AnalysisRepository } from "@repo/db";
 import {
+  analysisStorage,
   cancelAnalysisRun,
   listAnalysisRuns,
   readRunState,
@@ -96,7 +98,7 @@ test("a repeated idempotency key during the run is reported as in progress", asy
   await cancelAnalysisRun(harness.env, ada, first.body.runId as string);
 });
 
-test("a Workflow creation failure fails the run and stores the failure for replay", async () => {
+test("an uncertain Workflow creation preserves the accepted run for recovery", async () => {
   const failing = {
     ...harness.env,
     ANALYSIS_WORKFLOW: {
@@ -115,10 +117,15 @@ test("a Workflow creation failure fails the run and stores the failure for repla
       body: { text: "A failing claim." },
       idempotencyKey: "failing-key",
     });
-    expect(failed.status).toBe(503);
-    expect(failed.body).toMatchObject({ status: "failed", code: "analysis_start_failed" });
+    expect(failed.status).toBe(202);
+    expect(failed.body.status).toBe("queued");
     const state = await readRunState(harness.env, grace, failed.body.runId as string);
-    expect(state?.progress.status).toBe("failed");
+    expect(state?.progress.status).toBe("queued");
+    expect(
+      await harness.env.DB.prepare("SELECT launch_status FROM core_runs WHERE run_id=?")
+        .bind(failed.body.runId)
+        .first("launch_status"),
+    ).toBe("unknown");
     const replay = await startAnalysisRun({
       env: harness.env,
       user: grace,
@@ -126,10 +133,112 @@ test("a Workflow creation failure fails the run and stores the failure for repla
       body: { text: "A failing claim." },
       idempotencyKey: "failing-key",
     });
-    expect(replay.headers?.["x-idempotency-replayed"]).toBe("true");
-    expect(replay.body.runId).toBe(failed.body.runId);
+    expect(replay.status).toBe(409);
+    expect(replay.body.code).toBe("idempotency_in_progress");
   } finally {
     console.error = errors;
+  }
+});
+
+test("launch intent is persisted before the create request is sent", async () => {
+  let pending: unknown;
+  const env = {
+    ...harness.env,
+    ANALYSIS_WORKFLOW: {
+      create: async (options: Parameters<typeof harness.workflow.create>[0]) => {
+        pending = await harness.env.DB.prepare("SELECT launch_status FROM core_runs WHERE run_id=?")
+          .bind(options.id)
+          .first("launch_status");
+        return harness.workflow.create(options);
+      },
+    } as unknown as Workflow,
+  };
+  const result = await startAnalysisRun({
+    env,
+    user: ada,
+    request: request(),
+    body: { text: "A launch intent." },
+    idempotencyKey: "persist-launch",
+  });
+  expect(result.status).toBe(202);
+  expect(pending).toBe("pending");
+  expect(
+    await harness.env.DB.prepare("SELECT launch_status FROM core_runs WHERE run_id=?")
+      .bind(result.body.runId)
+      .first("launch_status"),
+  ).toBe("created");
+});
+
+test("a persistence failure releases admission and remains replayable without launching", async () => {
+  const create = vi
+    .spyOn(D1AnalysisRepository.prototype, "createRun")
+    .mockRejectedValueOnce(new Error("Persistence unavailable."));
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const before = harness.created.length;
+    const result = await start({ text: "An unstored claim." }, "persistence-failure", grace);
+    expect(result.status).toBe(503);
+    expect(result.body.code).toBe("analysis_start_failed");
+    expect(harness.created.length).toBe(before);
+    const replay = await start({ text: "An unstored claim." }, "persistence-failure", grace);
+    expect(replay.headers?.["x-idempotency-replayed"]).toBe("true");
+    expect(replay.body.runId).toBe(result.body.runId);
+  } finally {
+    create.mockRestore();
+    log.mockRestore();
+  }
+});
+
+test("a lost persistence response resumes the stored launch instead of failing it", async () => {
+  const runs = analysisStorage(harness.env).runs;
+  const persist = runs.createRun.bind(runs);
+  const create = vi
+    .spyOn(D1AnalysisRepository.prototype, "createRun")
+    .mockImplementationOnce(async (input) => {
+      await persist(input);
+      throw new Error("Persistence response lost.");
+    });
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const before = harness.created.length;
+    const result = await start({ text: "A durably stored claim." }, "lost-persistence-response");
+    expect(result.status).toBe(202);
+    expect(harness.created.length).toBe(before + 1);
+    expect(
+      (await readRunState(harness.env, ada, result.body.runId as string))?.progress.status,
+    ).toBe("queued");
+  } finally {
+    create.mockRestore();
+    log.mockRestore();
+  }
+});
+
+test("an unknown persistence outcome keeps admission until reconciliation or expiry", async () => {
+  const create = vi
+    .spyOn(D1AnalysisRepository.prototype, "createRun")
+    .mockRejectedValueOnce(new Error("Persistence unavailable."));
+  const read = vi
+    .spyOn(D1AnalysisRepository.prototype, "getRunContext")
+    .mockRejectedValueOnce(new Error("Inspection unavailable."));
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const result = await start({ text: "An uncertain claim." }, "unknown-persistence-outcome");
+    expect(result.status).toBe(503);
+    expect(result.body.status).toBe("unavailable");
+    expect(
+      await harness.env.DB.prepare(
+        "SELECT released_at FROM analysis_leases WHERE idempotency_key='unknown-persistence-outcome'",
+      ).first("released_at"),
+    ).toBeNull();
+    expect(
+      await harness.env.DB.prepare(
+        "SELECT request_status FROM analysis_idempotency_keys WHERE idempotency_key='unknown-persistence-outcome'",
+      ).first("request_status"),
+    ).toBe("in_progress");
+  } finally {
+    create.mockRestore();
+    read.mockRestore();
+    log.mockRestore();
   }
 });
 

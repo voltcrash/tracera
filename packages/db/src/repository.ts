@@ -11,6 +11,7 @@ import {
 import type { AnalysisAccessScope } from "./access-scope.js";
 import { D1PayloadStore, hashJson } from "./payloads.js";
 import { microsToUsd, usdToMicros } from "./clock.js";
+import type { AnalysisAdmissionIdentity } from "./control-types.js";
 
 export class AnalysisStorageConflictError extends Error {}
 export class AnalysisStorageAccessError extends Error {}
@@ -58,6 +59,9 @@ interface RunRow {
   started_at: number | null;
   usage_external_requests: number;
   usage_cost_micros: number;
+  launch_status: "not_required" | "pending" | "created" | "unknown";
+  launch_attempted_at: number | null;
+  launch_admission: string | null;
 }
 const scopeValues = (scope: AnalysisAccessScope) => [
   scope.tenantId,
@@ -83,6 +87,7 @@ export class D1AnalysisRepository {
     context: RunContext;
     payload?: unknown;
     offloadInput?: boolean;
+    launchAdmission?: AnalysisAdmissionIdentity;
   }): Promise<{ runId: string; created: boolean; version: number }> {
     const context = runContextSchema.parse(input.context);
     const payload = await this.payloads.encode(
@@ -95,8 +100,8 @@ export class D1AnalysisRepository {
     const now = this.now();
     const [inserted, existing] = await this.database.batch<RunRow>([
       this.database
-        .prepare(`INSERT INTO core_runs(run_id,tenant_id,owner_user_id,visibility,input_hash,context_hash,as_of_time,execution_mode,versions,budget,cancellation,audit_sink_id,provider_source,provider,input_json,input_blob_uri,input_payload_hash,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(run_id) DO NOTHING RETURNING *`)
+        .prepare(`INSERT INTO core_runs(run_id,tenant_id,owner_user_id,visibility,input_hash,context_hash,as_of_time,execution_mode,versions,budget,cancellation,audit_sink_id,provider_source,provider,input_json,input_blob_uri,input_payload_hash,created_at,updated_at,launch_status,launch_admission)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(run_id) DO NOTHING RETURNING *`)
         .bind(
           context.runId,
           context.tenantId,
@@ -117,13 +122,21 @@ export class D1AnalysisRepository {
           payload.hash,
           now,
           now,
+          input.launchAdmission ? "pending" : "not_required",
+          input.launchAdmission ? JSON.stringify(input.launchAdmission) : null,
         ),
       this.database.prepare("SELECT * FROM core_runs WHERE run_id=?").bind(context.runId),
     ]);
     const row = existing!.results[0];
     if (!row || !owns(row, context))
       throw new AnalysisStorageAccessError("Run is outside the caller scope.");
-    if (row.context_hash !== contextHash || row.input_payload_hash !== payload.hash)
+    if (
+      row.context_hash !== contextHash ||
+      row.input_payload_hash !== payload.hash ||
+      (row.launch_status !== "not_required") !== Boolean(input.launchAdmission) ||
+      hashJson(row.launch_admission ? JSON.parse(row.launch_admission) : null) !==
+        hashJson(input.launchAdmission ?? null)
+    )
       throw new AnalysisStorageConflictError(
         "Run identity was reused with different immutable input.",
       );
@@ -792,7 +805,7 @@ export class D1AnalysisRepository {
     const now = this.now();
     const [changed] = await this.database.batch<{ attempt: number; version: number }>([
       this.database
-        .prepare(`UPDATE core_runs SET status='running',stage=?,attempt=attempt+1,fencing_token=?,version=version+1,updated_at=?,started_at=COALESCE(started_at,?)
+        .prepare(`UPDATE core_runs SET status='running',stage=?,attempt=attempt+1,fencing_token=?,version=version+1,updated_at=?,started_at=COALESCE(started_at,?),launch_status=CASE WHEN launch_status='not_required' THEN launch_status ELSE 'created' END
         WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND version=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0 RETURNING attempt,version`)
         .bind(
           input.stage,
@@ -851,6 +864,19 @@ export class D1AnalysisRepository {
           startedAt: row.started_at === null ? null : new Date(row.started_at).toISOString(),
         }
       : null;
+  }
+
+  async recordWorkflowLaunch(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+    status: "created" | "unknown";
+  }): Promise<void> {
+    await this.database
+      .prepare(`UPDATE core_runs
+      SET launch_status=CASE WHEN launch_status='created' THEN launch_status ELSE ? END,launch_attempted_at=?
+      WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND launch_status<>'not_required'`)
+      .bind(input.status, this.now(), input.runId, ...scopeValues(input.scope))
+      .run();
   }
 
   async reserveRunUsage(input: {

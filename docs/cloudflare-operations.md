@@ -1,6 +1,6 @@
 # Cloudflare operations
 
-Tracera runs one TanStack Start Worker with D1, private R2, Workflows, and hourly Cron.
+Tracera runs one TanStack Start Worker with D1, private R2, Workflows, and five-minute Cron.
 Node.js 24 LTS is used for tooling; local requests execute in workerd. The default Wrangler
 config targets staging, and production has its own config and resources.
 
@@ -197,12 +197,22 @@ vp exec --filter web -- wrangler workflows instances describe tracera-staging-an
 vp exec --filter web -- wrangler tail --config wrangler.jsonc
 ```
 
-Cron runs hourly at minute 17. It purges expired idempotency records, released/expired leases,
+Cron runs every five minutes. It purges expired idempotency records, released/expired leases,
 old rate windows, expired sessions and verifications, and stale spend reservations. It also
 marks runs failed when their Workflow instance errored. Cancellation sets the D1 flag and
 terminates the instance after its grace period. Retries resume from a checkpoint with a new
 fencing token; stale attempts cannot persist or finalize. Diagnose an error before considering
 an approved instance operation; preserve run ownership, fencing, and idempotency identities.
+
+Run creation persists a pending launch intent and admission IDs in D1 before sending the
+Workflow create request; recovery does not need to load the raw submission from R2.
+A failed create response is treated as uncertain: an existing instance confirms launch;
+otherwise the accepted run remains queued for reconciliation. After a 30-second grace
+period, Cron retries with the original Workflow/run ID while its admission remains held.
+Recovery is bounded to ten minutes from submission and never restarts canceled or expired
+admissions. An unrecoverable launch becomes a replayable failure and releases admission.
+An instance that remains queued past that window also fails its run instead of waiting forever.
+Completed Workflows with unfinished database runs are reconciled to failure as well.
 
 ## D1 capacity and Time Travel
 
