@@ -106,6 +106,11 @@ export async function runAnalysisWorkflow(
           const result = await createRunAnalysis({
             ...attempt,
             elapsedMs,
+            reserveTargetedRound: () =>
+              storage.runs.reserveTargetedRound({
+                ...identity,
+                fencingToken: attempt.fencingToken,
+              }),
             retrieval: { searchPorts: ports.search },
           })((await storage.runs.getRunInput(identity)) as RunAnalysisInput, {
             context,

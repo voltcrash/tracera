@@ -7,6 +7,15 @@ import {
 import { createD1AnalysisRepository, StaleWorkerError } from "@repo/db";
 import { createTestRuntime, seedUser } from "@repo/db/test-runtime";
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
+import { createAdjudicateClaims } from "../src/analysis/adjudication/index.js";
+import { contradictionEvidence } from "../scripts/support/adjudication-scenarios.js";
+import {
+  adjudicationClaim,
+  challenge,
+  createAdjudicationEnvironment,
+  draft,
+  scriptedTargetedReassessment,
+} from "../scripts/support/scripted-adjudication.js";
 import { createRunAnalysis } from "../src/analysis/run-analysis.js";
 import { createScriptedEvidenceEnvironment } from "../scripts/support/scripted-evidence.js";
 import { createRunStore, createSnapshotStore } from "../src/analysis/storage.js";
@@ -191,4 +200,45 @@ test("recovery recomputes checkpoint JSON corrupted in D1", async () => {
     version: 2,
     result: { data: { primarySnapshotId: analysisExamples.complete.primarySnapshotId } },
   });
+});
+
+test("failed targeted retrieval cannot regain its round after a fenced retry", async () => {
+  const db = repository();
+  const runContext = {
+    ...structuredClone(context),
+    runId: crypto.randomUUID(),
+    budget: { ...context.budget, maxTargetedRetrievalRounds: 1, maxCostUsd: null },
+  };
+  const identity = { scope: runContext, runId: runContext.runId };
+  await db.createRun({ context: runContext });
+  const { snapshots, assessments } = contradictionEvidence();
+  const targeted = scriptedTargetedReassessment();
+  const retrieve = targeted.reassessment.createRetrieve!;
+  let retrievals = 0;
+  targeted.reassessment.createRetrieve = (usage) => async (input, environment) => {
+    retrievals++;
+    return { ...(await retrieve(usage)(input, environment)), status: "unavailable", data: null };
+  };
+  for (const expectedRounds of [1, 0]) {
+    const progress = await db.getRunProgress(identity);
+    const attempt = await db.beginAttempt({
+      ...identity,
+      stage: "adjudicate_claims",
+      expectedVersion: progress!.version,
+    });
+    const fixture = createAdjudicationEnvironment({
+      snapshots,
+      context: runContext,
+      draft: () => draft("contradicted", { contradictingAssessmentIds: [assessments[0]!.id] }),
+      challenge: () => challenge("unverified", []),
+    });
+    const result = await createAdjudicateClaims({
+      reserveTargetedRound: () =>
+        db.reserveTargetedRound({ ...identity, fencingToken: attempt.fencingToken }),
+      targetedReassessment: targeted.reassessment,
+    })({ claims: [adjudicationClaim()], assessments, graphs: [] }, fixture.environment);
+    expect(result.data!.decisions[0]!.challenge.targetedRoundsUsed).toBe(expectedRounds);
+  }
+  expect(retrievals).toBe(1);
+  expect(await db.getRunUsage(identity)).toMatchObject({ targetedRounds: 1 });
 });

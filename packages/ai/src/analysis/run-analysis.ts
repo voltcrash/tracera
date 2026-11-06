@@ -78,6 +78,8 @@ export interface RunAnalysisStageFactories {
 export interface RunAnalysisOptions {
   /** Elapsed wall time from earlier attempts; retries share one run deadline. */
   elapsedMs?: number;
+  /** Durable, fenced round admission shared by assessment and adjudication across retries. */
+  reserveTargetedRound?: () => Promise<number | null>;
   /** Lease identity. Checkpoints are read and written only when both are supplied. */
   attempt?: number;
   fencingToken?: string;
@@ -288,6 +290,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
           environment.context.budget.maxTargetedRetrievalRounds - 1,
         );
         let rounds = 0;
+        let consumedRounds = 0;
         while (assessment.data && rounds < allowedRounds && !isRunInterrupted(environment)) {
           const insufficient = assessment.data.sufficiency.filter(({ sufficient }) => !sufficient);
           if (insufficient.length === 0) break;
@@ -295,13 +298,28 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
             assessment.metrics,
             ...(targetedRetrieval ? [targetedRetrieval.metrics] : []),
           ];
+          const round = options.reserveTargetedRound
+            ? await options.reserveTargetedRound()
+            : rounds + 1;
+          if (round === null) {
+            assessment = {
+              ...assessment,
+              status: "partial",
+              issues: [
+                ...assessment.issues,
+                issue(
+                  "budget_exhausted",
+                  "The shared targeted-round allowance was exhausted or the attempt was no longer active.",
+                ),
+              ],
+            };
+            break;
+          }
           rounds += 1;
+          consumedRounds = round;
           const retrieval: StageResult<RetrieveEvidenceData> = await factories.retrieveEvidence(
             usage(pending),
-          )(
-            { claims: analyzedClaims(), snapshots, round: rounds, sufficiency: insufficient },
-            environment,
-          );
+          )({ claims: analyzedClaims(), snapshots, round, sufficiency: insufficient }, environment);
           targetedRetrieval = targetedRetrieval
             ? mergeResults(targetedRetrieval, retrieval, combineRetrieval)
             : retrieval;
@@ -320,7 +338,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
             accumulateEvidence(analyzedClaims(), snapshots, a.assessments, b.assessments),
           );
         }
-        return { result: assessment, extra: { targetedRetrieval, rounds } };
+        return { result: assessment, extra: { targetedRetrieval, rounds: consumedRounds } };
       },
     );
     const assessMetrics = assessedExecution.extra.targetedRetrieval
@@ -475,6 +493,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       environment,
     );
     for (const evidence of adjudicated.extra) {
+      state.targetedRounds = Math.max(state.targetedRounds, evidence.round);
       state.candidates = uniqueById([...state.candidates, ...evidence.candidates]);
       state.snapshots = uniqueById([...state.snapshots, ...evidence.snapshots]);
       state.assessments = accumulateEvidence(
@@ -616,6 +635,7 @@ function defaultStageFactories(options: RunAnalysisOptions): RunAnalysisStageFac
         priorExternalRequests: usage.priorExternalRequests,
         priorCostUsd: usage.priorCostUsd,
         priorTargetedRounds: usage.priorTargetedRounds,
+        reserveTargetedRound: options.reserveTargetedRound,
         targetedReassessment: {
           ...(options.retrieval ? { retrievalOptions: options.retrieval } : {}),
           record: usage.record,
