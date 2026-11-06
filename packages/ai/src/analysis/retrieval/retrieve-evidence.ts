@@ -300,6 +300,16 @@ async function retrieve(
     for (const candidate of rankCandidates(claimCandidates)) {
       if (fetched >= environment.context.budget.maxFetchedCandidatesPerClaim) {
         omitted = true;
+        issues.push(
+          issue(
+            "budget_exhausted",
+            "A candidate was omitted by the per-claim fetch cap.",
+            "warning",
+            claim.id,
+            null,
+            candidate.proposedUrl,
+          ),
+        );
         await audit(
           "budget_consumed",
           `Candidate omitted by per-claim fetch cap: ${candidate.proposedUrl}`,

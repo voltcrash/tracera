@@ -366,3 +366,56 @@ test("counterevidence and acquisition capacity are preserved for later claims", 
     new Set([first.id, second.id]),
   );
 });
+
+test("the per-claim fetch cap reports a typed omission even with a primary resolver", async () => {
+  const sources = ["primary_source", "disconfirming"].map((intent, index) => ({
+    url: `https://records.example/cap-${index}`,
+    content: `Independent Northbridge record ${index} lists the scoped incidents during 1998.`,
+    intents: [intent as "primary_source" | "disconfirming"],
+    fetch: "complete" as const,
+  }));
+  const { environment } = createScriptedRetrievalEnvironment({
+    sources,
+    budget: {
+      maxFetchedCandidatesPerClaim: 1,
+      maxExternalRequests: 100,
+      maxCostUsd: null,
+    },
+  });
+  const result = await createRetrieveEvidence({
+    primarySourceResolver: {
+      provider: "fixture-primary",
+      async resolve() {
+        const at = environment.ports.clock.now();
+        return {
+          status: "complete",
+          data: { candidates: [] },
+          issues: [],
+          metrics: {
+            startedAt: at,
+            completedAt: at,
+            durationMs: 0,
+            externalRequests: 0,
+            inputTokens: null,
+            outputTokens: null,
+            costUsd: 0,
+          },
+        };
+      },
+    },
+  })(
+    { claims: [retrievalClaim()], snapshots: [inputSnapshot()], round: 0, sufficiency: [] },
+    environment,
+  );
+  assert.equal(result.status, "partial");
+  assert.equal(result.data?.candidates.length, 2);
+  assert.equal(result.data?.admittedSnapshotIds.length, 1);
+  assert.ok(
+    result.issues.some(
+      ({ code, claimId, url }) =>
+        code === "budget_exhausted" &&
+        claimId === retrievalClaim().id &&
+        sources.some((source) => source.url === url),
+    ),
+  );
+});
