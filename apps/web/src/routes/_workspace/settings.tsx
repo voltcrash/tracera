@@ -3,7 +3,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Check, Loader2, Shuffle } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
-import { authClient } from "@/lib/auth-client";
 import { GoogleMark } from "@/components/auth/social-sign-in-button";
 import { GitHubMark } from "@/components/brand/github-mark";
 import { shuffleAvatarId } from "@repo/contracts/avatar";
@@ -15,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import { PersonalProviderKeys } from "@/components/settings/personal-provider-keys";
+import type { ProfileSaveResult } from "@/lib/profile-editor";
 
 export const Route = createFileRoute("/_workspace/settings")({
   component: SettingsPage,
@@ -24,41 +24,40 @@ const MAX_DISPLAY_NAME = 60;
 const ACCOUNT_CACHE_AGE = 10 * 60_000;
 
 function SettingsPage() {
-  const { isLoading, refreshUser, updateUser, user } = useAuth();
+  const { isLoading, saveProfile, isProfilePending, user } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [syncedName, setSyncedName] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const saving = isProfilePending("name");
+  const [feedback, setFeedback] = useState<ProfileSaveResult | { status: "idle" }>({
+    status: "idle",
+  });
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   /* The session arrives after the first render, so the field re-syncs to it. */
   if (user && user.name !== syncedName) {
     setSyncedName(user.name);
-    setDisplayName(user.name);
+    if (syncedName === null || displayName === syncedName) setDisplayName(user.name);
   }
 
   async function saveDisplayName(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!user) return;
+    if (!user || isProfilePending("name")) return;
     const name = displayName.trim();
-    setSaving(true);
-    setSaved(false);
-    setError(null);
-    const previousName = user.name;
-    updateUser({ name });
-    try {
-      const { error: updateError } = await authClient.updateUser({ name });
-      if (updateError) throw new Error(updateError.message ?? "Unable to save your display name.");
-      void refreshUser();
+    setFeedback({ status: "idle" });
+    const result = await saveProfile({ field: "name", value: name });
+    if (!mounted.current) return;
+    setFeedback(result);
+    if (result.status === "saved") {
       setDisplayName(name);
-      setSaved(true);
-    } catch (saveError) {
-      updateUser({ name: previousName });
-      setError(
-        saveError instanceof Error ? saveError.message : "Unable to save your display name.",
-      );
-    } finally {
-      setSaving(false);
+    } else if (result.status === "failed") {
+      setSyncedName(user.name);
+      setDisplayName(name);
     }
   }
 
@@ -101,7 +100,7 @@ function SettingsPage() {
                     value={displayName}
                     onChange={(event) => {
                       setDisplayName(event.target.value);
-                      setSaved(false);
+                      setFeedback({ status: "idle" });
                     }}
                     maxLength={MAX_DISPLAY_NAME}
                     placeholder={user.email}
@@ -128,16 +127,16 @@ function SettingsPage() {
                         "Save name"
                       )}
                     </Button>
-                    {saved && (
+                    {feedback.status === "saved" && (
                       <p className="settings-saved" role="status">
                         <Check />
                         Saved
                       </p>
                     )}
                   </div>
-                  {error && (
+                  {feedback.status === "failed" && (
                     <Alert variant="destructive" className="settings-field">
-                      <AlertDescription>{error}</AlertDescription>
+                      <AlertDescription>{feedback.error}</AlertDescription>
                     </Alert>
                   )}
                 </form>
@@ -247,28 +246,22 @@ function AccountRow() {
 }
 
 function AvatarRow() {
-  const { isLoading, refreshUser, updateUser, user } = useAuth();
-  const [saving, setSaving] = useState(false);
+  const { isLoading, saveProfile, isProfilePending, user } = useAuth();
+  const saving = isProfilePending("image");
   const [error, setError] = useState<string | null>(null);
-  const requestRef = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   async function saveImage(next: string) {
-    if (!user) return;
-    const request = ++requestRef.current;
-    const previous = user.image;
-    updateUser({ image: next });
-    setSaving(true);
+    if (!user || isProfilePending("image")) return;
     setError(null);
-    const { error: updateError } = await authClient.updateUser({ image: next });
-    if (request !== requestRef.current) return;
-    if (updateError) {
-      updateUser({ image: previous });
-      setError(updateError.message ?? "Unable to save your avatar.");
-      setSaving(false);
-      return;
-    }
-    setSaving(false);
-    void refreshUser();
+    const result = await saveProfile({ field: "image", value: next });
+    if (mounted.current && result.status === "failed") setError(result.error);
   }
 
   const pending = isLoading || !user;
