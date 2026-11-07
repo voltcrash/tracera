@@ -34,23 +34,45 @@ function applyTheme(theme: ResolvedTheme) {
 }
 
 const preferenceListeners = new Set<() => void>();
+let preferenceState: { source: "storage" | "memory"; value: ThemePreference } = {
+  source: "storage",
+  value: "system",
+};
+
+function decodePreference(stored: string | null): ThemePreference {
+  return stored === "light" || stored === "dark" ? stored : "system";
+}
 
 function subscribePreference(listener: () => void) {
   preferenceListeners.add(listener);
-  window.addEventListener("storage", listener);
+  const receive = (event: StorageEvent) => {
+    if (event.key !== null && event.key !== THEME_STORAGE_KEY) return;
+    try {
+      if (event.storageArea !== window.localStorage) return;
+    } catch {
+      return;
+    }
+    preferenceState = { source: "storage", value: decodePreference(event.newValue) };
+    listener();
+  };
+  window.addEventListener("storage", receive);
   return () => {
     preferenceListeners.delete(listener);
-    window.removeEventListener("storage", listener);
+    window.removeEventListener("storage", receive);
   };
 }
 
 function readPreference(): ThemePreference {
+  if (preferenceState.source === "memory") return preferenceState.value;
   try {
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return stored === "light" || stored === "dark" ? stored : "system";
+    preferenceState = {
+      source: "storage",
+      value: decodePreference(window.localStorage.getItem(THEME_STORAGE_KEY)),
+    };
   } catch {
-    return "system";
+    // Retain the last known preference while storage is unavailable.
   }
+  return preferenceState.value;
 }
 
 function subscribeSystemTheme(listener: () => void) {
@@ -82,9 +104,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   const setPreference = useCallback((next: ThemePreference) => {
+    preferenceState = { source: "memory", value: next };
     try {
       if (next === "system") window.localStorage.removeItem(THEME_STORAGE_KEY);
       else window.localStorage.setItem(THEME_STORAGE_KEY, next);
+      preferenceState = { source: "storage", value: next };
     } catch {
       // The choice is lost on reload if browser storage is disabled.
     }
