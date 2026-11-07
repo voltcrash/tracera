@@ -376,6 +376,26 @@ its config and private file.
 Production checks validate isolated bindings, the built config, auth/provider credentials,
 live mode, and explicit budgets. Use the staging and production setup guides before them.
 
+## Progress streaming
+
+Progress event IDs use the persisted run version, so updates with the same timestamp or
+checkpoint count remain distinct. Reconnects skip versions already delivered; historical
+timestamp IDs are treated as unknown cursors and receive the current state. Clients reject
+older versions and retain terminal states, cancellation acknowledgments, and cancellation
+errors independently from connection status.
+
+Each one-second poll rechecks the original session before reading progress. A revoked or
+expired session, or a removed run, emits `access_lost` and closes the stream. A check already
+in flight can finish; access is checked again at the next poll. Authentication storage errors
+close with a generic stream error and allow EventSource to reconnect. Terminal completion,
+request abort, and reader disconnect clear polling and abort listeners. Disconnecting never
+cancels the run.
+
+Cancellation controls permit one pending request and allow retry after an unconfirmed or
+rejected request. An acknowledgment remains visible while older progress catches up. If a
+terminal state arrives first, late cancellation replies cannot replace it. Pending prepared
+reports show “Publishing report”; running runs with all checkpoints show “Preparing report”.
+
 ## Workflow and Cron recovery
 
 Workflow instance IDs equal run IDs. Parameters carry IDs and input references, while keys
