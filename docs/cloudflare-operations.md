@@ -229,6 +229,16 @@ Owner cancellation takes precedence over simultaneous request, cost, or elapsed 
 A failed mandatory provenance reassessment retains the acquired graph and snapshots, but
 stops before adjudication can use unassessed evidence.
 
+Provenance traversal retains each attempted claim/document assessment outcome. Repeated
+citation paths reuse the same outcome, including empty or rejected evidence, rather than
+requesting another assessment. The orchestrator loads the new immutable snapshots, merges
+the retained assessments into the full evidence set, recomputes source dependence, and
+assesses only the remaining selected-claim/document pairs. Traversal metrics already include
+its assessments; reuse does not add those charges again. Successful trace checkpoints retain
+these outcomes and any additional assessments. Historical v2 checkpoints remain readable;
+checkpoints containing a failed traversal or follow-up assessment are cache misses, so a
+fresh fenced attempt can retry instead of replaying the failure indefinitely.
+
 Decision state distinguishes diagnostics from evaluated publication. If the run stops before
 publication, its diagnostic decisions remain in the report with an explicit `not_evaluated`
 publication status and gate, an unverified released label, and no statistical calibration.
