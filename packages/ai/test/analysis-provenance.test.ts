@@ -44,9 +44,45 @@ test("a known citation chain is traversed through retrieval and every new snapsh
   assert.equal(result.data?.graphs[0]?.edges.length, 2);
   assert.equal(result.data?.graphs[0]?.hopsUsed, 2);
   assert.equal(fixture.assessmentCalls, 2);
+  assert.deepEqual(
+    result.data?.assessmentResults?.map(({ claimId, snapshotId, result: assessed }) => ({
+      claimId,
+      snapshotId,
+      status: assessed.status,
+      assessments: assessed.data?.assessments.length,
+    })),
+    ["middle", "record"].map((snapshotId) => ({
+      claimId: provenanceClaim().id,
+      snapshotId,
+      status: "complete",
+      assessments: 1,
+    })),
+  );
   assert.ok(
     fixture.audits.some(({ message }) => message.includes("returned through evidence assessment")),
   );
+});
+
+test("multiple citation paths assess a shared claim/document pair only once", async () => {
+  const firstUrl = "https://reports.example/first";
+  const secondUrl = "https://reports.example/second";
+  const recordUrl = "https://records.example/shared";
+  const first = provenanceSnapshot("first", firstUrl, ` Cites ${recordUrl}`);
+  const second = provenanceSnapshot("second", secondUrl, ` Cites ${recordUrl}`);
+  const record = provenanceSnapshot("shared", recordUrl);
+  const fixture = createProvenanceEnvironment();
+  const result = await createTraceOrigins({
+    retrieval: scriptedProvenanceRetrieval(new Map([[recordUrl, record]])),
+  })(
+    {
+      claims: [provenanceClaim()],
+      snapshots: [first, second],
+      assessments: [provenanceAssessment(first), provenanceAssessment(second)],
+    },
+    fixture.environment,
+  );
+  assert.equal(result.data?.graphs[0]?.edges.length, 2);
+  assert.equal(fixture.assessmentCalls, 1);
 });
 
 test("a backdated update remains an explicit chronology conflict", async () => {
