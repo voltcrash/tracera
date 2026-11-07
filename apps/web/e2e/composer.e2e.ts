@@ -1,4 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import { hashValue } from "@repo/ai/analysis/hashing";
+import { analysisRequestIdentity } from "../src/server/analysis-controls";
+import { executeLocalSql, sqlValue } from "./support/d1";
+import { seedBrowserRun } from "./support/reports";
 
 async function signIn(page: Page) {
   await page.goto("/");
@@ -41,6 +45,50 @@ test("a retry after a lost response replays the accepted trace", async ({ page }
   expect(requests[1]).toBe(requests[0]);
   expect(acceptedRun).toBeTruthy();
   expect(new URL(page.url()).pathname).toBe(`/run/${acceptedRun}`);
+});
+
+test("a lost response can replay a saved failed trace and open its status", async ({ page }) => {
+  await signIn(page);
+  const { user } = await (await page.request.get("/api/auth/get-session")).json();
+  const text = "The saved failed trace should open after retry.";
+  const requests: string[] = [];
+  let savedRun: string | undefined;
+  await page.route("**/*serverFn/*", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST" || !request.postData()?.includes("idempotencyKey")) {
+      await route.continue();
+      return;
+    }
+    requests.push(request.postData()!);
+    if (requests.length === 1) {
+      const key = request.postData()!.match(/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}/)?.[0];
+      if (!key) throw new Error("Missing submission identity");
+      savedRun = seedBrowserRun(user.id, "failed").runId;
+      const body = { runId: savedRun, status: "failed", reportUrl: `/run/${savedRun}` };
+      const hash = analysisRequestIdentity(
+        new Request(request.url()),
+        { text },
+        undefined,
+      ).requestHash;
+      const now = Date.now();
+      executeLocalSql(`INSERT INTO analysis_idempotency_keys
+        (user_id,endpoint,idempotency_key,request_hash,request_status,response_body,response_hash,response_status,expires_at,created_at,updated_at)
+        VALUES(${sqlValue(user.id)},'startAnalysis',${sqlValue(key)},${sqlValue(hash)},'failed',${sqlValue(JSON.stringify(body))},${sqlValue(hashValue(body))},503,${now + 60_000},${now},${now});`);
+      await route.abort("failed");
+    } else await route.continue();
+  });
+  await page.getByLabel("Story or claim to analyze").fill(text);
+  await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/run/${savedRun}$`));
+  await expect(page.getByText("Analysis ended", { exact: true })).toBeVisible();
+  expect(requests).toHaveLength(2);
+  expect(requests[1]).toBe(requests[0]);
+  await expect(
+    page.getByRole("navigation", { name: "Your traces" }).locator(`a[href="/run/${savedRun}"]`),
+  ).toBeVisible();
 });
 
 test("only the latest attachment read can update the draft, including after removal", async ({
