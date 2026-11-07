@@ -96,6 +96,12 @@ test("personal key settings stay private across switching, reload, removal and a
     fullPage: true,
     animations: "disabled",
   });
+  executeLocalSql(
+    `UPDATE user_provider_keys SET health='rejected' WHERE user_id=${sqlValue(user.id)} AND provider='openai' AND is_current=1;`,
+  );
+  await page.reload();
+  await expect(keys.getByText("OpenAI needs attention", { exact: true })).toBeVisible();
+  await expect(keys.getByText("Key rejected. Replace it to continue.")).toBeVisible();
   await keys.getByRole("button", { name: "Remove OpenAI key" }).click();
   await expect(keys.getByText("••••5678")).toHaveCount(0);
   await keys.getByRole("button", { name: "Use Gemini key" }).click();

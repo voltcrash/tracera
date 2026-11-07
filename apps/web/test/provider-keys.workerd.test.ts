@@ -15,7 +15,8 @@ export default { async fetch(request, bindings) {
   const userId = new URL(request.url).searchParams.get("user") ?? "owner";
   if (request.method === "POST") return Response.json(await saveProviderKeyForUser(env, userId, await request.json()));
   if (new URL(request.url).pathname === "/resolve") {
-    const context = { ...runContextExample, ownerUserId: userId, provider: { source: "user", provider: "openai" }, versions: { ...runContextExample.versions, model: "chosen-model", embedding: { ...runContextExample.versions.embedding, model: "chosen-embedding" } } };
+    const revisionId = (await listProviderKeysForUser(env, userId)).keys[0].id;
+    const context = { ...runContextExample, ownerUserId: userId, provider: { source: "user", provider: "openai", revisionId }, versions: { ...runContextExample.versions, model: "chosen-model", embedding: { ...runContextExample.versions.embedding, model: "chosen-embedding" } } };
     const resolved = await resolveWorkflowProvider(env, context);
     return Response.json({ source: resolved.source, correctKey: resolved.config.apiKey === "personal-workerd-canary", model: resolved.config.model });
   }

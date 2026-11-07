@@ -132,7 +132,9 @@ export function PersonalProviderKeys() {
           AI provider
         </span>
         <span className="settings-margin-state">
-          {active ? `${PROVIDERS[active.provider]} in use` : "Use your own key"}
+          {active
+            ? `${PROVIDERS[active.provider]} ${active.health === "rejected" ? "needs attention" : "in use"}`
+            : "Use your own key"}
         </span>
       </div>
       <div className="min-w-0">
@@ -140,6 +142,8 @@ export function PersonalProviderKeys() {
         <p className="settings-note">
           Your active key pays for generation and embeddings. Keys are stored encrypted, and only
           the last four characters are shown here. Rate and concurrency limits still apply.
+          Switching affects new traces. Removing a key blocks further requests from unfinished
+          traces.
         </p>
         {error ? (
           <Alert variant="destructive" className="mt-4">
@@ -186,7 +190,11 @@ export function PersonalProviderKeys() {
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        {key.status === "active" ? (
+                        {key.health === "rejected" ? (
+                          <span className="text-sm text-destructive">
+                            Key rejected. Replace it to continue.
+                          </span>
+                        ) : key.status === "active" ? (
                           <span className="settings-saved">
                             <Check />
                             Active

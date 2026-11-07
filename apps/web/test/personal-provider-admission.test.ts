@@ -46,9 +46,9 @@ beforeAll(async () => {
 afterAll(async () => {
   await harness?.dispose();
 });
-const start = (owner: SessionUser = user) =>
+const start = (owner: SessionUser = user, env = harness.env) =>
   startAnalysisRun({
-    env: harness.env,
+    env,
     user: owner,
     request: new Request(ORIGIN),
     body: { text: "A claim to check." },
@@ -77,12 +77,10 @@ test("personal keys enable analysis without a platform provider or daily spend b
 });
 
 test("admission never decrypts the active key and still enforces concurrency", async () => {
-  await harness.env.DB.prepare(
-    "UPDATE user_provider_keys SET ciphertext='unreadable-test-ciphertext' WHERE user_id=?",
-  )
-    .bind(user.id)
-    .run();
-  expect((await start()).status).toBe(202);
+  expect(
+    (await start(user, { ...harness.env, PROVIDER_KEYS_ENCRYPTION_KEY: "unreadable-test-keyring" }))
+      .status,
+  ).toBe(202);
   expect(await start()).toMatchObject({ status: 429, body: { code: "user_concurrency_limited" } });
   await providerKeyStorage(harness.env).delete(user.id, "openai");
   expect((await start()).status).toBe(503);

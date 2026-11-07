@@ -13,6 +13,7 @@ export interface AnalysisProviderEnvironment {
 }
 export interface ResolvedAnalysisProvider {
   source: ProviderKeySource;
+  revisionId?: string;
   config: AiProviderConfig & { model: string };
 }
 

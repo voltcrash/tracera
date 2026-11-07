@@ -21,6 +21,7 @@ import { createD1SpendRepository, type D1RepositoryOptions } from "@repo/db";
 import { analysisControlConfig, spendLimitedAiProvider } from "./analysis-controls";
 import { createLiveSearchPorts } from "./evidence-search.server";
 import type { ServerEnv } from "./env";
+import { ProviderRevisionUnavailableError } from "./provider-selection.server";
 
 export function createWorkflowAnalysisPorts(input: {
   env: ServerEnv;
@@ -29,6 +30,7 @@ export function createWorkflowAnalysisPorts(input: {
   blobStore: RawBlobStore;
   resolvedProvider?: ResolvedAnalysisProvider;
   reserveUsage: (estimatedCostUsd: number) => Promise<void>;
+  onProviderRejected?: () => Promise<void>;
 }) {
   const { env, context, clock, blobStore } = input;
   if (context.executionMode === "fixture") {
@@ -44,6 +46,7 @@ export function createWorkflowAnalysisPorts(input: {
     resolved.config.model !== context.versions.model ||
     resolved.config.provider !== context.provider?.provider ||
     resolved.source !== context.provider?.source ||
+    resolved.revisionId !== context.provider?.revisionId ||
     (resolved.config.embedding?.model ?? resolved.config.embeddingModel) !==
       context.versions.embedding.model
   )
@@ -51,8 +54,19 @@ export function createWorkflowAnalysisPorts(input: {
   const controls = analysisControlConfig(env);
   const spend = createD1SpendRepository({ database: env.DB } as unknown as D1RepositoryOptions);
   let rejected = false;
+  let unavailable: ProviderRevisionUnavailableError | null = null;
   const assertProviderAccepted = () => {
+    if (unavailable) throw unavailable;
     if (rejected) throw new ProviderKeyRejectedError();
+  };
+  const reserveUsage = async (cost: number) => {
+    assertProviderAccepted();
+    try {
+      await input.reserveUsage(cost);
+    } catch (error) {
+      if (error instanceof ProviderRevisionUnavailableError) unavailable = error;
+      throw error;
+    }
   };
   const underlying = createAiProvider(resolved.config);
   const controlledProvider =
@@ -66,6 +80,7 @@ export function createWorkflowAnalysisPorts(input: {
             } catch (error) {
               if (isProviderKeyRejection(error)) {
                 rejected = true;
+                await input.onProviderRejected?.().catch(() => undefined);
                 throw new ProviderKeyRejectedError();
               }
               throw error;
@@ -75,7 +90,7 @@ export function createWorkflowAnalysisPorts(input: {
   const provider = new InstrumentedAiProvider(controlledProvider, {
     onCall: async (_call, operation) => operation(),
     onRequest: (call) =>
-      input.reserveUsage(
+      reserveUsage(
         call.kind === "embed"
           ? controls.embeddingCostUsd
           : call.kind === "generate_image"
@@ -89,7 +104,7 @@ export function createWorkflowAnalysisPorts(input: {
     rawBlobStore: blobStore,
     ocr: createProviderOcrPort({ provider, modelId: context.versions.model }),
     ocrCostUsd: controls.imageCostUsd,
-    safeFetchOptions: { beforeRequest: () => input.reserveUsage(0) },
+    safeFetchOptions: { beforeRequest: () => reserveUsage(0) },
   });
   return {
     assertProviderAccepted,
@@ -106,7 +121,7 @@ export function createWorkflowAnalysisPorts(input: {
       modelId: context.versions.embedding.model,
       estimatedCostUsd: controls.embeddingCostUsd,
     }),
-    search: createLiveSearchPorts(env, clock, () => input.reserveUsage(0)),
+    search: createLiveSearchPorts(env, clock, () => reserveUsage(0)),
     documents: {
       ...documents,
       async acquire(request: Parameters<typeof documents.acquire>[0]) {

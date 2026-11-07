@@ -1,4 +1,5 @@
 import { seedBrowserRun } from "./support/reports";
+import { executeLocalSql, sqlValue } from "./support/d1";
 import { expect, test } from "@playwright/test";
 import { analysisExamples } from "@repo/contracts/analysis";
 
@@ -155,6 +156,15 @@ test("a failed saved run shows a safe message instead of its internal provider e
   await expect(page.getByRole("heading", { name: "Analysis could not finish" })).toBeVisible();
   await expect(page.getByText("Analysis ended", { exact: true })).toBeVisible();
   await expect(page.locator("body")).not.toContainText("synthetic-provider-canary");
+  executeLocalSql(
+    `UPDATE core_runs SET last_error='provider_revision_unavailable' WHERE run_id=${sqlValue(runId)};`,
+  );
+  await page.reload();
+  await expect(
+    page.getByText(
+      "The provider key for this trace is no longer available. Choose a key in Settings and start a new trace.",
+    ),
+  ).toBeVisible();
 });
 
 test("a queued run can be canceled through the server function and progress stream", async ({

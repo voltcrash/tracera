@@ -15,7 +15,11 @@ import { runReportSchema, type RunStatus } from "@repo/contracts/analysis";
 import { analysisStorage, accessScope, isTerminalRunStatus } from "./analysis-api.server";
 import { analysisControlConfig } from "./analysis-controls";
 import { createWorkflowAnalysisPorts } from "./analysis-runtime";
-import { resolveWorkflowProvider } from "./provider-selection.server";
+import {
+  resolveWorkflowProvider,
+  ProviderRevisionUnavailableError,
+} from "./provider-selection.server";
+import { providerKeyStorage } from "./provider-keys.server";
 import type { ServerEnv } from "./env";
 import { publishPreparedReport } from "./report-publication.server";
 import {
@@ -41,6 +45,7 @@ export async function runAnalysisWorkflow(
   const identity = { scope, runId: params.runId };
   const context = await storage.runs.getRunContext(identity);
   if (!context) throw new NonRetryableError("The analysis run does not exist.");
+  const revisionId = context.provider?.revisionId;
   const blobStore = createR2RawBlobStore(
     env.BLOBS as unknown as Parameters<typeof createR2RawBlobStore>[0],
   );
@@ -98,9 +103,25 @@ export async function runAnalysisWorkflow(
                   estimatedCostUsd,
                 }))
               ) {
+                if (context.provider?.source === "user") {
+                  const key = context.provider.revisionId
+                    ? await providerKeyStorage(env).revision(
+                        context.ownerUserId,
+                        context.provider.revisionId,
+                      )
+                    : null;
+                  if (!key || key.health !== "verified")
+                    throw new ProviderRevisionUnavailableError();
+                }
                 throw new Error("The analysis run allowance is exhausted or no longer active.");
               }
             },
+            ...(revisionId
+              ? {
+                  onProviderRejected: () =>
+                    providerKeyStorage(env).markRejected(context.ownerUserId, revisionId),
+                }
+              : {}),
             ...(context.executionMode === "live"
               ? { resolvedProvider: await resolveWorkflowProvider(env, context) }
               : {}),
@@ -183,12 +204,25 @@ export async function runAnalysisWorkflow(
             await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
             return { status: "canceled", reportUri: null, fencingToken: null };
           }
-          if (error instanceof ProviderKeyRejectedError) {
-            await storage.runs.failRun({
-              ...identity,
-              fencingToken: attempt.fencingToken,
-              error: "provider_key_rejected",
-            });
+          if (
+            error instanceof ProviderKeyRejectedError ||
+            error instanceof ProviderRevisionUnavailableError
+          ) {
+            if (error instanceof ProviderKeyRejectedError && context.provider?.revisionId)
+              await providerKeyStorage(env)
+                .markRejected(context.ownerUserId, context.provider.revisionId)
+                .catch(() => undefined);
+            // Settlement retries in the fail step; credential failures must not retry analysis.
+            await storage.runs
+              .failRun({
+                ...identity,
+                fencingToken: attempt.fencingToken,
+                error:
+                  error instanceof ProviderKeyRejectedError
+                    ? "provider_key_rejected"
+                    : "provider_revision_unavailable",
+              })
+              .catch(() => undefined);
             throw new NonRetryableError(error.message);
           }
           // Workflow errors are persisted; never attach provider errors or request bodies.
