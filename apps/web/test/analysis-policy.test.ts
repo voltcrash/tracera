@@ -64,6 +64,7 @@ test("live analysis requires the provider, budget and spend settings", () => {
 test("personal analysis needs run bounds and cost estimates but skips the platform daily spend bound", () => {
   const selection = {
     source: "user" as const,
+    revisionId: "policy-test-revision",
     config: {
       provider: "openai" as const,
       model: "personal-model",

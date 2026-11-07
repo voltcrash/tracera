@@ -4,7 +4,6 @@ import {
   type AnalysisProviderEnvironment,
   type ResolvedAnalysisProvider,
 } from "@repo/ai";
-import { ANALYSIS_ENGINE_VERSION } from "@repo/ai/analysis";
 import { hashValue } from "@repo/ai/analysis/hashing";
 import type { RunInput } from "@repo/ai/analysis/types";
 import {
@@ -15,10 +14,12 @@ import {
 } from "@repo/contracts/analysis";
 import type { ServerEnv } from "./env";
 
-const ANALYSIS_PROMPT_VERSION = "tracera-prompts-1.0.0";
-const ANALYSIS_RETRIEVER_VERSION = "tracera-retrieval-1.0.0";
-const ANALYSIS_EMBEDDING_PREPROCESSING = "tracera-normalized-text-1.0.0";
-const EMBEDDING_DIMENSIONS = 1024;
+import { analysisRuntimeVersions } from "./analysis-runtime-versions";
+import {
+  createFixtureExecutionPlan,
+  createLiveExecutionPlan,
+  type ExecutionPlan,
+} from "./analysis-execution-plan";
 
 const TEST_FOCUSED_BUDGET: RunBudget = {
   ...ANALYSIS_EVALUATION_BUDGET,
@@ -33,6 +34,7 @@ export interface AnalysisRuntimePolicy {
   providerIdentity?: RunContext["provider"];
   versions: RunContext["versions"];
   budget: RunBudget;
+  executionPlan: ExecutionPlan;
 }
 
 export type AnalysisRuntimePolicyResult =
@@ -62,6 +64,25 @@ function livePolicy(
   if (!budget.ok) return unavailable(budget.message);
   const spend = readLiveSpend(environment, resolved.source === "user");
   if (!spend.ok) return unavailable(spend.message);
+  const versions = analysisRuntimeVersions("live", model, embeddingModel);
+  let executionPlan;
+  try {
+    executionPlan = createLiveExecutionPlan({
+      resolved,
+      versions,
+      estimates: {
+        generationCostUsd: Number(optional(environment, "AI_ESTIMATED_GENERATION_COST_USD")),
+        imageCostUsd: Number(optional(environment, "AI_ESTIMATED_IMAGE_COST_USD")),
+        embeddingCostUsd: Number(optional(environment, "AI_ESTIMATED_EMBEDDING_COST_USD")),
+      },
+      discovery: {
+        googleFactCheck: Boolean(optional(environment, "GOOGLE_FACT_CHECK_API_KEY")),
+        newsApi: Boolean(optional(environment, "NEWS_API_KEY")),
+      },
+    });
+  } catch {
+    return unavailable("The live runtime configuration is unsupported.");
+  }
 
   return {
     enabled: true,
@@ -73,18 +94,8 @@ function livePolicy(
         provider: providerConfig.provider,
         ...(resolved.revisionId ? { revisionId: resolved.revisionId } : {}),
       },
-      versions: {
-        engine: ANALYSIS_ENGINE_VERSION,
-        prompt: ANALYSIS_PROMPT_VERSION,
-        model,
-        retriever: ANALYSIS_RETRIEVER_VERSION,
-        embedding: {
-          model: embeddingModel,
-          dimensions: EMBEDDING_DIMENSIONS,
-          preprocessing: ANALYSIS_EMBEDDING_PREPROCESSING,
-        },
-        calibration: null,
-      },
+      versions,
+      executionPlan,
       budget: budget.value,
     },
   };
@@ -98,12 +109,14 @@ export function analysisPolicy(
 ): AnalysisRuntimePolicyResult {
   if (env.ANALYSIS_MODE === "fixture") {
     if (env.MODE !== "dev") return unavailable("Fixture analysis runs only in local development.");
+    const versions = testVersions();
     return {
       enabled: true,
       policy: {
         mode: "fixture",
         providerConfig: null,
-        versions: testVersions(),
+        versions,
+        executionPlan: createFixtureExecutionPlan(versions),
         budget: TEST_FOCUSED_BUDGET,
       },
     };
@@ -197,18 +210,7 @@ function unavailable(message: string): AnalysisRuntimePolicyResult {
 }
 
 function testVersions(): RunContext["versions"] {
-  return {
-    engine: ANALYSIS_ENGINE_VERSION,
-    prompt: "tracera-test-fixture-prompts-1.0.0",
-    model: "test-fixture-model",
-    retriever: ANALYSIS_RETRIEVER_VERSION,
-    embedding: {
-      model: "test-fixture-embedding",
-      dimensions: EMBEDDING_DIMENSIONS,
-      preprocessing: ANALYSIS_EMBEDDING_PREPROCESSING,
-    },
-    calibration: null,
-  };
+  return analysisRuntimeVersions("fixture", "test-fixture-model", "test-fixture-embedding");
 }
 
 export function analysisRunContext(
