@@ -27,6 +27,7 @@ test("personal key settings stay private across switching, reload, removal and a
     async (response) =>
       response.url().includes("serverFn") &&
       response.request().method() === "GET" &&
+      response.request().headers()["referer"] === new URL("/settings", page.url()).href &&
       (await response.text()).includes("1234"),
   );
   await page.goto("/settings");
