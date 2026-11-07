@@ -1,5 +1,6 @@
 import type { AiRequestOptions, GenerateOptions, ImageInput, JsonSchema } from "../provider";
 import { requestProviderJson } from "../provider-request";
+import { BUILTIN_PROVIDER_BASE_URLS } from "../provider-endpoints";
 import { StructuredOutputProvider } from "../provider";
 
 export interface AnthropicProviderOptions {
@@ -24,7 +25,7 @@ export class AnthropicProvider extends StructuredOutputProvider {
     super();
     this.apiKey = options.apiKey;
     this.model = options.model ?? "claude-sonnet-4-5";
-    this.baseUrl = (options.baseUrl ?? "https://api.anthropic.com/v1").replace(/\/$/, "");
+    this.baseUrl = (options.baseUrl ?? BUILTIN_PROVIDER_BASE_URLS.anthropic).replace(/\/$/, "");
   }
 
   async embed(_text: string, _options?: AiRequestOptions): Promise<number[]> {
