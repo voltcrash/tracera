@@ -32,3 +32,12 @@ export async function requireSuccessfulProductionCI({ github, context, sha }) {
   }
   return run;
 }
+
+export async function productionEligibility({ github, context, sha }) {
+  const ci = await requireSuccessfulProductionCI({ github, context, sha });
+  const { data } = await github.rest.repos.getBranch({ ...context.repo, branch: "main" });
+  const currentSha = data.commit?.sha;
+  if (typeof currentSha !== "string" || !currentSha)
+    throw new Error("The current main snapshot is unavailable");
+  return { state: currentSha === sha ? "eligible" : "superseded", ci };
+}

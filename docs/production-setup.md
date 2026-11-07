@@ -54,9 +54,11 @@ build artifacts and preserve the existing private file when repeating setup.
 
 The [production workflow](../.github/workflows/production-release.yml) automatically runs after
 [CI](../.github/workflows/ci.yml) succeeds for a push to `main`. It checks out that CI run's exact
-SHA, even if `main` has advanced. It independently requires the latest main-push CI result for
-that SHA to be successful before preparing credentials. PR, fork, failed and cancelled runs
-cannot deploy. GitHub permissions are Contents and Actions read only.
+SHA only if it still matches current `main` before preparation and immediately before migrations.
+Each check independently requires the latest main-push CI result for that SHA to be successful.
+Release policy loads from the workflow's SHA before the exact eligible candidate is checked out,
+so a delayed older candidate cannot supply its own eligibility code. PR, fork, failed and
+cancelled runs cannot deploy. GitHub permissions are Contents and Actions read only.
 
 Configure these secrets in the GitHub `production` environment:
 
@@ -69,7 +71,26 @@ The workflow validates CI, writes private settings, installs dependencies, build
 dry-runs, applies production migrations and `PRAGMA optimize`, then deploys. Before upload,
 the deployment command enables D1 read replication and verifies the persisted setting.
 Cloudflare API errors or an identity mismatch stop deployment. Private settings are always
-removed, and concurrent production deployments remain serialized.
+removed, and concurrent production deployments remain serialized. The queue retains pending
+candidates with `queue: max`; eligibility checks handle their order rather than assuming CI
+completion order matches commit order. See [GitHub's concurrency rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+
+The final job summary records the commit and an explicit outcome:
+
+| Outcome                 | Meaning and recovery                                                                                  |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| `blocked`               | Eligibility was unavailable or CI was not successful; no production mutation started                  |
+| `superseded`            | Main advanced before cutover; this candidate skips migration and upload                               |
+| `preflight_incomplete`  | Preparation or the final eligibility check failed; fix it and retry current main after CI             |
+| `migration_incomplete`  | Migration may have changed D1; inspect applied migrations and retry forward                           |
+| `deployment_incomplete` | Migration succeeded but Worker activation is unconfirmed; inspect the active Worker and retry forward |
+| `deployed`              | Migration and deployment commands reported success                                                    |
+
+Once the final eligibility check passes, migration and upload finish under the same concurrency
+lock even if main advances. A newer candidate waits. Rechecking the head after migration could
+leave the old Worker serving a newer schema, so supersession only stops work before cutover.
+Superseded jobs finish unsuccessfully to avoid recording a successful production environment
+deployment when no upload ran. Their summary identifies supersession explicitly.
 
 Worker metadata and `/version.json` share the internal ID `SHA-run ID-run attempt`. Each retry
 gets its own ID. Local builds receive a unique local ID. There are no dated website releases,
@@ -86,7 +107,17 @@ It does not bypass the gate or permit deployment from a feature branch.
 
 ## Database behavior and recovery
 
-Migrations precede Worker upload. Replica activation is idempotent and targets the configured
+Migrations precede Worker upload. They cannot be atomic with a Worker deployment. New migrations
+must support the currently serving Worker until upload finishes; incompatible changes need staged
+expand/contract releases or a separately planned maintenance window. Test both old and new writers
+against the migrated schema. Existing constraints, including provider-key revisions introduced in
+migration `0013`, must be considered before reverting code; applied migrations are not edited here.
+
+If a runner stops before the summary, inspect migration/upload step conclusions and Wrangler logs.
+A failed upload does not establish which Worker is active. Inspect it before retrying the latest
+CI-approved main commit. No database restore or Worker rollback happens automatically.
+
+Replica activation is idempotent and targets the configured
 D1 UUID and name. The token needs D1 edit access. Dry-run commands never invoke migration,
 optimization or replica activation. Local migrations run only local optimization.
 
