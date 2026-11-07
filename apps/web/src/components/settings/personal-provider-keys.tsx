@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Loader2 } from "lucide-react";
 import type { AiProviderName } from "@repo/ai";
@@ -15,6 +15,9 @@ import { Label } from "@/components/ui/label";
 import { LocalTime } from "@/components/ui/local-time";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { useAuth } from "@/components/providers/auth-provider";
+import { useResource } from "@/lib/use-resource";
+
 const PROVIDERS: Record<AiProviderName, string> = {
   gemini: "Gemini",
   openai: "OpenAI",
@@ -22,7 +25,10 @@ const PROVIDERS: Record<AiProviderName, string> = {
   openrouter: "OpenRouter",
   "openai-compatible": "OpenAI-compatible",
 };
-type KeyList = Awaited<ReturnType<typeof listProviderKeys>>;
+type KeyMutation =
+  | { status: "idle" | "pending" }
+  | { status: "failed"; error: string }
+  | { status: "succeeded"; message: string };
 const selectClass = "h-10 w-full rounded-lg border border-input bg-background px-3 text-sm";
 
 export function PersonalProviderKeys() {
@@ -30,31 +36,62 @@ export function PersonalProviderKeys() {
   const save = useServerFn(saveProviderKey);
   const remove = useServerFn(deleteProviderKey);
   const activate = useServerFn(activateProviderKey);
-  const [data, setData] = useState<KeyList | null>(null);
+  const { user } = useAuth();
+  const { state: metadata, refresh } = useResource(user?.id ?? null, load);
+  const data = metadata.data;
   const [provider, setProvider] = useState<AiProviderName>("gemini");
   const [embeddingProvider, setEmbeddingProvider] =
     useState<Exclude<AiProviderName, "anthropic">>("gemini");
   const [separateEmbedding, setSeparateEmbedding] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [mutation, setMutation] = useState<KeyMutation>({ status: "idle" });
+  const locked = useRef(false);
+  const mounted = useRef(true);
+  const busy = mutation.status === "pending" || metadata.status !== "ready";
+  const error = mutation.status === "failed" ? mutation.error : null;
+  const message = mutation.status === "succeeded" ? mutation.message : null;
   const separate = separateEmbedding || provider === "anthropic";
 
   useEffect(() => {
-    let current = true;
-    void load()
-      .then((result) => {
-        if (current) setData(result);
-      })
-      .catch(() => {
-        if (current) setError("Could not load your provider keys. Please reload and try again.");
-      });
+    mounted.current = true;
     return () => {
-      current = false;
+      mounted.current = false;
     };
-  }, [load]);
+  }, []);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function runMutation(
+    request: () => Promise<{ ok: boolean; error?: string }>,
+    success: string,
+    failure: string,
+    confirmed?: () => void,
+  ) {
+    if (locked.current || metadata.status !== "ready") return;
+    locked.current = true;
+    setMutation({ status: "pending" });
+    try {
+      let result;
+      try {
+        result = await request();
+      } catch {
+        if (mounted.current) setMutation({ status: "failed", error: failure });
+        return;
+      }
+      if (!mounted.current) return;
+      if (!result.ok) {
+        setMutation({
+          status: "failed",
+          error: result.error ?? "This key is no longer available. Please reload and try again.",
+        });
+        return;
+      }
+      confirmed?.();
+      setMutation({ status: "succeeded", message: success });
+      await refresh();
+    } finally {
+      locked.current = false;
+    }
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const values = new FormData(form);
@@ -62,66 +99,43 @@ export function PersonalProviderKeys() {
       const field = values.get(name);
       return typeof field === "string" ? field.trim() : "";
     };
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await save({
-        data: {
-          provider,
-          apiKey: value("apiKey"),
-          model: value("model"),
-          embeddingModel: value("embeddingModel"),
-          ...(provider === "openai-compatible" ? { baseUrl: value("baseUrl") } : {}),
-          ...(separate
-            ? {
-                embeddingProvider,
-                embeddingApiKey: value("embeddingApiKey"),
-                ...(embeddingProvider === "openai-compatible"
-                  ? { embeddingBaseUrl: value("embeddingBaseUrl") }
-                  : {}),
-              }
-            : {}),
-        },
-      });
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      for (const name of ["apiKey", "embeddingApiKey"]) {
-        const field = form.elements.namedItem(name);
-        if (field instanceof HTMLInputElement) field.value = "";
-      }
-      setMessage("Key verified and saved. New analyses will use it.");
-      setData(await load());
-    } catch {
-      setError("Could not save your provider key. Please try again.");
-    } finally {
-      setBusy(false);
-    }
+    void runMutation(
+      () =>
+        save({
+          data: {
+            provider,
+            apiKey: value("apiKey"),
+            model: value("model"),
+            embeddingModel: value("embeddingModel"),
+            ...(provider === "openai-compatible" ? { baseUrl: value("baseUrl") } : {}),
+            ...(separate
+              ? {
+                  embeddingProvider,
+                  embeddingApiKey: value("embeddingApiKey"),
+                  ...(embeddingProvider === "openai-compatible"
+                    ? { embeddingBaseUrl: value("embeddingBaseUrl") }
+                    : {}),
+                }
+              : {}),
+          },
+        }),
+      "Key verified and saved. New analyses will use it.",
+      "Could not save your provider key. Please try again.",
+      () => {
+        for (const name of ["apiKey", "embeddingApiKey"]) {
+          const field = form.elements.namedItem(name);
+          if (field instanceof HTMLInputElement) field.value = "";
+        }
+      },
+    );
   }
 
-  async function updateKey(keyProvider: AiProviderName, action: "activate" | "delete") {
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await (action === "activate" ? activate : remove)({
-        data: { provider: keyProvider },
-      });
-      if (!result.ok) {
-        setError("This key is no longer available. Please reload and try again.");
-        return;
-      }
-      setData(await load());
-      setMessage(
-        action === "activate" ? "New analyses will use this key." : "Provider key removed.",
-      );
-    } catch {
-      setError("Could not update your provider key. Please try again.");
-    } finally {
-      setBusy(false);
-    }
+  function updateKey(keyProvider: AiProviderName, action: "activate" | "delete") {
+    return runMutation(
+      () => (action === "activate" ? activate : remove)({ data: { provider: keyProvider } }),
+      action === "activate" ? "New analyses will use this key." : "Provider key removed.",
+      "Could not update your provider key. Please try again.",
+    );
   }
 
   const active = data?.keys.find((key) => key.status === "active");
@@ -145,6 +159,17 @@ export function PersonalProviderKeys() {
           Switching affects new traces. Removing a key blocks further requests from unfinished
           traces.
         </p>
+        {metadata.status === "error" ? (
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>
+              Unable to load your provider keys.
+              {data ? " Previously loaded information is shown below." : null}
+              <Button type="button" variant="ghost" onClick={() => void refresh()}>
+                Retry provider keys
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
         {error ? (
           <Alert variant="destructive" className="mt-4">
             <AlertDescription>{error}</AlertDescription>
@@ -156,7 +181,7 @@ export function PersonalProviderKeys() {
             {message}
           </p>
         ) : null}
-        {!data && !error ? (
+        {!data && metadata.status === "loading" ? (
           <Skeleton className="mt-5 h-24 rounded-lg" aria-label="Loading your provider keys" />
         ) : null}
         {data ? (
@@ -316,7 +341,7 @@ export function PersonalProviderKeys() {
                     makes it active for new analyses.
                   </p>
                   <Button type="submit" variant="brand" className="rounded-full px-5">
-                    {busy ? (
+                    {mutation.status === "pending" ? (
                       <>
                         <Loader2 className="animate-spin" />
                         Verifying…
