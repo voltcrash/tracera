@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./run-lifecycle": "./src/run-lifecycle.ts",
     "./avatar": "./src/avatar.ts",
     "./analysis": "./src/analysis.ts",
     "./analysis-focused": "./src/analysis-focused.ts"

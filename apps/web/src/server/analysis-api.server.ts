@@ -1,4 +1,5 @@
-import { type RunStatus } from "@repo/contracts/analysis";
+import { isTerminalRunStatus } from "@repo/contracts/run-lifecycle";
+export { isTerminalRunStatus } from "@repo/contracts/run-lifecycle";
 import type { AnalysisAccessScope, AnalysisAdmission } from "@repo/db";
 import {
   createD1AdmissionRepository,
@@ -33,8 +34,6 @@ export type ApiResult = {
   body: Record<string, unknown>;
   headers?: Record<string, string>;
 };
-
-const TERMINAL = new Set(["complete", "partial", "unavailable", "failed", "canceled"]);
 
 export function analysisStorage(env: ServerEnv, now?: () => number) {
   // Wrangler's generated runtime types and @cloudflare/workers-types describe the same bindings.
@@ -218,7 +217,7 @@ export async function readRunState(env: ServerEnv, user: SessionUser, runId: str
   const scope = accessScope(user);
   const progress = await runs.getRunProgress({ scope, runId });
   if (!progress) return null;
-  const terminal = TERMINAL.has(progress.status);
+  const terminal = isTerminalRunStatus(progress.status);
   const report =
     terminal && progress.status !== "canceled"
       ? await runs.getLatestReport({ scope, runId })
@@ -244,10 +243,6 @@ export async function cancelAnalysisRun(
   return (await runs.getRunProgress({ scope, runId }))
     ? { status: 409, body: { error: "The run has already finished." } }
     : { status: 404, body: { error: "Run not found." } };
-}
-
-export function isTerminalRunStatus(status: string): status is RunStatus {
-  return TERMINAL.has(status);
 }
 
 function analysisInput(body: FirstPartyAnalysisInput) {

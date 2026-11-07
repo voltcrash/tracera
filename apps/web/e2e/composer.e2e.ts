@@ -29,6 +29,7 @@ test("a retry after a lost response replays the accepted trace", async ({ page }
     }
   });
   await page.getByLabel("Story or claim to analyze").fill("The library opened in 2026.");
+  await expect(page.getByRole("button", { name: "Analyze", exact: true })).toBeEnabled();
   await page.locator(".sheet-form").evaluate((form: HTMLFormElement) => {
     form.requestSubmit();
     form.requestSubmit();

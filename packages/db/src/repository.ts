@@ -1,4 +1,5 @@
 import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
+import { isTerminalRunStatus, type RunLifecycleStatus } from "@repo/contracts/run-lifecycle";
 import {
   documentSnapshotSchema,
   stageNameSchema,
@@ -46,7 +47,7 @@ interface RunRow {
   context_hash: string;
   as_of_time: number;
   execution_mode: RunContext["executionMode"];
-  status: "queued" | "running" | "complete" | "partial" | "unavailable" | "failed" | "canceled";
+  status: RunLifecycleStatus;
   stage: StageName;
   attempt: number;
   fencing_token: string | null;
@@ -686,7 +687,7 @@ export class D1AnalysisRepository {
     const [runs, checkpoints] = await this.database.batch<RunRow & { stage: StageName }>([
       this.database
         .prepare(
-          "SELECT run_id,status,stage,attempt,version,cancellation,updated_at,last_error FROM core_runs WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=?",
+          "SELECT run_id,status,stage,attempt,version,cancellation,updated_at,last_error,prepared_report FROM core_runs WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=?",
         )
         .bind(input.runId, ...scopeValues(input.scope)),
       this.database
@@ -705,6 +706,7 @@ export class D1AnalysisRepository {
           attempt: row.attempt,
           version: row.version,
           cancellationRequested: JSON.parse(row.cancellation).requested === true,
+          publicationPending: row.prepared_report !== null && !isTerminalRunStatus(row.status),
           recordedStages,
           lastCheckpointedStage: recordedStages.at(-1) ?? null,
           nextStage:

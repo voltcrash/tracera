@@ -39,6 +39,7 @@ test("ready reports retain their fence, reject failure and publish exactly once"
   const { runs, identity, attempt, report, prepared } = await setup("ready");
   expect(await runs.getPreparedReport(identity)).toBeNull();
   await runs.prepareReport({ ...identity, ...prepared });
+  expect(await runs.getRunProgress(identity)).toMatchObject({ publicationPending: true });
   const version = (await runs.getRunProgress(identity))!.version;
   await runs.prepareReport({ ...identity, ...prepared });
   expect((await runs.getRunProgress(identity))!.version).toBe(version);

@@ -31,38 +31,66 @@ export async function runEventsResponse(env: ServerEnv, request: Request, runId:
   const encoder = new TextEncoder();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
-  let lastEventId = request.headers.get("last-event-id");
+  const cursor = request.headers.get("last-event-id");
+  let lastVersion =
+    cursor !== null && /^\d+$/.test(cursor) && Number(cursor) <= initial.progress.version
+      ? Number(cursor)
+      : -1;
+  let cleanup = () => {};
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
+      const finish = () => {
+        if (closed) return;
+        cleanup();
+        controller.close();
+      };
+      cleanup = () => {
+        closed = true;
+        if (timer) clearTimeout(timer);
+        request.signal.removeEventListener("abort", finish);
+      };
+      request.signal.addEventListener("abort", finish, { once: true });
+      if (request.signal.aborted) {
+        finish();
+        return;
+      }
       controller.enqueue(encoder.encode("retry: 2000\n\n"));
       const emit = (state: RunState) => {
-        const eventId = `${state.progress.updatedAt}:${state.progress.completedStages.length}`;
-        if (eventId !== lastEventId) {
-          lastEventId = eventId;
+        if (state.progress.version > lastVersion) {
+          lastVersion = state.progress.version;
           controller.enqueue(
             encoder.encode(
-              `id: ${eventId}\nevent: progress\ndata: ${JSON.stringify({ schemaVersion: 2, ...(displayView ? projectRunState(state) : state) })}\n\n`,
+              `id: ${lastVersion}\nevent: progress\ndata: ${JSON.stringify({ schemaVersion: 2, ...(displayView ? projectRunState(state) : state) })}\n\n`,
             ),
           );
         }
         if (isTerminalRunStatus(state.progress.status)) {
-          closed = true;
-          controller.close();
+          finish();
         }
       };
       const poll = async () => {
         if (closed) return;
         try {
+          const session = await readSessionUser(env, request);
+          if (closed) return;
+          if (session?.id !== user.id) {
+            controller.enqueue(
+              encoder.encode('event: access_lost\ndata: {"reason":"session"}\n\n'),
+            );
+            finish();
+            return;
+          }
           const state = await readRunState(env, user, runId);
           if (closed) return;
           if (!state) {
-            closed = true;
-            controller.close();
+            controller.enqueue(encoder.encode('event: access_lost\ndata: {"reason":"run"}\n\n'));
+            finish();
             return;
           }
           emit(state);
         } catch {
-          closed = true;
+          if (closed) return;
+          cleanup();
           controller.error(new Error("Progress is temporarily unavailable."));
           return;
         }
@@ -72,8 +100,7 @@ export async function runEventsResponse(env: ServerEnv, request: Request, runId:
       if (!closed) timer = setTimeout(() => void poll(), POLL_MS);
     },
     cancel() {
-      closed = true;
-      if (timer) clearTimeout(timer);
+      cleanup();
     },
   });
   return new Response(stream, {

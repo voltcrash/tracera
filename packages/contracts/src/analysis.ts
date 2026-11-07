@@ -3,6 +3,7 @@
  * referenced snapshot text. Unknown values are explicit null.
  */
 import { z } from "zod";
+import { terminalRunStatuses } from "./run-lifecycle.js";
 
 export const ANALYSIS_SCHEMA_VERSION = 2 as const;
 export const ANALYSIS_CONTRACT_VERSION = "2.0.0" as const;
@@ -83,7 +84,7 @@ export const executionModeSchema = z.enum(["fixture", "replay", "live", "shadow"
 // ---------------------------------------------------------------------------
 
 export const stageStatusSchema = z.enum(["complete", "partial", "unavailable", "failed"]);
-export const runStatusSchema = z.enum(["complete", "partial", "unavailable", "failed", "canceled"]);
+export const runStatusSchema = z.enum(terminalRunStatuses);
 
 export const stageNameSchema = z.enum([
   "normalize_input",
