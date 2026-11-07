@@ -294,6 +294,28 @@ Unreadable legacy inputs increment `admissionRecoveryErrors` and leave that unre
 admission for later recovery without aborting other runs. Artifact sweep errors are
 isolated from normal control/auth expiry cleanup and admission settlement.
 
+Personal provider configuration is stored as immutable encrypted revisions. Each successful
+verified save creates a new revision; only the latest revision for each provider appears in
+Settings, and one current provider is active per owner. Admission records the selected
+opaque revision ID in the run context. Replacing a key or switching providers affects new
+runs; already-admitted runs retain their exact credentials, endpoints, models, and embedding
+configuration. Usage timestamps and rejection health belong to that revision.
+
+Deleting a provider removes all its saved revisions and credentials. Physical request
+reservation atomically checks that the bound revision still belongs to the run owner and
+remains verified. Deletion or a definitive provider 401/403 therefore blocks later request
+admission, including repair attempts and document/search calls; already-admitted requests
+may finish. A rejected revision cannot be reactivated as healthy: verifying and saving a
+replacement creates a new revision. A stale rejection cannot invalidate its replacement.
+Keep encryption-key versions needed by retained revisions available until those credentials
+are removed. Archived revisions remain encrypted and are never listed in Settings.
+
+Missing, deleted, rejected, or undecryptable revisions fail the run without analysis retries
+and without falling back to a platform key. Settings shows rejected-key health, and affected
+traces show a safe key-unavailable message. Publication of an already-prepared report still
+needs no credentials. Migration preserves existing encrypted keys with revision IDs but
+does not invent bindings for historical personal-key runs; unbound legacy runs fail closed.
+
 Acquisition completion derives from the retained snapshot and typed limitations. Both byte
 and character truncation produce a partial result, including a fully downloaded HTTP text
 response that exceeds the character cap. Empty or whitespace-only HTTP text is explicitly
