@@ -67,6 +67,46 @@ test("dev identities are served through the auth route", async () => {
   expect(await response.json()).toMatchObject({ identities: [{ id: "ada" }, { id: "grace" }] });
 });
 
+test.each(["expired", "revoked"])(
+  "sign-out clears the cookie when the remembered session is %s",
+  async (state) => {
+    const login = await handleAuthRequest(
+      env,
+      new Request(`${origin}/api/auth/dev-login?identity=ada`),
+    );
+    const cookie = cookies(login);
+    const current = (await (await session(cookie)).json()) as {
+      user: { id: string };
+      session: { id: string };
+    };
+    await runtime.db
+      .prepare(
+        state === "expired"
+          ? "UPDATE sessions SET expires_at = 0 WHERE id = ?"
+          : "DELETE FROM sessions WHERE id = ?",
+      )
+      .bind(current.session.id)
+      .run();
+
+    const signOut = await handleAuthRequest(
+      env,
+      new Request(`${origin}/api/auth/sign-out`, {
+        method: "POST",
+        headers: {
+          cookie,
+          origin,
+          "content-type": "application/json",
+          [PROFILE_OWNER_HEADER]: current.user.id,
+        },
+        body: "{}",
+      }),
+    );
+    expect(signOut.status).toBe(200);
+    expect(signOut.headers.getSetCookie().join()).toMatch(/Max-Age=0/);
+    expect(await (await session(cookie)).json()).toBeNull();
+  },
+);
+
 test("profile updates reject a stale account identity before touching the signed-in user", async () => {
   const login = async (id: string) =>
     cookies(

@@ -18,8 +18,9 @@ export async function handleAuthRequest(env: ServerEnv, request: Request) {
       (path === "/api/auth/update-user" || (path === "/api/auth/sign-out" && owner))
     ) {
       const session = await auth.api.getSession({ headers: request.headers });
-      if (!session) return Response.json({ message: "Not authenticated." }, { status: 401 });
-      if (owner !== session.user.id)
+      if (!session && path === "/api/auth/update-user")
+        return Response.json({ message: "Not authenticated." }, { status: 401 });
+      if (session && owner !== session.user.id)
         return Response.json(
           {
             code: "PROFILE_OWNER_CHANGED",
