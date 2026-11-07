@@ -72,6 +72,7 @@ setup and rotation, and hosted activation. Personal keys support every existing 
 platform providers remain available when no personal key is active.
 
 See [composer transitions](docs/composer.md) for draft, attachment, submission, and report-opening behavior.
+See [authentication and profile transitions](docs/auth-profile.md) for session recovery, account changes, and scoped profile edits.
 
 ## Architecture
 
