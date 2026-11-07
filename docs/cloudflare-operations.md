@@ -265,6 +265,35 @@ step results. Existing runs default to no prepared report, and historical succes
 step outcomes remain publishable through the original pointer path. A blob write without
 a committed preparation cannot be inferred as ready from historical R2 objects.
 
+New payload and raw-byte uploads use `uploads/` keys containing a digest and a fresh
+upload UUID. An upload key is never reused. Readers still accept historical
+content-addressed keys; automatic sweeping preserves those legacy keys and unknown
+upload formats. Snapshot identities include immutable extraction metadata and raw-blob
+availability, but exclude acquisition time and physical upload location. Identical
+recaptures reuse the frozen stored snapshot and its original blob location.
+
+Maintenance scans at most 100 upload objects per invocation, resuming with a durable
+lexicographic cursor. Objects younger than 24 hours are retained. Older unreferenced
+objects become candidates; deletion requires a second observation at least 24 hours
+later, unchanged object version/age, and a final D1 reference check. References include
+inputs, checkpoints, raw captures, snapshot payloads, reports, prepared reports,
+idempotency responses, and all offloaded report projections. Raw captures represented
+inside checkpoints or reports are rooted by their normalized snapshot rows.
+
+Sweeping pauses if an unfinished run or held admission is older than the grace cutoff.
+An original producer of an old upload therefore cannot commit its reference during
+deletion; newer producers create new keys or reuse existing rooted snapshots. Candidate
+claims are atomic across concurrent sweeps. Failed deletions restart observation and
+its grace period; missing-object candidate cleanup is bounded. Metrics expose
+`artifactsScanned`, `artifactsMarked`, `artifactsDeleted`, `artifactSweepDeferred`, and
+`artifactSweepErrors`. This cleans unreferenced uploads without applying a retention
+policy to saved reports or snapshots.
+
+Terminal admission recovery first uses persisted admission or bound lease metadata.
+Unreadable legacy inputs increment `admissionRecoveryErrors` and leave that unresolved
+admission for later recovery without aborting other runs. Artifact sweep errors are
+isolated from normal control/auth expiry cleanup and admission settlement.
+
 Acquisition completion derives from the retained snapshot and typed limitations. Both byte
 and character truncation produce a partial result, including a fully downloaded HTTP text
 response that exceeds the character cap. Empty or whitespace-only HTTP text is explicitly

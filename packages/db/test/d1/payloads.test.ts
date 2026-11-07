@@ -24,9 +24,20 @@ test("large UTF-8 payloads are offloaded to R2 and round-trip without data loss"
   const value = { text: "測".repeat(MAX_D1_PAYLOAD_BYTES / 3) };
   const pointer = await store.encode(value, "snapshots");
   expect(pointer.inline).toBeNull();
-  expect(pointer.blobUri).toMatch(/^r2:\/\/payloads\/snapshots\/[a-f0-9]{64}$/);
+  expect(pointer.blobUri).toMatch(
+    /^r2:\/\/uploads\/payloads\/snapshots\/[a-f0-9]{64}\/[a-f0-9-]{36}$/,
+  );
   expect(await store.read(pointer)).toEqual(value);
-  expect(await store.encode(value, "snapshots")).toEqual(pointer);
+  const repeated = await store.encode(value, "snapshots");
+  expect(repeated.hash).toBe(pointer.hash);
+  expect(repeated.blobUri).not.toBe(pointer.blobUri);
+  expect(await store.read(repeated)).toEqual(value);
+  const legacyUri = `r2://payloads/snapshots/${pointer.hash.slice(7)}`;
+  await runtime.bucket.put(
+    legacyUri.slice(5),
+    await (await runtime.bucket.get(pointer.blobUri!.slice(5)))!.arrayBuffer(),
+  );
+  expect(await store.read({ inline: null, blobUri: legacyUri, hash: pointer.hash })).toEqual(value);
 });
 
 test("R2 offload accounts for duplicate inline projection bytes", async () => {
@@ -65,7 +76,7 @@ test("large and heavily escaped projections use a hash-checked R2 pointer", asyn
   const value = { text: '"'.repeat(500_000) };
   const encoded = await store.encodeProjection(value);
   const pointer = JSON.parse(encoded);
-  expect(pointer.r2Payload.uri).toMatch(/^r2:\/\/payloads\/reports\//);
+  expect(pointer.r2Payload.uri).toMatch(/^r2:\/\/uploads\/payloads\/reports\//);
   expect(await store.readProjection(pointer)).toEqual(value);
   const small = { text: "small" };
   expect(await store.readProjection(JSON.parse(await store.encodeProjection(small)))).toEqual(

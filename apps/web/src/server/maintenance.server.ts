@@ -1,6 +1,7 @@
 import {
   createD1MaintenanceRepository,
   StaleWorkerError,
+  sweepOrphanArtifacts,
   type D1RepositoryOptions,
 } from "@repo/db";
 import type { AnalysisAccessScope } from "@repo/db";
@@ -40,6 +41,7 @@ export async function scheduledMaintenance(env: ServerEnv, now = Date.now()) {
     launchesRecovered: 0,
     reportsRecovered: 0,
     reportRecoveryErrors: 0,
+    admissionRecoveryErrors: 0,
   };
   let after = "";
   while (true) {
@@ -147,7 +149,14 @@ export async function scheduledMaintenance(env: ServerEnv, now = Date.now()) {
         .all<RunRow>();
     for (const row of page.results) {
       if (!isTerminalRunStatus(row.status)) continue;
-      const admission = await runAdmission(storage, row);
+      let admission: AnalysisWorkflowParams["admission"] | undefined;
+      try {
+        admission = await runAdmission(storage, row);
+      } catch {
+        counts.admissionRecoveryErrors++;
+        console.error("Could not recover terminal analysis admission", { runId: row.run_id });
+        continue;
+      }
       if (!admission) continue;
       const held = await env.DB.prepare(
         "SELECT id FROM analysis_leases WHERE id=? AND user_id=? AND released_at IS NULL",
@@ -173,7 +182,21 @@ export async function scheduledMaintenance(env: ServerEnv, now = Date.now()) {
   } as unknown as D1RepositoryOptions).purgeExpired({
     rateWindowSeconds: controls.rateWindowSeconds,
   });
-  return { ...counts, ...expired };
+  const artifacts = await sweepOrphanArtifacts({
+    database: env.DB,
+    bucket: env.BLOBS,
+    now,
+  } as unknown as Parameters<typeof sweepOrphanArtifacts>[0]).catch(() => {
+    console.error("Could not reconcile analysis artifacts");
+    return {
+      artifactsScanned: 0,
+      artifactsMarked: 0,
+      artifactsDeleted: 0,
+      artifactSweepDeferred: 0,
+      artifactSweepErrors: 1,
+    };
+  });
+  return { ...counts, ...expired, artifactSweepErrors: 0, ...artifacts };
 }
 
 function rowScope(row: RunRow): AnalysisAccessScope {
@@ -226,6 +249,13 @@ async function runAdmission(
 ): Promise<AnalysisWorkflowParams["admission"] | undefined> {
   if (row.launch_admission)
     return JSON.parse(row.launch_admission) as AnalysisWorkflowParams["admission"];
+  const lease = await storage.runs.database
+    .prepare(
+      "SELECT id AS leaseId,endpoint,idempotency_key AS idempotencyKey FROM analysis_leases WHERE run_id=? AND user_id=? AND released_at IS NULL",
+    )
+    .bind(row.run_id, row.owner_user_id)
+    .first<AnalysisWorkflowParams["admission"]>();
+  if (lease) return lease;
   const input = (await storage.runs.getRunInput({ scope: rowScope(row), runId: row.run_id })) as {
     admission?: AnalysisWorkflowParams["admission"];
   } | null;

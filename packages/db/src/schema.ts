@@ -33,6 +33,17 @@ const updatedAt = () =>
     .notNull()
     .$defaultFn(() => new Date());
 
+export const artifactSweepState = sqliteTable("core_artifact_sweep_state", {
+  id: text("id").primaryKey(),
+  lastKey: text("last_key"),
+});
+
+export const artifactCandidates = sqliteTable("core_artifact_candidates", {
+  uri: text("uri").primaryKey(),
+  objectVersion: text("object_version").notNull(),
+  firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 export const analysisRuns = sqliteTable(
   "core_runs",
   {

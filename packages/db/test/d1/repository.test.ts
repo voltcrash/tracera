@@ -158,7 +158,7 @@ test("large snapshots, reports and claim projections preserve the complete repor
     .bind(ctx.runId)
     .first<string>("claim");
   const pointer = JSON.parse(claim!);
-  expect(pointer.r2Payload.uri).toMatch(/^r2:\/\/payloads\/reports\//);
+  expect(pointer.r2Payload.uri).toMatch(/^r2:\/\/uploads\/payloads\/reports\//);
   expect(await repository.payloads.readProjection(pointer)).toEqual(report.claims[0]);
 });
 

@@ -21,6 +21,7 @@ export { createD1AdmissionRepository, D1AdmissionRepository } from "./admission.
 export { createD1SpendRepository, D1SpendRepository, type D1SpendAdmission } from "./spend.js";
 export { D1PayloadStore, D1PayloadError, type StoredProjection } from "./payloads.js";
 export { createD1MaintenanceRepository } from "./maintenance.js";
+export { sweepOrphanArtifacts, ARTIFACT_GRACE_MS } from "./artifact-maintenance.js";
 export {
   createD1ProviderKeyRepository,
   type UserProviderKeyMetadata,

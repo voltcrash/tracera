@@ -19,12 +19,14 @@ export interface RawBlobStore {
 }
 
 export function acceptStoredSnapshots(store: SnapshotStorePort): SnapshotStorePort {
+  const documentIdentity = (snapshot: DocumentSnapshot) => {
+    const { acquiredAt: _acquiredAt, blobLocator, ...document } = snapshot;
+    return { ...document, blobStatus: blobLocator.status };
+  };
   const sameDocument = async (snapshot: DocumentSnapshot, signal: AbortSignal) => {
     const existing = await store.get(snapshot.id, signal);
     if (!existing) return false;
-    const { acquiredAt: _existingAcquiredAt, ...existingIdentity } = existing;
-    const { acquiredAt: _nextAcquiredAt, ...nextIdentity } = snapshot;
-    if (canonicalJson(existingIdentity) !== canonicalJson(nextIdentity))
+    if (canonicalJson(documentIdentity(existing)) !== canonicalJson(documentIdentity(snapshot)))
       throw new Error(`Snapshot ${snapshot.id} is already stored with different content.`);
     Object.assign(snapshot, existing);
     return true;

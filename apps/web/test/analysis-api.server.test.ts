@@ -64,7 +64,7 @@ test.each([
   expect(JSON.parse(input).input.kind).toBe(kind);
   if (kind === "image") {
     expect(inputRow.input_json).toBeNull();
-    expect(inputRow.input_blob_uri).toMatch(/^r2:\/\/payloads\/run-inputs\//);
+    expect(inputRow.input_blob_uri).toMatch(/^r2:\/\/uploads\/payloads\/run-inputs\//);
     expect(JSON.parse(input).input.data).toBe("data:image/png;base64,AA==");
   }
   expect(JSON.parse(input).admission).toEqual((created.params as { admission: unknown }).admission);
