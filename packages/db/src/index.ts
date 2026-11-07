@@ -15,6 +15,7 @@ export {
   StaleWorkerError,
   type D1RepositoryOptions,
   type D1RunAttempt,
+  type D1PreparedReport,
 } from "./repository.js";
 export { createD1AdmissionRepository, D1AdmissionRepository } from "./admission.js";
 export { createD1SpendRepository, D1SpendRepository, type D1SpendAdmission } from "./spend.js";

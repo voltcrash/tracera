@@ -31,6 +31,12 @@ export interface D1RunAttempt {
   fencingToken: string;
   version: number;
 }
+export interface D1PreparedReport {
+  reportUri: string;
+  reportHash: string;
+  fencingToken: string;
+  status: "complete" | "partial" | "unavailable";
+}
 interface RunRow {
   run_id: string;
   tenant_id: string;
@@ -65,6 +71,7 @@ interface RunRow {
   launch_status: "not_required" | "pending" | "created" | "unknown";
   launch_attempted_at: number | null;
   launch_admission: string | null;
+  prepared_report: string | null;
 }
 const scopeValues = (scope: AnalysisAccessScope) => [
   scope.tenantId,
@@ -321,6 +328,48 @@ export class D1AnalysisRepository {
       : null;
   }
 
+  async prepareReport(
+    input: {
+      scope: AnalysisAccessScope;
+      runId: string;
+    } & D1PreparedReport,
+  ): Promise<void> {
+    const prepared: D1PreparedReport = {
+      reportUri: input.reportUri,
+      reportHash: input.reportHash,
+      fencingToken: input.fencingToken,
+      status: input.status,
+    };
+    const payload = JSON.stringify(prepared);
+    const changed = await this.database
+      .prepare(`UPDATE core_runs
+      SET prepared_report=?,updated_at=?,version=version+1
+      WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=?
+        AND status='running' AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0
+        AND prepared_report IS NULL AND ${heldRunAdmission} RETURNING run_id`)
+      .bind(payload, this.now(), input.runId, ...scopeValues(input.scope), input.fencingToken)
+      .all();
+    if (changed.results.length) return;
+    const existing = await this.getPreparedReport(input);
+    if (existing && JSON.stringify(existing) === payload) return;
+    throw new StaleWorkerError(
+      "Report preparation rejected for inactive, canceled or superseded run.",
+    );
+  }
+
+  async getPreparedReport(input: {
+    scope: AnalysisAccessScope;
+    runId: string;
+  }): Promise<D1PreparedReport | null> {
+    const row = await this.database
+      .prepare(`SELECT prepared_report FROM core_runs
+      WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND finalized_at IS NULL
+        AND status='running' AND json_extract(cancellation,'$.requested')=0 AND ${heldRunAdmission}`)
+      .bind(input.runId, ...scopeValues(input.scope))
+      .first<{ prepared_report: string | null }>();
+    return row?.prepared_report ? (JSON.parse(row.prepared_report) as D1PreparedReport) : null;
+  }
+
   async finalize(input: {
     scope: AnalysisAccessScope;
     runId: string;
@@ -331,6 +380,14 @@ export class D1AnalysisRepository {
     const report = runReportSchema.parse(input.report);
     if (report.runId !== input.runId || report.visibility !== input.scope.visibility)
       throw new AnalysisStorageConflictError("Report identity does not match its storage scope.");
+    const prepared = await this.getPreparedReport(input);
+    if (
+      prepared &&
+      (prepared.reportHash !== input.reportHash ||
+        prepared.reportHash !== hashJson(report) ||
+        prepared.status !== report.status)
+    )
+      throw new AnalysisStorageConflictError("Report differs from its prepared publication.");
     const stored = new Map(
       (
         await this.getSnapshots({
@@ -344,8 +401,13 @@ export class D1AnalysisRepository {
     const payload = await this.payloads.encode(report, "reports");
     const now = this.now();
     const active =
-      "run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0";
-    const identity = [input.runId, ...scopeValues(input.scope), input.fencingToken];
+      "run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0 AND prepared_report IS ?";
+    const identity = [
+      input.runId,
+      ...scopeValues(input.scope),
+      input.fencingToken,
+      prepared ? JSON.stringify(prepared) : null,
+    ];
     const statements = [
       this.database
         .prepare(`INSERT INTO core_report_versions(run_id,version,tenant_id,owner_user_id,visibility,report_hash,schema_version,contract_version,engine_version,diagnostic_labels,published_labels,factual_score,summary_headline,score_null_reasons,evidence_set_hash,report,report_blob_uri,created_at)
@@ -502,7 +564,7 @@ export class D1AnalysisRepository {
         .prepare(
           `UPDATE core_stage_attempts SET finished_at=?,outcome='complete' WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=? AND EXISTS(SELECT 1 FROM core_runs WHERE ${active})`,
         )
-        .bind(now, ...identity, ...identity),
+        .bind(now, input.runId, ...scopeValues(input.scope), input.fencingToken, ...identity),
     );
     statements.push(
       this.database
@@ -590,7 +652,8 @@ export class D1AnalysisRepository {
       this.database
         .prepare(`UPDATE core_stage_attempts SET finished_at=?,outcome=(SELECT CASE WHEN json_extract(cancellation,'$.requested')=1 THEN 'canceled' ELSE 'failed' END FROM core_runs WHERE run_id=core_stage_attempts.run_id)
           WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=?
-          AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND fencing_token IS ? AND finalized_at IS NULL)`)
+          AND EXISTS(SELECT 1 FROM core_runs WHERE run_id=? AND fencing_token IS ? AND finalized_at IS NULL
+            AND (prepared_report IS NULL OR json_extract(cancellation,'$.requested')=1))`)
         .bind(
           now,
           input.runId,
@@ -601,7 +664,8 @@ export class D1AnalysisRepository {
         ),
       this.database
         .prepare(`UPDATE core_runs SET status=CASE WHEN json_extract(cancellation,'$.requested')=1 THEN 'canceled' ELSE 'failed' END,last_error=CASE WHEN json_extract(cancellation,'$.requested')=1 THEN NULL ELSE ? END,finalized_at=?,updated_at=?,version=version+1
-          WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token IS ? AND finalized_at IS NULL RETURNING status`)
+          WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token IS ? AND finalized_at IS NULL
+            AND (prepared_report IS NULL OR json_extract(cancellation,'$.requested')=1) RETURNING status`)
         .bind(
           input.error.slice(0, 2000),
           now,
@@ -870,7 +934,7 @@ export class D1AnalysisRepository {
     const [changed] = await this.database.batch<{ attempt: number; version: number }>([
       this.database
         .prepare(`UPDATE core_runs SET status='running',stage=?,attempt=attempt+1,fencing_token=?,version=version+1,updated_at=?,started_at=COALESCE(started_at,?),launch_status=CASE WHEN launch_status='not_required' THEN launch_status ELSE 'created' END
-        WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND version=? AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0 AND ${heldRunAdmission} RETURNING attempt,version`)
+        WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND version=? AND finalized_at IS NULL AND prepared_report IS NULL AND json_extract(cancellation,'$.requested')=0 AND ${heldRunAdmission} RETURNING attempt,version`)
         .bind(
           input.stage,
           token,
