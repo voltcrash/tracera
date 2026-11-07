@@ -14,6 +14,7 @@ permissions:
 concurrency:
   group: tracera-production-release
   cancel-in-progress: false
+  queue: max
 
 env:
   CI: "true"
@@ -43,28 +44,40 @@ jobs:
       name: production
       url: https://tracera.voltcrash.com
     steps:
-      - name: Check out the run's main snapshot
+      - name: Check out release policy
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+
+      - name: Require current main with successful CI
+        id: validate-ci
+        uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            const { productionEligibility } = await import(`${process.env.GITHUB_WORKSPACE}/packages/release/src/production-validation.js`);
+            const result = await productionEligibility({ github, context, sha: process.env.DEPLOYMENT_SHA });
+            core.setOutput('state', result.state);
+            if (result.state === 'superseded') core.setFailed('Superseded candidate; no production deployment was performed.');
+            else await core.summary.addLink('Validated CI', result.ci.html_url).write();
+
+      - name: Check out the eligible deployment snapshot
+        id: candidate
+        if: steps['validate-ci'].outputs.state == 'eligible'
         uses: actions/checkout@v7.0.1
         with:
           ref: ${{ env.DEPLOYMENT_SHA }}
           persist-credentials: false
 
-      - name: Require successful CI for the deployment commit
-        id: validate-ci
-        uses: actions/github-script@v9.0.0
-        with:
-          script: |
-            const { requireSuccessfulProductionCI } = await import(`${process.env.GITHUB_WORKSPACE}/packages/release/src/production-validation.js`);
-            const run = await requireSuccessfulProductionCI({ github, context, sha: process.env.DEPLOYMENT_SHA });
-            await core.summary.addLink('Validated CI', run.html_url).write();
-
       - name: Set up Vite+
+        if: steps['validate-ci'].outputs.state == 'eligible'
         uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version-file: .node-version
           run-install: false
 
       - name: Prepare production credentials
+        if: steps['validate-ci'].outputs.state == 'eligible'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           PRODUCTION_WORKER_ENV: ${{ secrets.PRODUCTION_WORKER_ENV }}
@@ -75,25 +88,57 @@ jobs:
           NODE
 
       - name: Install dependencies
+        if: steps['validate-ci'].outputs.state == 'eligible'
         run: vp install --frozen-lockfile
 
       - name: Build production frontend and Worker
+        if: steps['validate-ci'].outputs.state == 'eligible'
         env:
           TRACERA_BUILD_ID: ${{ env.DEPLOYMENT_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: vp run build:production
 
       - name: Check production deployment
+        if: steps['validate-ci'].outputs.state == 'eligible'
         run: vp run deploy:production-dry-run
 
+      - name: Recheck eligibility before production mutations
+        id: cutover
+        if: steps['validate-ci'].outputs.state == 'eligible'
+        uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            const { productionEligibility } = await import(`${process.env.GITHUB_WORKSPACE}/packages/release/src/production-validation.js`);
+            const result = await productionEligibility({ github, context, sha: process.env.DEPLOYMENT_SHA });
+            core.setOutput('state', result.state);
+            if (result.state === 'superseded') core.setFailed('Main advanced during preparation; no production deployment was performed.');
+
       - name: Apply production D1 migrations
+        id: migration
+        if: steps.cutover.outputs.state == 'eligible'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: vp run db:migrate:production
 
       - name: Deploy production with Wrangler
+        id: deployment
+        if: steps.cutover.outputs.state == 'eligible'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: vp run deploy:production
+
+      - name: Record production release outcome
+        if: always()
+        uses: actions/github-script@v9.0.0
+        env:
+          RELEASE_ELIGIBILITY: ${{ steps['validate-ci'].outputs.state }}
+          RELEASE_CUTOVER: ${{ steps.cutover.outputs.state }}
+          RELEASE_MIGRATION: ${{ steps.migration.outcome }}
+          RELEASE_DEPLOYMENT: ${{ steps.deployment.outcome }}
+        with:
+          script: |
+            const { productionReleaseState } = await import(`${process.env.GITHUB_WORKSPACE}/packages/release/src/production-state.js`);
+            const result = productionReleaseState({ eligibility: process.env.RELEASE_ELIGIBILITY, cutover: process.env.RELEASE_CUTOVER, migration: process.env.RELEASE_MIGRATION, deployment: process.env.RELEASE_DEPLOYMENT });
+            await core.summary.addHeading('Production release').addRaw(`${process.env.DEPLOYMENT_SHA}: ${result.state}\n\n${result.recovery}`).write();
 
       - name: Remove private settings
         if: always()
