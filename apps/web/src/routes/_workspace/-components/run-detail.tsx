@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { RunViewState } from "@/server/run-view.server";
 import { cancelRun } from "@/server/analysis.functions";
+import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import {
   decodeProgress,
   progressHeadline,
@@ -35,6 +36,10 @@ export function RunDetail({ id, initial }: { id: string; initial: RunViewState }
   }, []);
   const requestCancel = useServerFn(cancelRun);
   const terminal = isTerminalRunStatus(state.view.progress.status);
+  const refreshHistory = useHistoryRefresh();
+  useEffect(() => {
+    if (terminal) refreshHistory();
+  }, [terminal, refreshHistory]);
   const view = state.view.report;
   const connectionError =
     state.connection === "access_lost"
