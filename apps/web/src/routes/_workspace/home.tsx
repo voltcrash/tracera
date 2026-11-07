@@ -8,13 +8,15 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { CircleAlert, ImagePlus, Loader2, X } from "lucide-react";
-import { type AttachedImage, SubmissionMargin } from "@/components/compose/submission-margin";
+import { SubmissionMargin } from "@/components/compose/submission-margin";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { Button } from "@/components/ui/button";
-import { isHttpUrl, MAX_IMAGE_BYTES, readSubmission } from "@/lib/submission";
+import { MAX_IMAGE_BYTES, readSubmission } from "@/lib/submission";
+import { Composer, type ComposerImage } from "@/lib/composer";
 import { startAnalysis } from "@/server/analysis.functions";
 
 const examples = [
@@ -39,12 +41,18 @@ function Home() {
   const { isLoading: isAuthLoading, user } = useAuth();
   const start = useServerFn(startAnalysis);
   const navigate = useNavigate();
-  const [text, setText] = useState("");
-  const [image, setImage] = useState<
-    (AttachedImage & { dataUrl: string; mimeType: string }) | null
-  >(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [composer] = useState(() => new Composer());
+  const { text, image, attachment, attachmentError, submission } = useSyncExternalStore(
+    composer.subscribe,
+    composer.getSnapshot,
+    composer.getSnapshot,
+  );
+  const loading = submission.status === "submitting" || submission.status === "opening";
+  const locked = composer.locked;
+  const error =
+    (submission.status === "failed" || submission.status === "accepted"
+      ? submission.error
+      : null) ?? attachmentError;
   const [dropping, setDropping] = useState(false);
   const canvas = useRef<HTMLElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -53,36 +61,17 @@ function Home() {
 
   async function analyze(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    const draft = readSubmission(text);
-    if (!image && (draft.kind === "empty" || draft.tooLong)) return;
-    if (!user) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const value = text.trim();
-      const input = image
-        ? { image: image.dataUrl, imageMimeType: image.mimeType }
-        : isHttpUrl(value)
-          ? { url: value }
-          : { text: value };
-      const { status, body } = await start({
-        data: { idempotencyKey: crypto.randomUUID(), input },
-      });
-      if (status >= 400 || !body.runId) {
-        throw new Error(body.error ?? "Unable to start this analysis.");
-      }
-      refreshHistory();
-      await navigate({ to: "/run/$id", params: { id: body.runId } });
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error ? requestError.message : "Unable to analyze this text.",
-      );
-      setLoading(false);
-    }
+    if (!hydrated || isAuthLoading || !user) return;
+    await composer.submit(user.id, start, openRun);
+  }
+
+  async function openRun(runId: string) {
+    refreshHistory();
+    await navigate({ to: "/run/$id", params: { id: runId } });
   }
 
   function applyExample(value: string) {
-    setText(value);
+    composer.edit(value);
     const target = field.current;
     if (!target) return;
     target.focus();
@@ -116,10 +105,10 @@ function Home() {
   }
 
   async function addImage(file: File, fallbackName = "Image") {
-    const attached = await readAttachment(file, fallbackName);
-    setError("error" in attached ? attached.error : null);
-    if ("image" in attached) setImage(attached.image);
+    await composer.attach(() => readAttachment(file, fallbackName));
   }
+
+  useEffect(() => () => composer.cancelPending(), [composer]);
 
   // A pointer user arrives to write, so the sheet takes focus; on touch screens
   // that would throw up the keyboard before anything has been chosen.
@@ -130,7 +119,7 @@ function Home() {
 
   useEffect(() => {
     const target = canvas.current;
-    if (!target || loading) return;
+    if (!target || locked) return;
     let depth = 0;
 
     function enter(event: DragEvent) {
@@ -157,10 +146,7 @@ function Home() {
       const files = Array.from(event.dataTransfer!.files);
       const file = files.find((item) => item.type.startsWith("image/")) ?? files[0];
       if (!file) return;
-      void readAttachment(file, "Dropped image").then((attached) => {
-        setError("error" in attached ? attached.error : null);
-        if ("image" in attached) setImage(attached.image);
-      });
+      void composer.attach(() => readAttachment(file, "Dropped image"));
     }
 
     target.addEventListener("dragenter", enter);
@@ -174,13 +160,15 @@ function Home() {
       target.removeEventListener("drop", drop);
       setDropping(false);
     };
-  }, [loading]);
+  }, [composer, locked]);
 
   const reading = image ? null : readSubmission(text);
   const canSubmit =
     hydrated &&
-    !loading &&
+    !locked &&
+    attachment !== "reading" &&
     !isAuthLoading &&
+    Boolean(user) &&
     (image !== null || (reading !== null && reading.kind !== "empty" && !reading.tooLong));
 
   return (
@@ -212,8 +200,8 @@ function Home() {
                   <button
                     type="button"
                     className="clipping-action"
-                    disabled={loading}
-                    onClick={() => setImage(null)}
+                    disabled={locked}
+                    onClick={() => composer.removeImage()}
                   >
                     <X />
                     Remove
@@ -225,14 +213,13 @@ function Home() {
                 id="story-input"
                 value={text}
                 onChange={(event) => {
-                  setText(event.target.value);
-                  setError(null);
+                  composer.edit(event.target.value);
                 }}
                 aria-invalid={reading?.kind !== "empty" && reading?.tooLong ? true : undefined}
                 onPaste={pasteImage}
                 onKeyDown={submitOnShortcut}
                 ref={field}
-                disabled={!hydrated || loading}
+                disabled={!hydrated || locked}
                 required={!image}
                 rows={1}
                 placeholder="Paste a claim, an article, or a link"
@@ -252,7 +239,7 @@ function Home() {
                   capture="environment"
                   className="sr-only"
                   onChange={selectImage}
-                  disabled={!hydrated || loading}
+                  disabled={!hydrated || locked}
                 />
               </label>
               <span className="sheet-send">
@@ -262,23 +249,44 @@ function Home() {
                   </kbd>
                 ) : null}
                 <Button
-                  type="submit"
+                  type={submission.status === "accepted" ? "button" : "submit"}
                   variant="outline"
                   className="color-sweep-button theme-primary-cta sheet-submit rounded-full px-5"
                   aria-keyshortcuts={modifier ? "Meta+Enter Control+Enter" : undefined}
-                  disabled={!canSubmit}
+                  disabled={submission.status !== "accepted" && !canSubmit}
+                  onClick={
+                    submission.status === "accepted"
+                      ? () => void composer.openRun(openRun)
+                      : undefined
+                  }
                   aria-busy={loading || undefined}
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="animate-spin" /> Starting
+                      <Loader2 className="animate-spin" />{" "}
+                      {submission.status === "opening" ? "Opening" : "Starting"}
                     </>
+                  ) : submission.status === "accepted" ? (
+                    "Open trace"
                   ) : (
                     "Analyze"
                   )}
                 </Button>
               </span>
             </div>
+            {attachment === "reading" ? (
+              <p role="status">
+                Reading screenshot…{" "}
+                <button type="button" onClick={() => composer.removeImage()}>
+                  Remove
+                </button>
+              </p>
+            ) : null}
+            {submission.status === "accepted" ? (
+              <p role="status">
+                Your trace was saved. <a href={`/run/${submission.runId}`}>Open saved trace</a>
+              </p>
+            ) : null}
             {error ? (
               <p className="sheet-error" role="alert">
                 <CircleAlert aria-hidden="true" />
@@ -286,10 +294,14 @@ function Home() {
               </p>
             ) : null}
           </div>
-          <SubmissionMargin reading={reading} image={image} starting={loading} />
+          <SubmissionMargin
+            reading={reading}
+            image={image}
+            starting={submission.status === "submitting"}
+          />
         </form>
 
-        {!loading && !text && !image && (
+        {!locked && attachment !== "reading" && !text && !image && (
           <section className="examples" aria-labelledby="examples-title">
             <p id="examples-title" className="examples-title">
               Not sure where to start? Try one of these.
@@ -316,12 +328,10 @@ function Home() {
   );
 }
 
-type SelectedImage = AttachedImage & { dataUrl: string; mimeType: string };
-
 async function readAttachment(
   file: File,
   fallbackName: string,
-): Promise<{ image: SelectedImage } | { error: string }> {
+): Promise<{ image: ComposerImage } | { error: string }> {
   if (!file.type.startsWith("image/")) return { error: "Choose an image file to analyze." };
   if (file.size > MAX_IMAGE_BYTES) return { error: "Choose an image smaller than 5 MB." };
   try {
