@@ -9,6 +9,7 @@ import { CANCELLATION_GRACE_MS } from "./analysis-cancellation.server";
 import { analysisControlConfig } from "./analysis-controls";
 import type { ServerEnv } from "./env";
 import type { AnalysisWorkflowParams } from "./workflow-params";
+import { publishPreparedReport } from "./report-publication.server";
 import {
   launchAnalysisWorkflow,
   LAUNCH_RECOVERY_WINDOW_MS,
@@ -37,6 +38,8 @@ export async function scheduledMaintenance(env: ServerEnv, now = Date.now()) {
     admissionsReleased: 0,
     workflowStatusErrors: 0,
     launchesRecovered: 0,
+    reportsRecovered: 0,
+    reportRecoveryErrors: 0,
   };
   let after = "";
   while (true) {
@@ -55,6 +58,17 @@ export async function scheduledMaintenance(env: ServerEnv, now = Date.now()) {
         requested: boolean;
         requestedAt: string | null;
       };
+      if (!cancellation.requested && (await storage.runs.getPreparedReport(identity))) {
+        try {
+          if (await publishPreparedReport(env, storage, identity)) counts.reportsRecovered++;
+        } catch (error) {
+          if (!(error instanceof StaleWorkerError)) {
+            counts.reportRecoveryErrors++;
+            console.error("Could not publish prepared analysis report", { runId: row.run_id });
+          }
+        }
+        continue;
+      }
       let instance: WorkflowInstance;
       let state: Awaited<ReturnType<WorkflowInstance["status"]>>;
       try {
