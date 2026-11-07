@@ -78,7 +78,12 @@ async function start(env = harness.env) {
 function steps() {
   const errors: Error[] = [];
   const step = {
-    async do(_name: string, options: WorkflowStepConfig, callback: () => Promise<unknown>) {
+    async do(
+      this: void,
+      _name: string,
+      options: WorkflowStepConfig,
+      callback: () => Promise<unknown>,
+    ) {
       for (let attempt = 0; ; attempt++) {
         try {
           return await callback();
@@ -92,8 +97,8 @@ function steps() {
         }
       }
     },
-  } as unknown as Pick<WorkflowStep, "do">;
-  return { step, errors };
+  };
+  return { step: step as unknown as Pick<WorkflowStep, "do">, errors, doStep: step.do };
 }
 
 test("admission persists an immutable versioned plan without provider or discovery secrets", async () => {
@@ -425,6 +430,65 @@ test("a permanent rejection survives a later progress-read failure without anoth
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(replay.errors.map(({ name }) => name)).toEqual(["NonRetryableError"]);
 });
+
+test.each([false, true])(
+  "terminal guidance survives a failed first write and Workflow replay=%s",
+  async (restart) => {
+    const { params } = await start();
+    const env = { ...harness.env, AI_PROVIDER: "gemini" };
+    const storage = analysisStorage(env);
+    const fail = vi
+      .spyOn(storage.runs, "failRun")
+      .mockRejectedValueOnce(new Error("Temporary failure-write outage"));
+    const readInput = vi.spyOn(storage.runs, "getRunInput");
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const replay = steps();
+    let resumed = false;
+    let analyzed: { value: unknown } | { error: unknown } | undefined;
+    const step = {
+      async do(name: string, options: WorkflowStepConfig, callback: () => Promise<unknown>) {
+        if (name === "analyze" && analyzed) {
+          if ("error" in analyzed) throw analyzed.error;
+          return structuredClone(analyzed.value);
+        }
+        if (name === "fail" && restart && !resumed) throw new Error("Worker interrupted");
+        try {
+          const value = await replay.doStep(name, options, callback);
+          if (name === "analyze") analyzed = { value: structuredClone(value) };
+          return value;
+        } catch (error) {
+          if (name === "analyze") analyzed = { error };
+          throw error;
+        }
+      },
+    } as unknown as Pick<WorkflowStep, "do">;
+    if (restart) {
+      await expect(runAnalysisWorkflow(env, params, step, { storage })).rejects.toThrow(
+        "Worker interrupted",
+      );
+      resumed = true;
+    }
+    expect(await runAnalysisWorkflow(env, params, step, { storage })).toMatchObject({
+      status: "failed",
+    });
+    expect(fail.mock.calls.map(([input]) => input.error)).toEqual([
+      "execution_plan_unavailable",
+      "execution_plan_unavailable",
+    ]);
+    expect(readInput).toHaveBeenCalledOnce();
+    expect(fetch).not.toHaveBeenCalled();
+    expect((await readRunState(env, user, params.runId))?.progress).toMatchObject({
+      attempt: 1,
+      errorCode: "execution_plan_unavailable",
+    });
+    expect(
+      await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM analysis_leases WHERE released_at IS NULL",
+      ).first("count"),
+    ).toBe(0);
+  },
+);
 
 test("a changed provider fails once without initializing ports or sending a request", async () => {
   const { params } = await start();
