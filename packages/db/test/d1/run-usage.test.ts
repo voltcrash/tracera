@@ -152,6 +152,7 @@ test("the usage migration does not grant a new allowance to previously running w
       stage: "normalize_input",
       expectedVersion: 0,
     });
+    await isolated.db.prepare("DROP TRIGGER core_runs_provider_usage_guard").run();
     for (const column of ["started_at", "usage_external_requests", "usage_cost_micros"]) {
       await isolated.db.prepare(`ALTER TABLE core_runs DROP COLUMN ${column}`).run();
     }
@@ -165,6 +166,14 @@ test("the usage migration does not grant a new allowance to previously running w
         .filter((sql) => sql.trim())
         .map((sql) => isolated.db.prepare(sql)),
     );
+    const revisionMigration = await readFile(
+      new URL("../../migrations/0013_provider_key_revisions.sql", import.meta.url),
+      "utf8",
+    );
+    const usageGuard = revisionMigration
+      .split("--> statement-breakpoint")
+      .find((sql) => sql.includes("CREATE TRIGGER core_runs_provider_usage_guard"));
+    await isolated.db.prepare(usageGuard!).run();
     expect(await repository.getRunUsage({ scope, runId: "queued" })).toEqual({
       externalRequests: 0,
       targetedRounds: 0,

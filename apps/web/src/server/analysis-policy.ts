@@ -68,7 +68,11 @@ function livePolicy(
     policy: {
       mode: "live",
       providerConfig,
-      providerIdentity: { source: resolved.source, provider: providerConfig.provider },
+      providerIdentity: {
+        source: resolved.source,
+        provider: providerConfig.provider,
+        ...(resolved.revisionId ? { revisionId: resolved.revisionId } : {}),
+      },
       versions: {
         engine: ANALYSIS_ENGINE_VERSION,
         prompt: ANALYSIS_PROMPT_VERSION,

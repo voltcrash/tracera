@@ -51,17 +51,82 @@ test("concurrent saves keep exactly one active key and missing activation preser
   expect((await keys.activeMetadata("key-owner"))?.provider).toBe("openai");
 });
 
-test("usage timestamps apply only to the current ciphertext and replacement clears usage", async () => {
-  await keys.markUsed("other-owner", "openai", savedKey.ciphertext);
-  await keys.markUsed("key-owner", "openai", "stale-ciphertext");
+test("usage timestamps apply only to the owned revision and replacement starts fresh usage", async () => {
+  const revision = (await keys.activeMetadata("key-owner"))!.id;
+  await keys.markUsed("other-owner", revision);
+  await keys.markUsed("key-owner", "missing-revision");
   expect((await keys.activeMetadata("key-owner"))?.lastUsedAt).toBeNull();
-  await keys.markUsed("key-owner", "openai", savedKey.ciphertext);
+  await keys.markUsed("key-owner", revision);
   expect((await keys.activeMetadata("key-owner"))?.lastUsedAt).toBeInstanceOf(Date);
   await keys.save("key-owner", { ...savedKey, ciphertext: "replacement" });
   expect((await keys.activeMetadata("key-owner"))?.lastUsedAt).toBeNull();
+  expect((await keys.revision("key-owner", revision))?.lastUsedAt).toBeInstanceOf(Date);
+});
+
+test("saved revisions are immutable, archived separately, and cannot be reactivated", async () => {
+  const first = (await keys.activeRecord("key-owner"))!;
+  await keys.save("key-owner", {
+    ...savedKey,
+    model: "new-model",
+    baseUrl: "https://new.example/v1",
+  });
+  const current = (await keys.activeRecord("key-owner"))!;
+  expect(current.id).not.toBe(first.id);
+  expect(await keys.revision("key-owner", first.id)).toMatchObject({
+    model: first.model,
+    ciphertext: first.ciphertext,
+    isCurrent: false,
+  });
+  expect(await keys.revision("other-owner", first.id)).toBeNull();
+  expect(
+    (await keys.list("key-owner")).filter(({ provider }) => provider === "openai"),
+  ).toHaveLength(1);
+  await expect(
+    runtime.db
+      .prepare("UPDATE user_provider_keys SET model='mutated' WHERE id=?")
+      .bind(first.id)
+      .run(),
+  ).rejects.toThrow("immutable");
+  await expect(
+    runtime.db
+      .prepare("UPDATE user_provider_keys SET is_current=1 WHERE id=?")
+      .bind(first.id)
+      .run(),
+  ).rejects.toThrow();
+});
+
+test("rejection affects only its owned revision and replacement provides a fresh verified revision", async () => {
+  const rejected = (await keys.activeMetadata("key-owner"))!;
+  await keys.markRejected("other-owner", rejected.id);
+  expect((await keys.activeMetadata("key-owner"))?.health).toBe("verified");
+  await keys.markRejected("key-owner", rejected.id);
+  expect((await keys.activeMetadata("key-owner"))?.health).toBe("rejected");
+  expect(await keys.activate("key-owner", "openai")).toBe(false);
+  await expect(
+    runtime.db
+      .prepare("UPDATE user_provider_keys SET health='verified' WHERE id=?")
+      .bind(rejected.id)
+      .run(),
+  ).rejects.toThrow("immutable");
+  await keys.save("key-owner", savedKey);
+  const fresh = (await keys.activeMetadata("key-owner"))!;
+  await keys.markRejected("key-owner", rejected.id);
+  expect(fresh.id).not.toBe(rejected.id);
+  expect((await keys.activeMetadata("key-owner"))?.health).toBe("verified");
+});
+
+test("deleting a provider erases every owned revision without affecting another owner", async () => {
+  await keys.save("other-owner", savedKey);
+  const other = (await keys.activeRecord("other-owner"))!;
+  const old = (await keys.activeRecord("key-owner"))!;
+  await keys.save("key-owner", savedKey);
+  await keys.delete("key-owner", "openai");
+  expect(await keys.revision("key-owner", old.id)).toBeNull();
+  expect(await keys.revision("other-owner", other.id)).not.toBeNull();
 });
 
 test("constraints reject duplicate active keys and invalid versions; deleting a user deletes their keys", async () => {
+  await keys.save("key-owner", savedKey);
   await expect(
     runtime.db
       .prepare("UPDATE user_provider_keys SET status='active' WHERE user_id='key-owner'")

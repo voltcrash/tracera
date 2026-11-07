@@ -72,6 +72,7 @@ export const analysisRuns = sqliteTable(
     provider: text("provider", {
       enum: ["anthropic", "gemini", "openai", "openrouter", "openai-compatible"],
     }),
+    providerKeyRevisionId: text("provider_key_revision_id"),
     inputJson: text("input_json"),
     inputBlobUri: text("input_blob_uri"),
     inputPayloadHash: text("input_payload_hash"),

@@ -9,8 +9,10 @@ export async function createTestRuntime(
     bindings?: Record<string, string>;
     workflows?: Record<string, { name: string; className: string }>;
     outboundService?: ConstructorParameters<typeof Miniflare>[0]["outboundService"];
+    migrationsThrough?: string;
   } = {},
 ) {
+  const { migrationsThrough, ...workerOptions } = options;
   const runtime = new Miniflare({
     modules: true,
     script: "export default { fetch() { return new Response('ok'); } }",
@@ -18,13 +20,15 @@ export async function createTestRuntime(
     compatibilityFlags: ["nodejs_compat"],
     d1Databases: { DB: "tracera-test" },
     r2Buckets: ["BLOBS"],
-    ...options,
+    ...workerOptions,
   });
   try {
     const db = (await runtime.getD1Database("DB")) as unknown as D1Database;
     const bucket = (await runtime.getR2Bucket("BLOBS")) as unknown as R2Bucket;
     const migrations = new URL("../../migrations/", import.meta.url);
-    for (const file of (await readdir(migrations)).filter((file) => file.endsWith(".sql")).sort()) {
+    for (const file of (await readdir(migrations))
+      .filter((file) => file.endsWith(".sql") && (!migrationsThrough || file <= migrationsThrough))
+      .sort()) {
       const statements = (await readFile(new URL(file, migrations), "utf8"))
         .split("--> statement-breakpoint")
         .filter((statement) => statement.trim());

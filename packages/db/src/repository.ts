@@ -57,6 +57,7 @@ interface RunRow {
   audit_sink_id: string;
   provider_source: "platform" | "user" | null;
   provider: NonNullable<RunContext["provider"]>["provider"] | null;
+  provider_key_revision_id: string | null;
   input_json: string | null;
   input_blob_uri: string | null;
   input_payload_hash: string | null;
@@ -114,8 +115,8 @@ export class D1AnalysisRepository {
     const now = this.now();
     const [inserted, , , existing] = await this.database.batch<RunRow>([
       this.database
-        .prepare(`INSERT INTO core_runs(run_id,tenant_id,owner_user_id,visibility,input_hash,context_hash,as_of_time,execution_mode,versions,budget,cancellation,audit_sink_id,provider_source,provider,input_json,input_blob_uri,input_payload_hash,created_at,updated_at,launch_status,launch_admission)
-        SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ?=0 OR EXISTS(
+        .prepare(`INSERT INTO core_runs(run_id,tenant_id,owner_user_id,visibility,input_hash,context_hash,as_of_time,execution_mode,versions,budget,cancellation,audit_sink_id,provider_source,provider,provider_key_revision_id,input_json,input_blob_uri,input_payload_hash,created_at,updated_at,launch_status,launch_admission)
+        SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ?=0 OR EXISTS(
           SELECT 1 FROM analysis_leases AS lease JOIN analysis_idempotency_keys AS idem ON idem.lease_id=lease.id
           AND idem.user_id=lease.user_id AND idem.endpoint=lease.endpoint AND idem.idempotency_key=lease.idempotency_key
           WHERE lease.id=? AND lease.user_id=? AND lease.endpoint=? AND lease.idempotency_key=?
@@ -137,6 +138,7 @@ export class D1AnalysisRepository {
           context.auditSinkId,
           context.provider?.source ?? null,
           context.provider?.provider ?? null,
+          context.provider?.revisionId ?? null,
           payload.inline,
           payload.blobUri,
           payload.hash,
@@ -710,8 +712,9 @@ export class D1AnalysisRepository {
           // Compatibility alias: recorded checkpoints may be partial or unavailable.
           completedStages: recordedStages,
           updatedAt: new Date(row.updated_at).toISOString(),
-          ...(row.last_error === "provider_key_rejected"
-            ? { errorCode: "provider_key_rejected" as const }
+          ...(row.last_error === "provider_key_rejected" ||
+          row.last_error === "provider_revision_unavailable"
+            ? { errorCode: row.last_error }
             : {}),
         }
       : null;
@@ -906,7 +909,15 @@ export class D1AnalysisRepository {
           cancellation: JSON.parse(row.cancellation),
           auditSinkId: row.audit_sink_id,
           ...(row.provider_source && row.provider
-            ? { provider: { source: row.provider_source, provider: row.provider } }
+            ? {
+                provider: {
+                  source: row.provider_source,
+                  provider: row.provider,
+                  ...(row.provider_key_revision_id
+                    ? { revisionId: row.provider_key_revision_id }
+                    : {}),
+                },
+              }
             : {}),
         })
       : null;
@@ -1021,6 +1032,9 @@ export class D1AnalysisRepository {
       SET usage_external_requests=usage_external_requests+1,usage_cost_micros=usage_cost_micros+?
       WHERE run_id=? AND tenant_id=? AND owner_user_id=? AND visibility=? AND fencing_token=?
       AND finalized_at IS NULL AND json_extract(cancellation,'$.requested')=0 AND ${heldRunAdmission}
+      AND (provider_source IS NOT 'user' OR EXISTS(SELECT 1 FROM user_provider_keys AS key
+        WHERE key.id=core_runs.provider_key_revision_id AND key.user_id=core_runs.owner_user_id
+          AND key.provider=core_runs.provider AND key.health='verified'))
       AND started_at+json_extract(budget,'$.maxElapsedMs')>?
       AND usage_external_requests<json_extract(budget,'$.maxExternalRequests')
       AND (json_extract(budget,'$.maxCostUsd') IS NULL OR usage_cost_micros+?<=ROUND(json_extract(budget,'$.maxCostUsd')*1000000))
