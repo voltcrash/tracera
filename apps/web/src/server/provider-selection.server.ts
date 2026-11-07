@@ -7,6 +7,13 @@ import {
 import type { RunContext } from "@repo/contracts/analysis";
 import type { ServerEnv } from "./env";
 import { providerKeyStorage } from "./provider-keys.server";
+import { hashValue } from "@repo/ai/analysis/hashing";
+import {
+  assertExecutionPlanContext,
+  ExecutionPlanUnavailableError,
+  providerPlan,
+  type LiveExecutionPlan,
+} from "./analysis-execution-plan";
 
 export class ProviderRevisionUnavailableError extends Error {
   constructor() {
@@ -31,9 +38,37 @@ export async function personalProviderSelection(
 export async function resolveWorkflowProvider(
   env: ServerEnv,
   context: RunContext,
+  plan?: LiveExecutionPlan,
 ): Promise<ResolvedAnalysisProvider> {
-  if (context.provider?.source !== "user")
-    return resolveAnalysisProvider({ userId: context.ownerUserId, env });
+  if (plan) assertExecutionPlanContext(plan, context);
+  if (context.provider?.source !== "user") {
+    if (!plan) throw new ExecutionPlanUnavailableError();
+    try {
+      const separate = plan.provider.embedding.keySource === "embedding";
+      const resolved = resolveAnalysisProvider({
+        userId: context.ownerUserId,
+        env: {
+          AI_PROVIDER: env.AI_PROVIDER,
+          AI_API_KEY: env.AI_API_KEY,
+          AI_BASE_URL: env.AI_BASE_URL,
+          AI_MODEL: plan.provider.generation.model,
+          AI_EMBEDDING_MODEL: plan.provider.embedding.model,
+          ...(separate
+            ? {
+                AI_EMBEDDING_PROVIDER: env.AI_EMBEDDING_PROVIDER,
+                AI_EMBEDDING_API_KEY: env.AI_EMBEDDING_API_KEY,
+                AI_EMBEDDING_BASE_URL: env.AI_EMBEDDING_BASE_URL,
+              }
+            : {}),
+        },
+      });
+      if (hashValue(providerPlan(resolved)) !== hashValue(plan.provider))
+        throw new ExecutionPlanUnavailableError();
+      return resolved;
+    } catch {
+      throw new ExecutionPlanUnavailableError();
+    }
+  }
   const storage = providerKeyStorage(env);
   const key = context.provider.revisionId
     ? await storage.revision(context.ownerUserId, context.provider.revisionId)
@@ -59,6 +94,9 @@ export async function resolveWorkflowProvider(
     env,
     userConfig: personalProviderConfig(key, credentials),
   });
+  const bound = { ...resolved, revisionId: key.id };
+  if (plan && hashValue(providerPlan(bound)) !== hashValue(plan.provider))
+    throw new ExecutionPlanUnavailableError();
   await storage.markUsed(context.ownerUserId, key.id);
-  return { ...resolved, revisionId: key.id };
+  return bound;
 }

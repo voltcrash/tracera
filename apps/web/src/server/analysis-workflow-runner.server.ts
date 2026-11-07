@@ -22,6 +22,7 @@ import {
 import { providerKeyStorage } from "./provider-keys.server";
 import type { ServerEnv } from "./env";
 import { publishPreparedReport } from "./report-publication.server";
+import { ExecutionPlanUnavailableError, readExecutionPlan } from "./analysis-execution-plan";
 import {
   ANALYSIS_WORKFLOW_RETRIES,
   WORKFLOW_SETTLEMENT_CONFIG,
@@ -33,6 +34,19 @@ export type WorkflowDependencies = {
   createPorts?: typeof createWorkflowAnalysisPorts;
 };
 type AnalysisOutcome = { status: RunStatus; reportUri: string | null; fencingToken: string | null };
+
+function isTerminalRuntimeError(
+  error: unknown,
+): error is
+  | ProviderKeyRejectedError
+  | ProviderRevisionUnavailableError
+  | ExecutionPlanUnavailableError {
+  return (
+    error instanceof ProviderKeyRejectedError ||
+    error instanceof ProviderRevisionUnavailableError ||
+    error instanceof ExecutionPlanUnavailableError
+  );
+}
 
 export async function runAnalysisWorkflow(
   env: ServerEnv,
@@ -88,11 +102,15 @@ export async function runAnalysisWorkflow(
             signal.throwIfAborted();
           }
         };
+        let assertProviderAccepted = () => {};
         try {
+          const runInput = await storage.runs.getRunInput(identity);
+          const executionPlan = readExecutionPlan(context, runInput);
           const clock = createSystemClock();
           const ports = (dependencies.createPorts ?? createWorkflowAnalysisPorts)({
             env,
             context,
+            executionPlan,
             clock,
             blobStore,
             reserveUsage: async (estimatedCostUsd) => {
@@ -122,10 +140,11 @@ export async function runAnalysisWorkflow(
                     providerKeyStorage(env).markRejected(context.ownerUserId, revisionId),
                 }
               : {}),
-            ...(context.executionMode === "live"
-              ? { resolvedProvider: await resolveWorkflowProvider(env, context) }
+            ...(executionPlan.mode === "live"
+              ? { resolvedProvider: await resolveWorkflowProvider(env, context, executionPlan) }
               : {}),
           });
+          assertProviderAccepted = () => ports.assertProviderAccepted();
           const runs = createRunStore({ repository: storage.runs, context });
           const result = await createRunAnalysis({
             ...attempt,
@@ -136,7 +155,7 @@ export async function runAnalysisWorkflow(
                 fencingToken: attempt.fencingToken,
               }),
             retrieval: { searchPorts: ports.search },
-          })((await storage.runs.getRunInput(identity)) as RunAnalysisInput, {
+          })(runInput as RunAnalysisInput, {
             context,
             signal,
             ports: {
@@ -199,15 +218,25 @@ export async function runAnalysisWorkflow(
             reportUri: pointer.uri,
             fencingToken: attempt.fencingToken,
           };
-        } catch (error) {
-          if ((await storage.runs.getRunProgress(identity))?.cancellationRequested) {
+        } catch (caughtError) {
+          let error = caughtError;
+          // A known permanent rejection stays terminal if later bookkeeping fails.
+          try {
+            assertProviderAccepted();
+          } catch (providerError) {
+            error = providerError;
+          }
+          let progress;
+          try {
+            progress = await storage.runs.getRunProgress(identity);
+          } catch (readError) {
+            if (!isTerminalRuntimeError(error)) throw readError;
+          }
+          if (progress?.cancellationRequested) {
             await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
             return { status: "canceled", reportUri: null, fencingToken: null };
           }
-          if (
-            error instanceof ProviderKeyRejectedError ||
-            error instanceof ProviderRevisionUnavailableError
-          ) {
+          if (isTerminalRuntimeError(error)) {
             if (error instanceof ProviderKeyRejectedError && context.provider?.revisionId)
               await providerKeyStorage(env)
                 .markRejected(context.ownerUserId, context.provider.revisionId)
@@ -220,7 +249,9 @@ export async function runAnalysisWorkflow(
                 error:
                   error instanceof ProviderKeyRejectedError
                     ? "provider_key_rejected"
-                    : "provider_revision_unavailable",
+                    : error instanceof ProviderRevisionUnavailableError
+                      ? "provider_revision_unavailable"
+                      : "execution_plan_unavailable",
               })
               .catch(() => undefined);
             throw new NonRetryableError(error.message);
