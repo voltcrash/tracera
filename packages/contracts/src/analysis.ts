@@ -258,7 +258,12 @@ export const runContextSchema = z.strictObject({
     .strictObject({
       source: z.enum(["platform", "user"]),
       provider: z.enum(["anthropic", "gemini", "openai", "openrouter", "openai-compatible"]),
+      revisionId: z.string().min(1).optional(),
     })
+    .refine(
+      (value) => value.source === "user" || value.revisionId === undefined,
+      "Only personal providers have key revisions.",
+    )
     .optional(),
 });
 
