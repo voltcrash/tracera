@@ -21,7 +21,7 @@ const stagesInOrder = stageNameSchema.options;
 
 type Stop = "requests" | "cost" | "unknown_cost" | "deadline" | "owner_and_budget";
 
-function pipeline(boundary: StageName, reason: Stop = "requests") {
+function pipeline(boundary: StageName, reason: Stop = "requests", checkpointing = false) {
   const { environment } = createScriptedEvidenceEnvironment(() => {
     throw new Error("Unexpected provider call");
   });
@@ -91,10 +91,10 @@ function pipeline(boundary: StageName, reason: Stop = "requests") {
     },
   };
   const run = () =>
-    createRunAnalysis({ stages: factories })(
-      { input: { kind: "text", text: primary.normalizedText }, seed: 1 },
-      environment,
-    );
+    createRunAnalysis({
+      stages: factories,
+      ...(checkpointing ? { attempt: 1, fencingToken: "fixture-fence" } : {}),
+    })({ input: { kind: "text", text: primary.normalizedText }, seed: 1 }, environment);
   return { run, calls, factories, environment };
 }
 
@@ -162,7 +162,11 @@ for (const reason of ["cost", "unknown_cost", "deadline", "owner_and_budget"] as
 
 const failureStops = ["none", "unknown_cost", "cost", "deadline", "owner"] as const;
 test.each(failureStops)("reassessment failure during %s", async (reason) => {
-  const fixture = pipeline("score_report");
+  const fixture = pipeline("score_report", "requests", true);
+  const savedStages: StageName[] = [];
+  fixture.environment.ports.runs.checkpoint = async ({ stage }) => {
+    savedStages.push(stage);
+  };
   const fresh = evidenceSnapshot(
     "new_origin",
     "The original official register confirms the scoped record.",
@@ -217,6 +221,7 @@ test.each(failureStops)("reassessment failure during %s", async (reason) => {
   expect(result.cost.externalRequests).toBe(1);
   expect(assessments).toBe(2);
   expect(fixture.calls).not.toContain("adjudicate_claims");
+  expect(savedStages).not.toContain("trace_origins");
 });
 
 test("cancellation after scoring suppresses the score while retaining earlier artifacts", async () => {

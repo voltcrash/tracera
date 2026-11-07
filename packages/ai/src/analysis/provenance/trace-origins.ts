@@ -39,6 +39,7 @@ async function trace(
   const startedMs = environment.ports.clock.monotonicMs();
   const issues: AnalysisIssue[] = [];
   const graphs: ProvenanceGraph[] = [];
+  const assessmentResults: NonNullable<TraceOriginsData["assessmentResults"]> = [];
   const newSnapshotIds = new Set<string>();
   const retrieval =
     options.retrieval ?? createProvenanceRetrievalController(options.retrievalOptions);
@@ -123,7 +124,7 @@ async function trace(
     graphs.push(parsed.data);
   }
 
-  const data = { graphs, newSnapshotIds: [...newSnapshotIds].sort() };
+  const data = { graphs, newSnapshotIds: [...newSnapshotIds].sort(), assessmentResults };
   const status =
     graphs.length < claims.length ||
     graphs.some(({ coverageStatus }) => coverageStatus !== "complete") ||
@@ -143,6 +144,11 @@ async function trace(
       (assessment) => assessment.claimId === claim.id && usableAssessment(assessment, snapshotMap),
     );
     const workingAssessments = [...claimAssessments];
+    const assessedSnapshotIds = new Set(
+      input.assessments
+        .filter(({ claimId }) => claimId === claim.id)
+        .map(({ snapshotId }) => snapshotId),
+    );
     const nodes = new Map<string, ProvenanceGraph["nodes"][number]>();
     const edges: ProvenanceGraph["edges"] = [];
     const searchLog: ProvenanceGraph["searchLog"] = [];
@@ -185,15 +191,8 @@ async function trace(
         if (isRunInterrupted(environment)) break;
         const target = findSnapshotByUrl(snapshotMap.values(), reference.url);
         if (target !== undefined) {
-          if (
-            !input.assessments.some(
-              (assessment) =>
-                assessment.claimId === claim.id && assessment.snapshotId === target.id,
-            )
-          ) {
-            const assessed = await assessSnapshot(claim, target);
-            workingAssessments.push(...assessed);
-          }
+          const assessed = await assessSnapshot(claim, target);
+          workingAssessments.push(...assessed);
           addNode(target);
           addEdge(source.id, target.id, reference.type, reference.locator);
           hopsUsed = Math.max(hopsUsed, current.hop + 1);
@@ -383,6 +382,8 @@ async function trace(
     }
 
     async function assessSnapshot(scopedClaim: Claim, snapshot: DocumentSnapshot) {
+      if (assessedSnapshotIds.has(snapshot.id)) return [];
+      assessedSnapshotIds.add(snapshot.id);
       if (budgetBlocked(1)) {
         incomplete = true;
         issues.push(
@@ -407,6 +408,7 @@ async function trace(
         { claims: [scopedClaim], snapshots: [snapshot], admittedSnapshotIds: [snapshot.id] },
         environment,
       );
+      assessmentResults.push({ claimId: scopedClaim.id, snapshotId: snapshot.id, result });
       externalRequests += result.metrics.externalRequests;
       totalCostUsd = addCost(totalCostUsd, result.metrics.costUsd);
       stageCostUsd = addCost(stageCostUsd, result.metrics.costUsd);

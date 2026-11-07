@@ -234,6 +234,8 @@ export interface AssessEvidenceInput {
   claims: Claim[];
   snapshots: DocumentSnapshot[];
   admittedSnapshotIds: string[];
+  /** Pairs already processed during provenance traversal, including partial outcomes. */
+  skipPairs?: Array<Pick<EvidenceAssessment, "claimId" | "snapshotId">>;
 }
 
 export interface AssessEvidenceData {
@@ -249,8 +251,14 @@ export interface TraceOriginsInput {
 
 export interface TraceOriginsData {
   graphs: ProvenanceGraph[];
-  /** Documents pulled during traversal still require assessment before use. */
+  /** Documents pulled during traversal must be loaded before their evidence is reused. */
   newSnapshotIds: string[];
+  /** Absent only in historical stage outputs. Metrics are already included in tracing. */
+  assessmentResults?: Array<{
+    claimId: string;
+    snapshotId: string;
+    result: StageResult<AssessEvidenceData>;
+  }>;
 }
 
 export interface AdjudicateClaimsInput {

@@ -13,6 +13,32 @@ import {
   createAssessEvidence,
 } from "../src/analysis/evidence/index.js";
 
+test("assessment skips completed traversal pairs while assessing other claims on the same document", async () => {
+  const first = evidenceClaim();
+  const second = { ...first, id: "another_claim" };
+  const snapshot = evidenceSnapshot("shared_origin", first.text);
+  const calls: string[] = [];
+  const { environment } = createScriptedEvidenceEnvironment(({ claim, snapshotId, passage }) => {
+    calls.push(claim.id);
+    return assessmentResponse(claim, snapshotId, passage);
+  });
+  const result = await createAssessEvidence()(
+    {
+      claims: [first, second],
+      snapshots: [snapshot],
+      admittedSnapshotIds: [snapshot.id],
+      skipPairs: [{ claimId: first.id, snapshotId: snapshot.id }],
+    },
+    environment,
+  );
+  assert.deepEqual(calls, [second.id]);
+  assert.deepEqual(
+    result.data?.assessments.map(({ claimId }) => claimId),
+    [second.id],
+  );
+  assert.equal(result.metrics.externalRequests, 1);
+});
+
 test("evidence accumulation recomputes publisher dependence across batches and arrival orders", async () => {
   const claim = evidenceClaim();
   const snapshots = [

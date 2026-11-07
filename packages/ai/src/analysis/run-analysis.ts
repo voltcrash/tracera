@@ -146,7 +146,8 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
       stage: Stage,
       dependencyHash: string,
       execute: () => Promise<StageCheckpoints[Stage]>,
-    ) => executeStage(stage, dependencyHash, execute, environment, checkpointing);
+      canReuse: (checkpoint: StageCheckpoints[Stage]) => boolean = () => true,
+    ) => executeStage(stage, dependencyHash, execute, environment, checkpointing, canReuse);
     const interrupted = (stage: StageName): RunAnalysisResult | null => {
       const reason = runStopReason(environment);
       if (reason) {
@@ -405,18 +406,37 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
             extra: null,
           };
         }
-        const reassessment = await factories.assessEvidence(usage([result.metrics]))(
-          {
-            claims: selectedClaims(),
-            snapshots: uniqueById([...state.snapshots, ...loaded]),
-            admittedSnapshotIds: newSnapshotIds,
-          },
-          environment,
+        const skipPairs = result.data.assessmentResults ?? [];
+        const missingPairs = selectedClaims().some((claim) =>
+          newSnapshotIds.some(
+            (snapshotId) =>
+              !skipPairs.some(
+                (pair) => pair.claimId === claim.id && pair.snapshotId === snapshotId,
+              ),
+          ),
         );
+        const failedTraversal = skipPairs.some(({ result: assessed }) => assessed.data === null);
+        const reassessment =
+          missingPairs && !failedTraversal
+            ? await factories.assessEvidence(usage([result.metrics]))(
+                {
+                  claims: selectedClaims(),
+                  snapshots: uniqueById([...state.snapshots, ...loaded]),
+                  admittedSnapshotIds: newSnapshotIds,
+                  skipPairs,
+                },
+                environment,
+              )
+            : null;
         return { result, extra: { snapshots: loaded, reassessment } };
       },
+      (checkpoint) =>
+        checkpoint.extra?.reassessment?.status !== "failed" &&
+        !checkpoint.result.data?.assessmentResults?.some(
+          ({ result }) => result.status === "failed",
+        ),
     );
-    const traceResult = tracedExecution.extra
+    const traceResult = tracedExecution.extra?.reassessment
       ? absorbOutcome(tracedExecution.result, tracedExecution.extra.reassessment)
       : tracedExecution.result;
     const traced = transitionStage(
@@ -427,7 +447,7 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     );
     if (traced.extra) {
       state.snapshots = uniqueById([...state.snapshots, ...traced.extra.snapshots]);
-      if (traced.extra.reassessment.data) {
+      if (traced.extra.reassessment?.data) {
         state.assessments = accumulateEvidence(
           selectedClaims(),
           state.snapshots,
@@ -439,9 +459,20 @@ export function createRunAnalysis(options: RunAnalysisOptions = {}): RunAnalysis
     }
     retainStage(state, "trace_origins", traced.result, (data) => {
       state.provenance = data.graphs;
+      state.assessments = accumulateEvidence(
+        selectedClaims(),
+        state.snapshots,
+        state.assessments,
+        ...(data.assessmentResults ?? []).map(({ result }) => result.data?.assessments ?? []),
+      ).assessments;
+      state.evidenceSetHash = evidenceSetHash(state.snapshots, state.assessments);
     });
     if (traced.kind === "stop" && traced.status === "canceled") return stop(traced.status);
-    if (traced.extra && !traced.extra.reassessment.data)
+    const failedTraversal = traced.result.data?.assessmentResults?.find(
+      ({ result }) => !result.data,
+    );
+    if (failedTraversal) return stop(stageRunStatus(failedTraversal.result));
+    if (traced.extra?.reassessment && !traced.extra.reassessment.data)
       return stop(stageRunStatus(traced.extra.reassessment));
     if (traced.kind === "stop") return stop(traced.status);
 
@@ -634,6 +665,7 @@ async function executeStage<Stage extends StageName>(
   execute: () => Promise<StageCheckpoints[Stage]>,
   environment: RunEnvironment,
   checkpointing: Checkpointing | null,
+  canReuse: (checkpoint: StageCheckpoints[Stage]) => boolean,
 ): Promise<StageCheckpoints[Stage]> {
   environment.signal.throwIfAborted();
   if (checkpointing) {
@@ -644,11 +676,16 @@ async function executeStage<Stage extends StageName>(
     });
     if (saved?.checkpointHash === dependencyHash) {
       const checkpoint = readStageCheckpoint(stage, saved.payloadJson);
-      if (checkpoint) return checkpoint;
+      if (checkpoint && canReuse(checkpoint)) return checkpoint;
     }
   }
   const executed = await execute();
-  if (checkpointing && executed.result.status !== "failed" && !isRunInterrupted(environment)) {
+  if (
+    checkpointing &&
+    executed.result.status !== "failed" &&
+    canReuse(executed) &&
+    !isRunInterrupted(environment)
+  ) {
     await environment.ports.runs.checkpoint({
       runId: environment.context.runId,
       stage,
