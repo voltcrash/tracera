@@ -62,11 +62,18 @@ function Home() {
   async function analyze(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (!hydrated || isAuthLoading || !user) return;
-    await composer.submit(user.id, start, openRun);
+    await composer.submit(
+      user.id,
+      async (options) => {
+        const result = await start(options);
+        if (result.status < 400 && result.body.runId) refreshHistory();
+        return result;
+      },
+      openRun,
+    );
   }
 
   async function openRun(runId: string) {
-    refreshHistory();
     await navigate({ to: "/run/$id", params: { id: runId } });
   }
 

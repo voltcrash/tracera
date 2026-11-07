@@ -34,9 +34,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import { cn } from "@/lib/utils";
 import { listRuns } from "@/server/analysis.functions";
+import { useResource } from "@/lib/use-resource";
 
 type RunSummary = {
   runId: string;
@@ -58,31 +58,14 @@ export function useHistoryRefresh() {
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { isLoading: isAuthLoading, user } = useAuth();
   const fetchRuns = useServerFn(listRuns);
-  const [traces, setTraces] = useState<RunSummary[] | null>(null);
-  const [version, setVersion] = useState(0);
+  const loadHistory = useCallback(async () => (await fetchRuns()).runs, [fetchRuns]);
+  const { state: history, refresh } = useResource(
+    isAuthLoading ? null : (user?.id ?? null),
+    loadHistory,
+    { key: HISTORY_CACHE_KEY, maxAge: HISTORY_CACHE_AGE },
+  );
   const [railOpen, setRailOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  const refresh = useCallback(() => setVersion((current) => current + 1), []);
-
-  useEffect(() => {
-    if (isAuthLoading || !user) return;
-    let current = true;
-    const cached = readSessionCache<RunSummary[]>(user.id, HISTORY_CACHE_KEY, HISTORY_CACHE_AGE);
-    if (cached) queueMicrotask(() => setTraces(cached));
-    fetchRuns()
-      .then(({ runs }) => {
-        if (!current) return;
-        setTraces(runs);
-        writeSessionCache(user.id, HISTORY_CACHE_KEY, runs);
-      })
-      .catch(() => {
-        if (current) setTraces([]);
-      });
-    return () => {
-      current = false;
-    };
-  }, [fetchRuns, isAuthLoading, user, version]);
 
   return (
     <HistoryRefreshContext.Provider value={refresh}>
@@ -96,8 +79,10 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           onClick={() => setRailOpen(false)}
         />
         <Rail
-          traces={traces}
-          isLoading={isAuthLoading || traces === null}
+          traces={history.data}
+          isLoading={isAuthLoading || (history.status === "loading" && history.data === null)}
+          error={history.status === "error"}
+          onRetry={() => void refresh()}
           open={railOpen}
           onClose={() => setRailOpen(false)}
           onCollapse={() => setSidebarCollapsed(true)}
@@ -135,12 +120,16 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 function Rail({
   traces,
   isLoading,
+  error,
+  onRetry,
   open,
   onClose,
   onCollapse,
 }: {
   traces: RunSummary[] | null;
   isLoading: boolean;
+  error: boolean;
+  onRetry: () => void;
   open: boolean;
   onClose: () => void;
   onCollapse: () => void;
@@ -192,6 +181,14 @@ function Rail({
       </div>
 
       <nav className="rail-history" aria-label="Your traces">
+        {error ? (
+          <div role="alert" className="rail-empty">
+            <p>Unable to load your traces.</p>
+            <Button type="button" variant="ghost" size="sm" onClick={onRetry}>
+              Retry traces
+            </Button>
+          </div>
+        ) : null}
         {isLoading ? (
           <div className="rail-history-loading">
             {[0, 1, 2, 3].map((row) => (
@@ -199,7 +196,9 @@ function Rail({
             ))}
           </div>
         ) : groups.length === 0 ? (
-          <p className="rail-empty">Traces you run are kept here.</p>
+          error ? null : (
+            <p className="rail-empty">Traces you run are kept here.</p>
+          )
         ) : (
           groups.map((group) => (
             <section key={group.label}>
@@ -267,15 +266,6 @@ function RailFooter({ onClose }: { onClose: () => void }) {
     }
   }
 
-  function prefetchAccount() {
-    if (!user || readSessionCache(user.id, "accounts", 10 * 60_000)) return;
-    void fetch("/api/auth/list-accounts", { credentials: "include" })
-      .then(async (response) => {
-        if (response.ok) writeSessionCache(user.id, "accounts", await response.json());
-      })
-      .catch(() => undefined);
-  }
-
   return (
     <div className="rail-foot">
       {location.pathname === "/settings" ? (
@@ -298,8 +288,6 @@ function RailFooter({ onClose }: { onClose: () => void }) {
             render={
               <button type="button" className="rail-account" aria-label="Open account menu" />
             }
-            onPointerEnter={prefetchAccount}
-            onFocus={prefetchAccount}
           >
             <TraceAvatar image={user.image} seed={user.id} className="size-7" />
             <span className="truncate">{accountLabel(user)}</span>

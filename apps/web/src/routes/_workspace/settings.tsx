@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
+import { useResource } from "@/lib/use-resource";
 import { PersonalProviderKeys } from "@/components/settings/personal-provider-keys";
 import type { ProfileSaveResult } from "@/lib/profile-editor";
 
@@ -151,31 +151,23 @@ function SettingsPage() {
 
 type LinkedAccount = { providerId: string; createdAt: string };
 
+async function loadAccounts(): Promise<LinkedAccount[]> {
+  const response = await fetch("/api/auth/list-accounts", { credentials: "include" });
+  if (!response.ok) throw new Error("Unable to load your sign-in methods.");
+  return response.json();
+}
+
 function AccountRow() {
   const { isLoading, user } = useAuth();
-  const [accounts, setAccounts] = useState<LinkedAccount[] | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    const controller = new AbortController();
-    const cached = readSessionCache<LinkedAccount[]>(user.id, "accounts", ACCOUNT_CACHE_AGE);
-    if (cached) queueMicrotask(() => setAccounts(cached));
-    fetch("/api/auth/list-accounts", { credentials: "include", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Unable to load your sign-in methods.");
-        const data = (await response.json()) as LinkedAccount[];
-        setAccounts(data);
-        writeSessionCache(user.id, "accounts", data);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted && !cached) setAccounts([]);
-      });
-    return () => controller.abort();
-  }, [user]);
+  const { state, refresh } = useResource(user?.id ?? null, loadAccounts, {
+    key: "accounts",
+    maxAge: ACCOUNT_CACHE_AGE,
+  });
+  const accounts = state.data;
 
   const google = accounts?.find((account) => account.providerId === "google") ?? null;
   const github = accounts?.find((account) => account.providerId === "github") ?? null;
-  const pending = isLoading || !user || accounts === null;
+  const pending = isLoading || !user || (accounts === null && state.status === "loading");
 
   return (
     <section className="settings-row" aria-labelledby="settings-account">
@@ -202,14 +194,30 @@ function AccountRow() {
           )}
         </p>
 
+        {state.status === "error" ? (
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>
+              Unable to load your sign-in methods.
+              <Button type="button" variant="ghost" onClick={() => void refresh()}>
+                Retry sign-in methods
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         <ul className="methods">
-          <li className="method" data-state={google ? "linked" : "absent"}>
+          <li
+            className="method"
+            data-state={accounts === null ? "unknown" : google ? "linked" : "absent"}
+          >
             <GoogleMark />
             <span className="method-body">
               <span className="method-name">Google</span>
               <span className="method-detail">
                 {pending ? (
                   "Checking"
+                ) : accounts === null ? (
+                  "Unavailable"
                 ) : google ? (
                   <>
                     Linked <LocalTime value={google.createdAt} dateOnly />
@@ -219,15 +227,22 @@ function AccountRow() {
                 )}
               </span>
             </span>
-            <span className="method-state">{google ? "In use" : "Not in use"}</span>
+            <span className="method-state">
+              {accounts === null ? "Unknown" : google ? "In use" : "Not in use"}
+            </span>
           </li>
-          <li className="method" data-state={github ? "linked" : "absent"}>
+          <li
+            className="method"
+            data-state={accounts === null ? "unknown" : github ? "linked" : "absent"}
+          >
             <GitHubMark className="size-4" />
             <span className="method-body">
               <span className="method-name">GitHub</span>
               <span className="method-detail">
                 {pending ? (
                   "Checking"
+                ) : accounts === null ? (
+                  "Unavailable"
                 ) : github ? (
                   <>
                     Linked <LocalTime value={github.createdAt} dateOnly />
@@ -237,7 +252,9 @@ function AccountRow() {
                 )}
               </span>
             </span>
-            <span className="method-state">{github ? "In use" : "Not in use"}</span>
+            <span className="method-state">
+              {accounts === null ? "Unknown" : github ? "In use" : "Not in use"}
+            </span>
           </li>
         </ul>
       </div>
