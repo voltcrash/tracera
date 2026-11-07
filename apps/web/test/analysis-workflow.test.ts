@@ -39,7 +39,7 @@ async function start() {
   expect(result.status).toBe(202);
   return { params: harness.created.at(-1)!.params as AnalysisWorkflowParams, idempotencyKey };
 }
-function steps() {
+function steps(afterExecute?: (name: string) => void) {
   const results: { name: string; value: unknown }[] = [];
   const errors: string[] = [];
   const retries: Record<string, number> = {};
@@ -54,6 +54,7 @@ function steps() {
       for (let attempt = 0; ; attempt++) {
         try {
           const value = await execute();
+          afterExecute?.(name);
           results.push({ name, value });
           return value;
         } catch (error) {
@@ -180,6 +181,43 @@ test("finalization retries do not create another report version", async () => {
   await runAnalysisWorkflow(harness.env, params, replay.step, { storage });
   expect(replay.retries.finalize).toBe(1);
   expect(finalizeMock).toHaveBeenCalledTimes(1);
+  expect(await heldLeases()).toBe(0);
+});
+
+for (const losses of [1, Infinity]) {
+  test(`a saved report survives ${losses} lost analyze step responses without another attempt`, async () => {
+    const { params } = await start();
+    let lost = 0;
+    const replay = steps((name) => {
+      if (name === "analyze" && lost++ < losses) throw new Error("Step result was lost");
+    });
+    const createPorts = vi.fn(createWorkflowAnalysisPorts);
+    const result = await runAnalysisWorkflow(harness.env, params, replay.step, { createPorts });
+    expect(result.status).toBe("partial");
+    expect(createPorts).toHaveBeenCalledTimes(1);
+    const state = await readRunState(harness.env, user, params.runId);
+    expect(state?.progress.attempt).toBe(1);
+    expect(state?.report).not.toBeNull();
+    expect(await heldLeases()).toBe(0);
+  });
+}
+
+test("a lost preparation commit response resumes publication without resolving providers again", async () => {
+  const { params } = await start();
+  const storage = analysisStorage(harness.env);
+  const prepare = storage.runs.prepareReport.bind(storage.runs);
+  storage.runs.prepareReport = async (input) => {
+    await prepare(input);
+    throw new Error("Lost response after preparation committed");
+  };
+  const createPorts = vi.fn(createWorkflowAnalysisPorts);
+  const replay = steps();
+  expect(
+    (await runAnalysisWorkflow(harness.env, params, replay.step, { storage, createPorts })).status,
+  ).toBe("partial");
+  expect(createPorts).toHaveBeenCalledTimes(1);
+  expect(replay.retries.analyze).toBe(1);
+  expect((await readRunState(harness.env, user, params.runId))?.progress.attempt).toBe(1);
   expect(await heldLeases()).toBe(0);
 });
 

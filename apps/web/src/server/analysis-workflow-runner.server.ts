@@ -17,6 +17,7 @@ import { analysisControlConfig } from "./analysis-controls";
 import { createWorkflowAnalysisPorts } from "./analysis-runtime";
 import { resolveWorkflowProvider } from "./provider-selection.server";
 import type { ServerEnv } from "./env";
+import { publishPreparedReport } from "./report-publication.server";
 import {
   ANALYSIS_WORKFLOW_RETRIES,
   WORKFLOW_SETTLEMENT_CONFIG,
@@ -61,6 +62,8 @@ export async function runAnalysisWorkflow(
           if (attempt) await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
           return { status: "canceled", reportUri: null, fencingToken: null };
         }
+        const prepared = await storage.runs.getPreparedReport(identity);
+        if (prepared) return prepared;
         const attempt = await storage.runs.beginAttempt({
           ...identity,
           stage: progress.nextStage ?? "score_report",
@@ -157,6 +160,19 @@ export async function runAnalysisWorkflow(
           });
           if (pointer.status !== "stored")
             throw new Error("The analysis report could not be stored.");
+          if (
+            report.status !== "complete" &&
+            report.status !== "partial" &&
+            report.status !== "unavailable"
+          )
+            throw new Error("The analysis report is not publishable.");
+          await storage.runs.prepareReport({
+            ...identity,
+            fencingToken: attempt.fencingToken,
+            reportUri: pointer.uri,
+            reportHash: hashValue(report),
+            status: report.status,
+          });
           return {
             status: report.status,
             reportUri: pointer.uri,
@@ -193,6 +209,8 @@ export async function runAnalysisWorkflow(
           await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
           return { status: "canceled", reportUri: null, fencingToken: null };
         }
+        const prepared = await storage.runs.getPreparedReport(identity);
+        if (prepared) return prepared;
         const status = await storage.runs.failRun({
           ...identity,
           fencingToken: attempt?.fencingToken ?? null,
@@ -213,6 +231,8 @@ export async function runAnalysisWorkflow(
         if (attempt) await storage.runs.acknowledgeCancellation({ ...identity, ...attempt });
         return "canceled";
       }
+      const published = await publishPreparedReport(env, storage, identity);
+      if (published) return published;
       if (!outcome.reportUri || !outcome.fencingToken)
         throw new Error("The analysis report reference is missing.");
       const bytes = await blobStore.read(outcome.reportUri, new AbortController().signal);
