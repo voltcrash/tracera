@@ -24,6 +24,10 @@ Only a response with `code: analysis_start_failed` and `status: failed` confirms
 was saved. A retry then uses a fresh key, avoiding replay of the cached failure. Transport
 failures, unconfirmed persistence, and in-progress responses retain the request identity.
 
+A settled Workflow failure replays with HTTP 503 and a saved run ID. That response still
+opens the saved run and refreshes history. The shared acceptance check excludes
+`analysis_start_failed` responses, whose run ID does not confirm persistence.
+
 Attachment reads have their own version. Selecting, pasting, or dropping an image starts
 reading and blocks submission, even when text is already present. A newer selection or
 removal invalidates the previous read. Late successes and failures cannot replace the

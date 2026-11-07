@@ -1,6 +1,8 @@
 import type { WorkflowStep, WorkflowStepConfig } from "cloudflare:workers";
 import { afterAll, beforeAll, expect, test, vi } from "vite-plus/test";
 import { runAnalysisWorkflow } from "../src/server/analysis-workflow-runner.server";
+import { Composer } from "../src/lib/composer";
+import type { ApiBody } from "../src/server/analysis.functions";
 import {
   analysisStorage,
   accessScope,
@@ -73,6 +75,46 @@ async function heldLeases() {
     "SELECT COUNT(*) AS count FROM analysis_leases WHERE released_at IS NULL",
   ).first<number>("count");
 }
+
+test("Composer opens a saved failed Workflow after losing the initial start response", async () => {
+  const composer = new Composer();
+  composer.edit(body.text);
+  const responses: number[] = [];
+  const created = harness.created.length;
+  let runId: string | undefined;
+  const submit = vi.fn(async ({ data }: { data: { idempotencyKey: string; input: unknown } }) => {
+    const result = await startAnalysisRun({
+      env: harness.env,
+      user,
+      request: new Request(ORIGIN),
+      body: data.input,
+      idempotencyKey: data.idempotencyKey,
+    });
+    responses.push(result.status);
+    if (responses.length === 1) {
+      const params = harness.created.at(-1)!.params as AnalysisWorkflowParams;
+      runId = params.runId;
+      expect(
+        await runAnalysisWorkflow(harness.env, params, steps().step, {
+          createPorts: () => {
+            throw new Error("Synthetic engine failure");
+          },
+        }),
+      ).toMatchObject({ status: "failed" });
+      throw new Error("Accepted response lost");
+    }
+    return { status: result.status, body: result.body as ApiBody };
+  });
+  const open = vi.fn().mockResolvedValue(undefined);
+  await composer.submit(user.id, submit, open);
+  expect(open).not.toHaveBeenCalled();
+  await composer.submit(user.id, submit, open);
+  expect(responses).toEqual([202, 503]);
+  expect(submit.mock.calls[1]).toEqual(submit.mock.calls[0]);
+  expect(harness.created).toHaveLength(created + 1);
+  expect(open).toHaveBeenCalledWith(runId);
+  expect(await heldLeases()).toBe(0);
+});
 
 test("Workflow analyzes, finalizes and releases admission without persisting report content in steps", async () => {
   const { params, idempotencyKey } = await start();
