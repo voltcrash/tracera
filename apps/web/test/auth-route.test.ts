@@ -3,6 +3,7 @@ import { afterAll, beforeAll, expect, test, vi } from "vite-plus/test";
 import { handleAuthRequest, publicAuthResponse } from "../src/server/auth-handler";
 import { parseServerEnv, type ServerEnv } from "../src/server/env";
 import { GENERIC_ERROR_MESSAGE } from "../src/server/error-handling";
+import { PROFILE_OWNER_HEADER } from "../src/lib/auth-state";
 
 let runtime: Awaited<ReturnType<typeof createTestRuntime>>;
 let env: ServerEnv;
@@ -64,6 +65,55 @@ test.each(["ada", "grace"])("dev sign-in as %s persists a session and signs out"
 test("dev identities are served through the auth route", async () => {
   const response = await handleAuthRequest(env, new Request(`${origin}/api/auth/dev-identities`));
   expect(await response.json()).toMatchObject({ identities: [{ id: "ada" }, { id: "grace" }] });
+});
+
+test("profile updates reject a stale account identity before touching the signed-in user", async () => {
+  const login = async (id: string) =>
+    cookies(
+      await handleAuthRequest(env, new Request(`${origin}/api/auth/dev-login?identity=${id}`)),
+    );
+  const adaCookie = await login("ada");
+  const graceCookie = await login("grace");
+  const ada = ((await (await session(adaCookie)).json()) as { user: { id: string } }).user;
+  const grace = (
+    (await (await session(graceCookie)).json()) as { user: { id: string; name: string } }
+  ).user;
+  const update = (owner: string, cookie: string) =>
+    handleAuthRequest(
+      env,
+      new Request(`${origin}/api/auth/update-user`, {
+        method: "POST",
+        headers: {
+          cookie,
+          origin,
+          "content-type": "application/json",
+          [PROFILE_OWNER_HEADER]: owner,
+        },
+        body: JSON.stringify({ name: "Scoped profile" }),
+      }),
+    );
+  expect((await update(ada.id, graceCookie)).status).toBe(409);
+  const wrongSignOut = await handleAuthRequest(
+    env,
+    new Request(`${origin}/api/auth/sign-out`, {
+      method: "POST",
+      headers: {
+        cookie: graceCookie,
+        origin,
+        "content-type": "application/json",
+        [PROFILE_OWNER_HEADER]: ada.id,
+      },
+      body: "{}",
+    }),
+  );
+  expect(wrongSignOut.status).toBe(409);
+  expect(
+    ((await (await session(graceCookie)).json()) as { user: { name: string } }).user.name,
+  ).toBe(grace.name);
+  expect((await update(ada.id, adaCookie)).status).toBe(200);
+  expect(((await (await session(adaCookie)).json()) as { user: { name: string } }).user.name).toBe(
+    "Scoped profile",
+  );
 });
 
 test("Better Auth 5xx responses become the generic error body", async () => {
