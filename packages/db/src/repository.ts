@@ -715,7 +715,8 @@ export class D1AnalysisRepository {
           completedStages: recordedStages,
           updatedAt: new Date(row.updated_at).toISOString(),
           ...(row.last_error === "provider_key_rejected" ||
-          row.last_error === "provider_revision_unavailable"
+          row.last_error === "provider_revision_unavailable" ||
+          row.last_error === "execution_plan_unavailable"
             ? { errorCode: row.last_error }
             : {}),
         }
