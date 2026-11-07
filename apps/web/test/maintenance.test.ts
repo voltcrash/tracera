@@ -284,6 +284,69 @@ test("maintenance completes admission release after a report was already finaliz
   ).toBe(200);
 });
 
+test("terminal settlement can recover bound admission without reading a missing legacy input", async () => {
+  const runId = await start();
+  const runs = analysisStorage(harness.env).runs;
+  await runs.failRun({ scope: accessScope(user), runId, fencingToken: null, error: "Stopped" });
+  await harness.env.DB.prepare("UPDATE core_runs SET launch_admission=NULL WHERE run_id=?")
+    .bind(runId)
+    .run();
+  const read = vi
+    .spyOn(D1AnalysisRepository.prototype, "getRunInput")
+    .mockRejectedValue(new Error("Legacy input object is missing"));
+  expect(await scheduledMaintenance(binding("errored").env)).toMatchObject({
+    admissionsReleased: 1,
+  });
+  expect(read).not.toHaveBeenCalled();
+});
+
+test("an unreadable unbound legacy input and artifact listing failure do not abort other settlement", async () => {
+  const legacy = await start();
+  const runs = analysisStorage(harness.env).runs;
+  await runs.failRun({
+    scope: accessScope(user),
+    runId: legacy,
+    fencingToken: null,
+    error: "Stopped",
+  });
+  await harness.env.DB.prepare(
+    "UPDATE core_runs SET launch_admission=NULL,launch_status='not_required' WHERE run_id=?",
+  )
+    .bind(legacy)
+    .run();
+  await harness.env.DB.prepare("UPDATE analysis_leases SET run_id=NULL WHERE run_id=?")
+    .bind(legacy)
+    .run();
+  const good = await start();
+  await runs.failRun({
+    scope: accessScope(user),
+    runId: good,
+    fencingToken: null,
+    error: "Stopped",
+  });
+  vi.spyOn(D1AnalysisRepository.prototype, "getRunInput").mockRejectedValue(
+    new Error("Legacy input is missing"),
+  );
+  const bucket = harness.env.BLOBS;
+  const env = {
+    ...binding("errored").env,
+    BLOBS: {
+      get: bucket.get.bind(bucket),
+      put: bucket.put.bind(bucket),
+      head: bucket.head.bind(bucket),
+      delete: bucket.delete.bind(bucket),
+      list: async () => {
+        throw new Error("R2 listing unavailable");
+      },
+    } as unknown as typeof bucket,
+  };
+  expect(await scheduledMaintenance(env)).toMatchObject({
+    admissionsReleased: 1,
+    admissionRecoveryErrors: 1,
+    artifactSweepErrors: 1,
+  });
+});
+
 for (const recovery of ["errored", "status_unavailable", "blob_unavailable", "canceled"] as const) {
   test(`maintenance recovers prepared publication after ${recovery}`, async () => {
     const runId = await start();
