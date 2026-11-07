@@ -75,6 +75,7 @@ See [composer transitions](docs/composer.md) for draft, attachment, submission, 
 See [authentication and profile transitions](docs/auth-profile.md) for session recovery, account changes, and scoped profile edits.
 See [settings and history resources](docs/resource-states.md) for cached reads, retries, and confirmed mutation outcomes.
 See [theme preference transitions](docs/theme-preference.md) for system settings and storage-independent choices.
+See [runtime execution plans](docs/runtime-execution-plan.md) for saved provider settings, resume validation, and unavailable capabilities.
 
 ## Architecture
 
