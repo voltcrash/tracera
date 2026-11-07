@@ -186,6 +186,32 @@ test("a failed sign-out remains recoverable and a retry ends the session", async
   expect(await (await page.request.get("/api/auth/get-session")).json()).toBeNull();
 });
 
+test("sign-out recovers when the browser remembers a session already revoked on the server", async ({
+  page,
+}) => {
+  await signIn(page);
+  expect(
+    (
+      await page.request.post("/api/auth/sign-out", {
+        data: {},
+        headers: { origin: new URL(page.url()).origin },
+      })
+    ).status(),
+  ).toBe(200);
+  expect(await (await page.request.get("/api/auth/get-session")).json()).toBeNull();
+
+  await page.getByRole("button", { name: "Open account menu" }).click();
+  const signedOut = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/auth/sign-out" &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+  expect((await signedOut).status()).toBe(200);
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("button", { name: "Continue as Ada Local" })).toBeVisible();
+});
+
 test("a different first browser session cannot inherit the server-rendered owner's report", async ({
   page,
 }) => {
