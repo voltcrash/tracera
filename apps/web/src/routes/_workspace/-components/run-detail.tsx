@@ -124,6 +124,13 @@ export function RunDetail({ id, initial }: { id: string; initial: RunViewState }
   return (
     <main className="trace-page min-h-screen bg-background text-foreground">
       <section className="trace mt-16">
+        {progress.errorCode === "execution_plan_unavailable" ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              This trace could not run with its saved settings. Start a new trace.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         {progress.errorCode === "provider_key_rejected" ? (
           <Alert variant="destructive">
             <AlertDescription>

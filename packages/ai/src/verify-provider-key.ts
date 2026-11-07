@@ -1,6 +1,7 @@
 import { createAiProvider } from "./create-provider";
 import { personalProviderConfig, type ProviderKeyInput } from "./provider-key-input";
 import { ProviderRequestError, requestProviderJson } from "./provider-request";
+import { BUILTIN_PROVIDER_BASE_URLS } from "./provider-endpoints";
 import { assertPublicHttpUrl, type HostAddressResolver } from "./safe-fetch";
 
 export class ProviderKeyRejectedError extends Error {
@@ -48,7 +49,7 @@ async function verifyGeneration(input: ProviderKeyInput, signal: AbortSignal) {
   let body: unknown;
   let responseField: string;
   if (input.provider === "gemini") {
-    url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`;
+    url = `${BUILTIN_PROVIDER_BASE_URLS.gemini}/models/${encodeURIComponent(input.model)}:generateContent`;
     headers = { "x-goog-api-key": input.apiKey };
     body = {
       contents: [{ parts: [{ text: "Reply OK." }] }],
@@ -56,7 +57,7 @@ async function verifyGeneration(input: ProviderKeyInput, signal: AbortSignal) {
     };
     responseField = "candidates";
   } else if (input.provider === "anthropic") {
-    url = "https://api.anthropic.com/v1/messages";
+    url = `${BUILTIN_PROVIDER_BASE_URLS.anthropic}/messages`;
     headers = { "x-api-key": input.apiKey, "anthropic-version": "2023-06-01" };
     body = {
       model: input.model,
@@ -67,9 +68,9 @@ async function verifyGeneration(input: ProviderKeyInput, signal: AbortSignal) {
   } else {
     const baseUrl =
       input.provider === "openai"
-        ? "https://api.openai.com/v1"
+        ? BUILTIN_PROVIDER_BASE_URLS.openai
         : input.provider === "openrouter"
-          ? "https://openrouter.ai/api/v1"
+          ? BUILTIN_PROVIDER_BASE_URLS.openrouter
           : input.baseUrl!;
     url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
     headers = { authorization: `Bearer ${input.apiKey}` };

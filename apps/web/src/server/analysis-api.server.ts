@@ -138,6 +138,7 @@ export async function startAnalysisRun(input: {
       payload: {
         input: analysisInput(parsed.data),
         seed: ANALYSIS_SEED,
+        executionPlan: runtime.policy.executionPlan,
         admission: params.admission,
       },
       offloadInput: "image" in parsed.data,

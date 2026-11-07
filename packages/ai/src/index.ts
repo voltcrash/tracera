@@ -42,6 +42,7 @@ export {
 } from "./resolve-analysis-provider";
 export { providerSpendIdentity, type ProviderSpendIdentity } from "./provider-spend-identity";
 export { ProviderRequestError } from "./provider-request";
+export { providerBaseUrl } from "./provider-endpoints";
 export {
   verifyProviderKey,
   ProviderKeyRejectedError,

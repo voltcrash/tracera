@@ -1,9 +1,11 @@
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vite-plus/test";
 import { z } from "zod";
-import { runContextExample, type RunContext } from "@repo/contracts/analysis";
+import { runContextExample } from "@repo/contracts/analysis";
 import { createSystemClock } from "@repo/ai/analysis";
 import { analysisStorage } from "../src/server/analysis-api.server";
 import { createWorkflowAnalysisPorts } from "../src/server/analysis-runtime";
+import { analysisPolicy, analysisRunContext } from "../src/server/analysis-policy";
+import { resolveWorkflowProvider } from "../src/server/provider-selection.server";
 import { createWorkerTestEnv } from "./support/worker-env";
 
 let harness: Awaited<ReturnType<typeof createWorkerTestEnv>>;
@@ -14,6 +16,18 @@ beforeAll(async () => {
     AI_API_KEY: "fixture",
     AI_MODEL: "fixture",
     AI_EMBEDDING_MODEL: "fixture",
+    ANALYSIS_MAX_EXTERNAL_REQUESTS: "120",
+    ANALYSIS_MAX_DISCOVERY_QUERIES_PER_CLAIM: "12",
+    ANALYSIS_MAX_FETCHED_CANDIDATES_PER_CLAIM: "20",
+    ANALYSIS_MAX_PROVENANCE_HOPS: "3",
+    ANALYSIS_MAX_TARGETED_RETRIEVAL_ROUNDS: "2",
+    ANALYSIS_MAX_ELAPSED_MS: "120000",
+    ANALYSIS_MAX_CONCURRENT_EXTERNAL_CALLS: "3",
+    ANALYSIS_MAX_COST_USD: "1",
+    AI_DAILY_SPEND_LIMIT_USD: "25",
+    AI_ESTIMATED_GENERATION_COST_USD: "0.01",
+    AI_ESTIMATED_IMAGE_COST_USD: "0.02",
+    AI_ESTIMATED_EMBEDDING_COST_USD: "0.0001",
   });
 });
 afterAll(async () => {
@@ -23,16 +37,14 @@ afterEach(() => vi.unstubAllGlobals());
 
 async function setup(maxCostUsd = 1) {
   const runs = analysisStorage(harness.env).runs;
-  const context: RunContext = {
-    ...structuredClone(runContextExample),
-    runId: crypto.randomUUID(),
-    executionMode: "live",
-    provider: { source: "platform", provider: "openai" },
-  };
-  context.versions.model = "fixture";
-  context.versions.embedding.model = "fixture";
+  const policy = analysisPolicy(harness.env, runContextExample.ownerUserId);
+  if (!policy.enabled || policy.policy.executionPlan.mode !== "live")
+    throw new Error("Live test policy is unavailable.");
+  const executionPlan = policy.policy.executionPlan;
+  const input = { kind: "text" as const, text: "A usage fixture." };
+  const context = analysisRunContext(runContextExample.ownerUserId, input, policy.policy);
   context.budget = { ...context.budget, maxExternalRequests: 2, maxCostUsd };
-  await runs.createRun({ context });
+  await runs.createRun({ context, payload: { input, seed: 1, executionPlan } });
   const identity = {
     scope: {
       tenantId: context.tenantId,
@@ -54,6 +66,8 @@ async function setup(maxCostUsd = 1) {
       return createWorkflowAnalysisPorts({
         env: harness.env,
         context,
+        executionPlan,
+        resolvedProvider: await resolveWorkflowProvider(harness.env, context, executionPlan),
         clock: createSystemClock(),
         blobStore: {
           put: async () => ({ status: "unavailable", uri: null }),

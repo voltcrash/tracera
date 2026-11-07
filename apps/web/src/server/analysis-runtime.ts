@@ -1,12 +1,13 @@
 import {
   createAiProvider,
-  resolveAnalysisProvider,
+  ProviderRequestError,
   InstrumentedAiProvider,
   ProviderKeyRejectedError,
   isProviderKeyRejection,
   type ResolvedAnalysisProvider,
 } from "@repo/ai";
 import { createFixtureAnalysisPorts } from "@repo/ai/fixtures";
+import { hashValue } from "@repo/ai/analysis/hashing";
 import {
   createAnalysisEmbeddingPort,
   createAnalysisGenerationPort,
@@ -22,10 +23,18 @@ import { analysisControlConfig, spendLimitedAiProvider } from "./analysis-contro
 import { createLiveSearchPorts } from "./evidence-search.server";
 import type { ServerEnv } from "./env";
 import { ProviderRevisionUnavailableError } from "./provider-selection.server";
+import {
+  assertExecutionPlanContext,
+  createFixtureExecutionPlan,
+  ExecutionPlanUnavailableError,
+  providerPlan,
+  type ExecutionPlan,
+} from "./analysis-execution-plan";
 
 export function createWorkflowAnalysisPorts(input: {
   env: ServerEnv;
   context: RunContext;
+  executionPlan?: ExecutionPlan;
   clock: ClockPort;
   blobStore: RawBlobStore;
   resolvedProvider?: ResolvedAnalysisProvider;
@@ -33,31 +42,55 @@ export function createWorkflowAnalysisPorts(input: {
   onProviderRejected?: () => Promise<void>;
 }) {
   const { env, context, clock, blobStore } = input;
-  if (context.executionMode === "fixture") {
-    if (env.MODE !== "dev") throw new Error("Fixture analysis runs only in local development.");
+  const plan =
+    input.executionPlan ??
+    (context.executionMode === "fixture" ? createFixtureExecutionPlan(context.versions) : null);
+  if (!plan) throw new ExecutionPlanUnavailableError();
+  assertExecutionPlanContext(plan, context);
+  if (plan.mode === "fixture") {
+    if (env.MODE !== "dev") throw new ExecutionPlanUnavailableError();
     return {
       ...createFixtureAnalysisPorts({ clock, rawBlobStore: blobStore }),
       assertProviderAccepted() {},
     };
   }
-  const resolved =
-    input.resolvedProvider ?? resolveAnalysisProvider({ userId: context.ownerUserId, env });
-  if (
-    resolved.config.model !== context.versions.model ||
-    resolved.config.provider !== context.provider?.provider ||
-    resolved.source !== context.provider?.source ||
-    resolved.revisionId !== context.provider?.revisionId ||
-    (resolved.config.embedding?.model ?? resolved.config.embeddingModel) !==
-      context.versions.embedding.model
-  )
-    throw new Error("The run's provider configuration has changed.");
+  const resolved = input.resolvedProvider;
+  if (!resolved) throw new ExecutionPlanUnavailableError();
+  if (hashValue(providerPlan(resolved)) !== hashValue(plan.provider))
+    throw new ExecutionPlanUnavailableError();
   const controls = analysisControlConfig(env);
+  controls.generationCostUsd = Math.max(
+    controls.generationCostUsd,
+    plan.estimates.generationCostUsd,
+  );
+  controls.imageCostUsd = Math.max(controls.imageCostUsd, plan.estimates.imageCostUsd);
+  controls.embeddingCostUsd = Math.max(controls.embeddingCostUsd, plan.estimates.embeddingCostUsd);
+  if (
+    resolved.source === "platform" &&
+    !(
+      Number(env.AI_DAILY_SPEND_LIMIT_USD) > 0 &&
+      Number.isFinite(Number(env.AI_DAILY_SPEND_LIMIT_USD))
+    )
+  )
+    throw new ExecutionPlanUnavailableError();
+  const discoveryEnv = {
+    GOOGLE_FACT_CHECK_API_KEY: plan.discovery.googleFactCheck
+      ? env.GOOGLE_FACT_CHECK_API_KEY
+      : undefined,
+    NEWS_API_KEY: plan.discovery.newsApi ? env.NEWS_API_KEY : undefined,
+  };
+  if (
+    (plan.discovery.googleFactCheck && !discoveryEnv.GOOGLE_FACT_CHECK_API_KEY?.trim()) ||
+    (plan.discovery.newsApi && !discoveryEnv.NEWS_API_KEY?.trim())
+  )
+    throw new ExecutionPlanUnavailableError();
   const spend = createD1SpendRepository({ database: env.DB } as unknown as D1RepositoryOptions);
   let rejected = false;
-  let unavailable: ProviderRevisionUnavailableError | null = null;
+  let unavailable: ProviderRevisionUnavailableError | ExecutionPlanUnavailableError | null = null;
   const assertProviderAccepted = () => {
-    if (unavailable) throw unavailable;
+    if (unavailable instanceof ProviderRevisionUnavailableError) throw unavailable;
     if (rejected) throw new ProviderKeyRejectedError();
+    if (unavailable) throw unavailable;
   };
   const reserveUsage = async (cost: number) => {
     assertProviderAccepted();
@@ -88,7 +121,22 @@ export function createWorkflowAnalysisPorts(input: {
           },
         });
   const provider = new InstrumentedAiProvider(controlledProvider, {
-    onCall: async (_call, operation) => operation(),
+    onCall: async (_call, operation) => {
+      assertProviderAccepted();
+      try {
+        return await operation();
+      } catch (error) {
+        if (
+          error instanceof ProviderRequestError &&
+          error.status !== undefined &&
+          [400, 404, 405, 413, 415, 422].includes(error.status)
+        ) {
+          unavailable ??= new ExecutionPlanUnavailableError();
+          assertProviderAccepted();
+        }
+        throw error;
+      }
+    },
     onRequest: (call) =>
       reserveUsage(
         call.kind === "embed"
@@ -121,7 +169,7 @@ export function createWorkflowAnalysisPorts(input: {
       modelId: context.versions.embedding.model,
       estimatedCostUsd: controls.embeddingCostUsd,
     }),
-    search: createLiveSearchPorts(env, clock, () => reserveUsage(0)),
+    search: createLiveSearchPorts(discoveryEnv, clock, () => reserveUsage(0)),
     documents: {
       ...documents,
       async acquire(request: Parameters<typeof documents.acquire>[0]) {

@@ -3,6 +3,7 @@ import { GeminiProvider } from "./providers/gemini";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible";
 import { CompositeAiProvider } from "./composite-provider";
 import type { AiProvider } from "./provider";
+import { providerBaseUrl } from "./provider-endpoints";
 
 export type AiProviderName = "anthropic" | "gemini" | "openai" | "openrouter" | "openai-compatible";
 
@@ -10,7 +11,7 @@ export interface ModelProviderConfig {
   provider: AiProviderName;
   apiKey?: string;
   model?: string;
-  /** Required only for `openai-compatible`; optional to override a built-in endpoint. */
+  /** Required for openai-compatible; optional endpoint override except Gemini's fixed Google API. */
   baseUrl?: string;
 }
 
@@ -40,17 +41,18 @@ function createModelProvider(
   config: ModelProviderConfig,
   embedding: { embeddingModel?: string; embeddingDimensions?: number },
 ): AiProvider {
+  const baseUrl = providerBaseUrl(config);
   switch (config.provider) {
     case "gemini":
       return new GeminiProvider({ ...config, ...embedding, apiKey: requireApiKey(config) });
     case "anthropic":
-      return new AnthropicProvider({ ...config, apiKey: requireApiKey(config) });
+      return new AnthropicProvider({ ...config, baseUrl, apiKey: requireApiKey(config) });
     case "openai":
       return new OpenAiCompatibleProvider({
         ...config,
         apiKey: requireApiKey(config),
         ...embedding,
-        baseUrl: config.baseUrl ?? "https://api.openai.com/v1",
+        baseUrl,
         providerName: "OpenAI",
       });
     case "openrouter":
@@ -58,18 +60,15 @@ function createModelProvider(
         ...config,
         apiKey: requireApiKey(config),
         ...embedding,
-        baseUrl: config.baseUrl ?? "https://openrouter.ai/api/v1",
+        baseUrl,
         providerName: "OpenRouter",
       });
     case "openai-compatible":
-      if (!config.baseUrl) {
-        throw new Error("AI_BASE_URL is required when AI_PROVIDER=openai-compatible.");
-      }
       return new OpenAiCompatibleProvider({
         ...config,
         apiKey: requireApiKey(config),
         ...embedding,
-        baseUrl: config.baseUrl,
+        baseUrl,
       });
   }
 }

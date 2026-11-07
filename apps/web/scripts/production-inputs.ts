@@ -178,6 +178,7 @@ export function validateProductionInputs(inputs: {
       "personal-production-check",
       {
         source: "user",
+        revisionId: "personal-production-check-revision",
         config: {
           provider: "openai",
           model: "personal-model",

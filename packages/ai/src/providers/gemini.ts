@@ -1,6 +1,7 @@
 import type { AiRequestOptions, GenerateOptions, ImageInput, JsonSchema } from "../provider";
 import { requestProviderJson } from "../provider-request";
 import { StructuredOutputProvider } from "../provider";
+import { BUILTIN_PROVIDER_BASE_URLS } from "../provider-endpoints";
 
 export interface GeminiProviderOptions {
   apiKey: string;
@@ -121,7 +122,7 @@ export class GeminiProvider extends StructuredOutputProvider {
   ): Promise<TResponse> {
     return requestProviderJson<TResponse>(
       this.providerName,
-      `https://generativelanguage.googleapis.com/v1beta/${path}`,
+      `${BUILTIN_PROVIDER_BASE_URLS.gemini}/${path}`,
       {
         method: "POST",
         headers: {
