@@ -64,12 +64,18 @@ if (args.includes(process.env.TRACERA_FAIL_TASK)) process.exit(27);
     ref: "refs/heads/main",
     event_name: "workflow_dispatch",
     sha: "a".repeat(40),
+    workflow_sha: "c".repeat(40),
     run_id: "100",
     run_attempt: "1",
     event: {},
   };
   github = {
     rest: {
+      repos: {
+        getBranch: vi.fn().mockImplementation(async () => ({
+          data: { commit: { sha: event.sha } },
+        })),
+      },
       actions: {
         listWorkflowRuns: vi.fn().mockImplementation(async () => ({
           data: {
@@ -93,15 +99,18 @@ afterEach(() => {
   rmSync(cwd, { recursive: true, force: true });
 });
 
-async function runWorkflow({ failTask, missingCredentials = false } = {}) {
+async function runWorkflow({ failTask, missingCredentials = false, afterTask } = {}) {
   const jobEnv = {};
+  const steps = {};
   const secrets = {
     CLOUDFLARE_API_TOKEN: missingCredentials ? "" : "synthetic-token",
     PRODUCTION_WORKER_ENV: "BETTER_AUTH_SECRET=synthetic-private-canary\n",
   };
   const resolve = (value) =>
-    value.replace(/\$\{\{([\s\S]*?)\}\}/g, (_, expression) =>
-      runInNewContext(expression, { github: event, env: jobEnv, secrets }),
+    value.replace(
+      /\$\{\{([\s\S]*?)\}\}/g,
+      (_, expression) =>
+        runInNewContext(expression, { github: event, env: jobEnv, secrets, steps }) ?? "",
     );
   jobEnv.DEPLOYMENT_SHA = resolve(production.jobs.deploy.env.DEPLOYMENT_SHA);
   const log = join(cwd, "tasks.jsonl");
@@ -124,13 +133,19 @@ async function runWorkflow({ failTask, missingCredentials = false } = {}) {
     payload: event.event,
   };
   const summary = {
+    addHeading: vi.fn().mockReturnThis(),
+    addRaw: vi.fn().mockReturnThis(),
     addLink: vi.fn().mockReturnThis(),
     write: vi.fn().mockResolvedValue(undefined),
   };
   let failed = false;
   const executed = [];
+  const checkouts = [];
   for (const step of production.jobs.deploy.steps) {
-    if (failed && step.if !== "always()") continue;
+    const state = { outcome: "skipped", outputs: {} };
+    if (step.id) steps[step.id] = state;
+    if (step.if !== "always()" && (failed || (step.if && !runInNewContext(step.if, { steps }))))
+      continue;
     executed.push(step.name);
     const environment = {
       ...base,
@@ -139,15 +154,36 @@ async function runWorkflow({ failTask, missingCredentials = false } = {}) {
       ),
     };
     try {
+      if (step.uses?.startsWith("actions/checkout@")) checkouts.push(resolve(step.with.ref));
       if (step.with?.script) {
+        let actionFailed = false;
+        for (const name of Object.keys(step.env ?? {})) vi.stubEnv(name, environment[name]);
         const script = runInThisContext(
           `(async (github, context, core, require) => { ${step.with.script}\n })`,
           { importModuleDynamically: constants.USE_MAIN_CONTEXT_DEFAULT_LOADER },
         );
-        await script(github, context, { summary }, require);
-      } else if (step.run)
+        await script(
+          github,
+          context,
+          {
+            summary,
+            setFailed: () => {
+              actionFailed = true;
+            },
+            setOutput: (name, value) => {
+              state.outputs[name] = String(value);
+            },
+          },
+          require,
+        );
+        if (actionFailed) throw new Error("Action reported failure");
+      } else if (step.run) {
         execFileSync("bash", ["-e", "-c", step.run], { cwd, env: environment, stdio: "pipe" });
+        afterTask?.(step.run);
+      }
+      state.outcome = "success";
     } catch {
+      state.outcome = "failure";
       failed = true;
     }
   }
@@ -157,7 +193,14 @@ async function runWorkflow({ failTask, missingCredentials = false } = {}) {
         .split("\n")
         .map((line) => JSON.parse(line))
     : [];
-  return { failed, tasks, executed };
+  return {
+    failed,
+    tasks,
+    executed,
+    checkouts,
+    steps,
+    summary: summary.addRaw.mock.calls.map(([value]) => value).join("\n"),
+  };
 }
 
 test.each([
@@ -194,6 +237,8 @@ test("deploys unchanged commits and allows another attempt the same day", async 
     event.run_attempt = attempt;
     const result = await runWorkflow();
     expect(result.failed).toBe(false);
+    expect(result.checkouts).toEqual([event.workflow_sha, event.sha]);
+    expect(result.summary).toContain("deployed");
     expect(result.tasks.map(({ args }) => args)).toEqual([
       ["install", "--frozen-lockfile"],
       ["run", "build:production"],
@@ -209,18 +254,84 @@ test("deploys unchanged commits and allows another attempt the same day", async 
   }
 });
 
-test("validates and labels the CI snapshot when main has advanced", async () => {
+test("skips a superseded CI snapshot before preparing credentials", async () => {
   event.event_name = "workflow_run";
   event.event.workflow_run = { ...successfulCI, head_sha: "b".repeat(40) };
   const result = await runWorkflow();
-  expect(result.failed).toBe(false);
-  expect(production.jobs.deploy.steps[0].with.ref).toBe("${{ env.DEPLOYMENT_SHA }}");
+  expect(result.failed).toBe(true);
+  expect(production.jobs.deploy.steps[0].with.ref).toBe("${{ github.workflow_sha }}");
+  expect(result.checkouts).toEqual([event.workflow_sha]);
   expect(github.rest.actions.listWorkflowRuns).toHaveBeenCalledWith(
     expect.objectContaining({ head_sha: "b".repeat(40) }),
   );
-  expect(result.tasks.find(({ args }) => args.includes("build:production")).buildId).toBe(
-    `${"b".repeat(40)}-100-1`,
-  );
+  expect(result.tasks).toEqual([]);
+  expect(result.steps.candidate.outcome).toBe("skipped");
+  expect(result.executed).not.toContain("Prepare production credentials");
+  expect(result.summary).toContain("superseded");
+});
+
+test("a main update during preparation skips migrations and deployment", async () => {
+  github.rest.repos.getBranch
+    .mockResolvedValueOnce({ data: { commit: { sha: event.sha } } })
+    .mockResolvedValue({ data: { commit: { sha: "b".repeat(40) } } });
+  const result = await runWorkflow();
+  expect(result.failed).toBe(true);
+  expect(result.tasks.map(({ args }) => args)).toEqual([
+    ["install", "--frozen-lockfile"],
+    ["run", "build:production"],
+    ["run", "deploy:production-dry-run"],
+  ]);
+  expect(result.summary).toContain("superseded");
+  expect(existsSync(join(cwd, "apps/web/.dev.vars.production"))).toBe(false);
+});
+
+test("CI is checked again before production mutations", async () => {
+  const result = await runWorkflow({
+    afterTask(task) {
+      if (task === "vp run build:production")
+        github.rest.actions.listWorkflowRuns.mockResolvedValue({ data: { workflow_runs: [] } });
+    },
+  });
+  expect(result.failed).toBe(true);
+  expect(result.tasks.at(-1).args).toContain("deploy:production-dry-run");
+  expect(result.summary).toContain("preflight_incomplete");
+});
+
+test("a committed migration proceeds to upload even if main advances afterward", async () => {
+  const sha = event.sha;
+  const result = await runWorkflow({
+    afterTask(task) {
+      if (task === "vp run db:migrate:production") event.sha = "b".repeat(40);
+    },
+  });
+  expect(result.failed).toBe(false);
+  expect(result.tasks.at(-1).args).toContain("deploy:production");
+  expect(github.rest.repos.getBranch).toHaveBeenCalledTimes(2);
+  expect(result.summary).toContain(`${sha}: deployed`);
+});
+
+test("a deployment failure can retry forward through idempotent migration and upload commands", async () => {
+  const failure = await runWorkflow({ failTask: "deploy:production" });
+  expect(failure.summary).toContain("deployment_incomplete");
+  expect(failure.summary).toContain("Verify the active Worker");
+  event.run_attempt = "2";
+  const retry = await runWorkflow();
+  expect(retry.failed).toBe(false);
+  expect(retry.tasks.slice(-2).map(({ args }) => args)).toEqual([
+    ["run", "db:migrate:production"],
+    ["run", "deploy:production"],
+  ]);
+  expect(retry.summary).toContain("deployed");
+});
+
+test.each(["unavailable", "missing"])("%s main metadata fails before credentials", async (kind) => {
+  if (kind === "unavailable") github.rest.repos.getBranch.mockRejectedValue(new Error("Offline"));
+  else github.rest.repos.getBranch.mockResolvedValue({ data: {} });
+  const result = await runWorkflow();
+  expect(result.failed).toBe(true);
+  expect(result.tasks).toEqual([]);
+  expect(result.summary).toContain("blocked");
+  expect(existsSync(join(cwd, "apps/web/.dev.vars.production"))).toBe(false);
 });
 
 test.each([
@@ -233,6 +344,13 @@ test.each([
   expect(result.failed).toBe(true);
   expect(result.tasks.at(-1).args).toContain(failTask);
   expect(result.executed.at(-1)).toBe("Remove private settings");
+  expect(result.summary).toContain(
+    failTask === "db:migrate:production"
+      ? "migration_incomplete"
+      : failTask === "deploy:production"
+        ? "deployment_incomplete"
+        : "preflight_incomplete",
+  );
   expect(existsSync(join(cwd, "apps/web/.dev.vars.production"))).toBe(false);
 });
 
@@ -260,7 +378,12 @@ test("production follows main CI with read-only GitHub permissions and no releas
   });
   expect(production.permissions).toEqual({ contents: "read", actions: "read" });
   expect(production.jobs.deploy.steps[0].with["persist-credentials"]).toBe(false);
+  expect(production.jobs.deploy.steps.find(({ id }) => id === "candidate").with).toEqual({
+    ref: "${{ env.DEPLOYMENT_SHA }}",
+    "persist-credentials": false,
+  });
   expect(production.concurrency["cancel-in-progress"]).toBe(false);
+  expect(production.concurrency.queue).toBe("max");
   expect(production.jobs.deploy.environment.name).toBe("production");
   expect(JSON.stringify(production)).not.toMatch(
     /shouldDeploy|RELEASE_VERSION|createRelease|createRef|production-release\.js|db:reset|bootstrap/,
