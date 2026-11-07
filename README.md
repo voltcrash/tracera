@@ -71,6 +71,8 @@ See [bring your own key](docs/bring-your-own-key.md) for personal provider setti
 setup and rotation, and hosted activation. Personal keys support every existing AI adapter;
 platform providers remain available when no personal key is active.
 
+See [composer transitions](docs/composer.md) for draft, attachment, submission, and report-opening behavior.
+
 ## Architecture
 
 One Worker serves pages, server functions, auth, and progress streaming on one origin.
