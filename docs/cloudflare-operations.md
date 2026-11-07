@@ -246,6 +246,25 @@ This cannot authorize a decisive released label. A completed scorecard survives 
 budget/deadline stop; owner cancellation always suppresses it. Valid historical reports and
 v2 checkpoints remain readable.
 
+Report publication moves from analysis to a durable prepared report, then to a terminal
+published run. After storing the report in R2, the Workflow records its URI, canonical
+report hash, status, and original fencing token in `core_runs.prepared_report` before
+returning the analysis step result. Preparation is immutable and idempotent; it blocks
+new attempts and failure settlement while publication is pending. Finalization checks
+the report and its snapshots, then atomically writes the report projections and terminal
+run status against the observed preparation and fence. Owner cancellation still wins
+if it commits before publication.
+
+Workflow retries and exhausted-analysis settlement reuse prepared metadata before doing
+provider work or failing the run. Maintenance publishes prepared reports even when the
+Workflow status service is unavailable, and releases their admission through normal
+terminal settlement. Missing, unreadable, or corrupt report blobs remain pending for a
+later recovery attempt, with `reportRecoveryErrors` counted instead of a failed run;
+successful recovery increments `reportsRecovered`. Report content stays out of Workflow
+step results. Existing runs default to no prepared report, and historical successful
+step outcomes remain publishable through the original pointer path. A blob write without
+a committed preparation cannot be inferred as ready from historical R2 objects.
+
 Acquisition completion derives from the retained snapshot and typed limitations. Both byte
 and character truncation produce a partial result, including a fully downloaded HTTP text
 response that exceeds the character cap. Empty or whitespace-only HTTP text is explicitly
