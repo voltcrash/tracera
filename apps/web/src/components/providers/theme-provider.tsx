@@ -16,7 +16,7 @@ export const THEME_STORAGE_KEY = "tracera-theme";
  * Runs before paint from the document head, so the first frame is already in the
  * right theme. Keep it in sync with applyTheme below.
  */
-export const themeBootstrapScript = `(function(){try{var p=localStorage.getItem("${THEME_STORAGE_KEY}");var d=p==="dark"||(p!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.classList.toggle("dark",d);r.style.colorScheme=d?"dark":"light";}catch(e){}})();`;
+export const themeBootstrapScript = `(function(){try{var p;try{p=localStorage.getItem("${THEME_STORAGE_KEY}");}catch(e){}var d=p==="dark"||(p!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.classList.toggle("dark",d);r.style.colorScheme=d?"dark":"light";}catch(e){}})();`;
 
 type ThemeContextValue = {
   theme: ResolvedTheme;
