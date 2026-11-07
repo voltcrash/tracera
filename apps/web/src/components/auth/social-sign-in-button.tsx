@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { GitHubMark } from "@/components/brand/github-mark";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import { startSocialSignIn, type SignInState } from "@/lib/auth-state";
 
 export type SocialProvider = "github" | "google";
 
@@ -26,24 +27,27 @@ export function SocialSignInButton({
   size = "default",
   variant = "outline",
 }: SocialSignInButtonProps) {
-  const [isStarting, setIsStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<SignInState>({ status: "idle" });
+  const pending = useRef(false);
+  const isStarting = state.status === "starting" || state.status === "redirecting";
+  const error = state.status === "failed" ? state.error : null;
   const providerName = PROVIDER_NAMES[provider];
 
   async function signIn() {
-    setIsStarting(true);
-    setError(null);
-
-    const result = await authClient.signIn.social({
-      provider,
-      callbackURL: "/home",
-      errorCallbackURL: `/auth/error?flow=login&provider=${provider}`,
-    });
-
-    if (result.error) {
-      setError(result.error.message ?? `${providerName} sign-in could not start.`);
-      setIsStarting(false);
-    }
+    if (pending.current) return;
+    pending.current = true;
+    setState({ status: "starting" });
+    const next = await startSocialSignIn(
+      () =>
+        authClient.signIn.social({
+          provider,
+          callbackURL: "/home",
+          errorCallbackURL: `/auth/error?flow=login&provider=${provider}`,
+        }),
+      providerName,
+    );
+    pending.current = next.status === "redirecting";
+    setState(next);
   }
 
   return (
@@ -73,9 +77,11 @@ export function SocialSignInButton({
           </>
         )}
       </Button>
-      <span className="sr-only" role="status" aria-live="polite">
-        {error}
-      </span>
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
     </>
   );
 }

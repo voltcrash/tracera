@@ -6,10 +6,30 @@ import {
   requestIdFor,
 } from "./error-handling";
 import { authFor } from "./session.server";
+import { PROFILE_OWNER_HEADER } from "../lib/auth-state";
 
 export async function handleAuthRequest(env: ServerEnv, request: Request) {
   try {
-    return publicAuthResponse(await authFor(env, request).handler(request), request);
+    const auth = authFor(env, request);
+    const path = new URL(request.url).pathname;
+    const owner = request.headers.get(PROFILE_OWNER_HEADER);
+    if (
+      request.method === "POST" &&
+      (path === "/api/auth/update-user" || (path === "/api/auth/sign-out" && owner))
+    ) {
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (!session && path === "/api/auth/update-user")
+        return Response.json({ message: "Not authenticated." }, { status: 401 });
+      if (session && owner !== session.user.id)
+        return Response.json(
+          {
+            code: "PROFILE_OWNER_CHANGED",
+            message: "The signed-in account changed. Reload and try again.",
+          },
+          { status: 409 },
+        );
+    }
+    return publicAuthResponse(await auth.handler(request), request);
   } catch (error) {
     logServerError("Unhandled authentication error", error, request);
     return errorResponse(request, 500, new Headers());

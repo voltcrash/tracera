@@ -31,6 +31,13 @@ export function seedBrowserRun(ownerUserId: string, status: "queued" | "failed" 
     report.replayManifest.runId = runId;
   }
   const now = Date.now();
+  const storedSnapshots = report?.snapshots.length
+    ? executeLocalSql(`SELECT snapshot_id,snapshot_hash FROM core_snapshots
+      WHERE tenant_id=${sqlValue(scope.tenant_id)} AND owner_user_id=${sqlValue(ownerUserId)}
+      AND visibility=${sqlValue(scope.visibility)}
+      AND snapshot_id IN (${report.snapshots.map((snapshot) => sqlValue(snapshot.id)).join(",")});`)[0]!
+        .results
+    : [];
   const statements = [
     insert("core_runs", {
       run_id: runId,
@@ -52,7 +59,14 @@ export function seedBrowserRun(ownerUserId: string, status: "queued" | "failed" 
     }),
   ];
   if (report) {
-    for (const snapshot of report.snapshots)
+    for (const snapshot of report.snapshots) {
+      const snapshotHash = hashValue(snapshot);
+      const stored = storedSnapshots.find((row) => row.snapshot_id === snapshot.id);
+      if (stored) {
+        if (stored.snapshot_hash !== snapshotHash)
+          throw new Error("Snapshot fixture identity has a different payload.");
+        continue;
+      }
       statements.push(
         insert("core_snapshots", {
           snapshot_id: snapshot.id,
@@ -61,12 +75,13 @@ export function seedBrowserRun(ownerUserId: string, status: "queued" | "failed" 
           raw_content_hash: snapshot.rawContentHash,
           normalized_text: snapshot.normalizedText,
           snapshot: JSON.stringify(snapshot),
-          snapshot_hash: hashValue(snapshot),
+          snapshot_hash: snapshotHash,
           blob_status: snapshot.blobLocator.status,
           blob_uri: snapshot.blobLocator.uri,
           created_at: Date.parse(snapshot.acquiredAt),
         }),
       );
+    }
     statements.push(
       insert("core_report_versions", {
         run_id: runId,

@@ -1,5 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Link, useHydrated, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Link, useHydrated, useLocation } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
@@ -233,13 +241,30 @@ function RailFooter({ onClose }: { onClose: () => void }) {
   const location = useLocation();
   const isHydrated = useHydrated();
   const returnTo = isHydrated ? location.state.settingsReturnTo : undefined;
-  const navigate = useNavigate();
-  const router = useRouter();
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const [logout, setLogout] = useState<
+    { status: "idle" | "pending" } | { status: "failed"; error: string }
+  >({ status: "idle" });
+  const leaving = useRef(false);
 
   async function handleSignOut() {
-    await signOut();
-    await navigate({ to: "/" });
-    await router.invalidate();
+    if (leaving.current) return;
+    leaving.current = true;
+    setLogout({ status: "pending" });
+    try {
+      await signOut();
+    } catch {
+      if (mounted.current)
+        setLogout({ status: "failed", error: "Unable to sign out. Please try again." });
+    } finally {
+      leaving.current = false;
+    }
   }
 
   function prefetchAccount() {
@@ -312,14 +337,18 @@ function RailFooter({ onClose }: { onClose: () => void }) {
               <Settings />
               Settings
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => void handleSignOut()}>
+            <DropdownMenuItem
+              disabled={logout.status === "pending"}
+              onClick={() => void handleSignOut()}
+            >
               <LogOut />
-              Sign out
+              {logout.status === "pending" ? "Signing out…" : "Sign out"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )}
       <ThemeToggle className="size-9 shrink-0" />
+      {logout.status === "failed" ? <p role="alert">{logout.error}</p> : null}
     </div>
   );
 }
