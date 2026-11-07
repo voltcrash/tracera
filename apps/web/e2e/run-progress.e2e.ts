@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { seedBrowserRun } from "./support/reports";
+import { executeLocalSql, sqlValue } from "./support/d1";
 
 async function openQueuedRun(page: Page) {
   await page.goto("/");
@@ -54,6 +55,19 @@ async function emit(page: Page, runId: string, version: number, changes = {}) {
     { runId, version, changes },
   );
 }
+
+test("a terminal progress transition refreshes the history status", async ({ page }) => {
+  const runId = await openQueuedRun(page);
+  const trace = page
+    .getByRole("navigation", { name: "Your traces" })
+    .locator(`a[href="/run/${runId}"]`);
+  await expect(trace).toContainText("queued");
+  executeLocalSql(
+    `UPDATE core_runs SET status='canceled',version=version+1,finalized_at=${Date.now()} WHERE run_id=${sqlValue(runId)};`,
+  );
+  await emit(page, runId, 2, { status: "canceled" });
+  await expect(trace).toContainText("canceled");
+});
 
 test("stale and malformed events cannot regress progress, and access loss closes the stream", async ({
   page,
