@@ -512,3 +512,103 @@ test("complete and bounded acquisitions have distinct immutable identities even 
   assert.equal(complete.rawContentHash, bounded.rawContentHash);
   assert.notEqual(complete.id, bounded.id);
 });
+
+test("complete captures with different retention policies have different immutable IDs", async () => {
+  const snapshots = [];
+  for (const characterLimit of [100, 200]) {
+    const port = createDocumentAcquisitionPort({
+      now: () => NOW,
+      characterLimit,
+      safeFetchOptions: {
+        resolveHostAddresses: publicResolver,
+        fetchImplementation: async () =>
+          new Response("A short record.", { headers: { "content-type": "text/plain" } }),
+      },
+    });
+    snapshots.push(
+      (
+        await port.acquire({
+          url: "https://records.example/policy",
+          role: "evidence",
+          maxBytes: 10_000,
+          signal: new AbortController().signal,
+        })
+      ).data!.snapshot,
+    );
+  }
+  assert.equal(snapshots[0]!.contentHash, snapshots[1]!.contentHash);
+  assert.equal(snapshots[0]!.extractionStatus, snapshots[1]!.extractionStatus);
+  assert.notEqual(snapshots[0]!.id, snapshots[1]!.id);
+});
+
+test("OCR region metadata remains part of snapshot identity when recognized text matches", async () => {
+  const snapshots = [];
+  for (const x of [10, 20]) {
+    const port = createDocumentAcquisitionPort({
+      now: () => NOW,
+      ocr: {
+        provider: "fixture",
+        modelId: "fixture-1",
+        async recognize() {
+          return {
+            regions: [
+              {
+                text: "A record",
+                boundingBox: { page: 0, frameId: null, x, y: 0, width: 100, height: 20 },
+                transcriptionUncertain: false,
+              },
+            ],
+          };
+        },
+      },
+    });
+    snapshots.push(
+      (
+        await port.acquireImage({
+          data: "data:image/png;base64,iVBORw0KGgo=",
+          mimeType: "image/png",
+          caption: null,
+          role: "evidence",
+          maxBytes: 10_000,
+          signal: new AbortController().signal,
+        })
+      ).data!.snapshot,
+    );
+  }
+  assert.equal(snapshots[0]!.contentHash, snapshots[1]!.contentHash);
+  assert.notEqual(snapshots[0]!.id, snapshots[1]!.id);
+});
+
+test("frozen raw-blob availability distinguishes otherwise identical captures", async () => {
+  const snapshots = [];
+  for (const stored of [false, true]) {
+    const port = createDocumentAcquisitionPort({
+      now: () => NOW,
+      ...(stored
+        ? {
+            rawBlobStore: {
+              put: async () => ({ status: "stored" as const, uri: "r2://capture" }),
+              read: async () => new Uint8Array(),
+            },
+          }
+        : {}),
+      safeFetchOptions: {
+        resolveHostAddresses: publicResolver,
+        fetchImplementation: async () =>
+          new Response("A record.", { headers: { "content-type": "text/plain" } }),
+      },
+    });
+    snapshots.push(
+      (
+        await port.acquire({
+          url: "https://records.example/raw",
+          role: "evidence",
+          maxBytes: 10_000,
+          signal: new AbortController().signal,
+        })
+      ).data!.snapshot,
+    );
+  }
+  assert.equal(snapshots[0]!.contentHash, snapshots[1]!.contentHash);
+  assert.notEqual(snapshots[0]!.id, snapshots[1]!.id);
+});

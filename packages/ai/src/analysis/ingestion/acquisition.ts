@@ -1029,7 +1029,7 @@ async function buildSnapshot(input: {
   input.signal.throwIfAborted();
   const normalizedBytes = new TextEncoder().encode(input.normalizedText);
   const rawContentHash = hash(input.rawBytes);
-  const id = stableId({
+  const identity = {
     contentHash: hash(normalizedBytes),
     rawContentHash,
     originalUrl: input.originalUrl,
@@ -1038,29 +1038,8 @@ async function buildSnapshot(input: {
     role: input.role,
     extractionMethod: input.extractionMethod,
     extractionStatus: input.extractionStatus,
-  });
-  const blobLocator = input.options.rawBlobStore
-    ? await input.options.rawBlobStore.put({
-        snapshotId: id,
-        bytes: input.rawBytes,
-        signal: input.signal,
-      })
-    : { status: "unavailable" as const, uri: null };
-  input.signal.throwIfAborted();
-  return documentSnapshotSchema.parse({
-    id,
-    contentHash: hash(normalizedBytes),
-    rawContentHash,
-    originalUrl: input.originalUrl,
-    finalUrl: input.finalUrl,
-    canonicalUrl: input.canonicalUrl,
-    acquiredAt: input.acquiredAt,
     mimeType: input.mimeType,
     language: input.language,
-    role: input.role,
-    normalizedText: input.normalizedText,
-    extractionStatus: input.extractionStatus,
-    extractionMethod: input.extractionMethod,
     limits: {
       byteLimit: input.byteLimit,
       characterLimit: input.characterLimit,
@@ -1071,6 +1050,21 @@ async function buildSnapshot(input: {
     locators: input.locators,
     timestampAssertions: input.timestampAssertions,
     discoveryHints: input.discoveryHints,
+  };
+  const rawObjectId = stableId(identity);
+  const blobLocator = input.options.rawBlobStore
+    ? await input.options.rawBlobStore.put({
+        snapshotId: rawObjectId,
+        bytes: input.rawBytes,
+        signal: input.signal,
+      })
+    : { status: "unavailable" as const, uri: null };
+  input.signal.throwIfAborted();
+  return documentSnapshotSchema.parse({
+    id: stableId({ ...identity, blobStatus: blobLocator.status }),
+    ...identity,
+    normalizedText: input.normalizedText,
+    acquiredAt: input.acquiredAt,
     blobLocator,
   });
 }
