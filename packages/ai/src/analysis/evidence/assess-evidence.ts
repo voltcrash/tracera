@@ -90,6 +90,12 @@ async function assess(
     options.maxGenerationRequests ?? environment.context.budget.maxExternalRequests;
   outer: for (const claim of claims) {
     for (const snapshot of snapshots) {
+      if (
+        input.skipPairs?.some(
+          (pair) => pair.claimId === claim.id && pair.snapshotId === snapshot.id,
+        )
+      )
+        continue;
       for (const span of passageSpans(snapshot, options.maxPassagesPerSnapshot)) {
         if (isRunInterrupted(environment)) return canceledResult();
         if (
