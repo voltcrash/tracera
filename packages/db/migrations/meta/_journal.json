@@ -78,6 +78,13 @@
       "when": 1794002310693,
       "tag": "0010_targeted_round_budget",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794010431711,
+      "tag": "0011_report_publication",
+      "breakpoints": true
     }
   ]
 }

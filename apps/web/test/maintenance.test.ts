@@ -284,6 +284,57 @@ test("maintenance completes admission release after a report was already finaliz
   ).toBe(200);
 });
 
+for (const recovery of ["errored", "status_unavailable", "blob_unavailable", "canceled"] as const) {
+  test(`maintenance recovers prepared publication after ${recovery}`, async () => {
+    const runId = await start();
+    const params = harness.created.at(-1)!.params as AnalysisWorkflowParams;
+    const step = {
+      async do(name: string, _options: unknown, callback: () => Promise<unknown>) {
+        if (name === "finalize") throw new Error("Finalization exhausted its retries");
+        return callback();
+      },
+    } as unknown as Pick<WorkflowStep, "do">;
+    await expect(runAnalysisWorkflow(harness.env, params, step)).rejects.toThrow("Finalization");
+    const storage = analysisStorage(harness.env);
+    const identity = { scope: accessScope(user), runId };
+    const workflow = binding("errored");
+    if (recovery === "status_unavailable") {
+      workflow.env.ANALYSIS_WORKFLOW.get = async () => {
+        throw new Error("Workflow service unavailable");
+      };
+    }
+    if (recovery === "blob_unavailable") {
+      const prepared = (await storage.runs.getPreparedReport(identity))!;
+      const key = prepared.reportUri.slice("r2://".length);
+      const bytes = await (await harness.env.BLOBS.get(key))!.arrayBuffer();
+      await harness.env.BLOBS.put(key, "corrupted");
+      expect(await scheduledMaintenance(workflow.env)).toMatchObject({
+        reportRecoveryErrors: 1,
+        failedRuns: 0,
+        admissionsReleased: 0,
+      });
+      expect((await readRunState(harness.env, user, runId))?.progress.status).toBe("running");
+      await harness.env.BLOBS.put(key, bytes);
+    }
+    if (recovery === "canceled") {
+      await storage.runs.requestCancellation({ ...identity, reason: "user_request" });
+      expect(await scheduledMaintenance(workflow.env)).toMatchObject({
+        reportsRecovered: 0,
+        canceledRuns: 1,
+        admissionsReleased: 1,
+      });
+      expect((await readRunState(harness.env, user, runId))?.report).toBeNull();
+      return;
+    }
+    const counts = await scheduledMaintenance(workflow.env);
+    expect(counts).toMatchObject({ failedRuns: 0, admissionsReleased: 1, reportsRecovered: 1 });
+    const state = await readRunState(harness.env, user, runId);
+    expect(state?.progress.status).toBe("partial");
+    expect(state?.progress.attempt).toBe(1);
+    expect(state?.report?.claims.length).toBeGreaterThan(0);
+  });
+}
+
 test("pagination reaches an errored run behind a full page of active instances", async () => {
   const policy = analysisPolicy(harness.env, user.id);
   if (!policy.enabled) throw new Error(policy.message);

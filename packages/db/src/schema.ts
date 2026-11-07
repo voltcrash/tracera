@@ -1,5 +1,6 @@
 import type { StoredProjection } from "./payloads.js";
 import type { AnalysisAdmissionIdentity } from "./control-types.js";
+import type { D1PreparedReport } from "./repository.js";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -76,6 +77,7 @@ export const analysisRuns = sqliteTable(
       .default("not_required"),
     launchAttemptedAt: integer("launch_attempted_at", { mode: "timestamp_ms" }),
     launchAdmission: text("launch_admission", { mode: "json" }).$type<AnalysisAdmissionIdentity>(),
+    preparedReport: text("prepared_report", { mode: "json" }).$type<D1PreparedReport>(),
   },
   (table) => [
     uniqueIndex("core_runs_scope_idx").on(
