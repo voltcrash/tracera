@@ -12,6 +12,161 @@ import {
   evidenceSnapshot,
 } from "../scripts/support/scripted-evidence.js";
 import { createAssessEvidence } from "../src/analysis/evidence/index.js";
+import { createTraceOrigins } from "../src/analysis/provenance/index.js";
+import {
+  createProvenanceEnvironment,
+  provenanceAssessment,
+  provenanceClaim,
+  provenanceSnapshot,
+  scriptedProvenanceRetrieval,
+} from "../scripts/support/scripted-provenance.js";
+
+for (const [claimCount, failFirst] of [
+  [1, false],
+  [2, false],
+  [1, true],
+] as const) {
+  test(`traversal assessments survive replay and only fill missing pairs (${claimCount} claims, failure=${failFirst})`, async () => {
+    const freshUrl = "https://records.example/new-origin";
+    const root = provenanceSnapshot("root", "https://reports.example/root", ` Cites ${freshUrl}`);
+    const fresh = provenanceSnapshot("fresh", freshUrl);
+    const first = { ...provenanceClaim(), documentId: root.id };
+    const second = {
+      ...first,
+      id: "claim_second",
+      proposition: { ...first.proposition, subject: "Southbridge" },
+    };
+    const claims = [first, second].slice(0, claimCount);
+    const fixture = createProvenanceEnvironment();
+    const environment = fixture.environment;
+    const generate = environment.ports.generation.generate.bind(environment.ports.generation);
+    let failNext = failFirst;
+    environment.ports.generation.generate = async (request) => {
+      if (failNext) {
+        failNext = false;
+        throw new Error("Temporary evidence provider failure");
+      }
+      return generate(request);
+    };
+    environment.context.budget = {
+      ...environment.context.budget,
+      maxCostUsd: null,
+      maxTargetedRetrievalRounds: 0,
+    };
+    environment.ports.snapshots.getMany = async (ids) =>
+      ids.filter((id) => id === fresh.id).map(() => fresh);
+    const checkpoints = new Map<string, { checkpointHash: string; payloadJson: string }>();
+    environment.ports.runs.checkpoint = async (request) => {
+      checkpoints.set(request.stage, request);
+    };
+    environment.ports.runs.readCheckpoint = async ({ stage }) => checkpoints.get(stage) ?? null;
+    const result = <Data>(data: Data): StageResult<Data> => ({
+      status: "complete",
+      data,
+      issues: [],
+      metrics: {
+        ...analysisExamples.complete.stageOutcomes[0]!.metrics,
+        externalRequests: 0,
+        costUsd: 0,
+      },
+    });
+    const observed: EvidenceAssessment[][] = [];
+    const reachedAdjudication = new Error("Observed provenance evidence");
+    const run = createRunAnalysis({
+      attempt: 1,
+      fencingToken: "fixture-fence",
+      stages: {
+        normalizeInput: () => async () => result({ snapshots: [root], primarySnapshotId: root.id }),
+        extractClaims: () => async () => result({ claims, coverage: [] }),
+        retrieveEvidence: () => async () =>
+          result({
+            candidates: [],
+            snapshots: [root],
+            admittedSnapshotIds: [root.id],
+            budgetUsed: { externalRequests: 0, costUsd: 0 },
+            stoppingReason: "plan_complete" as const,
+          }),
+        assessEvidence: (usage) => {
+          const assess = createAssessEvidence({
+            maxGenerationRequests: usage.remainingExternalRequests,
+          });
+          return async (input, env) =>
+            input.admittedSnapshotIds.includes(fresh.id)
+              ? assess(input, env)
+              : result({ assessments: [provenanceAssessment(root)], sufficiency: [] });
+        },
+        traceOrigins: (usage) =>
+          createTraceOrigins({
+            retrieval: scriptedProvenanceRetrieval(new Map([[freshUrl, fresh]])),
+            priorExternalRequests: usage.priorExternalRequests,
+            priorCostUsd: usage.priorCostUsd,
+          }),
+        adjudicateClaims:
+          () =>
+          async ({ assessments }) => {
+            observed.push(assessments);
+            throw reachedAdjudication;
+          },
+      },
+    });
+    const input = { input: { kind: "text" as const, text: root.normalizedText }, seed: 1 };
+    if (failFirst) {
+      const failed = await run(input, environment);
+      assert.equal(failed.status, "failed");
+      assert.equal(failed.report?.snapshots.length, 2);
+      assert.equal(failed.report?.provenance.length, 1);
+      assert.equal(observed.length, 0);
+      assert.equal(checkpoints.has("trace_origins"), false);
+    }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await assert.rejects(run(input, environment), (error) => error === reachedAdjudication);
+      assert.equal(fixture.assessmentCalls, claimCount);
+      assert.equal(observed[attempt]!.length, claimCount + 1);
+      assert.deepEqual(
+        observed[attempt]!.filter(({ snapshotId }) => snapshotId === fresh.id)
+          .map(({ claimId }) => claimId)
+          .sort(),
+        claims.map(({ id }) => id).sort(),
+      );
+    }
+    assert.deepEqual(observed[1], observed[0]);
+    const checkpoint = JSON.parse(checkpoints.get("trace_origins")!.payloadJson);
+    assert.equal(checkpoint.result.data.assessmentResults.length, 1);
+    assert.equal(
+      checkpoint.result.metrics.externalRequests +
+        (checkpoint.extra.reassessment?.metrics.externalRequests ?? 0),
+      claimCount + 1,
+    );
+    const combined = observed[0]!.filter(({ claimId }) => claimId === first.id);
+    assert.equal(new Set(combined.map(({ dependencyGroupId }) => dependencyGroupId)).size, 1);
+    assert.ok(combined.some(({ dependence }) => dependence === "syndicated_copy"));
+    if (!failFirst) {
+      const saved = checkpoints.get("trace_origins")!;
+      const legacy = JSON.parse(saved.payloadJson);
+      const failed = {
+        status: "failed",
+        data: null,
+        metrics: { ...legacy.result.metrics, externalRequests: 0, costUsd: 0 },
+        issues: [
+          {
+            code: "provider_failure",
+            severity: "warning",
+            message: "Previously cached failure",
+            claimId: first.id,
+            snapshotId: fresh.id,
+            url: null,
+          },
+        ],
+      };
+      if (claimCount === 1) legacy.extra.reassessment = failed;
+      else legacy.result.data.assessmentResults[0].result = failed;
+      checkpoints.set("trace_origins", { ...saved, payloadJson: JSON.stringify(legacy) });
+      await assert.rejects(run(input, environment), (error) => error === reachedAdjudication);
+      assert.equal(fixture.assessmentCalls, claimCount * 2);
+      assert.deepEqual(observed[2], observed[0]);
+    }
+  });
+}
 
 for (const [scenario, denied] of [
   ["later batch", false],

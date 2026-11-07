@@ -96,3 +96,26 @@ test("unavailable results remain recorded outcomes without successful data", () 
     readStageCheckpoint("normalize_input", writeStageCheckpoint("normalize_input", checkpoint)),
   ).toMatchObject(checkpoint);
 });
+
+test("provenance checkpoints retain traversal outcomes and reject mismatched claim/document pairs", () => {
+  const pair = example.assessments[0]!;
+  const checkpoint: StageCheckpoints["trace_origins"] = {
+    result: result({
+      graphs: example.provenance,
+      newSnapshotIds: [pair.snapshotId],
+      assessmentResults: [
+        {
+          claimId: pair.claimId,
+          snapshotId: pair.snapshotId,
+          result: result({ assessments: [pair], sufficiency: [] }),
+        },
+      ],
+    }),
+    extra: { snapshots: example.snapshots, reassessment: null },
+  };
+  const payload = writeStageCheckpoint("trace_origins", checkpoint);
+  expect(readStageCheckpoint("trace_origins", payload)).toMatchObject(checkpoint);
+  const malformed = JSON.parse(payload);
+  malformed.result.data.assessmentResults[0].snapshotId = "different_snapshot";
+  expect(readStageCheckpoint("trace_origins", JSON.stringify(malformed))).toBeNull();
+});

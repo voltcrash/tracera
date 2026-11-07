@@ -41,7 +41,7 @@ export interface StageCheckpoints {
     TraceOriginsData,
     {
       snapshots: NormalizeInputData["snapshots"];
-      reassessment: StageResult<AssessEvidenceData>;
+      reassessment: StageResult<AssessEvidenceData> | null;
     } | null
   >;
   adjudicate_claims: Checkpoint<AdjudicateClaimsData, TargetedEvidence[]>;
@@ -103,8 +103,31 @@ const schemas: { [Stage in StageName]: z.ZodType<StageCheckpoints[Stage] & { ver
     }),
   ),
   trace_origins: envelope(
-    z.strictObject({ graphs: z.array(provenanceGraphSchema), newSnapshotIds: z.array(z.string()) }),
-    z.strictObject({ snapshots, reassessment: stageResultSchema(assessment) }).nullable(),
+    z.strictObject({
+      graphs: z.array(provenanceGraphSchema),
+      newSnapshotIds: z.array(z.string()),
+      assessmentResults: z
+        .array(
+          z
+            .strictObject({
+              claimId: z.string(),
+              snapshotId: z.string(),
+              result: stageResultSchema(assessment),
+            })
+            .refine(
+              ({ claimId, snapshotId, result }) =>
+                result.data === null ||
+                result.data.assessments.every(
+                  (value) => value.claimId === claimId && value.snapshotId === snapshotId,
+                ),
+              "Traversal assessments must match their claim/document pair.",
+            ),
+        )
+        .optional(),
+    }),
+    z
+      .strictObject({ snapshots, reassessment: stageResultSchema(assessment).nullable() })
+      .nullable(),
   ),
   adjudicate_claims: envelope(
     z.strictObject({ decisions: z.array(decisionSchema) }),
