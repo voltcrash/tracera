@@ -60,7 +60,12 @@ test("a confirmed persistence failure permits a fresh attempt instead of replayi
     .fn()
     .mockResolvedValueOnce({
       status: 503,
-      body: { code: "analysis_start_failed", status: "failed", error: "Please try again." },
+      body: {
+        runId: "not-saved",
+        code: "analysis_start_failed",
+        status: "failed",
+        error: "Please try again.",
+      },
     })
     .mockResolvedValue(accepted);
   const open = vi.fn().mockResolvedValue(undefined);
@@ -70,6 +75,38 @@ test("a confirmed persistence failure permits a fresh attempt instead of replayi
     start.mock.calls[0]![0].data.idempotencyKey,
   );
   expect(open).toHaveBeenCalledWith("run_accepted");
+});
+
+test("a lost response followed by a saved failed-run replay opens the same run", async () => {
+  const composer = new Composer();
+  composer.edit("A claim");
+  const start = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("Response lost"))
+    .mockResolvedValue({ status: 503, body: { runId: "saved-failed", status: "failed" } });
+  const open = vi.fn().mockResolvedValue(undefined);
+  await composer.submit("ada", start, open);
+  await composer.submit("ada", start, open);
+  expect(start.mock.calls[1]).toEqual(start.mock.calls[0]);
+  expect(open).toHaveBeenCalledWith("saved-failed");
+  expect(composer.getSnapshot().submission).toEqual({ status: "accepted", runId: "saved-failed" });
+  await composer.submit("ada", start, open);
+  expect(start).toHaveBeenCalledTimes(2);
+});
+
+test("an unconfirmed start with a run ID retains its retry identity without opening it", async () => {
+  const composer = new Composer();
+  composer.edit("A claim");
+  const start = vi.fn().mockResolvedValue({
+    status: 503,
+    body: { runId: "unconfirmed", status: "unavailable", code: "analysis_start_failed" },
+  });
+  const open = vi.fn();
+  await composer.submit("ada", start, open);
+  await composer.submit("ada", start, open);
+  expect(start.mock.calls[1]).toEqual(start.mock.calls[0]);
+  expect(open).not.toHaveBeenCalled();
+  expect(composer.getSnapshot().submission.status).toBe("failed");
 });
 
 test("navigation failure retains acceptance and reopening never resubmits", async () => {
