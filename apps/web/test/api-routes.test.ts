@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, expect, test, vi } from "vite-plus/test";
 import { projectReport } from "@repo/ai/analysis/report-view";
-import { startAnalysisRun } from "../src/server/analysis-api.server";
+import { analysisStorage, accessScope, startAnalysisRun } from "../src/server/analysis-api.server";
+import { runContextExample } from "@repo/contracts/analysis";
+import { authFor } from "../src/server/session.server";
 import {
   evidenceResponse,
   healthResponse,
@@ -24,6 +26,71 @@ afterAll(async () => {
 const as = (who: { cookie: string } | null, path: string) =>
   new Request(`${ORIGIN}${path}`, { headers: who ? { cookie: who.cookie } : {} });
 
+async function queuedStream(who = ada, signal?: AbortSignal) {
+  const runId = crypto.randomUUID();
+  const runs = analysisStorage(harness.env).runs;
+  await runs.createRun({
+    context: { ...structuredClone(runContextExample), ...accessScope(who.user), runId },
+  });
+  const progress = (await runs.getRunProgress({ scope: accessScope(who.user), runId }))!;
+  const request = new Request(as(who, `/api/runs/${runId}/events`), { signal });
+  return { runId, progress, response: await runEventsResponse(harness.env, request, runId) };
+}
+
+test("same-timestamp cancellation emits a distinct monotonic event before closing", async () => {
+  const { runId, progress, response } = await queuedStream();
+  const runs = analysisStorage(harness.env, () => Date.parse(progress.updatedAt)).runs;
+  await runs.requestCancellation({ scope: accessScope(ada.user), runId, reason: "user_request" });
+  const events = (await response.text())
+    .split("\n\n")
+    .filter((event) => event.includes("event: progress"));
+  expect(events).toHaveLength(2);
+  expect(events[0]).toContain(`id: ${progress.version}\n`);
+  expect(events[1]).toContain(`id: ${progress.version + 1}\n`);
+  expect(events[1]).toContain('"status":"canceled"');
+});
+
+for (const transition of ["revoked", "expired"] as const)
+  test(`an established stream's ${transition} session ends access before its next progress read`, async () => {
+    const who = await signIn(harness.env, "ada");
+    const session = await authFor(harness.env, as(who, "/")).api.getSession({
+      headers: as(who, "/").headers,
+    });
+    const { response } = await queuedStream(who);
+    const reader = response.body!.getReader();
+    try {
+      await reader.read();
+      await reader.read();
+      if (transition === "revoked")
+        await harness.env.DB.prepare("DELETE FROM sessions WHERE id=?")
+          .bind(session!.session.id)
+          .run();
+      else
+        await harness.env.DB.prepare("UPDATE sessions SET expires_at=? WHERE id=?")
+          .bind(Date.now() - 1_000, session!.session.id)
+          .run();
+      const revoked = new TextDecoder().decode((await reader.read()).value);
+      expect(revoked).toContain("event: access_lost");
+      expect((await reader.read()).done).toBe(true);
+    } finally {
+      await reader.cancel();
+    }
+  }, 4_000);
+
+test("request abort closes a stream and cancels its polling", async () => {
+  const abort = new AbortController();
+  const { response } = await queuedStream(ada, abort.signal);
+  const reader = response.body!.getReader();
+  try {
+    await reader.read();
+    await reader.read();
+    abort.abort();
+    expect((await reader.read()).done).toBe(true);
+  } finally {
+    await reader.cancel();
+  }
+}, 2_000);
+
 test("finished runs stream one progress event with the report, then close", async () => {
   const report = await seedFinishedRun(harness.env, ada.user.id, crypto.randomUUID());
   const response = await runEventsResponse(
@@ -39,6 +106,12 @@ test("finished runs stream one progress event with the report, then close", asyn
   const data = JSON.parse(events[0]!.split("data: ")[1]!);
   expect(data).toMatchObject({ schemaVersion: 2, progress: { status: "complete" } });
   expect(data.report.runId).toBe(report.runId);
+  for (const cursor of [String(data.progress.version), "2026-11-07T00:00:00.000Z:8"]) {
+    const request = as(ada, `/api/runs/${report.runId}/events`);
+    request.headers.set("last-event-id", cursor);
+    const replay = await (await runEventsResponse(harness.env, request, report.runId)).text();
+    expect(replay.includes("event: progress")).toBe(cursor.includes(":"));
+  }
 });
 
 test("live runs stream their current progress until the reader disconnects", async () => {
