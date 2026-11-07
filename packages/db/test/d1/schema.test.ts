@@ -11,14 +11,14 @@ afterAll(async () => {
   await runtime?.dispose();
 });
 
-test("the migrations create all 22 live tables without retired execution tables", async () => {
+test("the migrations create all 24 live tables without retired execution tables", async () => {
   const rows = await runtime.db
     .prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'sqlite_%'",
     )
     .all<{ name: string }>();
   const names = rows.results.map((row) => row.name);
-  expect(names).toHaveLength(22);
+  expect(names).toHaveLength(24);
   for (const name of [
     "users",
     "sessions",
@@ -28,6 +28,8 @@ test("the migrations create all 22 live tables without retired execution tables"
     "core_stage_checkpoints",
     "core_snapshots",
     "core_report_versions",
+    "core_artifact_candidates",
+    "core_artifact_sweep_state",
     "analysis_leases",
     "ai_provider_spend",
     "user_provider_keys",

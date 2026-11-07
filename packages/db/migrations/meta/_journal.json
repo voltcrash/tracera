@@ -85,6 +85,13 @@
       "when": 1794010431711,
       "tag": "0011_report_publication",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1794012142730,
+      "tag": "0012_artifact_lifecycle",
+      "breakpoints": true
     }
   ]
 }
