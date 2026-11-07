@@ -268,6 +268,29 @@ for (const [scenario, denied] of [
 }
 
 describe("stored analysis artifacts", () => {
+  test("identical captures reuse the stored immutable snapshot despite a fresh upload location", async () => {
+    const source = analysisExamples.complete.snapshots[0]!;
+    const stored = {
+      ...source,
+      rawContentHash: source.contentHash,
+      blobLocator: { status: "stored" as const, uri: "r2://stored-first" },
+    };
+    let writes = 0;
+    const store = acceptStoredSnapshots({
+      put: async () => {
+        writes++;
+      },
+      get: async () => stored,
+      getMany: async () => [],
+    });
+    const repeated = {
+      ...stored,
+      blobLocator: { status: "stored" as const, uri: "r2://new-upload" },
+    };
+    await store.put(repeated, new AbortController().signal);
+    assert.equal(writes, 0);
+    assert.deepEqual(repeated.blobLocator, stored.blobLocator);
+  });
   test("stored snapshot IDs accept only identical immutable content", async () => {
     const [stored] = analysisExamples.complete.snapshots;
     const writes: string[] = [];

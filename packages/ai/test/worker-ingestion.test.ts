@@ -25,7 +25,7 @@ test("workerd ingests public HTML through DNS-validated Web fetch and stores the
     expect(result.data.snapshot.normalizedText).toContain("Revenue increased 12%.");
     expect(result.data.snapshot.normalizedText).toContain("2026");
     expect(result.data.snapshot.blobLocator.uri).toMatch(
-      /^r2:\/\/snapshots\/snap_[a-f0-9]+\/[a-f0-9]{64}$/,
+      /^r2:\/\/uploads\/snapshots\/snap_[a-f0-9]+\/[a-f0-9]{64}\/[a-f0-9-]{36}$/,
     );
     const raw = await testRuntime.runtime.dispatchFetch(
       `http://worker/raw?uri=${encodeURIComponent(result.data.snapshot.blobLocator.uri!)}`,

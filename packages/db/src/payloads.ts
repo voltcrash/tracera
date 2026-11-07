@@ -71,7 +71,7 @@ export class D1PayloadStore {
     if (!forceBlob && bytes.byteLength + extraBytes <= MAX_D1_PAYLOAD_BYTES)
       return { inline, hash, blobUri: null };
     if (!this.bucket) throw new D1PayloadError("Large payload storage requires the R2 binding.");
-    const key = `payloads/${kind}/${hash.slice("sha256:".length)}`;
+    const key = `uploads/payloads/${kind}/${hash.slice("sha256:".length)}/${crypto.randomUUID()}`;
     await this.bucket.put(key, bytes);
     return { inline: null, hash, blobUri: `r2://${key}` };
   }
@@ -84,19 +84,16 @@ export class D1PayloadStore {
     let text = pointer.inline;
     if (text === null) {
       const uri = pointer.blobUri;
-      if (
-        !uri ||
-        uri.trim() !== uri ||
-        !/^r2:\/\/payloads\/(run-inputs|checkpoints|snapshots|reports|responses)\/[a-f0-9]{64}$/.test(
-          uri,
-        )
-      )
+      const match = uri?.match(
+        /^r2:\/\/(uploads\/)?payloads\/(?:run-inputs|checkpoints|snapshots|reports|responses)\/([a-f0-9]{64})(?:\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}))?$/,
+      );
+      if (!uri || uri.trim() !== uri || !match || Boolean(match[1]) !== Boolean(match[3]))
         throw new D1PayloadError("Invalid stored payload pointer.");
       if (!this.bucket) throw new D1PayloadError("Stored payload requires the R2 binding.");
       const object = await this.bucket.get(uri.slice("r2://".length));
       if (!object) throw new D1PayloadError("Stored payload is unavailable.");
       const bytes = new Uint8Array(await object.arrayBuffer());
-      const expectedHash = `sha256:${uri.split("/").at(-1)!}`;
+      const expectedHash = `sha256:${match[2]}`;
       if (sha256(bytes) !== expectedHash || (pointer.hash && pointer.hash !== expectedHash))
         throw new D1PayloadError("Stored payload hash mismatch.");
       text = new TextDecoder().decode(bytes);

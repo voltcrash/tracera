@@ -185,7 +185,7 @@ test("real Worker acquisition keeps the acquired evidence bytes in R2", async ()
     expect(result.raw).toBe(runtime.html);
     expect(result.snapshot.normalizedText).toBe("The city opened a public library in 2026.");
     expect(result.snapshot.blobLocator.status).toBe("stored");
-    expect(result.snapshot.blobLocator.uri).toMatch(/^r2:\/\/snapshots\//);
+    expect(result.snapshot.blobLocator.uri).toMatch(/^r2:\/\/uploads\/snapshots\//);
   } finally {
     await runtime.dispose();
   }

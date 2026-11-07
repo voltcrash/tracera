@@ -21,17 +21,20 @@ afterAll(async () => {
 
 const signal = () => new AbortController().signal;
 
-test("R2 stores and reads content-addressed snapshot bytes idempotently", async () => {
+test("R2 gives each upload a unique immutable key while retaining byte integrity", async () => {
   const store = createR2RawBlobStore(bucket);
   const bytes = new TextEncoder().encode("Original evidence — immutable bytes");
   const hash = createHash("sha256").update(bytes).digest("hex");
   const locator = await store.put({ snapshotId: "snap_original", bytes, signal: signal() });
-  expect(locator).toEqual({ status: "stored", uri: `r2://snapshots/snap_original/${hash}` });
-  expect(await store.put({ snapshotId: "snap_original", bytes, signal: signal() })).toEqual(
-    locator,
-  );
+  expect(locator.status).toBe("stored");
+  expect(locator.uri).toContain(`r2://uploads/snapshots/snap_original/${hash}/`);
+  const repeated = await store.put({ snapshotId: "snap_original", bytes, signal: signal() });
+  expect(repeated.uri).not.toBe(locator.uri);
+  expect(await store.read(repeated.uri!, signal())).toEqual(bytes);
   expect(await store.read(locator.uri!, signal())).toEqual(bytes);
-  expect((await bucket.list()).objects).toHaveLength(1);
+  expect((await bucket.list()).objects).toHaveLength(2);
+  await bucket.put(`snapshots/legacy/${hash}`, bytes);
+  expect(await store.read(`r2://snapshots/legacy/${hash}`, signal())).toEqual(bytes);
 });
 
 test("R2 stores changed content under a different key", async () => {
