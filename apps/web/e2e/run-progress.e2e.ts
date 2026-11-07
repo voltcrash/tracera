@@ -56,6 +56,22 @@ async function emit(page: Page, runId: string, version: number, changes = {}) {
   );
 }
 
+test("an unavailable saved execution plan shows safe restart guidance", async ({ page }) => {
+  const runId = await openQueuedRun(page);
+  executeLocalSql(
+    `UPDATE core_runs SET status='failed',last_error='execution_plan_unavailable',version=version+1,finalized_at=${Date.now()} WHERE run_id=${sqlValue(runId)};`,
+  );
+  await emit(page, runId, 2, { status: "failed", errorCode: "execution_plan_unavailable" });
+  await expect(
+    page.getByText("This trace could not run with its saved settings. Start a new trace."),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel analysis" })).toHaveCount(0);
+  await page.reload();
+  await expect(
+    page.getByText("This trace could not run with its saved settings. Start a new trace."),
+  ).toBeVisible();
+});
+
 test("a terminal progress transition refreshes the history status", async ({ page }) => {
   const runId = await openQueuedRun(page);
   const trace = page
