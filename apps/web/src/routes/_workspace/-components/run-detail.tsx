@@ -70,6 +70,14 @@ export function RunDetail({ id, initial }: { id: string; initial: RunViewState }
             </AlertDescription>
           </Alert>
         ) : null}
+        {progress.errorCode === "provider_revision_unavailable" ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              The provider key for this trace is no longer available. Choose a key in Settings and
+              start a new trace.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
