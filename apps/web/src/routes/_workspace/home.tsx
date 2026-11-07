@@ -16,7 +16,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useHistoryRefresh } from "@/components/workspace/workspace-shell";
 import { Button } from "@/components/ui/button";
 import { MAX_IMAGE_BYTES, readSubmission } from "@/lib/submission";
-import { Composer, type ComposerImage } from "@/lib/composer";
+import { Composer, savedAnalysisRunId, type ComposerImage } from "@/lib/composer";
 import { startAnalysis } from "@/server/analysis.functions";
 
 const examples = [
@@ -66,7 +66,7 @@ function Home() {
       user.id,
       async (options) => {
         const result = await start(options);
-        if (result.status < 400 && result.body.runId) refreshHistory();
+        if (savedAnalysisRunId(result)) refreshHistory();
         return result;
       },
       openRun,
