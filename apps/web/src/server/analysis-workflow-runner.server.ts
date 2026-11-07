@@ -33,7 +33,15 @@ export type WorkflowDependencies = {
   storage?: ReturnType<typeof analysisStorage>;
   createPorts?: typeof createWorkflowAnalysisPorts;
 };
-type AnalysisOutcome = { status: RunStatus; reportUri: string | null; fencingToken: string | null };
+type AnalysisOutcome = {
+  status: RunStatus;
+  reportUri: string | null;
+  fencingToken: string | null;
+  errorCode?:
+    | "provider_key_rejected"
+    | "provider_revision_unavailable"
+    | "execution_plan_unavailable";
+};
 
 function isTerminalRuntimeError(
   error: unknown,
@@ -241,19 +249,27 @@ export async function runAnalysisWorkflow(
               await providerKeyStorage(env)
                 .markRejected(context.ownerUserId, context.provider.revisionId)
                 .catch(() => undefined);
-            // Settlement retries in the fail step; credential failures must not retry analysis.
-            await storage.runs
+            const errorCode =
+              error instanceof ProviderKeyRejectedError
+                ? "provider_key_rejected"
+                : error instanceof ProviderRevisionUnavailableError
+                  ? "provider_revision_unavailable"
+                  : "execution_plan_unavailable";
+            // Cache the terminal reason if settlement must retry after this step.
+            const status = await storage.runs
               .failRun({
                 ...identity,
                 fencingToken: attempt.fencingToken,
-                error:
-                  error instanceof ProviderKeyRejectedError
-                    ? "provider_key_rejected"
-                    : error instanceof ProviderRevisionUnavailableError
-                      ? "provider_revision_unavailable"
-                      : "execution_plan_unavailable",
+                error: errorCode,
               })
-              .catch(() => undefined);
+              .catch(() => null);
+            if (status === null)
+              return {
+                status: "failed",
+                reportUri: null,
+                fencingToken: attempt.fencingToken,
+                errorCode,
+              };
             throw new NonRetryableError(error.message);
           }
           // Workflow errors are persisted; never attach provider errors or request bodies.
@@ -262,6 +278,10 @@ export async function runAnalysisWorkflow(
       },
     );
   } catch {
+    outcome = { status: "failed", reportUri: null, fencingToken: null };
+  }
+  if (outcome.status === "failed") {
+    const error = outcome.errorCode ?? "The analysis Workflow exhausted its retries.";
     outcome = await step.do(
       "fail",
       WORKFLOW_SETTLEMENT_CONFIG,
@@ -279,7 +299,7 @@ export async function runAnalysisWorkflow(
         const status = await storage.runs.failRun({
           ...identity,
           fencingToken: attempt?.fencingToken ?? null,
-          error: "The analysis Workflow exhausted its retries.",
+          error,
         });
         return { status, reportUri: null, fencingToken: null };
       },
