@@ -40,4 +40,6 @@ may finish for their original session.
 Sign-in startup handles thrown and returned failures and permits retry. Sign-out requests
 share one pending operation per session and preserve failures for retry. A confirmed sign-out
 is anonymous even if a subsequent session refresh fails; a new session with the same owner
-is a distinct session and can authenticate normally.
+is a distinct session and can authenticate normally. An expired or revoked session still
+delegates sign-out to Better Auth so its cookie is cleared. The expected-owner check rejects
+sign-out only when another account has an active session.
