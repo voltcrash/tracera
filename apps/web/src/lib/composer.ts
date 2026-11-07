@@ -32,6 +32,11 @@ type Start = (options: { data: Request }) => Promise<{
 }>;
 type Open = (runId: string) => Promise<unknown>;
 
+export function savedAnalysisRunId({ status, body }: Awaited<ReturnType<Start>>) {
+  if (!body.runId || body.code === "analysis_start_failed") return undefined;
+  return status < 400 || body.status === "failed" ? body.runId : undefined;
+}
+
 export class Composer {
   private state: ComposerState = {
     text: "",
@@ -112,13 +117,14 @@ export class Composer {
     let runId: string;
     try {
       const result = await start({ data: this.lastRequest.request });
-      if (result.status >= 400 || !result.body.runId) {
+      const savedRunId = savedAnalysisRunId(result);
+      if (!savedRunId) {
         if (result.body.code === "analysis_start_failed" && result.body.status === "failed") {
           this.lastRequest = null;
         }
         throw new Error(result.body.error ?? "Unable to start this analysis.");
       }
-      runId = result.body.runId;
+      runId = savedRunId;
     } catch (error) {
       if (version === this.operationVersion) {
         this.update({
