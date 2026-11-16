@@ -612,3 +612,45 @@ test("frozen raw-blob availability distinguishes otherwise identical captures", 
   assert.equal(snapshots[0]!.contentHash, snapshots[1]!.contentHash);
   assert.notEqual(snapshots[0]!.id, snapshots[1]!.id);
 });
+
+for (const initialBytes of [0, 4])
+  test(`aborting acquisition interrupts a stalled body after ${initialBytes} bytes`, async () => {
+    const abort = new AbortController();
+    let canceled = false;
+    let reading!: () => void;
+    const started = new Promise<void>((resolve) => {
+      reading = resolve;
+    });
+    const body = new ReadableStream<Uint8Array>(
+      {
+        start(controller) {
+          if (initialBytes) controller.enqueue(new TextEncoder().encode("text"));
+        },
+        pull() {
+          reading();
+        },
+        cancel() {
+          canceled = true;
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const port = createDocumentAcquisitionPort({
+      now: () => NOW,
+      safeFetchOptions: {
+        fetchImplementation: async () =>
+          new Response(body, { headers: { "content-type": "text/plain" } }),
+      },
+    });
+    const result = port.acquire({
+      url: "https://news.example/stalled",
+      role: "evidence",
+      maxBytes: 4,
+      signal: abort.signal,
+    });
+    await started;
+    abort.abort(new Error("Stopped by user"));
+    await assert.rejects(result, /Stopped by user/);
+    assert.equal(canceled, true);
+    assert.equal(body.locked, false);
+  });

@@ -1072,6 +1072,10 @@ async function buildSnapshot(input: {
 async function readBounded(response: Response, maxBytes: number, signal: AbortSignal) {
   const reader = response.body?.getReader();
   if (!reader) return { bytes: new Uint8Array(), truncated: false };
+  const cancel = () => {
+    void reader.cancel(signal.reason).catch(() => undefined);
+  };
+  signal.addEventListener("abort", cancel, { once: true });
   const chunks: Uint8Array[] = [];
   let retained = 0;
   let truncated = false;
@@ -1079,6 +1083,7 @@ async function readBounded(response: Response, maxBytes: number, signal: AbortSi
     while (true) {
       signal.throwIfAborted();
       const next = await reader.read();
+      signal.throwIfAborted();
       if (next.done) break;
       const remaining = maxBytes - retained;
       if (next.value.byteLength > remaining) {
@@ -1092,12 +1097,14 @@ async function readBounded(response: Response, maxBytes: number, signal: AbortSi
       retained += next.value.byteLength;
       if (retained === maxBytes) {
         const extra = await reader.read();
+        signal.throwIfAborted();
         truncated = !extra.done;
         if (truncated) await reader.cancel();
         break;
       }
     }
   } finally {
+    signal.removeEventListener("abort", cancel);
     reader.releaseLock();
   }
   const bytes = new Uint8Array(retained);
