@@ -107,6 +107,14 @@ async function retrieve(
     );
   }
 
+  const inputUrls = new Set(
+    input.snapshots
+      .filter((snapshot) => snapshot.role === "submitted_input")
+      .flatMap((snapshot) => [snapshot.originalUrl, snapshot.finalUrl, snapshot.canonicalUrl])
+      .filter((url): url is string => url !== null)
+      .map(normalizeUrl),
+  );
+
   for (const [claimIndex, claim] of claims.entries()) {
     if (isRunInterrupted(environment)) return canceledResult();
     await retrieveCorpus(claim);
@@ -289,13 +297,6 @@ async function retrieve(
         null,
       );
     }
-    const inputUrls = new Set(
-      input.snapshots
-        .filter((snapshot) => snapshot.role === "submitted_input")
-        .flatMap((snapshot) => [snapshot.originalUrl, snapshot.finalUrl, snapshot.canonicalUrl])
-        .filter((url): url is string => url !== null)
-        .map(normalizeUrl),
-    );
     let fetched = 0;
     for (const candidate of rankCandidates(claimCandidates)) {
       if (fetched >= environment.context.budget.maxFetchedCandidatesPerClaim) {
