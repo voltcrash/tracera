@@ -204,3 +204,17 @@ test("cross-origin redirects never forward Gemini or Anthropic API-key headers",
     "done",
   );
 });
+
+test("already canceled requests do not buffer their body", async () => {
+  const abort = new AbortController();
+  abort.abort(new Error("Already stopped"));
+  const request = new Request("https://public.example", {
+    method: "POST",
+    body: "payload",
+    signal: abort.signal,
+  });
+  request.clone = () => {
+    throw new Error("Body must not be cloned");
+  };
+  await assert.rejects(createSafeFetch()(request), /Already stopped/);
+});

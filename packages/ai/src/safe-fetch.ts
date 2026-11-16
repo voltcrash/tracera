@@ -80,6 +80,7 @@ export async function safeFetch(
   init: RequestInit = {},
   options: SafeFetchOptions = {},
 ): Promise<Response> {
+  (init.signal ?? (isRequest(input) ? input.signal : undefined))?.throwIfAborted();
   const request = await normalizeRequest(input, init);
   request.init.signal?.throwIfAborted();
   const redirectMode = request.init.redirect ?? "follow";
