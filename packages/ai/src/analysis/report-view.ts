@@ -118,8 +118,6 @@ function projectAnalysisReport(report: RunReport, apiBase: string): AnalysisRepo
   const decisions = new Map(report.decisions.map((item) => [item.claimId, item]));
   const claimText = new Map(report.claims.map((item) => [item.id, item.text]));
   const canonical = report.claims.filter(({ duplicateOfClaimId }) => duplicateOfClaimId === null);
-  const locators = report.snapshots.flatMap(({ locators }) => locators);
-  const ocrLocators = locators.filter(({ kind }) => kind === "ocr_text");
   const imageSnapshots = report.snapshots.filter(
     ({ mimeType, extractionMethod }) =>
       mimeType?.startsWith("image/") || extractionMethod === "ocr",
@@ -310,8 +308,8 @@ function projectAnalysisReport(report: RunReport, apiBase: string): AnalysisRepo
     },
     visualVerification: {
       ocr:
-        ocrLocators.length > 0
-          ? ocrLocators.some(({ transcriptionUncertain }) => transcriptionUncertain)
+        ocrObservations.length > 0
+          ? ocrObservations.some(({ transcriptionUncertain }) => transcriptionUncertain)
             ? "uncertain"
             : "inspected"
           : imageSnapshots.length > 0

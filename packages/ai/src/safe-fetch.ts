@@ -80,6 +80,7 @@ export async function safeFetch(
   init: RequestInit = {},
   options: SafeFetchOptions = {},
 ): Promise<Response> {
+  (init.signal ?? (isRequest(input) ? input.signal : undefined))?.throwIfAborted();
   const request = await normalizeRequest(input, init);
   request.init.signal?.throwIfAborted();
   const redirectMode = request.init.redirect ?? "follow";
@@ -90,7 +91,12 @@ export async function safeFetch(
   let currentInit = request.init;
   let currentBody = request.body;
   let redirected = false;
-  await resolvePublicTarget(currentUrl, options.resolveHostAddresses, skipHostnameResolution);
+  await resolvePublicTarget(
+    currentUrl,
+    options.resolveHostAddresses,
+    skipHostnameResolution,
+    currentInit.signal,
+  );
 
   for (let redirectCount = 0; ; redirectCount += 1) {
     currentInit.signal?.throwIfAborted();
@@ -119,7 +125,12 @@ export async function safeFetch(
       throw new Error("The link redirected to an invalid destination.");
     }
     try {
-      await resolvePublicTarget(nextUrl, options.resolveHostAddresses, skipHostnameResolution);
+      await resolvePublicTarget(
+        nextUrl,
+        options.resolveHostAddresses,
+        skipHostnameResolution,
+        currentInit.signal,
+      );
     } catch (error) {
       await cancelResponse(response);
       throw error;
@@ -145,7 +156,7 @@ export async function safeFetch(
       nextUrl,
       response.status,
     );
-    currentBody = await serializeBody(currentInit.body);
+    currentBody = currentInit.body === undefined ? undefined : currentBody;
     currentUrl = nextUrl;
     redirected = true;
   }
@@ -258,6 +269,7 @@ async function resolvePublicTarget(
   url: URL,
   resolver: HostAddressResolver | undefined,
   skipHostnameResolution = false,
+  signal?: AbortSignal | null,
 ): Promise<{ addresses: ResolvedAddress[] }> {
   if (!/^https?:$/.test(url.protocol)) throw new Error("Only HTTP(S) links are supported.");
   if (url.port) throw new Error("Only the default HTTP(S) ports are supported.");
@@ -275,7 +287,7 @@ async function resolvePublicTarget(
     ? [formatAddress(literal)]
     : skipHostnameResolution
       ? ["8.8.8.8"]
-      : await (resolver ?? resolveHostAddresses)(hostname);
+      : await abortableResolution((resolver ?? resolveHostAddresses)(hostname), signal);
   const addresses = uniqueAddresses(rawAddresses);
   if (
     !addresses ||
@@ -285,6 +297,24 @@ async function resolvePublicTarget(
     throw new Error("Links to private network hosts are not supported.");
   }
   return { addresses };
+}
+
+async function abortableResolution(
+  resolution: Promise<readonly string[]>,
+  signal?: AbortSignal | null,
+) {
+  if (!signal) return resolution;
+  let abort!: () => void;
+  const canceled = new Promise<never>((_resolve, reject) => {
+    abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+  });
+  try {
+    return await Promise.race([resolution, canceled]);
+  } finally {
+    signal.removeEventListener("abort", abort);
+  }
 }
 
 function isBlockedHostname(hostname: string) {

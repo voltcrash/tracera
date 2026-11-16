@@ -6,6 +6,7 @@ export function selectPassageCandidates(
   claim: Claim,
   limit: number,
 ): PassageCandidate[] {
+  if (limit === 0) return [];
   const terms = new Set(
     [
       claim.proposition.subject,
@@ -27,7 +28,8 @@ export function selectPassageCandidates(
     .map(({ span }) => {
       const text = snapshot.normalizedText.slice(span.start, span.end);
       const tokens = new Set(tokenize(text));
-      const overlap = [...terms].filter((term) => tokens.has(term)).length;
+      let overlap = 0;
+      for (const term of terms) if (tokens.has(term)) overlap += 1;
       return {
         snapshotId: snapshot.id,
         span,

@@ -25,6 +25,7 @@ export function extractStructuredHtml(html: string, finalUrl: string): Structure
     BLOCKED_PAGE_PATTERN.test(title) ||
     (bodyText.length < 2_000 && BLOCKED_PAGE_PATTERN.test(bodyText.slice(0, 500)));
   const builder = new TextBuilder();
+  const pathFor = createDomPath($);
   if (title) builder.add(title, "title", "/html[1]/head[1]/title[1]");
   const article = $("article").first();
   const main = $("main").first();
@@ -37,7 +38,7 @@ export function extractStructuredHtml(html: string, finalUrl: string): Structure
       const node = $(element);
       if (tag !== "table" && node.closest("table").length > 0) return;
       if (tag === "table") {
-        addTable($, node, builder, domPath($, element));
+        addTable($, node, builder, pathFor(element));
         return;
       }
       const value = tag === "img" ? clean(node.attr("alt") ?? "") : clean(node.text());
@@ -53,7 +54,7 @@ export function extractStructuredHtml(html: string, finalUrl: string): Structure
               : tag === "img"
                 ? "alt_text"
                 : "paragraph";
-      builder.add(value, kind, domPath($, element));
+      builder.add(value, kind, pathFor(element));
     });
 
   return {
@@ -178,16 +179,48 @@ function timestamps($: CheerioAPI): TimestampAssertion[] {
   return result;
 }
 
-function domPath($: CheerioAPI, element: ReturnType<CheerioAPI>[number]) {
-  const parts: string[] = [];
-  let current = $(element);
-  while (current.length && current[0] && "tagName" in current[0]) {
-    const tag = current[0].tagName.toLowerCase();
-    const siblings = current.parent().children(tag);
-    const index = siblings.index(current) + 1;
-    parts.unshift(`${tag}[${Math.max(index, 1)}]`);
-    if (tag === "html") break;
-    current = current.parent();
-  }
-  return `/${parts.join("/")}`;
+function createDomPath($: CheerioAPI) {
+  type Node = ReturnType<CheerioAPI>[number];
+  const indexes = new WeakMap<Node, Map<Node, number>>();
+  const paths = new WeakMap<Node, string>();
+  return (element: Node) => {
+    const parts: Array<{ node: Node; part: string }> = [];
+    let current = $(element);
+    let prefix = "";
+    while (current.length && current[0] && "tagName" in current[0]) {
+      const node = current[0];
+      const cached = paths.get(node);
+      if (cached) {
+        prefix = cached;
+        break;
+      }
+      const tag = node.tagName.toLowerCase();
+      const parent = current.parent();
+      const parentNode = parent[0];
+      let index = 1;
+      if (parentNode) {
+        let siblings = indexes.get(parentNode);
+        if (!siblings) {
+          siblings = new Map();
+          const counts = new Map<string, number>();
+          parent.children().each((_, child) => {
+            const name = child.tagName.toLowerCase();
+            const position = (counts.get(name) ?? 0) + 1;
+            counts.set(name, position);
+            siblings!.set(child, position);
+          });
+          indexes.set(parentNode, siblings);
+        }
+        index = siblings.get(node) ?? 1;
+      }
+      parts.push({ node, part: `${tag}[${index}]` });
+      if (tag === "html") break;
+      current = parent;
+    }
+    for (const { node, part } of parts.reverse()) {
+      prefix += `/${part}`;
+      paths.set(node, prefix);
+    }
+    return prefix || "/";
+  };
 }

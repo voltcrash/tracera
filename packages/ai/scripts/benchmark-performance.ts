@@ -1,3 +1,5 @@
+import { extractStructuredHtml } from "../src/analysis/ingestion/html.js";
+import { segmentDocument } from "../src/analysis/claims/segmentation.js";
 import { completeRunReportExample } from "@repo/contracts/analysis";
 import { assignSourceDependence } from "../src/analysis/evidence/dependence.js";
 import { projectReport } from "../src/analysis/report-view.js";
@@ -53,3 +55,31 @@ console.log(
     2,
   ),
 );
+
+function measure(workload: string, run: () => unknown) {
+  for (let index = 0; index < 3; index++) run();
+  const samples = Array.from({ length: 9 }, () => {
+    const start = performance.now();
+    run();
+    return performance.now() - start;
+  }).sort((left, right) => left - right);
+  console.log(
+    JSON.stringify(
+      { workload, warmups: 3, samples: samples.length, medianMs: samples[4] },
+      null,
+      2,
+    ),
+  );
+}
+
+const html = `<article>${Array.from({ length: 2_000 }, (_, i) => `<p>The council approved project ${i}. The report provides evidence.</p>`).join("")}</article>`;
+measure("HTML extraction with 2,000 sibling paragraphs", () =>
+  extractStructuredHtml(html, "https://example.com/report"),
+);
+const extracted = extractStructuredHtml(html, "https://example.com/report");
+const document = {
+  ...completeRunReportExample.snapshots[0]!,
+  normalizedText: extracted.normalizedText,
+  locators: extracted.locators,
+};
+measure("sentence segmentation with 2,000 paragraphs", () => segmentDocument(document, 0, 1_000));
