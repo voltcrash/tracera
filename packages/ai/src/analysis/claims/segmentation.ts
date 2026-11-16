@@ -207,15 +207,16 @@ export function buildChunks(
   return chunks;
 }
 
+const sentenceSegmenter = new Intl.Segmenter("en", { granularity: "sentence" });
+
 function sentenceSpans(
   text: string,
   block: Span,
   tableBlock: boolean,
   maxSegmentCharacters: number,
 ): Span[] {
-  const segmenter = new Intl.Segmenter("en", { granularity: "sentence" });
   const raw: Span[] = [];
-  for (const part of segmenter.segment(text.slice(block.start, block.end))) {
+  for (const part of sentenceSegmenter.segment(text.slice(block.start, block.end))) {
     const span = trimSpan(
       text,
       block.start + part.index,
