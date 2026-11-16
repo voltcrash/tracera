@@ -70,6 +70,10 @@ export async function runEventsResponse(env: ServerEnv, request: Request, runId:
       };
       const poll = async () => {
         if (closed) return;
+        if ((controller.desiredSize ?? 0) <= 0) {
+          timer = setTimeout(() => void poll(), POLL_MS);
+          return;
+        }
         try {
           const session = await readSessionUser(env, request);
           if (closed) return;

@@ -240,3 +240,31 @@ for (const row of [null, { connected: 0 }])
       error.mockRestore();
     }
   });
+
+test("slow progress consumers do not queue updates or keep querying D1", async () => {
+  const runId = crypto.randomUUID();
+  await analysisStorage(harness.env).runs.createRun({
+    context: { ...structuredClone(runContextExample), ...accessScope(ada.user), runId },
+  });
+  const prepare = vi.fn((sql: string) => harness.env.DB.prepare(sql));
+  const response = await runEventsResponse(
+    {
+      ...harness.env,
+      DB: { prepare, batch: harness.env.DB.batch.bind(harness.env.DB) } as unknown as D1Database,
+    },
+    as(ada, `/api/runs/${runId}/events`),
+    runId,
+  );
+  try {
+    prepare.mockClear();
+    // Allow the one-second poll to run while the initial events remain unread.
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    expect(prepare).not.toHaveBeenCalled();
+    const runs = analysisStorage(harness.env).runs;
+    await runs.requestCancellation({ scope: accessScope(ada.user), runId, reason: "user_request" });
+    expect(await response.text()).toContain('"status":"canceled"');
+    expect(prepare).toHaveBeenCalled();
+  } finally {
+    if (!response.bodyUsed) await response.body?.cancel();
+  }
+}, 5_000);
