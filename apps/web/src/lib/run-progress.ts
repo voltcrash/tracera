@@ -29,7 +29,7 @@ export function transitionProgress(
       )
         return state;
       if (event.view.progress.version === state.view.progress.version)
-        return { ...state, connection: "live" };
+        return state.connection === "live" ? state : { ...state, connection: "live" };
       return {
         ...state,
         view: event.view,
@@ -42,7 +42,7 @@ export function transitionProgress(
       };
     }
     case "connection":
-      return terminal
+      return terminal || event.status === state.connection
         ? state
         : {
             ...state,

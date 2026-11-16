@@ -93,3 +93,13 @@ test("queued, preparing, publishing, canceled and completed runs have distinct h
   );
   expect(progressHeadline(view(1, { status: "complete" }).progress)).toBe("Analysis complete");
 });
+
+test("duplicate live events preserve state identity while reconnects recover", () => {
+  const state = initial();
+  expect(transitionProgress(state, { type: "progress", view: view(2) })).toBe(state);
+  expect(transitionProgress(state, { type: "connection", status: "live" })).toBe(state);
+  const reconnecting = transitionProgress(state, { type: "connection", status: "reconnecting" });
+  expect(transitionProgress(reconnecting, { type: "progress", view: view(2) }).connection).toBe(
+    "live",
+  );
+});
