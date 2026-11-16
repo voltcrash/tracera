@@ -205,6 +205,35 @@ test("cross-origin redirects never forward Gemini or Anthropic API-key headers",
   );
 });
 
+for (const redirect of [false, true])
+  test(`cancellation stops stalled ${redirect ? "redirect" : "initial"} DNS lookup`, async () => {
+    const abort = new AbortController();
+    let resolving!: () => void;
+    const started = new Promise<void>((resolve) => {
+      resolving = resolve;
+    });
+    let requests = 0;
+    const safeFetch = createSafeFetch({
+      resolveHostAddresses: async (host) => {
+        if (redirect && host === "first.example") return ["8.8.8.8"];
+        resolving();
+        return new Promise<string[]>(() => {});
+      },
+      fetchImplementation: async () => {
+        requests += 1;
+        return new Response(null, {
+          status: 302,
+          headers: { location: "https://stalled.example" },
+        });
+      },
+    });
+    const response = safeFetch("https://first.example", { signal: abort.signal });
+    await started;
+    abort.abort(new Error("Canceled DNS"));
+    await assert.rejects(response, /Canceled DNS/);
+    assert.equal(requests, redirect ? 1 : 0);
+  });
+
 test("already canceled requests do not buffer their body", async () => {
   const abort = new AbortController();
   abort.abort(new Error("Already stopped"));
