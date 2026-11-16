@@ -224,3 +224,19 @@ test("display streams send the report view without raw snapshots or replay artif
   expect(data.report).not.toHaveProperty("replayManifest");
   expect(JSON.stringify(data.report).length).toBeLessThan(JSON.stringify(report).length);
 });
+
+for (const row of [null, { connected: 0 }])
+  test(`health rejects an unsuccessful database probe: ${JSON.stringify(row)}`, async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const env = {
+        ...harness.env,
+        DB: { prepare: () => ({ first: async () => row }) } as unknown as D1Database,
+      };
+      const response = await healthResponse(env, new Request(`${ORIGIN}/api/health`));
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({ status: "error" });
+    } finally {
+      error.mockRestore();
+    }
+  });

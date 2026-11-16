@@ -147,8 +147,8 @@ export async function evidenceResponse(
 export async function healthResponse(env: ServerEnv, request: Request) {
   try {
     const row = await env.DB.prepare("SELECT 1 AS connected").first<{ connected: number }>();
-    const database = row?.connected === 1 ? "connected" : "unavailable";
-    return json({ status: "ok", services: { database } });
+    if (row?.connected !== 1) throw new Error("Database health probe failed.");
+    return json({ status: "ok", services: { database: "connected" } });
   } catch (error) {
     const requestId = requestIdFor(request);
     logServerError("Health check failed", error, request);
