@@ -156,7 +156,7 @@ export async function safeFetch(
       nextUrl,
       response.status,
     );
-    currentBody = await serializeBody(currentInit.body);
+    currentBody = currentInit.body === undefined ? undefined : currentBody;
     currentUrl = nextUrl;
     redirected = true;
   }

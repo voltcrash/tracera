@@ -247,3 +247,23 @@ test("already canceled requests do not buffer their body", async () => {
   };
   await assert.rejects(createSafeFetch()(request), /Already stopped/);
 });
+
+test("body-preserving redirects reuse the serialized request buffer", async () => {
+  const bodies: Array<RequestInit["body"]> = [];
+  const safeFetch = createSafeFetch({
+    fetchImplementation: async (_url, init) => {
+      bodies.push(init?.body);
+      return bodies.length < 3
+        ? new Response(null, {
+            status: 307,
+            headers: { location: `https://public.example/${bodies.length}` },
+          })
+        : new Response("done");
+    },
+  });
+  await safeFetch("https://public.example/start", { method: "POST", body: "large upload" });
+  assert.equal(bodies.length, 3);
+  assert.equal(bodies[1], bodies[0]);
+  assert.equal(bodies[2], bodies[0]);
+  assert.equal(await new Response(bodies[2]).text(), "large upload");
+});
