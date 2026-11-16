@@ -62,6 +62,7 @@ export function segmentDocument(
   maxSegmentCharacters: number,
 ): SegmentedDocument {
   const text = snapshot.normalizedText;
+  const uncertainLocators = snapshot.locators.filter((locator) => locator.transcriptionUncertain);
   const segments: InventorySegment[] = [];
   const blocks: InventoryBlock[] = [];
   const blockPattern = /[^\n]+(?:\n(?!\n)[^\n]*)*/g;
@@ -86,11 +87,8 @@ export function segmentDocument(
         span,
         text: segmentText,
         locatorKind: locator?.kind ?? null,
-        transcriptionUncertain: snapshot.locators.some(
-          (candidate) =>
-            candidate.transcriptionUncertain &&
-            candidate.span.start < span.end &&
-            span.start < candidate.span.end,
+        transcriptionUncertain: uncertainLocators.some(
+          (candidate) => candidate.span.start < span.end && span.start < candidate.span.end,
         ),
         substantive: /[\p{L}\p{N}]/u.test(segmentText),
         handling: locator?.kind === "user_caption" ? "user_caption" : "extract",
