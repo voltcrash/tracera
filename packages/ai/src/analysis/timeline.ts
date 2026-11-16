@@ -25,14 +25,14 @@ export interface ImmutableTimelineEntry {
 export function buildImmutableTimeline(input: DocumentSnapshot[]): ImmutableTimelineEntry[] {
   const snapshots = input.map((snapshot) => documentSnapshotSchema.parse(snapshot));
   const seen = new Set<string>();
-  const entries = snapshots.flatMap((snapshot) =>
-    snapshot.timestampAssertions.flatMap((assertion, index) => {
+  const entries = snapshots.flatMap((snapshot) => {
+    if (snapshot.timestampAssertions.length === 0) return [];
+    const locatorIds = new Set(snapshot.locators.map(({ id }) => id));
+    return snapshot.timestampAssertions.flatMap((assertion, index) => {
       const id = `${snapshot.id}:timestamp:${index}`;
       if (seen.has(id)) throw new Error(`Duplicate immutable timeline entry: ${id}.`);
       seen.add(id);
-      const locatorAvailable =
-        assertion.locatorId === null ||
-        snapshot.locators.some(({ id }) => id === assertion.locatorId);
+      const locatorAvailable = assertion.locatorId === null || locatorIds.has(assertion.locatorId);
       const timestampKnown =
         assertion.interval.earliest !== null && assertion.interval.latest !== null;
       const unresolvedReason = !locatorAvailable
@@ -52,8 +52,8 @@ export function buildImmutableTimeline(input: DocumentSnapshot[]): ImmutableTime
           unresolvedReason,
         } satisfies ImmutableTimelineEntry,
       ];
-    }),
-  );
+    });
+  });
   return entries.sort(compareTimelineEntries);
 }
 
